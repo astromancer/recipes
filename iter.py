@@ -1,4 +1,4 @@
-import numpy as np              #TODO:  maybe you can illiminate the need for this import???
+from collections import Iterable
 import itertools as itt
 #import functools
 
@@ -9,13 +9,14 @@ import itertools as itt
 
 #====================================================================================================        
 def as_iter(obj, exclude=(str,), return_as=list):
-    '''Converts the input object to an iterable. 
-        exclude : list of objects that will not be considered as iterables.  These will become nested.
-        return_as : specified type to convert the object to'''
+    '''
+    Converts the input object to an iterable. 
+    exclude     : objects that will not be considered iterables.
+    return_as   : specified type to convert the object to'''
     if exclude is None: 
         exclude=()
     
-    if isinstance(obj, exclude) or not np.iterable(obj):
+    if isinstance(obj, exclude) or not isinstance(obj, Iterable):
         return return_as([obj])
     else:
         return obj

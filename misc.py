@@ -112,21 +112,6 @@ def getTerminalSize():
     return TerminalSize()()
     
 
-
-#====================================================================================================
-
-def Gaussian(p, x):
-    '''Gaussian function'''
-    A, b, mx = p
-    return A*np.exp(-b*(x-mx)**2 )
-
-def Gaussian2D(p, x, y):
-    '''Elliptical Gaussian function for fitting star profiles'''
-    A, a, b, c, x0, y0 = p
-    return A*np.exp(-(a*(x-x0)**2 + 2*b*(x-x0)*(y-y0) + c*(y-y0)**2 ))
-
-    
-    
 #====================================================================================================
 #attribute getter that can be curried with functools.partial
 attribute_getter = lambda object, name: getattr(object, name)

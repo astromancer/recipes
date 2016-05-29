@@ -1,6 +1,11 @@
 import numpy as np
+import numpy.core.numeric as _nx
+from numpy.lib.stride_tricks import as_strided
+
+from recipes.list import flatten, count_repeats, sortmore
 
 from IPython import embed
+
 
 ##########################################################################################################################################       
 # Numpy recipies
@@ -10,7 +15,66 @@ class ArrayFolder(object):
     #FIXME: LAST SEGMENT WILL BE FOLDED.  this may not be desired
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __call__(self, a, wsize, overlap=0, axis=0, **kw):
-        return self.fold( a, wsize, overlap=0, axis=0, **kw )
+        return self.fold(a, wsize, overlap=0, axis=0, **kw)
+    
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @staticmethod
+    def fold(a, wsize, overlap=0, axis=0, **kw):
+        '''
+        segment an array at given wsize, overlap, 
+        optionally applying a windowing function to each
+        segment.  
+        
+        keywords are passed to np.pad used to fill up the array to the required length.  This 
+        method works on multidimentional and masked array as well.
+        
+        keyword arguments are passed to np.pad to fill up the elements in the last window (default is 
+        symmetric padding).
+        
+        NOTE: When overlap is nonzero, the array returned by this function will have multiple entries
+        **with the same memory location**.  Beware of this when doing inplace arithmetic operations.
+        e.g. 
+        N, wsize, overlap = 100, 10, 5
+        q = ArrayFolder.fold(np.arange(N), wsize, overlap )
+        k = 0
+        q[0,overlap+k] *= 10
+        q[1,k] == q[0,overlap+k]  #is True
+        '''
+        
+        a, Nseg = ArrayFolder.pad(a, wsize, overlap, **kw)
+        sa = ArrayFolder.get_strided_array(a, wsize, overlap, axis)
+        
+        #deal with masked data
+        if np.ma.isMA(a):
+            mask = a.mask
+            if not mask is False:
+                mask = ArrayFolder.get_strided_array(mask, wsize, overlap)
+            sa = np.ma.array(sa, mask=mask)
+
+        return sa
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @staticmethod
+    def gen(a, wsize, overlap=0, axis=0, **kw):
+        '''
+        Generator version of fold.
+        '''
+        a, Nseg = ArrayFolder.pad(a, wsize, overlap, **kw)
+        
+        step = wsize - overlap
+        
+        #TODO: un-nest me
+        get_slice = lambda i: [slice(i*step, i*step+wsize) if j==axis 
+                                   else slice(None) for j in range(a.ndim)]
+        i = 0
+        while i < Nseg:
+            yield a[get_slice(i)]
+            i += 1
+    
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @staticmethod
+    def enumerate(a, wsize, overlap=0, axis=0, **kw):
+        yield from enumerate(ArrayFolder.gen(a, wsize, overlap, axis, **kw))
     
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @staticmethod
@@ -32,7 +96,7 @@ class ArrayFolder(object):
             pad_end = step - leftover
             pad_width = np.zeros((a.ndim, 2), int)       #initialise pad width indicator
             pad_width[axis, -1] = pad_end            #pad the array at the end with 'pad_end' number of values
-            pad_width = lmap(tuple, pad_width)      #map to list of tuples
+            pad_width = list(map(tuple, pad_width))      #map to list of tuples
             
             #pad (apodise) the input signal
             a = np.pad(a, pad_width, mode, **kw)
@@ -43,16 +107,6 @@ class ArrayFolder(object):
             a = np.ma.array(a, mask=mask)
 
         return a, int(Nseg)
-
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    @staticmethod
-    def windowed(a, window=None):
-        '''get window values + apply'''
-        if window:
-            windowVals = get_window(window, a.shape[-1])
-            return a * windowVals
-        else:
-            return a
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @staticmethod
@@ -73,64 +127,6 @@ class ArrayFolder(object):
 
         return as_strided( a, new_shape, new_strides )
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    @staticmethod
-    def fold(a, wsize, overlap=0, axis=0, **kw):
-        '''
-        segment an array at given wsize, overlap, optionally applying a windowing function to each
-        segment.  
-        
-        keywords are passed to np.pad used to fill up the array to the required length.  This 
-        method works on multidimentional and masked array as well.
-        
-        keyword arguments are passed to np.pad to fill up the elements in the last window (default is 
-        symmetric padding).
-        
-        NOTE: When overlap is nonzero, the array returned by this function will have multiple entries
-        **with the same memory location**.  Beware of this when doing inplace arithmetic operations.
-        e.g. 
-        N, wsize, overlap = 100, 10, 5
-        q = ArrayFolder.fold(np.arange(N), wsize, overlap )
-        k = 0
-        q[0,overlap+k] *= 10
-        q[1,k] == q[0,overlap+k]  #is True
-        '''
-        window = kw.pop('window', None)
-        a, Nseg = ArrayFolder.pad(a, wsize, overlap, **kw)
-        mask = a.mask if np.ma.is_masked(a) else None
-        
-        sa = ArrayFolder.get_strided_array(a, wsize, overlap, axis)
-        
-        if not mask is None:
-            if not mask is False:
-                mask = ArrayFolder.get_strided_array(mask, wsize, overlap)
-            sa = np.ma.array(sa, mask=mask)
-
-        return ArrayFolder.windowed(sa, window)
-
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    @staticmethod
-    def gen(a, wsize, overlap=0, axis=0, **kw):
-        '''
-        Generator version of fold.
-        '''
-        window = kw.pop('window', None)
-        a, Nseg = ArrayFolder.pad(a, wsize, overlap, **kw)
-        
-        step = wsize - overlap
-        
-        #TODO: un-nest me
-        get_slice = lambda i: [slice(i*step, i*step+wsize) if j==axis 
-                                   else slice(None) for j in range(a.ndim)]
-        i = 0
-        while i < Nseg:
-            yield ArrayFolder.windowed(a[get_slice(i)], window)
-            i += 1
-    
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    @staticmethod
-    def enumerate(a, wsize, overlap=0, axis=0, **kw):
-        yield from enumerate(ArrayFolder.gen(a, wsize, overlap, axis, **kw))
     
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @staticmethod
@@ -145,7 +141,7 @@ class ArrayFolder(object):
         ix, noc = sortmore( *zip(*d.items()) )
         return noc
     
-
+ArrayFolding = ArrayFolder
 
 
 
@@ -175,13 +171,15 @@ def row_intersection(a, b):
     return np.intersect1d(ar, br).view(a.dtype).reshape(-1, a.shape[1])
         
 #====================================================================================================
-def where_duplicate_array(a, axis=1):         #TODO:  impliment for arb array dim
+def where_duplicate_array(a, axis=1):         
+    #TODO:  impliment for ndarray
     cast = row_view(a)
     res, idx = np.unique(cast, return_index=0, return_inverse=1)
     return where_duplicate(idx)
 
 #====================================================================================================
-def where_close_array(a, precision=3, axis=1):         #TODO:  impliment for arb array dim
+def where_close_array(a, precision=3, axis=1):         
+    #TODO:  impliment for ndarray
     a = np.round(a, precision)
     cast = row_view(a)
     res, idx = np.unique(cast, return_index=0, return_inverse=1)
@@ -194,12 +192,19 @@ def arange_like(a):
 #====================================================================================================
 def multirange(*shape):
     N, dl = flatten(shape)
-    return np.tile( range(dl), (N,1) )
+    return np.tile(range(dl), (N,1))
+
+#====================================================================================================
+#NOTE: TOO SLOW!!
+#def grid_like(a):
+    #'''create grid from the shape of the given array'''
+    #return shape2grid( a.shape )
 
 #====================================================================================================
 def grid_like(a):
     '''create grid from the shape of the given array'''
-    return shape2grid( a.shape )
+    return np.mgrid[list(map(slice, a.shape))]
+
 
 #====================================================================================================
 def shape2grid(*shape):
@@ -215,6 +220,17 @@ def range2grid(ixl, ixu):
     '''Use index ranges to construct and index grid'''
     slices = map(slice, ixl, ixu)
     return np.mgrid[tuple(slices)].astype(int)
+
+#====================================================================================================
+#NOTE: use hstack instead
+#from recipes.iter import flatiter
+#def flatten(a):
+    #'''flatten arbitrarily nested iterator and return as array /TODO: masked array.'''
+    ##if any(map(np.ma.isMA, a)):
+    ##with warnings.catch_warnings():
+    #return np.fromiter(flatiter(a), float)
+
+#====================================================================================================
 
 
 

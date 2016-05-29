@@ -1,10 +1,17 @@
 #import functools
 
 #from IPython import embed
-
+#===============================================================================
 def flaggerFactory(flag='_flagged', collection='_flagged'):
     '''
     Factory for creating class-decorator pair for method flagging and collection.
+    
+    Returns
+    -------
+    FlaggedMixin        :       class
+        The mixin class for handeling collection of flagged methods
+    flagger             :       function
+        Decorator used for flagging
     
     Examples
     --------
@@ -24,13 +31,14 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
 
     class GrandChild(Child):
         def __init__(self):
-            Child.__init__(self)
+            super().__init__()
 
     GrandChild().bar()  #prints 'foo!'
     '''
     #*******************************************************************************
     class MethodFlaggerMeta(type):
         '''Metaclass to collect methods flagged with decorator'''
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         def __new__(meta, name, bases, namespace, **kw):
             cls = super().__new__(meta, name, bases, namespace)
             
@@ -49,11 +57,13 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     #*******************************************************************************
     class FlaggedMixin(metaclass=MethodFlaggerMeta):
         '''Mixin that binds the flagged classmethods to an instance of the class'''
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         def __init__(self, *args, **kw):
             #bind the flagged methods to the instance
             setattr(self, collection, {name : getattr(self, method)
                                             for (name, method) in getattr(self, collection).items()})
 
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #TODO: can you make the flagger decorator a call method of the Mixin class??
     #TODO: use case without arguments
     def flagger(*args):
@@ -69,7 +79,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     return FlaggedMixin, flagger
 
 
-#*******************************************************************************
+#===============================================================================
 def altflaggerFactory( flag='_flagged', collection='_flagged' ):
     '''
     Factory for creating class-decorator pair for method flagging and collection.

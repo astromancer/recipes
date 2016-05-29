@@ -149,7 +149,7 @@ def gen_duplicates(seq):
     return ((key,locs) for key,locs in tlly.items() if len(locs)>1)
     
 def list_duplicates(seq):
-    '''Return tuples of item, ideces pairs for duplicate values.'''
+    '''Return tuples of item, indeces pairs for duplicate values.'''
     return list( gen_duplicates(seq) )
     
 def where_duplicate(seq):
