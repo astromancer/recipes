@@ -10,7 +10,7 @@ import numpy as np
 from itertools import starmap
 
 from recipes.iter import pairwise, flatiter, where_true
-from ansi.string import SuperString
+from ansi.str import SuperString
 from ansi.table import Table
 
 from io import StringIO
@@ -228,6 +228,8 @@ class ShowHistogram(ShowFunc):
             #(eg. inside if statement or nested function not followed.  Instead
             #print seperator lines to segment.
             #FIXME: single line skip printed as ellipses
+            #FIXME: def line not printed....
+            #FIXME: blank lines still printed??
             linenos = sorted( {self.start} | set(self.content.keys()) | {self.end} )
             nrpairs = np.array(list(pairwise(linenos)))
             gaps = np.subtract(*zip(*nrpairs))
