@@ -235,7 +235,77 @@ def range2grid(ixl, ixu):
 
 
 #====================================================================================================
-#TODO: Make OO??
+#TODO: Make OO?? 
+#class SubSet():
+    #def __init__(self, a, centre, size)
+        
+        #pad                 = kw.pop('pad', 'edge').lower()
+        #favour_upper        = kw.pop('favour_upper', True)
+        #return_index        = kw.pop('return_index', 0)
+        #fill_first          = kw.pop('fill_first', not kw.pop('window_first', False) )
+        
+        #rimap = { None      :       0,
+                #'lower'   :       1,
+                #'all'     :       2       }
+        #if return_index in rimap:
+            #return_index = rimap[return_index]
+
+        
+        ##type enforcement
+        #mask        = a.mask       if np.ma.is_masked(a)   else None
+        #a           = np.asarray(a)
+        #size        = np.atleast_1d(size)
+        #if len(size)==1:
+            #size = np.ravel([size, size])
+        
+        ##assertions
+        #pad_modes = ('constant', 'maximum', 'minimum', 'mean', 'median', 
+                    #'reflect', 'symmetric', 'edge', 'linear_ramp', 'wrap', 
+                    #'shift', 'clip')    #allowed modes
+        #assert len(index) == a.ndim
+        #assert pad in pad_modes
+        ##assert return_index in (0,1)
+        
+    #def 
+        
+    ##
+    ##@print_args()
+    ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #def spillage(a, ixl, ixu):
+        #'''check which index ranges are smaller/larger than the array dimensions'''
+        #under = ixl < 0
+        #over = ixu >= a.shape
+        #return under, over
+
+    ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #def shift(a, ixl, ixu):
+        #'''so they start at 0'''
+        #under, over = spillage(a, ixl, ixu)
+        #ixu[under] -= ixl[under] #shift the indices upward
+        #ixl[under] = 0
+        #return ixl, ixu
+    
+    ##@print_args()
+    ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #def take_from_ranges(a, ixl, ixu):
+        #'''Return items within index ranges from the array'''
+        #return a[ tuple(range2grid(ixl,ixu)) ]
+    
+    ##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    #def _return(a, ixl, ixu):
+        #'''return stuff'''
+        #if return_index == 0:
+            #return take_from_ranges(a, ixl, ixu)
+        
+        #if return_index == 1:
+            #return take_from_ranges(a, ixl, ixu), ixl
+        
+        #if return_index == 2:
+            #grid = range2grid(ixl, ixu)
+            #return a[ tuple(grid) ], tuple(grid)
+            
+            
+            
 #====================================================================================================
 def neighbours(a, index, size, **kw):
     '''
@@ -294,12 +364,12 @@ def neighbours(a, index, size, **kw):
     a           = np.asarray(a)
     size        = np.atleast_1d(size)
     if len(size)==1:
-        size = np.ravel([size,size])
+        size = np.ravel([size, size])
     
     #assertions
-    pad_modes = ( 'constant', 'maximum', 'minimum', 'mean', 'median', 
-                    'reflect', 'symmetric', 'edge', 'linear_ramp', 'wrap', 
-                    'shift', 'clip')    #allowed modes
+    pad_modes = ('constant', 'maximum', 'minimum', 'mean', 'median', 
+                 'reflect', 'symmetric', 'edge', 'linear_ramp', 'wrap', 
+                 'shift', 'clip')    #allowed modes
     assert len(index) == a.ndim
     assert pad in pad_modes
     #assert return_index in (0,1)
@@ -343,31 +413,38 @@ def neighbours(a, index, size, **kw):
 
     #determine index ranges of return elements for each dimension
     div = np.floor_divide(size, 2)
-    mod = np.mod(size, 2).astype(bool)
-    ixl = index - div + (favour_upper & (1-mod))
-    ixu = index + div + (favour_upper | mod)
+    uneven = np.mod(size, 2).astype(bool)      #True on axis for which window size is uneven
+    ixl = index - div + (favour_upper & (~uneven)) #
+    ixu = index + div + (favour_upper | uneven)
     ixl = ixl.astype(int)
     ixu = ixu.astype(int)
+    #print(uneven, favour_upper & (~uneven), favour_upper | uneven)
+    #print(ixl, ixu)
     
     #clip to array edge
     if pad == 'clip':
+        #clip indices for which window bigger than array dimension
         ixl, ixu = np.clip( [ixl,ixu], np.zeros(a.ndim,int), a.shape )
         return _return(a, ixl, ixu)
         
     #shift central index position so that the first/last `size` items are returned
     if pad == 'shift':
-        #clip indices for which window bigger than array dimension
+        
         ashape = np.array(a.shape)
         assert ~any(a.shape < size)
         
         under, over = spillage(a, ixl, ixu)
         
-        ixu[over] = ashape[over] - 1
-        ixl[over] = (ashape - size -1)[over]
+        #print(under, over)
+        
+        ixu[over] = ashape[over]
+        ixl[over] = ixu[over] - size[over]
             
         ixl[under] = 0
         ixu[under] = ashape[under]
         #NOTE: same as:          ixl, ixu =  shift(a, ixl, ixu)
+        
+        #print(ixl, ixu)
         
         return _return(a, ixl, ixu)
     
@@ -378,7 +455,7 @@ def neighbours(a, index, size, **kw):
         pu = ixu - a.shape
         pu[pu<0] = 0
         padwidth = tuple(zip(pl,pu))
-        
+        #print(padwidth)
         #pad the array / mask
         padded = np.pad(a, padwidth, pad, **kw)
         
@@ -389,7 +466,8 @@ def neighbours(a, index, size, **kw):
         #shift index ranges upward (padding extends the array, so we need to adjust the indices)
         ixl, ixu =  shift(a, ixl, ixu)
         win = take_from_ranges(padded, ixl, ixu)
-        
+    
+    #else:
         #TODO:  YOU CAN DECORATE np.pad to accomplish this functionality
         if not mask is None:
             if not mask is False:
@@ -414,11 +492,9 @@ def neighbours(a, index, size, **kw):
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 from sklearn.neighbors import NearestNeighbors
-from astropy.stats import sigma_clip
 #****************************************************************************************************
 class NearestNeighbours(NearestNeighbors):
     '''fix these aggregious american spelling errors'''
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def kneighbours(self, X=None, n_neighbors=None, return_distance=True):
         return self.kneighbors(X, n_neighbors, return_distance)
@@ -523,6 +599,8 @@ def neighbour_fill(data, fill_these=None, hood=None, method='median', k=5, **kw)
         
         
     if with_sigma_clipping:     #HACK
+        from astropy.stats import sigma_clip
+        
         nn = sigma_clip(nn, )
         p = (~nn.mask).astype(float)
         p /= p.sum(0)

@@ -26,17 +26,47 @@ as_sequence = as_iter
 #as_sequence_unless_str
 
 #====================================================================================================
-def flatiter(l):
+def flatiter(items):
     '''generator that flattens an iterator with arbitrary nesting'''
-    for i in l:
-        if isinstance(i, (str, bytes)):         #catches the infinite recurence resulting from character-string duality
-            yield i
+    for item in items:
+        if isinstance(item, (str, bytes)):         #catches the infinite recurence resulting from character-string duality
+            yield item
         else:
             try:
-                for ii in flatiter(i):
-                    yield ii
+                for i in flatiter(item):
+                    yield i
             except TypeError:
-                yield i
+                yield item
+
+#def flatiter(*items):
+    #'''generator that flattens an iterator with arbitrary nesting'''
+    #for item in items:
+        #if isinstance(item, (str, bytes)):         #catches the infinite recurence resulting from character-string duality
+            #yield item
+        #else:
+            #try:
+                #for i in flatiter(item):
+                    #yield i
+            #except TypeError:
+                #yield item
+
+#def flatiter(*items, maxdepth=None):
+    #'''
+    #Generator that flattens an iterator with arbitrary nesting. 
+    #Optionally provide maximum depth to flatten to.
+    #'''
+    #if maxdepth is None:
+        #yield from _flatiter(items)
+    #else:
+        #def _flatit(item, depth):
+            #if depth >= maxdepth:
+                #yield item
+            #elif isinstance(item, (str, bytes)):
+                #yield item
+            #else:
+                #yield from _flatit(l, depth+1)
+        
+        #yield from _flatit(l, 0)
 
 #====================================================================================================
 def interleave(*its, **kw):
