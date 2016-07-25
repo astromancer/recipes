@@ -51,7 +51,7 @@ class expose():
                 defaults = func.__defaults__ or ()
                 args = args + defaults[len(defaults) - (code.co_argcount - len(args)):]
                 
-                params = list( zip(arg_names, args) )
+                params = list(zip(arg_names, args))
                 args = fargs[len(arg_names):]
                 
                 if args: 
@@ -67,14 +67,14 @@ class expose():
                 #Adjust leading whitespace for pretty formatting
                 lead_white = [0] + [len(fname)+2] * (len(params)-1)
                 trail_white = int(np.ceil(max(len(p[0]) for p in params)/8)*8)
-                pars = j.join( ' '*lead_white[i] + \
-                               '{0[0]:<{1}}= {0[1]}'.format(p, trail_white)
-                                for i,p in enumerate(params) )
-                pr = '{fname}( {pars} )'.format( fname=fname, pars=pars )
+                pars = j.join(' '*lead_white[i] + \
+                              '{0[0]:<{1}}= {0[1]}'.format(p, trail_white)
+                                for i,p in enumerate(params))
+                pr = '{fname}({pars})'.format(fname=fname, pars=pars)
                 
-                print( pre )
-                print( pr )
-                print( post )
+                print(pre)
+                print(pr)
+                print(post)
                 sys.stdout.flush()
                 
                 return func(*fargs, **fkw)

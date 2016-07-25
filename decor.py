@@ -5,25 +5,44 @@ import sys
 ##########################################################################################################################################
 #Decorators
 ##########################################################################################################################################
-class Wrapper(object):
-    '''Decorator to print function return details'''
+class DecoratorBase(object):
+    '''class based decorator with optional arguments'''
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, *args, **kws):
-        print( 'initializing' )
-        self.args = args
-        self.kws = kws
-      
-class  print_returns( Wrapper ):
-    def __call__(self, func):
-        print( 'calling!' )
+        '''Initialization method called when '''
+        self.wrapped = None
         
-        @functools.wraps(func)
-        def decorated(*args, **kwargs):
-            #print( "In my decorator before call, with arg", self.args )
-            r = func(*args, **kwargs)
-            print( 'Returning:\n', r )
-            return r
+        # No explicit arguments provided to decorator.
+        # eg.:
+        # @decorator
+        # def foo():
+        #    ...
+        if len(args) == 1 and callable(args[0]):
+            func = args[0]
+            self.wrapped = self.make_wrapper(func)
+        
+        # Explicit arguments provided to decorator.
+        # eg.:
+        # @decorator('hello', foo='bar')
+        # def baz():
+        #    ...
+        else:
+            #Don't know the function yet
+            pass
+            #inherited classes can implement stuff here
+        
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __call__(self, *args, **kws):
+        if not self.wrapped:
+            self.__init__(*args, **kws)
+        
+        return self.wrapped(*args, **kws)
+    
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def make_wrapper(self, func):
+        #to be implemented by subclass
+        raise NotImplementedError
 
-        return decorated
 
 ##########################################################################################################################################
 class expose():
@@ -34,18 +53,18 @@ class expose():
     class that contains decorators for printing function arguments / content / returns
     '''
     @staticmethod
-    def args( pre='', post='\n', verbosity=1 ):
+    def args(pre='', post='\n', verbosity=1):
         '''
         Decorator to print function call details - parameters names and effective values
         optional arguments specify stuff to print before and after, as well as verbosity level.
         
         Example
         -------
-        In [43]: @expose.args()
-            ...: def foo(a, b, c, **kw):
-            ...:     return a
-            ...: 
-            ...: foo('aaa', 42, id, gr=8, bar=...)
+        @expose.args()
+        def foo(a, b, c, **kw):
+            return a
+        
+        foo('aaa', 42, id, gr=8, bar=...)
         
         prints:
         foo( a       = aaa,
@@ -55,7 +74,7 @@ class expose():
 
         Out[43]: 'aaa'
         '''
-        def actualDecorator(func):
+        def decorator(func):
             
             @functools.wraps(func)
             def wrapper(*fargs, **fkw):
@@ -85,8 +104,8 @@ class expose():
                 #Adjust leading whitespace for pretty formatting
                 lead_white = [0] + [len(fname)+2] * (len(params)-1)
                 trail_white = int(np.ceil(max(len(p[0]) for p in params)/8)*8)
-                pars = j.join( ' '*lead_white[i] + \
-                                '{0[0]:<{1}}= {0[1]}'.format(p, trail_white)
+                pars = j.join(
+                    ' '*lead_white[i] + '{0[0]:<{1}}= {0[1]}'.format(p, trail_white)
                                 for i,p in enumerate(params) )
                 pr = '{fname}( {pars} )'.format( fname=fname, pars=pars )
                 
@@ -99,12 +118,12 @@ class expose():
                 
             return wrapper
             
-        return actualDecorator  
+        return decorator  
 
     #====================================================================================================    
     def returns():
         '''Decorator to print function return details'''
-        def actualDecorator(func):
+        def decorator(func):
             @functools.wraps(func)
             def wrapper(*args, **kw):
                 r = func(*args, **kw)
@@ -112,7 +131,7 @@ class expose():
                 print( r )
                 return r
             return wrapper
-        return actualDecorator
+        return decorator
     
 ##########################################################################################################################################
 from io import StringIO
@@ -187,7 +206,7 @@ from line_profiler import LineProfiler
 
 def profile( follow=[] ):
     '''Wrapper for code profiling.'''
-    def actualDecorator(func):
+    def decorator(func):
         @functools.wraps(func)
         def profiled_func(*args, **kwargs):
             try:
@@ -201,7 +220,7 @@ def profile( follow=[] ):
                 profiler.print_stats()
         return profiled_func
         
-    return actualDecorator
+    return decorator
 
 #except ImportError:
     #def do_profile(follow=[]):
@@ -272,8 +291,8 @@ class path():
 
 #====================================================================================================  
 # PyQt
-from PyQt4.QtCore import pyqtRemoveInputHook, pyqtRestoreInputHook
-def unhookPyQt( func ):
+#from PyQt4.QtCore import pyqtRemoveInputHook, pyqtRestoreInputHook
+def unhookPyQt(func):
     '''Decorator that removes the PyQt input hook during the execution of the decorated function.
     Used for functions that need ipython / terminal input prompts to work with pyQt.'''
     @functools.wraps(func)
@@ -286,17 +305,53 @@ def unhookPyQt( func ):
     return unhooked_func
 
 #====================================================================================================  
-# memoize
-def memoize(obj):
-    cache = obj.cache = {}
+# memoization
+import json
+import atexit
+import functools
+from pathlib import Path
 
-    @functools.wraps(obj)
-    def memoizer(*args, **kwargs):
-        key = str(args) + str(kwargs)
-        if key not in cache:
-            cache[key] = obj(*args, **kwargs)
-        return cache[key]
-    return memoizer
+def persistant_memoizer(filename, verbose=True):
+    '''memoizer that saves cache to file at program termination'''
+    filepath = Path(filename)
+    if filepath.exists():
+        #load existing cache
+        if verbose:
+            print('loading cache at', str(filepath))
+        with filepath.open('r') as fp:
+            cache = json.load(fp)
+            #dict(map(tuple, kv) for kv in json.loads(on_disk))
+    else:
+        #no existing cache. create
+        if verbose:
+            print('creating cache at', str(filepath))
+        cache = {}
+    
+    #Setup save function
+    def save_cache(filename):
+        '''save function cache to file'''
+        if verbose:
+            print('saving cache at', str(filepath), cache)
+        with filepath.open('w') as fp:
+            json.dump(cache, fp)
+        
+    atexit.register(save_cache, filename) #NOTE: will not be saved on unnatural exit
+    
+    #create decorator
+    def decorator(func):
+        
+        @functools.wraps(func)
+        def memoizer(*args):  #NOTE: DOES NOT SUPPORT KEYWORDS#, **kws):
+            #NOTE: it is generally impossible to correctly memoize something that depends on non-hashable arguments
+            #convert to string
+            key = str(args)# + str(kws)
+            if key not in cache:
+                cache[key] = func(*args)#, **kws)
+            return cache[key]
+        
+        return memoizer
+    
+    return decorator
 
 #====================================================================================================  
 def cache_last_return(obj):
@@ -312,7 +367,7 @@ def cache_last_return(obj):
 #====================================================================================================  
 def cache_returns(obj):
     cache = obj.cache = []
-    #def actualDecorator(func):
+    #def decorator(func):
     @functools.wraps(obj)
     def wrapper(*args, **kwargs):
         #print( obj )
@@ -324,7 +379,7 @@ def cache_returns(obj):
 
 #====================================================================================================  
 def upon_first_call( do_first ):
-    def actualDecorator(func):
+    def decorator(func):
 
         def wrapper(self, *args, **kwargs):
             if not wrapper.has_run:
@@ -335,7 +390,7 @@ def upon_first_call( do_first ):
         wrapper.has_run = False
         return wrapper
     
-    return actualDecorator
+    return decorator
 
 #def do_first(q):
     #print( 'DOING IT', q )

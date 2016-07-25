@@ -1,11 +1,6 @@
 # Code profiling
-import os
-import sys
-import inspect
-import linecache
-import functools
+import os, re , sys, inspect, linecache, functools, time
 
-import re
 import numpy as np
 from itertools import starmap
 
@@ -25,6 +20,27 @@ from line_profiler import LineProfiler
         
 
 
+#TODO: profile a class and follow all its methods
+
+#TODO: Heatmap256
+
+
+#====================================================================================================
+def timer(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kw):
+        ts = time.time()
+        result = f(*args, **kw)
+        te = time.time()
+        
+        #TODO: use generic formatter as in expose.args
+        
+        print('func:%s(%r, %r) took: %2.4f sec' 
+              % (f.__name__, args, kw, te-ts))
+        return result
+    return wrapper
+
+
 #====================================================================================================
 def truncate(block, maxlen, ellipses='...', fill=True):
     return ['{0:{1:d}.{1:d}}{2}'.format(l, *((maxlen-len(ellipses), ellipses) 
@@ -35,6 +51,7 @@ def truncate(block, maxlen, ellipses='...', fill=True):
 #****************************************************************************************************
 #Helper Classes
 #****************************************************************************************************
+#NOTE: changes function signature.  MAYBE DO THIS WITH A CONTEX MANAGER INSTEAD?
 def autostream(func):
     @functools.wraps(func)
     def decorated(*args, **kwargs):
@@ -51,6 +68,7 @@ def autostream(func):
     return decorated
     
 
+#FIXME: does not reset after multiple calls.  may sometimes be desired
 class ShowFunc():
     '''Essentially a object oriented version of the native line_profiler.showfunc'''
     header_template = '{:6} {:9} {:12} {:8} {:8}  {}'
@@ -63,6 +81,7 @@ class ShowFunc():
         self.unit = unit
         
         linenos, Nhits, times = zip(*timings)
+        self.linenos = linenos
         total = sum(times)
         self.total_time = total * unit
         
@@ -105,7 +124,7 @@ class ShowFunc():
         '''get source code block.  returns empty lines if file not accessable'''
         if not os.path.exists(filename):
             # Fake empty lines so we can see the timings, if not the code.
-            nlines = max(linenos) - min(min(linenos), start_lineno) + 1
+            nlines = max(self.linenos) - min(min(self.linenos), start_lineno) + 1
             sublines = [''] * nlines
         else:
             # Clear the cache to ensure that we get up-to-date results.
@@ -230,6 +249,7 @@ class ShowHistogram(ShowFunc):
             #FIXME: single line skip printed as ellipses
             #FIXME: def line not printed....
             #FIXME: blank lines still printed??
+            #FIXME: multiline functions are cut!
             linenos = sorted( {self.start} | set(self.content.keys()) | {self.end} )
             nrpairs = np.array(list(pairwise(linenos)))
             gaps = np.subtract(*zip(*nrpairs))
@@ -348,7 +368,8 @@ class HLineProfiler(LineProfiler):
         stats = lstats.timings
         unit =  lstats.unit
         
-        fdict = {func.__name__ : func for func in self.functions} #NOTE: will only work for unique function names
+        fdict = {func.__name__ : func for func in self.functions} 
+        #NOTE: will only work for unique function names
         
         for (fn, lineno, name), timings in sorted(stats.items()):
             docstring = getattr(fdict[name], '__doc__', None)
@@ -384,4 +405,3 @@ class profile():
         '''Creates a ANSI histogram to indicate line excecution time'''
         return HistogramDisplay(self.follow)(func)
 
-#TODO: profile a class and follow all its methods
