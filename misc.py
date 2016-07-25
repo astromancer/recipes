@@ -33,6 +33,8 @@ def is_interactive():
 class TerminalSize():
     #TODO:  split width and height searches
     #TODO:  memoize
+    
+    
     '''Class that returns the terminal size when called'''
     DEFAULT_WIDTH = 80
     DEFAULT_HEIGHT = 50
@@ -60,8 +62,10 @@ class TerminalSize():
             
             with config_file.open() as fp:
                 lines = fp.read()
-                w = int(re.search( 'c.IPythonWidget.width = (\d+)', lines ).groups()[0])
-                h = int(re.search( 'c.IPythonWidget.height = (\d+)', lines ).groups()[0])
+                #re.compile(
+                w = int(re.search('c.IPythonWidget.width = (\d+)', lines).groups()[0])
+                h = int(re.search('c.IPythonWidget.height = (\d+)', lines).groups()[0])
+            
             return w, h
                 
             #from pathlib import Path

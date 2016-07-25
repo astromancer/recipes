@@ -200,7 +200,7 @@ def sortmore(*args, **kw):
     if key: callable
         sorting done by value of key(item) for items in first iterable
     if key: tuple
-        sorting done by value of (key(item_0), ..., key(item_n)) for items in
+        sorting done by value of (key[0](item_0), ..., key[n](item_n)) for items in
         the first n iterables (where n is the length of the key tuple)
         i.e. the first callable is the primary sorting criterion, and the
         rest act as tie-breakers.
@@ -224,6 +224,8 @@ def sortmore(*args, **kw):
         Out[2]: (['a', 'a', 'C', 'c', 'e', 'h', 'r', 'r', 'S', 't'],
                  [2, 4, 0, 5, 7, 1, 3, 8, 9, 6])
     """
+    #TODO: extend examples doc
+    
     farg = list(args[0])
     if not len(farg):
         return args
@@ -263,5 +265,8 @@ def sortmore(*args, **kw):
 
 #====================================================================================================
 def sorter(*args, **kw):
-    '''alias for sortmore''' #TODO: copy docstring
+    '''alias for sortmore'''
     return sortmore(*args, **kw)
+
+#copy docstring
+sorter.__doc__ = sortmore.__doc__

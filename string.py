@@ -5,9 +5,9 @@ from pprint import pformat
 
 from .misc import getTerminalSize
 from .iter import as_sequence
-from myio import warn
+#from myio import warn
 
-from IPython import embed
+#from IPython import embed
 
 
 
