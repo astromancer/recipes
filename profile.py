@@ -26,6 +26,7 @@ from line_profiler import LineProfiler
 
 
 #====================================================================================================
+#TODO: add postscript option with function to evaluate after with timing values
 def timer(f):
     @functools.wraps(f)
     def wrapper(*args, **kw):
@@ -33,12 +34,39 @@ def timer(f):
         result = f(*args, **kw)
         te = time.time()
         
-        #TODO: use generic formatter as in expose.args
+        #TODO: use generic formatter as in expose.args 
+        #(OR pass formatter as argument)
+            #TRIM items with big str reps
         
-        print('func:%s(%r, %r) took: %2.4f sec' 
-              % (f.__name__, args, kw, te-ts))
+        #print('func:%s(%r, %r) took: %2.4f sec' 
+            #% (f.__name__, args, kw, te-ts))
+            
+        print('func: %s took: %2.4f sec' 
+            % (f.__name__, te-ts))
         return result
     return wrapper
+
+
+def timer_extra(postscript, *psargs):
+    def timer(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kw):
+            ts = time.time()
+            result = f(*args, **kw)
+            te = time.time()
+            td = te-ts
+            
+            print('func: %s took: %2.4f sec' 
+                % (f.__name__, td))
+            
+            try:
+                postscript(td, *psargs)
+            except:
+                pass
+            
+            return result
+        return wrapper
+    return timer
 
 
 #====================================================================================================
