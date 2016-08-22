@@ -93,7 +93,7 @@ def cycleN( obj, N ):
 def cycle_or_repeat(obj, N):
     '''An iterable that returns up to N items from the object if is an iterable,
         else yields the object N times.'''
-    return cycleN( as_iter(obj), N )
+    return cycleN(as_iter(obj), N)
 
 #====================================================================================================
 def take(n, iterable):
@@ -188,6 +188,21 @@ def grouper(iterable, n, fillvalue=None):
     # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
     args = [iter(iterable)] * n         #This is very clever!!  same iterator x n ==> n staggered iterators when zipping! amazing...
     return itt.zip_longest(*args, fillvalue=fillvalue)
+
+#====================================================================================================
+def chunker(it, size):
+    it = iter(it)
+    return iter(lambda: tuple(itt.islice(it, size)), ())
+
+#_no_padding = object()
+#def chunk(it, size, padval=_no_padding):
+    #if padval == _no_padding:
+        #it = iter(it)
+        #sentinel = ()
+    #else:
+        #it = chain(iter(it), repeat(padval))
+        #sentinel = (padval,) * size
+    #return iter(lambda: tuple(islice(it, size)), sentinel)
 
 #====================================================================================================
 #def groupeven(*its,  n, fillvalue=None):
