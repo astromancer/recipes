@@ -29,7 +29,8 @@ as_sequence = as_iter
 def flatiter(items):
     '''generator that flattens an iterator with arbitrary nesting'''
     for item in items:
-        if isinstance(item, (str, bytes)):         #catches the infinite recurence resulting from character-string duality
+        #catches the infinite recurence resulting from character-string duality
+        if isinstance(item, (str, bytes)):   
             yield item
         else:
             try:
@@ -37,11 +38,12 @@ def flatiter(items):
                     yield i
             except TypeError:
                 yield item
-
-#def flatiter(*items):
+                
+#def flatiter(*items):          #raises RecursionError
     #'''generator that flattens an iterator with arbitrary nesting'''
     #for item in items:
-        #if isinstance(item, (str, bytes)):         #catches the infinite recurence resulting from character-string duality
+        ##catches the infinite recurence resulting from character-string duality
+        #if isinstance(item, (str, bytes)):
             #yield item
         #else:
             #try:
@@ -189,10 +191,13 @@ def grouper(iterable, n, fillvalue=None):
     args = [iter(iterable)] * n         #This is very clever!!  same iterator x n ==> n staggered iterators when zipping! amazing...
     return itt.zip_longest(*args, fillvalue=fillvalue)
 
-#====================================================================================================
 def chunker(it, size):
     it = iter(it)
     return iter(lambda: tuple(itt.islice(it, size)), ())
+
+#def ichunker(it, size):
+    #it = iter(it)
+    #return iter(lambda: itt.islice(it, size), ())
 
 #_no_padding = object()
 #def chunk(it, size, padval=_no_padding):
@@ -234,10 +239,13 @@ def roundrobin(*iterables):
 
 #====================================================================================================
 def partition(pred, iterable):
-    '''Use a predicate to partition entries into false entries and true entries'''
-    # partition(is_odd, range(10)) --> 0 2 4 6 8   and  1 3 5 7 9
+    '''
+    Use a predicate to partition entries into true and false iterables (in that order)
+    
+    partition(is_odd, range(10)) --> (1 3 5 7 9),  (0 2 4 6 8)
+    '''
     t1, t2 = itt.tee(iterable)
-    return itt.filterfalse(pred, t1), filter(pred, t2)
+    return filter(pred, t2), itt.filterfalse(pred, t1)
 
 #====================================================================================================
 def teemore(*its, n=2):
@@ -246,11 +254,14 @@ def teemore(*its, n=2):
     
 #====================================================================================================
 def partitionmore(pred, *its):
-    '''Partition an arbitrary number of iterables based on the truth value of a predicate evaluated 
-    on the first iterator.'''
-    # partition(is_odd, range(10), range) --> 0 2 4 6 8   and  1 3 5 7 9
+    '''
+    Partition an arbitrary number of iterables based on the truth value of a 
+    predicate evaluated on the first iterator.
+    
+    partition(is_odd, range(10), range) --> (1 3 5 7 9), (0 2 4 6 8)
+    '''
     t1, t2 = teemore(*its)
-    return filtermorefalse(pred, *t1), filtermore(pred, *t2)
+    return filtermore(pred, *t2), filtermorefalse(pred, *t1)
     
 #====================================================================================================
 def powerset(iterable):

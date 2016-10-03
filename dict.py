@@ -38,6 +38,12 @@ class AutoVivification(dict):
             #value = self[item] = type(self)()
             #return value
 
+#****************************************************************************************************
+class AttrDict(dict):
+    def __init__(self, *args, **kwargs):
+        super(AttrDict, self).__init__(*args, **kwargs)
+        self.__dict__ = self
+
 
 #****************************************************************************************************
 class TransDict(coll.UserDict):
@@ -51,7 +57,7 @@ class TransDict(coll.UserDict):
     def add_translations(self, dic=None, **kwargs): #add_vocab??
         '''enable on-the-fly shorthand translation'''
         dic = dic or {}
-        self._translations.update( dic, **kwargs )
+        self._translations.update(dic, **kwargs)
     
     #alias
     add_vocab = add_translations 
@@ -63,12 +69,12 @@ class TransDict(coll.UserDict):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
         '''if key not in keywords, try translate'''
-        return self[ self._translations[key] ]
+        return self[self._translations[key]]
  
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def allkeys(self):
         #TODO: Keysview**
-        return flatiter( self.keys(), self._translations.keys() )
+        return flatiter((self.keys(), self._translations.keys()))
     
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def many2one(self, many2one):
@@ -79,14 +85,14 @@ class TransDict(coll.UserDict):
                 
 
 #****************************************************************************************************
-class SuperDict(TransDict):
+class SmartDict(TransDict):
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
         self._equivalence_maps = []
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def add_map(self, func):
-        self._equivalence_maps.append( func )
+        self._equivalence_maps.append(func)
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
@@ -94,10 +100,13 @@ class SuperDict(TransDict):
             #try translate with vocab
             return super().__missing__(key)
         except KeyError as err:
-            #try translate with equivalence maps
+            #try:
+                #try translate with equivalence maps
             for emap in self._equivalence_maps:
                 if super().__contains__(emap(key)):
                     return self[emap(key)]
+            #except:
+                #pass
             raise err
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -112,7 +121,8 @@ class SuperDict(TransDict):
                 pass
 
         return False
-            
+
+#SuperDict = SmartDict
 
 #****************************************************************************************************
 class DefaultOrderedDict(coll.OrderedDict):

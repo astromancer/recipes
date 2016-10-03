@@ -116,7 +116,7 @@ def listitemsplit(L, items, withfirst=False, withlast=False, indexer=None):
     
 def listrefind(L, pattern):
     R = []
-    matcher = re.compile( pattern )
+    matcher = re.compile(pattern)
     for i,l in enumerate(L):
         m = matcher.match(l)
         if m:
@@ -141,7 +141,7 @@ def tally(seq):
 def count_repeats(seq):
     '''Return dict of item, count pairs for sequence.'''
     tly = tally(seq)
-    return dict( zip(tly.keys(), map(len,tly.values())) )
+    return dict(zip(tly.keys(), map(len,tly.values())))
     
 def gen_duplicates(seq):
     '''Yield tuples of item, ideces pairs for duplicate values.'''

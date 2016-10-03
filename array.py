@@ -4,7 +4,7 @@ from numpy.lib.stride_tricks import as_strided
 
 from recipes.list import flatten, count_repeats, sortmore
 
-from IPython import embed
+#from IPython import embed
 
 
 ##########################################################################################################################################       
@@ -64,8 +64,8 @@ class ArrayFolder(object):
         step = wsize - overlap
         
         #TODO: un-nest me
-        get_slice = lambda i: [slice(i*step, i*step+wsize) if j==axis 
-                                   else slice(None) for j in range(a.ndim)]
+        get_slice = lambda i: [slice(i*step, i*step+wsize) if j==axis else slice(None) 
+                                    for j in range(a.ndim)]
         i = 0
         while i < Nseg:
             yield a[get_slice(i)]
@@ -84,25 +84,32 @@ class ArrayFolder(object):
         assert overlap >= 0, 'overlap >= 0'
         assert overlap < wsize, 'overlap < wsize'
         
-        mask = a.mask if np.ma.is_masked(a) else None
-        a = np.asarray(a)
+        mask = a.mask   if np.ma.is_masked(a)   else None
+        a = np.asarray(a)       #convert to (un-masked) array
         N = a.shape[axis]
         step = wsize - overlap
         Nseg, leftover = divmod(N-overlap, step)
-
-        if leftover:
-            
-            mode = kw.pop('pad', 'symmetric')       #default pad mode is symmetric
-            pad_end = step - leftover
-            pad_width = np.zeros((a.ndim, 2), int)       #initialise pad width indicator
-            pad_width[axis, -1] = pad_end            #pad the array at the end with 'pad_end' number of values
-            pad_width = list(map(tuple, pad_width))      #map to list of tuples
-            
-            #pad (apodise) the input signal
-            a = np.pad(a, pad_width, mode, **kw)
-            if not (mask is None or mask is False):
-                mask = np.pad(mask, pad_width, mode, **kw)
         
+        if leftover:
+            pad_mode = kw.pop('pad', 'mask')       #default is to mask the "out of array" values
+            if pad_mode == 'mask' and (mask in (None, False)):
+                mask = np.zeros(a.shape, bool)
+            
+            pad_end = step - leftover
+            pad_width = np.zeros((a.ndim, 2), int)  #initialise pad width indicator
+            pad_width[axis, -1] = pad_end           #pad the array at the end with 'pad_end' number of values
+            pad_width = list(map(tuple, pad_width)) #map to list of tuples
+            
+            #pad (apodise) the input signal (and mask)
+            if pad_mode == 'mask':
+                a = np.pad(a, pad_width, 'constant', constant_values=0)
+                mask = np.pad(mask, pad_width, 'constant', constant_values=True)
+            else:
+                a = np.pad(a, pad_width, pad_mode, **kw)
+                if mask not in (None, False):
+                    mask = np.pad(mask, pad_width, pad_mode, **kw)
+                    
+        #convert back to masked array
         if not mask is None:
             a = np.ma.array(a, mask=mask)
 
@@ -117,15 +124,14 @@ class ArrayFolder(object):
         step = size - overlap
         other_axes = np.setdiff1d(range(a.ndim), axis) #indeces of axes which aren't stepped along
         
-        Nwindows = (a.shape[axis] - overlap) // step
-        new_shape = np.zeros(a.ndim)
-        new_shape[0] = Nwindows
+        new_shape = np.zeros(a.ndim, int)
+        new_shape[0] = (a.shape[axis] - overlap) // step    #Nwindows
         new_shape[1:] = np.take(a.shape, other_axes)
         new_shape = np.insert(new_shape, axis+1, size)
         
-        new_strides = (step*a.strides[axis],) + a.strides
-
-        return as_strided( a, new_shape, new_strides )
+        new_strides = (step * a.strides[axis],) + a.strides
+        
+        return as_strided(a, new_shape, new_strides)
 
     
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -137,11 +143,38 @@ class ArrayFolder(object):
         the strided array.
         '''
         I = ArrayFolder.fold(range(N), wsize, overlap)
-        d = count_repeats( I.ravel() )
-        ix, noc = sortmore( *zip(*d.items()) )
+        d = count_repeats(I.ravel())
+        ix, noc = sortmore(*zip(*d.items()))
         return noc
     
 ArrayFolding = ArrayFolder
+
+#****************************************************************************************************
+class WindowedArrayFolder(ArrayFolder):
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @staticmethod
+    def fold(a, wsize, overlap=0, axis=0, **kw):
+        window = kw.pop('window', None)
+        sa = ArrayFolder.fold(a, wsize, overlap, axis, **kw)
+        return ArrayFolder.windowed(sa, window)
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @staticmethod
+    def gen(a, wsize, overlap=0, axis=0, **kw):
+        window = kw.pop('window', None)
+        for sub in ArrayFolder.gen(a, wsize, overlap, axis, **kw):
+            yield  ArrayFolder.windowed(sub, window)
+    
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    @staticmethod
+    def windowed(a, window=None):
+        '''get window values + apply'''
+        if window:
+            windowVals = get_window(window, a.shape[-1])
+            return a * windowVals
+        else:
+            return a
+
 
 
 
@@ -408,7 +441,7 @@ def neighbours(a, index, size, **kw):
         
         if return_index == 2:
             grid = range2grid(ixl, ixu)
-            return a[ tuple(grid) ], tuple(grid)
+            return a[tuple(grid)], tuple(grid)
         
 
     #determine index ranges of return elements for each dimension
@@ -482,7 +515,7 @@ def neighbours(a, index, size, **kw):
             return win, ri
         
         if return_index == 2:
-            grid = range2grid( np.zeros(a.ndim,int), a.shape )
+            grid = range2grid(np.zeros(a.ndim,int), a.shape)
             #FIXME:  this is probs quite inefficient!!
             ri = tuple(neighbours(g, index, size, **kw) for g in grid)
             return win, ri
