@@ -1,16 +1,22 @@
 # Code profiling
-import os, re , sys, inspect, linecache, functools, time
+import os
+import re
+import sys
+import inspect
+import linecache
+import functools
+import traceback
+import time
+from itertools import starmap
+from io import StringIO
 
 import numpy as np
-from itertools import starmap
+from line_profiler import LineProfiler
 
 from recipes.iter import pairwise, flatiter, where_true
 from ansi.str import SuperString
 from ansi.table import Table
 
-from io import StringIO
-
-from line_profiler import LineProfiler
 
 #from IPython import embed
 
@@ -41,7 +47,7 @@ def timer(f):
         #print('func:%s(%r, %r) took: %2.4f sec' 
             #% (f.__name__, args, kw, te-ts))
             
-        print('func: %s took: %2.4f sec' 
+        print('func: %s took:\t%2.4f sec' 
             % (f.__name__, te-ts))
         return result
     return wrapper
@@ -56,17 +62,41 @@ def timer_extra(postscript, *psargs):
             te = time.time()
             td = te-ts
             
-            print('func: %s took: %2.4f sec' 
+            print('func: %s\ttook: %2.4f sec' 
                 % (f.__name__, td))
             
             try:
                 postscript(td, *psargs)
-            except:
-                pass
+            except Exception as err:
+                print('WHOOPS!')
+                traceback.print_exc()
+                
+                #pass
             
             return result
         return wrapper
     return timer
+
+
+
+#def timer(codicil, *psargs):
+    #def timer(f):
+        #@functools.wraps(f)
+        #def wrapper(*args, **kw):
+            #ts = time.time()
+            #result = f(*args, **kw)
+            #te = time.time()
+            #td = te-ts
+            
+            #try:
+                #codicil(td, *psargs)
+            #except Exception as err:
+                #import traceback
+                #traceback.print_exc()
+
+            #return result
+        #return wrapper
+    #return timer
 
 
 #====================================================================================================
@@ -113,11 +143,11 @@ class ShowFunc():
         total = sum(times)
         self.total_time = total * unit
         
-        self.content = {}
+        self.stats = {}
         for lineno, nhits, time in timings:
             per_hit = float(time) / nhits
             fraction = time / total
-            self.content[lineno] = (nhits, time, per_hit, fraction)
+            self.stats[lineno] = (nhits, time, per_hit, fraction)
         
         self.ignore_lines = []
         
@@ -193,7 +223,8 @@ class ShowFunc():
     @autostream
     def header(self, stream=None):
         '''print header'''
-        header = self.header_template.format('Line #', 'Hits', 'Time', 'Per Hit', '% Time', 'Line Contents')
+        header = self.header_template.format(
+            'Line #', 'Hits', 'Time', 'Per Hit', '% Time', 'Line Contents')
         stream.write("\n")
         stream.write(header)
         stream.write("\n")
@@ -206,7 +237,7 @@ class ShowFunc():
         '''print stats'''
         empty = ('', '', '', '')
         for lineno, line in self.enumerate():
-            nhits, time, per_hit, fraction = self.content.get(lineno, empty)
+            nhits, time, per_hit, fraction = self.stats.get(lineno, empty)
             percent = 100 * fraction
             txt = self.template.format(lineno, nhits, time, per_hit, percent, line)
             stream.write(txt)
@@ -243,7 +274,7 @@ class ShowHistogram(ShowFunc):
         Display profile stats
         '''
         self.docstring          = kws.get('docstring')
-        self.has_docstring      = not self.docstring is None
+        self.has_docstring      = self.docstring is not None
         self.strip_docstring    = kws.get('strip_docstring',    True)
         self.strip_comments     = kws.get('strip_comments',     True)
         self.strip_blanks       = kws.get('strip_blanks',       True)
@@ -278,7 +309,7 @@ class ShowHistogram(ShowFunc):
             #FIXME: def line not printed....
             #FIXME: blank lines still printed??
             #FIXME: multiline functions are cut!
-            linenos = sorted( {self.start} | set(self.content.keys()) | {self.end} )
+            linenos = sorted( {self.start} | set(self.stats.keys()) | {self.end} )
             nrpairs = np.array(list(pairwise(linenos)))
             gaps = np.subtract(*zip(*nrpairs))
             intervals = nrpairs[gaps < -2] + (1,-1)
@@ -317,7 +348,7 @@ class ShowHistogram(ShowFunc):
         where_row_borders = [0]                 #first border after column headers
         i = 0
         for lineno, line in self.enumerate():
-            nhits, time, per_hit, fraction = self.content.get(lineno, empty)
+            nhits, time, per_hit, fraction = self.stats.get(lineno, empty)
             percent = fraction*100
             if fraction:
                 l = int(np.round(fraction * linelen))
@@ -433,3 +464,8 @@ class profile():
         '''Creates a ANSI histogram to indicate line excecution time'''
         return HistogramDisplay(self.follow)(func)
 
+
+def get_methods(cls_or_obj):
+    import inspect
+    names, methods = zip(inspect.getmembers(cls_or_obj, predicate=inspect.ismethod))
+    return methods

@@ -9,6 +9,50 @@ from io import StringIO
 #FIXME: you don't really need nested classes here.  since it is a module, you can access each
 #function as a module attribute.....
 
+def get_func_repr(func, fargs, fkw={}, verbosity=0):
+    
+    fname = func.__name__       #FIXME:  does not work with classmethods
+    code = func.__code__
+    
+    #Create a list of function argument strings
+    nco = code.co_argcount              #number of arguments (not including * or ** args)
+    arg_names = code.co_varnames[:nco]  #tuple of names of arguments (exclude local variables)
+    arg_vals = fargs[:len(arg_names)]   #
+    defaults = func.__defaults__    or  ()
+    arg_vals += defaults[len(defaults) - (nco - len(arg_vals)):]
+    
+    params = list(zip(arg_names, arg_vals))
+    args = fargs[len(arg_names):]
+    
+    if args: 
+        params.append(('args', args))
+    if fkw:
+        params.append(('kwargs', pprint.pformat(fkw, indent=3)))
+        
+        #print('HELLOOOOOOO!!!')
+        #print(pprint.pformat(fkw))
+        #print('\n\n')
+        
+    if verbosity==0:
+        j = ', '
+    elif verbosity==1:
+        j = ',\n'
+    
+    #TODO: use pprint for kwargs.....
+    
+    #Adjust leading whitespace for pretty formatting
+    #TODO: spread option
+    lead_white = [0] + [len(fname)+1] * (len(params)-1)
+    trail_white = int(np.ceil(max(len(p[0]) for p in params)/8)*8)
+    pars = j.join(' '*lead_white[i] + \
+                  '{0[0]:<{1}}= {0[1]}'.format(p, trail_white)
+                        for i, p in enumerate(params))
+    pr = '{fname}({pars})'.format(fname=fname, pars=pars)
+
+    return pr
+
+#pretty_signature_str = get_func_repr
+
 #****************************************************************************************************
 class expose():
     #TODO: OO
@@ -43,49 +87,13 @@ class expose():
         #====================================================================================================    
         def actualDecorator(func):
             
-            @functools.wraps(func)
+            @functools.wraps(func)          #TODO: this wrapper as an importable function...
             def wrapper(*fargs, **fkw):
                 
-                fname = func.__name__       #FIXME:  does not work with classmethods
-                code = func.__code__
-                
-                #Create a list of function argument strings
-                nco = code.co_argcount              #number of arguments (not including * or ** args)
-                arg_names = code.co_varnames[:nco]  #tuple of names of arguments (exclude local variables)
-                arg_vals = fargs[:len(arg_names)]   #
-                defaults = func.__defaults__    or  ()
-                arg_vals += defaults[len(defaults) - (nco - len(arg_vals)):]
-                
-                params = list(zip(arg_names, arg_vals))
-                args = fargs[len(arg_names):]
-                
-                if args: 
-                    params.append(('args', args))
-                if fkw:
-                    params.append(('kwargs', pprint.pformat(fkw, indent=3)))
-                    
-                    #print('HELLOOOOOOO!!!')
-                    #print(pprint.pformat(fkw))
-                    #print('\n\n')
-                    
-                if verbosity==0:
-                    j = ', '
-                elif verbosity==1:
-                    j = ',\n'
-                
-                #TODO: use pprint for kwargs.....
-                
-                #Adjust leading whitespace for pretty formatting
-                #TODO: spread option
-                lead_white = [0] + [len(fname)+1] * (len(params)-1)
-                trail_white = int(np.ceil(max(len(p[0]) for p in params)/8)*8)
-                pars = j.join(' '*lead_white[i] + \
-                              '{0[0]:<{1}}= {0[1]}'.format(p, trail_white)
-                                    for i, p in enumerate(params))
-                pr = '{fname}({pars})'.format(fname=fname, pars=pars)
+                frep = get_func_repr(func, fargs, fkw, verbosity)
                 
                 print(pre)
-                print(pr)
+                print(frep)
                 print(post)
                 sys.stdout.flush()
                 
