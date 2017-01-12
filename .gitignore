@@ -1,6 +1,10 @@
+.idea/
+
 *.kate-swp
 *~
+
 /__pycache__
+
 *.bak
 test.py
 
