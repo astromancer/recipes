@@ -3,10 +3,6 @@ import warnings
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 
-from recipes.list import count_repeats, sortmore
-from . import tsa  # windowed as _windowed
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def fold(a, wsize, overlap=0, axis=0, **kw):
     """
@@ -44,11 +40,6 @@ def fold(a, wsize, overlap=0, axis=0, **kw):
         sa = np.ma.array(sa, mask=mask)
 
     return sa
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-def windowed(a, wsize, overlap=0, axis=0, window=None, **kw):
-    return tsa.windowed(fold(a, wsize, overlap, axis, **kw), window)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -134,6 +125,8 @@ def get_nocc(N, wsize, overlap):
     times that the index corresponding to that element would be repeated in
     the strided array.
     """
+    from recipes.list import count_repeats, sortmore
+
     I = fold(np.arange(N), wsize, overlap).ravel()
     if np.ma.is_masked(I):
         I = I[~I.mask]
@@ -141,10 +134,3 @@ def get_nocc(N, wsize, overlap):
     d = count_repeats(I)
     ix, noc = sortmore(*zip(*d.items()))
     return noc
-
-    ##############################################################################################################################################
-
-
-    # Div = WindowedArrayFolder
-    ##TODO: issue deprication warning?
-    # Div.div = Div.fold #depricated!
