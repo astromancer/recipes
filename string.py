@@ -1,10 +1,10 @@
 import re
 import numpy as np
-import functools as ft
+# import functools as ft
 from pprint import pformat
 
-from .misc import getTerminalSize
-from .iter import as_sequence
+# from .misc import getTerminalSize
+# from .iter import as_sequence
 #from recipes.str import minlogfmt
 #from myio import warn
 
@@ -61,24 +61,60 @@ def minfloatformat(n, precision=1):
     return '{:g}'.format(round(n, precision))
 minfloatfmt = minfloatformat
 
+
 def minlogformat(x, prec=2, multsym=r'\times'):
-    if x==0:
+    if x == 0:
         return 0
     s = np.sign(x)
     xus = abs(x)
     lx = np.log10(xus)
     pwr = np.floor(lx)
-    val = s * xus * 10**-pwr
-    sval = minfloatformat(val, prec)
-    if sval == '1':
+
+    if abs(pwr) < prec:
+        return minfloatformat(x, prec)
+
+    val = s * xus * 10 ** -pwr
+    valstr = minfloatformat(val, prec)
+    # print(xus, pwr, val, sval)
+
+    if valstr == '1':
         return r'$10^{%i}$' % pwr
-    return r'$%s%s10^{%i}$' % (sval, multsym, pwr)
+    return r'$%s%s10^{%i}$' % (valstr, multsym, pwr)
+
 minlogfmt = minlogformat
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def kill_brackets(line):
     pattern = '\s*\([\w\s]+\)'
     return re.sub( pattern, '', line)
+
+
+def matchBrackets(s, brackets='()', return_index=True):
+    """
+    Find matching closed brackets.  Will return first closed pair if s contains multiple closed
+    bracket pairs.
+
+    :param s:
+    :param brackets:
+    :param return_index: return the indices where the brackets where found
+    :return:
+
+    example
+    -------
+    In [23]: matchBrackets('def sample(args=(), **kws):')
+    Out[23]: 'args=(), **kws'
+    """
+    left, right = brackets
+    if left in s:
+        pre, match = s.split(left, 1)
+        open_ = 1
+        for index in range(len(match)):
+            if match[index] in brackets:
+                open_ += [1, -1][int(match[index] == right)]
+            if not open_:
+                if return_index:
+                    return match[:index], (len(pre), len(pre) + index + 1)
+                return match[:index]
 
 
 #def rmap(func, *args):
@@ -131,7 +167,8 @@ def rformat(item, precision=2, minimalist=True):
         return np.array2string(item, precision=precision)
         #NOTE:  lots more functionality here
 
-    return pformat(item)
+    return str(item)
+    # return pformat(item)
 
     #brackets = { tuple : '()', set : '{}', list : '[]' }
     #if np.iterable(item):

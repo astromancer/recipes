@@ -1,3 +1,6 @@
+'''
+Recipes involving dictionaries
+'''
 
 import collections as coll
 
@@ -11,7 +14,7 @@ class Invertible():
         '''check whether dict can be inverted'''
         #TODO
         return True
-    
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def inverse(self):
         if self.is_invertible():
@@ -23,11 +26,11 @@ class InvertibleDict(Invertible, dict):
 
 #****************************************************************************************************
 class AutoVivification(dict):
-    """Implement autovivification feature for dict."""
+    '''Implement autovivification feature for dict.'''
     def __missing__(self, key):
         value = self[key] = type(self)()
         return value
-    
+
 #class AutoVivification(dict):
     ##
     #"""Implementation of perl's autovivification feature."""
@@ -40,9 +43,15 @@ class AutoVivification(dict):
 
 #****************************************************************************************************
 class AttrDict(dict):
+    '''dict with key access through attribute lookup'''
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
+
+    def copy(self):
+        '''Ensure instance of same class is returned'''
+        cls = self.__class__
+        return cls(super(cls, self).copy())
 
 
 #****************************************************************************************************
@@ -52,37 +61,37 @@ class TransDict(coll.UserDict):
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
         self._translations = {}
-    
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def add_translations(self, dic=None, **kwargs): #add_vocab??
         '''enable on-the-fly shorthand translation'''
         dic = dic or {}
         self._translations.update(dic, **kwargs)
-    
+
     #alias
-    add_vocab = add_translations 
-    
+    add_vocab = add_translations
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __contains__(self, key):
         return super().__contains__(self._translations.get(key, key))
-    
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
         '''if key not in keywords, try translate'''
         return self[self._translations[key]]
- 
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def allkeys(self):
         #TODO: Keysview**
         return flatiter((self.keys(), self._translations.keys()))
-    
+
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def many2one(self, many2one):
         #self[one]       #error check
         for many, one in many2one.items():
             for key in many:
                 self._translations[key] = one
-                
+
 
 #****************************************************************************************************
 class SmartDict(TransDict):
@@ -124,6 +133,13 @@ class SmartDict(TransDict):
 
 #SuperDict = SmartDict
 
+class IndexableOrderedDict(coll.OrderedDict):
+    def __missing__(self, key):
+        if isinstance(key, int):
+            return self[list(self.keys())[key]]
+        else:
+            return coll.OrderedDict.__missing__(self, key)
+
 #****************************************************************************************************
 class DefaultOrderedDict(coll.OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
@@ -132,7 +148,7 @@ class DefaultOrderedDict(coll.OrderedDict):
         if (default_factory is not None and
            not isinstance(default_factory, coll.Callable)):
             raise TypeError('first argument must be callable')
-        
+
         coll.OrderedDict.__init__(self, *a, **kw)
         self.default_factory = default_factory
 
@@ -176,10 +192,9 @@ class DefaultOrderedDict(coll.OrderedDict):
     def __repr__(self):
         return 'OrderedDefaultDict(%s, %s)' % (self.default_factory,
                                                coll.OrderedDict.__repr__(self))
-    
-    
+
+
 #====================================================================================================
 def invertdict(d):
-    return dict( zip(d.values(), d.keys()) )    
-#====================================================================================================    
-    
+    return dict(zip(d.values(), d.keys()))
+#====================================================================================================
