@@ -42,6 +42,25 @@ def fold(a, wsize, overlap=0, axis=0, **kw):
     return sa
 
 
+def rebin(x, binsize, t=None, e=None):
+    '''
+    Rebin time series data. Assumes data are evenly sampled in time (constant time steps).
+    '''
+    xrb = fold(x, binsize).mean(1)
+    returns = (xrb,)
+
+    if t is not None:
+        trb = np.median(fold(t, binsize), 1)
+        returns += (trb,)
+
+    if e is not None:
+        erb = np.sqrt(np.square(fold(e, binsize)).mean(1))
+        returns += (erb,)
+
+    if len(returns) == 1:
+        return returns[0]
+    return returns
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def gen(a, wsize, overlap=0, axis=0, **kw):
     """
