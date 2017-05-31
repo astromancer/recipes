@@ -1,11 +1,13 @@
 #
 #Host of useful miscellaneous classes and functions.
 #
-import os
 import itertools as itt
+import os
+
 import numpy as np
 
-#from IPython import embed
+from .interactive import is_interactive
+
 
 class Unbuffered(object):
     '''Class to make stdout unbuffered'''
@@ -92,13 +94,6 @@ def getsize(obj_0):
 #######################################################################################################
 #Usefull functions
 #######################################################################################################
-def is_interactive():
-    try:
-        return bool(get_ipython().config)        #True if notebook / qtconsole
-    except NameError:
-        return False
-
-
 class TerminalSize():
     #TODO:  split width and height searches
     #TODO:  memoize
@@ -119,6 +114,7 @@ class TerminalSize():
 
     def __call__(self):
         if is_interactive():
+            # in notebook / qtconsole / ipyton terminal
             # NOTE: AFAICT it's not possible to distinguish between qtconsole and notebook here
             # CHECK: QTConsole width is defined in the profile script at:  c.IPythonWidget.height
             from IPython.paths import get_ipython_dir
@@ -136,29 +132,6 @@ class TerminalSize():
                 h = int(re.search('c.IPythonWidget.height = (\d+)', lines).groups()[0])
 
             return w, h
-
-            #from pathlib import Path
-            #from .iter import first_true_index
-            #import re
-            #cfile = get_ipython().config['IPKernelApp']['connection_file']
-            #if isinstance(cfile, str):
-                #try:    #FIXME:  THIS IS GETTING UGLY!
-                    #path = Path( cfile )
-                    #ix = first_true_index( path.parts, lambda s: 'profile' in s )
-                    #profile_dir = Path(os.path.sep.join( path.parts[:ix+1] ))
-                    #config_file = next(profile_dir.glob('*config.py'))
-                    #with config_file.open() as fp:
-                        #lines = fp.read()
-                        #w = int(re.search( 'c.IPythonWidget.width = (\d+)', lines ).groups()[0])
-                        #h = int(re.search( 'c.IPythonWidget.height = (\d+)', lines ).groups()[0])
-                    #return w, h
-                #except:
-                    #return self.get_terminal_size()
-
-
-            #else:
-                #'embedded shell??'
-                #return self.get_terminal_size()
         else:
             return self.get_terminal_size()
 

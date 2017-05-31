@@ -50,7 +50,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
             coll.update({getattr(method, flag) : method.__name__
                             for _, method in namespace.items()
                                 if hasattr(method, flag)})
-            #set the collection attribute as a class variable
+            # set the collection attribute as a class variable
             setattr(cls, collection,  coll)
             return cls
 

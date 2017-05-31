@@ -30,8 +30,6 @@ class ConservativePool(mp.pool.Pool):
         return result
 
 
-
-
 #****************************************************************************************************
 class ProcessPool(LoggingMixin):
     '''A trimmed down version of mp.pool.Pool'''

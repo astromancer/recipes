@@ -12,7 +12,7 @@ from pprint import pformat
 
 #****************************************************************************************************
 def overlay(text, bgtext='', alignment='^', width=None):
-    #TODO: verbose alignment name conversions
+    #TODO: verbose alignment name conversions. see ansi.table.get_alignment
     '''overlay text on bgtext using given alignment.'''
 
     if not (bgtext or width):                   #nothing to align on
@@ -32,7 +32,7 @@ def overlay(text, bgtext='', alignment='^', width=None):
     elif alignment == '>':                      #right aligned
         overlayed = bgtext[:-len(text)] + text
     elif alignment == '^':                      #center aligned
-        div, mod = divmod( len(text), 2 )
+        div, mod = divmod(len(text), 2)
         pl, ph = div, div+mod
 
         idx = width//2-pl, width//2+ph                    #start and end indeces of the text in the center of the progress indicator
@@ -54,6 +54,29 @@ def rreplace(s, subs, repl):
         s = s.replace( ch, repl )
 
     return s
+
+def wrap(s, wrappers):
+    if isinstance(wrappers, str):
+        return wrappers + s + wrappers
+    elif np.iterable(wrappers):
+        return s.join(wrappers)
+
+def stripNonAscii(s):
+    return ''.join([x for x in s if ord(x) < 128])
+
+
+# def center(self, width, fill=' ' ):
+
+    # div, mod = divmod( len(self), 2 )
+    # if mod: #i.e. odd window length
+    # pl, ph = div, div+1
+    # else:  #even window len
+    # pl = ph = div
+
+    # idx = width//2-pl, width//2+ph                    #start and end indeces of the text in the center of the progress indicator
+    # s = fill*width
+    # return s[:idx[0]] + self + s[idx[1]:]                #center text
+
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def minfloatformat(n, precision=1):
@@ -136,7 +159,7 @@ def rformat(item, precision=2, minimalist=True):
     Apply numerical formatting recursively for arbitrarily nested iterators,
     optionally applying a conversion function on each item.
 
-    non_sig_dec - (bool) whether to include non-significant decimals in the float representation
+    minimalist - (bool) whether to include non-significant decimals in the float representation
                 if True, will always show to given precision.
                     eg. with precision=5: 7.0001 => 7.00010
                 if False, show numbers in the shortest possible format given precision.
@@ -150,7 +173,7 @@ def rformat(item, precision=2, minimalist=True):
         return floatFormatFunc(item, precision)
 
     try:
-        # array-like items with len(item) in [0,1] handeled here
+        # Handle array-like items with len(item) in [0,1] here
         # np.asscalar converts np types to python builtin types (Phew!!)
         # NOTE: This will suppress the type representation of the object str
         if isinstance(np.asscalar(item), str):

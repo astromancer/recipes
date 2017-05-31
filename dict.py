@@ -106,16 +106,13 @@ class SmartDict(TransDict):
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
         try:
-            #try translate with vocab
+            # try translate with vocab
             return super().__missing__(key)
         except KeyError as err:
-            #try:
-                #try translate with equivalence maps
+            # try translate with equivalence maps
             for emap in self._equivalence_maps:
                 if super().__contains__(emap(key)):
                     return self[emap(key)]
-            #except:
-                #pass
             raise err
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
