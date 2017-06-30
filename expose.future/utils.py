@@ -7,9 +7,9 @@ import sys
 import math
 import functools   #, pprint
 
-from .base import OptionalArgumentsDecorator
 
-#TODO: REALLY NEED A DECORATOR that can flag all methods in a class
+
+
 #TODO: unit tests!!!
 
 #FIXME: you don't really need nested classes here.  since it is a module, you can access each
@@ -17,7 +17,7 @@ from .base import OptionalArgumentsDecorator
 
 # ====================================================================================================
 def go_deep(func, args=(), kws=None):
-    """"""
+    ''''''
     kws = kws or {}
     while isinstance(func, functools.partial):
         kws.update(func.keywords)
@@ -27,19 +27,16 @@ def go_deep(func, args=(), kws=None):
 
 
 def get_func_repr(func, fargs, fkw, verbosity=1, **kws):
-    """Get func repr in pretty format"""
+    '''Get func repr in pretty format'''
     # TODO: checkout inspect.signature
     # TODO: update docstring
-    # TODO: interject str formatter for types eg. np.ndarray?
-    # TODO: colourise elements ?
+    # FIXME: works really terribly with arguments that format as multiline str... (indents etc...)
 
     shwmod = kws.get('show_module', bool(verbosity))
     shwdflt = kws.get('show_default', bool(verbosity))
     kwad = kws.get('kws_as_dict', bool(verbosity))
-    if verbosity not in (0, 1):
-        verbosity = 1
 
-    # extract info for partial functions
+    #extract info for partial functions
     if isinstance(func, functools.partial):
         func, fargs, fkw = go_deep(func, fargs, fkw)
 
@@ -57,61 +54,33 @@ def get_func_repr(func, fargs, fkw, verbosity=1, **kws):
         defaults = func.__defaults__ or ()
         arg_vals = arg_vals + defaults[len(defaults) - (code.co_argcount - len(arg_vals)):]
 
-    name_value_pairs = nvp = list(zip(arg_names, arg_vals))       #NOTE: may be empty list
+    name_value_pairs = list(zip(arg_names, arg_vals))       #NOTE: may be empty list
 
     if fkw and not kwad:
-        nvp.extend(list(fkw.items()))
+        name_value_pairs.extend(list(fkw.items()))
 
     args = fargs[len(arg_names):]
     if args:
-        nvp.append(('args', args))
-
-    name_trail_space = nts = 0
-    post_eq_space = pes = 1
-    npar = len(nvp)
-    if npar:
-        names, values = zip(*nvp)
-    else:
-        names, values = (), ()
+        name_value_pairs.append(('args', args))
 
     if verbosity == 0:
-        sep = ', '
-        name_lead_space = nls = [0] * npar
-
+        j = ', '
+        lead_white = [0] * len(name_value_pairs)
+        trail_white = 0
     elif verbosity == 1:
         # Adjust leading whitespace for pretty formatting
-        sep = ',\n'
-        # name_lead_space = nls = [0] + [len(fname) + 1] * (npar-1)
-        if npar:
-            tabsize = 4
-            longest = max(len(n) for n in names)
-            nts = int(math.ceil(longest / tabsize) * tabsize)
-        nts += 1
+        j = ',\n'
+        lead_white = [1] + [len(fname) + 1] * (len(name_value_pairs) - 1)
+        trail_white = 0
+        if len(name_value_pairs):
+            trail_white = int(math.ceil(max(len(p[0]) for p in name_value_pairs) / 8) * 8)
 
-
-
-    # from recipes.misc import getTerminalSize
-    # w, h = getTerminalSize()
-    # space = w - max(nls) - nts
-
-    # convert obj to str. indent if repr contains newline
-    indenter = lambda v, ls: repr(v).replace('\n', '\n' + ' ' * (ls+nts+pes+1))
-    ireps = list(map(indenter, values, nls))
-
-    fmt = '{blank:<{0}}{1:<{nts}}={blank: <{pes}}{2}'.format
-    fmt = functools.partial(fmt, blank='', nts=nts, pes=pes)
-    pars = sep.join(map(fmt, nls, names, ireps))
+    pars = j.join(
+        ' ' * lead_white[i] + '{0[0]:<{1}}={0[1]}'.format(p, trail_white)
+        for i, p in enumerate(name_value_pairs))
     pr = '{fname}({pars})'.format(fname=fname, pars=pars)
 
-    # pars = sep.join(
-    #     ' ' * nls[i] + '{0[0]:<{1}}={0[1]}'.format(nls, p, nts)
-    #     for i, p in enumerate(zip(names, ireps)))
-
     return pr
-#
-# def convert_str(values):
-    # if isinstance(np.ndarray)
-
 
 # ====================================================================================================
 # def get_func_repr(func, fargs, fkw={}, verbosity=0):
@@ -147,10 +116,10 @@ def get_func_repr(func, fargs, fkw, verbosity=1, **kws):
 #
 #     #Adjust leading whitespace for pretty formatting
 #     #TODO: spread option
-#     name_lead_space = [0] + [len(fname)+1] * (len(params)-1)
-#     name_trail_space = int(np.ceil(max(len(p[0]) for p in params)/8)*8)
-#     pars = j.join(' '*name_lead_space[i] + \
-#                   '{0[0]:<{1}}= {0[1]}'.format(p, name_trail_space)
+#     lead_white = [0] + [len(fname)+1] * (len(params)-1)
+#     trail_white = int(np.ceil(max(len(p[0]) for p in params)/8)*8)
+#     pars = j.join(' '*lead_white[i] + \
+#                   '{0[0]:<{1}}= {0[1]}'.format(p, trail_white)
 #                         for i, p in enumerate(params))
 #     pr = '{fname}({pars})'.format(fname=fname, pars=pars)
 #
@@ -159,28 +128,6 @@ def get_func_repr(func, fargs, fkw, verbosity=1, **kws):
 #pretty_signature_str = get_func_repr
 
 
-# ====================================================================================================
-class InfoPrintWrapper(OptionalArgumentsDecorator):
-    def setup(self, pre='', post='', **kws):
-        self.pre = pre
-        self.post = post
-
-    def make_wrapper(self, func):
-        @functools.wraps(func)
-        def wrapper(*args, **kw):
-            print(self.pre)
-            r = func(*args, **kw)
-            print(self.post)
-            return r
-        return wrapper
-
-
-class SameLineDone(InfoPrintWrapper):
-    def setup(self, pre='', post='', **kws):
-        self.pre = pre
-        up = '\033[1A'
-        right = '\033[%iC' %(len(pre) + 3)
-        self.post = up + right + post
 
 
 #****************************************************************************************************
@@ -188,13 +135,13 @@ class expose():
     #TODO: OO
     #TODO: check Ipython traceback formatter?
     #TODO: Use superstring!!
-    """
+    '''
     class that contains decorators for printing function arguments / content / returns
-    """
+    '''
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @staticmethod
     def args(pre='', post='\n', verbosity=1):
-        """
+        '''
         Decorator to print function call details - parameters names and effective values
         optional arguments specify stuff to print before and after, as well as verbosity level.
 
@@ -213,7 +160,7 @@ class expose():
              kwargs  = {'bar': Ellipsis, 'gr': 8} )
 
         Out[43]: 'aaa'
-        """
+        '''
         #====================================================================================================
         def actualDecorator(func):
 
@@ -234,14 +181,15 @@ class expose():
         return actualDecorator
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    @property
-    def returns(self):
-        """Decorator to print function return details"""
+    @staticmethod
+    def returns():
+        '''Decorator to print function return details'''
         def actualDecorator(func):
             @functools.wraps(func)
             def wrapper(*args, **kw):
                 r = func(*args, **kw)
-                print('%s\nreturn %s' % (func.__name__, r))
+                print( 'RETURNING!' )
+                print( r )
                 return r
             return wrapper
         return actualDecorator
@@ -249,18 +197,17 @@ class expose():
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     @staticmethod
     def suppress(func):
-        """Suppress all print statements in a function call"""
-
+        '''Suppress all print statements in a function call'''
         @functools.wraps(func)
         def wrapper(*args, **kws):
-            # shadow stdout temporarily
+            #shadow stdout temporarily
             actualstdout = sys.stdout
             sys.stdout = StringIO()
 
-            # call the actual function
+            #call the actual function
             r = func(*args, **kws)
 
-            # restore stdout
+            #restore stdout
             sys.stdout = actualstdout
             sys.stdout.flush()
 
