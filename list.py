@@ -1,23 +1,16 @@
-from .iter import flatiter
-import collections as coll
+"""
+Recipes involving lists
+"""
+import operator
 import functools
+import collections as coll
+import itertools as itt
+
+from .iter import flatiter, pairwise
+from .dict import DefaultOrderedDict
 
 
-##########################################################################################################################################
-# List methods
-##########################################################################################################################################
-# def enum_deep(seq, maxdepth=10):
-# depth = 1
-# indices = []
-# for i, v in enumerate(seq):
-# if np.iterable(v):
-# down = enum_deep( v, maxdepth-depth )
-# indices.append( down )
-# else:
-# indices.append( i )
-# return indices
 
-# ====================================================================================================
 def xmap(func, it, return_type=list):
     return return_type(map(func, it))
 
@@ -26,12 +19,12 @@ def lmap(func, it):
     return xmap(func, it)
 
 
-def amap(func, it):
-    return np.array(lmap(func, it))
+# def amap(func, it):
+#     return np.array(lmap(func, it))
 
 
 def rmap(func, iterable):
-    '''recursive mapping with type preservation'''
+    """recursive mapping with type preservation"""
     if isinstance(iterable, coll.Iterable):
         return type(iterable)(
             map(functools.partial(rmap, func), iterable)
@@ -40,17 +33,17 @@ def rmap(func, iterable):
         return func(iterable)
 
 
-# ====================================================================================================
-def lzip(*its):
-    return list(zip(*its))
+
+# def lzip(*its):
+#     return list(zip(*its))
 
 
 # def azip(*its):
 # return np.array(
 
-# ====================================================================================================
+
 def multi_index(seq, val, default=None):
-    '''Return the index location of all the occurences of val in seq'''
+    """Return the index location of all the occurances of val in seq"""
     i, idx = 0, []
     while i < len(seq):
         try:
@@ -62,29 +55,25 @@ def multi_index(seq, val, default=None):
     else:
         return idx
 
-
 where = multi_index
 
 
-# ====================================================================================================
 def flatten(l):
     return list(flatiter(l))
 
 
-# ====================================================================================================
 def lists(mapping):
-    '''create a sequence of lists from a mapping/iterator/generator'''
+    """create a sequence of lists from a mapping/iterator/generator"""
     return list(map(list, mapping))
 
 
-# ====================================================================================================
 def listsplit(L, idx):
-    '''Split a list into sublists at the given indices'''
-    return list(map(L.__getitem__, itt.starmap(slice, accordion(idx))))
+    """Split a list into sublists at the given indices"""
+    return list(map(L.__getitem__, itt.starmap(slice, pairwise(idx))))
 
 
 def listfind(L, item, start=0, indexer=None):
-    '''List indexing with a bit of spice'''
+    """List indexing with a bit of spice"""
     if indexer is None:
         return L.index(item)
     for i, l in enumerate(L):
@@ -93,7 +82,8 @@ def listfind(L, item, start=0, indexer=None):
 
 
 def listfindall(L, item, indexer=None):
-    '''Return the index positions of the items in the list.
+    """
+    Return the index positions of the items in the list.
     Parameters
     ----------
     indexer:    function, optional
@@ -104,21 +94,21 @@ def listfindall(L, item, indexer=None):
     Examples
     --------
     >>> L = ['ab', 'Ba', 'cb', 'dD']
-    >>> listfindall( L, 'a', str.__contains__ )
+    >>> listfindall(L, 'a', str.__contains__)
     [0, 1]
-    >>> listfindall( L, 'a', indexer=str.startswith )
+    >>> listfindall(L, 'a', indexer=str.startswith)
     [0]
 
-    '''
+    """
     if indexer is None:
         indexer = lambda x, i: x.__eq__(i)
     return [i for (i, l) in enumerate(L) if indexer(l, item)]
 
 
 def listitemsplit(L, items, withfirst=False, withlast=False, indexer=None):
-    '''Split a list into sublists at the indices of the given item.
-
-    '''
+    """
+    Split a list into sublists at the indices of the given item.
+    """
     idx = listfindall(L, items, indexer)
 
     if withfirst:
@@ -139,62 +129,59 @@ def listrefind(L, pattern):
     return None, None
 
 
-# ====================================================================================================
 def find_missing_numbers(seq):
-    '''Find the gaps in a sequence of integers'''
+    """Find the gaps in a sequence of integers"""
     all_numbers = set(range(min(seq), max(seq) + 1))
     missing = all_numbers - set(seq)
     return sorted(missing)
 
 
-# ====================================================================================================
 def tally(seq):
-    '''Return dict of item, indices pairs for sequence.'''
-    tlly = coll.defaultdict(list)
+    """Return dict of unique (item, indices) pairs for sequence."""
+    t = DefaultOrderedDict(list)
     for i, item in enumerate(seq):
-        tlly[item].append(i)
-    return tlly
+        t[item].append(i)
+    return t
 
 
 def count_repeats(seq):
-    '''Return dict of item, count pairs for sequence.'''
-    tly = tally(seq)
-    return dict(zip(tly.keys(), map(len, tly.values())))
+    """Return dict of item, count pairs for sequence."""
+    t = DefaultOrderedDict(int)
+    for i, item in enumerate(seq):
+        t[item] += 1
+    return t
 
 
 def gen_duplicates(seq):
-    '''Yield tuples of item, ideces pairs for duplicate values.'''
+    """Yield tuples of item, indices pairs for duplicate values."""
     tlly = tally(seq)
     return ((key, locs) for key, locs in tlly.items() if len(locs) > 1)
 
 
 def list_duplicates(seq):
-    '''Return tuples of item, indeces pairs for duplicate values.'''
+    """Return tuples of item, indeces pairs for duplicate values."""
     return list(gen_duplicates(seq))
 
 
 def where_duplicate(seq):
-    '''Return lists of indices of duplicate entries'''
+    """Return lists of indices of duplicate entries"""
     return nthzip(1, *list_duplicates(seq))
 
 
-# ====================================================================================================
 def sort_by_index(*its, index=None):
-    '''Use index array to sort items in multiple sequences'''
+    """Use index array to sort items in multiple sequences"""
     if index is None:
         return its
     else:
         return tuple(list(map(it.__getitem__, ix)) for it, ix in zip(its, itt.repeat(index)))
 
 
-# ====================================================================================================
 def rebuild_without(it, idx):
-    '''rebuild a sequence without items indicated by indices in idx'''
+    """rebuild a sequence without items indicated by indices in idx"""
     idx = set(idx)
     return [v for i, v in enumerate(it) if i not in idx]
 
 
-# ====================================================================================================
 def sortmore(*args, **kw):
     """
     Extends builtin list sorting with ability to to sorts any number of lists
@@ -254,9 +241,14 @@ def sortmore(*args, **kw):
     if not len(farg):
         return args
 
-    globalkey = kw.get('globalkey')
-    key = kw.get('key')
-    order = kw.get('order')
+    globalkey = kw.pop('globalkey', None)
+    key = kw.pop('key', None)
+    order = kw.pop('order', None)
+    if kw.pop('reversed', None):
+        order = 'reversed'
+
+    if len(kw):
+        raise ValueError('Unrecognised keyword(s): %s' % str(tuple(kw.keys())))
 
     # enable default behaviour
     if key is None:
@@ -290,11 +282,62 @@ def sortmore(*args, **kw):
     return tuple(map(list, zip(*res)))
 
 
-# ====================================================================================================
 def sorter(*args, **kw):
-    '''alias for sortmore'''
+    """alias for sortmore"""
     return sortmore(*args, **kw)
-
 
 # copy docstring
 sorter.__doc__ = sortmore.__doc__
+
+
+
+class UniformObjectContainer(coll.UserList):
+    """
+    A helper class that simplifies working with lists of arbitrary objects.
+    """
+
+    # TODO: access container object attributes through __getattr__ ?
+
+    # def __init__(self, obj):
+        # check uniform ...
+
+    # def __getattr__(self, item):
+
+
+
+    def attrgetter(self, *attrs):
+        """
+        Fetch attributes from the inner class.
+        see: builtin `operator.attrgetter` for details
+
+        Parameters
+        ----------
+        attrs: tuple or str
+            Attribute name(s) to retrieve
+
+        Returns
+        -------
+        list of (tuples of) attribute values
+
+
+        Examples
+        --------
+        >>> obs.attrgetter('emGain')
+        >>> obs.attrgetter('date.year')
+        """
+        return list(map(operator.attrgetter(*attrs), self.data))
+
+    def methodcaller(self, name, *args, **kws):
+        """
+
+        Parameters
+        ----------
+        name
+        args
+        kws
+
+        Returns
+        -------
+
+        """
+        return list(map(operator.methodcaller(name, *args, **kws), self.data))

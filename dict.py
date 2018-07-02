@@ -1,126 +1,306 @@
-'''
+"""
 Recipes involving dictionaries
-'''
+"""
 
-import collections as coll
+from collections import Callable, UserDict, OrderedDict
 
 from .iter import flatiter
 
 
-#====================================================================================================
-class Invertible():
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# TODO: a factory function which takes requested props, eg: indexable=True,
+# attr=True, ordered=True)
+
+# ====================================================================================================
+class Invertible(object):
+    """
+    Mixin class for invertible mappings
+    """
+
     def is_invertible(self):
-        '''check whether dict can be inverted'''
-        #TODO
+        """check whether dict can be inverted"""
+        # TODO
         return True
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def inverse(self):
         if self.is_invertible():
             return self.__class__.__bases__[1](zip(self.values(), self.keys()))
+
 
 class InvertibleDict(Invertible, dict):
     pass
 
 
-#****************************************************************************************************
 class AutoVivification(dict):
-    '''Implement autovivification feature for dict.'''
+    """Implement autovivification feature for dict."""
+
     def __missing__(self, key):
         value = self[key] = type(self)()
         return value
 
-#class AutoVivification(dict):
-    ##
-    #"""Implementation of perl's autovivification feature."""
-    #def __getitem__(self, item):
-        #try:
-            #return dict.__getitem__(self, item)
-        #except KeyError:
-            #value = self[item] = type(self)()
-            #return value
 
-#****************************************************************************************************
+AutoViv = AutoVivify = AutoVivification
+
+
+# TODO: factory methods to get class based on what you want: attribute
+# lookup, indexability,
+
 class AttrDict(dict):
-    '''dict with key access through attribute lookup'''
+    """dict with key access through attribute lookup"""
+
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
+        # pros: IDE lookup for keys
+        # caveats: inheritance: have to init this superclass first??
 
     def copy(self):
-        '''Ensure instance of same class is returned'''
+        """Ensure instance of same class is returned"""
         cls = self.__class__
         return cls(super(cls, self).copy())
 
 
-#****************************************************************************************************
-class TransDict(coll.UserDict):
-    '''Provides a way of mapping shortend versions of keywords to their proper value'''
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+class OrderedAttrDict(OrderedDict):
+    """dict with key access through attribute lookup"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__dict__ = self
+
+    def copy(self):
+        """Ensure instance of same class is returned"""
+        cls = self.__class__
+        return cls(super(cls, self).copy())
+
+
+class Indexable(object):
+    """
+    Item access through integer keys like list
+
+    >>> class X(Indexable, dict):
+    >>>     pass
+
+    >>> x = X(zip(('hello', 'world'), (1,2)))
+    >>> x[1], x[:1]  # (2, [1])
+
+
+    """
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            # note, this dissallows integer keys for parent object
+            l = len(self)
+            assert -l <= key < l, 'Invalid index: %r' % key
+            return self[list(self.keys())[key]]
+
+        if isinstance(key, slice):
+            keys = list(self.keys())
+            getter = super().__getitem__
+            return [getter(keys[i]) for i in range(len(self))[key]]
+
+        return super().__getitem__(key)
+
+
+class ListLike(Indexable, OrderedDict):
+    """
+    Ordered dict with key access via attribute lookup. Also has some
+    list-like functionality: indexing by int and appending new data.
+    Best of both worlds.
+    """
+    _auto_name_fmt = 'item%i'
+
+    def __init__(self, items=None, **kws):
+        # if we get a list / tuple try interpret as list of arrays (group
+        # labels)
+        if items is None:
+            super().__init__(**kws)
+        elif isinstance(items, (list, tuple)):
+            super().__init__()
+            for i, item in enumerate(items):
+                if self._allow_item(item):
+                    self[self._auto_name()] = self._convert_item(item)
+        else:
+            super().__init__(items, **kws)
+
+    def __setitem__(self, key, item):
+        item = self._convert_item(item)
+        OrderedDict.__setitem__(self, key, item)
+
+    def _allow_item(self, item):
+        return True
+
+    def _convert_item(self, item):
+        return item
+
+    def _auto_name(self):
+        return self._auto_name_fmt % len(self)
+
+    def append(self, item):
+        self[self._auto_name()] = self._convert_item(item)
+
+
+# class Indexable(object):
+#     """Item access through integer keys like list"""
+#
+#     def __missing__(self, key):
+#         if isinstance(key, int):
+#             l = len(self)
+#             assert -l <= key < l, 'Invalid index: %r' % key
+#             return self[list(self.keys())[key]]
+#         # if isinstance(key, slice)
+#         # cannot do slices here since the are not hashable
+#         return super().__missing__(key)
+
+
+class AttrReadItem(dict):
+    def __getattr__(self, attr):
+        """
+        Try to get the data. If attr is not a key, fall-back and get the attr
+        """
+        if attr in self:
+            return super().__getitem__(attr)
+        try:
+            return super().__getattr__(attr)
+        except Exception:
+            raise AttributeError('%r object has no attribute %r' %
+                                 (self.__class__.__name__, attr))
+
+    # def __setattr__(self, key, value):
+    #     raise NotImplementedError
+
+    # def __getattr__(self, key):
+    #     if key in self:
+    #         return self[key]
+    #
+    #     except KeyError:
+    #         raise AttributeError(key)
+
+
+# class ListLike(AttrReadItem, OrderedDict, Indexable):
+#     """
+#     Ordered dict with key access via attribute lookup. Also has some
+#     list-like functionality: indexing by int and appending new data.
+#     Best of both worlds.  Also make sure labels are always arrays.
+#     """
+#      = 'item'
+#
+#     def __init__(self, groups=None, **kws):
+#         # if we get a list / tuple try interpret as list of arrays (group
+#         # labels)
+#         if groups is None:
+#             super().__init__()
+#         elif isinstance(groups, (list, tuple)):
+#             super().__init__()
+#             for i, item in enumerate(groups):
+#                 self[self._auto_name()] = self._convert_item(item)
+#         else:
+#             super().__init__(groups, **kws)
+#
+#     def __setitem__(self, key, item):
+#         item = self._convert_item(item)
+#         OrderedDict.__setitem__(self, key, item)
+#
+#     def _convert_item(self, item):
+#         return np.array(item, int)
+#
+#     def _auto_name(self):
+#         return 'group%i' % len(self)
+#
+#     def append(self, item):
+#         self[self._auto_name()] = self._convert_item(item)
+#
+#     # def rename(self, group_index, name):
+#     #     self[name] = self.pop(group_index)
+#
+#     @property
+#     def sizes(self):
+#         return [len(labels) for labels in self.values()]
+#
+#     def inverse(self):
+#         return {lbl: gid for gid, labels in self.items() for lbl in labels}
+
+
+class Record(Indexable, OrderedAttrDict):
+    pass
+
+
+# ****************************************************************************************************
+class TransDict(UserDict):
+    """
+    A many to one mapping.
+
+    Provides a generic way of, for example, translating keywords to their
+    intended meaning in a call signature.
+    """
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
-        self._translations = {}
+        self._map = {}
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def add_translations(self, dic=None, **kwargs): #add_vocab??
-        '''enable on-the-fly shorthand translation'''
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def add_translations(self, dic=None, **kwargs):
+        """enable on-the-fly shorthand translation"""
         dic = dic or {}
-        self._translations.update(dic, **kwargs)
+        self._map.update(dic, **kwargs)
 
-    #alias
+    # alias
     add_vocab = add_translations
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __contains__(self, key):
-        return super().__contains__(self._translations.get(key, key))
+        return super().__contains__(self._map.get(key, key))
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
-        '''if key not in keywords, try translate'''
-        return self[self._translations[key]]
+        """if key not in keywords, try translate"""
+        return self[self._map[key]]
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def allkeys(self):
-        #TODO: Keysview**
-        return flatiter((self.keys(), self._translations.keys()))
+        # TODO: Keysview**
+        return flatiter((self.keys(), self._map.keys()))
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def many2one(self, many2one):
-        #self[one]       #error check
+        # self[one]       #error check
         for many, one in many2one.items():
             for key in many:
-                self._translations[key] = one
+                self._map[key] = one
 
 
-#****************************************************************************************************
-class SmartDict(TransDict):
+# ****************************************************************************************************
+class Many2OneMap(TransDict):
+    """
+    Expands on TransDict by adding equivalence mapping functions for keywords
+    """
+
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
-        self._equivalence_maps = []
+        self._eqmap = []  # equivalence mappings
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def add_map(self, func):
-        self._equivalence_maps.append(func)
+        self._eqmap.append(func)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
         try:
             # try translate with vocab
             return super().__missing__(key)
         except KeyError as err:
             # try translate with equivalence maps
-            for emap in self._equivalence_maps:
+            for emap in self._eqmap:
                 if super().__contains__(emap(key)):
                     return self[emap(key)]
             raise err
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __contains__(self, key):
         if super().__contains__(key):
-            return True #no translation needed
+            return True  # no translation needed
 
-        for emap in self._equivalence_maps:
+        for emap in self._eqmap:
             try:
                 return super().__contains__(emap(key))
             except:
@@ -128,42 +308,44 @@ class SmartDict(TransDict):
 
         return False
 
-#SuperDict = SmartDict
 
-class IndexableOrderedDict(coll.OrderedDict):
+# SuperDict = Many2OneMap
+
+class IndexableOrderedDict(OrderedDict):
     def __missing__(self, key):
         if isinstance(key, int):
             return self[list(self.keys())[key]]
         else:
-            return coll.OrderedDict.__missing__(self, key)
+            return OrderedDict.__missing__(self, key)
 
-#****************************************************************************************************
-class DefaultOrderedDict(coll.OrderedDict):
+
+# ****************************************************************************************************
+class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, default_factory=None, *a, **kw):
         if (default_factory is not None and
-           not isinstance(default_factory, coll.Callable)):
+                not isinstance(default_factory, Callable)):
             raise TypeError('first argument must be callable')
 
-        coll.OrderedDict.__init__(self, *a, **kw)
+        OrderedDict.__init__(self, *a, **kw)
         self.default_factory = default_factory
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __getitem__(self, key):
         try:
-            return coll.OrderedDict.__getitem__(self, key)
+            return OrderedDict.__getitem__(self, key)
         except KeyError:
             return self.__missing__(key)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
         if self.default_factory is None:
             raise KeyError(key)
         self[key] = value = self.default_factory()
         return value
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __reduce__(self):
         if self.default_factory is None:
             args = tuple()
@@ -171,27 +353,31 @@ class DefaultOrderedDict(coll.OrderedDict):
             args = self.default_factory,
         return type(self), args, None, None, self.items()
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def copy(self):
         return self.__copy__()
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __copy__(self):
         return type(self)(self.default_factory, self)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __deepcopy__(self, memo):
         import copy
         return type(self)(self.default_factory,
                           copy.deepcopy(self.items()))
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __repr__(self):
         return 'OrderedDefaultDict(%s, %s)' % (self.default_factory,
-                                               coll.OrderedDict.__repr__(self))
+                                               OrderedDict.__repr__(self))
 
 
-#====================================================================================================
+# DefaultOrderedDict
+
+
+# ====================================================================================================
 def invertdict(d):
     return dict(zip(d.values(), d.keys()))
-#====================================================================================================
+
+# ====================================================================================================

@@ -144,13 +144,15 @@ def to_list(data, check=None, **kws):
                                # check=check)
 
             else:
-                raise ValueError('include must be glob expression. received %s' % include)
+                raise ValueError('include must be glob expression. received %s'
+                                 % include)
 
         # if input is glob
         elif glob.has_magic(toread):  # if the input is a glob expression
             data = glob.glob(toread)
 
-        # if input is a str is intended to be read as a text file containing the actual data
+        # if input is a str is intended to be read as a text file containing the
+        #  actual data
         elif os.path.split(toread)[-1].startswith('@'):
             try:
                 data = read_data_from_file(toread, readlines)

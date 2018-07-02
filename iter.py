@@ -42,7 +42,8 @@ def flatiter(items):
                 yield i
         else:
             yield item
-
+# alias
+flatten = flatiter
 
 # def flatiter(items):
 #     """generator that flattens an iterator with arbitrary nesting"""

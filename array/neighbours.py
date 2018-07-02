@@ -2,6 +2,8 @@ import numpy as np
 
 from . import ndgrid
 
+from IPython import embed
+
 #TODO: optimize - class with dynamically generated methods?
 
 def neighbours(a, centre, size, **kws):
@@ -47,12 +49,17 @@ def neighbours(a, centre, size, **kws):
     # TODO:  Translate keywords!!
     pad = kws.pop('pad', 'edge').lower()
     favour_upper = kws.pop('favour_upper', True)
-    return_index = kws.pop('return_index', 0)
     fill_first = kws.pop('fill_first', not kws.pop('window_first', False))
-
-    rimap = {None: 0, 'lower': 1, 'slice':2, 'all': 3}     #TODO: sparse grid??
+    return_index = kws.pop('return_index', 0)
+    rimap = {None: 0,
+             'lower': 1,
+             slice: 2, 'slice' : 2,
+             all: 3, 'all' : 3}
+    # TODO: sparse grid??
     if return_index in rimap:
         return_index = rimap[return_index]
+    if return_index not in [0, 1, 2, 3]:
+        raise ValueError('bad return_index: %s', return_index)
 
     # type enforcement
     mask = a.mask if np.ma.is_masked(a) else None
@@ -124,7 +131,7 @@ def neighbours(a, centre, size, **kws):
         if return_index == 1:
             return sub, ixl_
 
-        if return_index == 3:
+        if return_index == 2:
             return sub, a_slice
 
         if return_index == 3:
@@ -147,50 +154,57 @@ def neighbours(a, centre, size, **kws):
         ixu[over] = ashape[over]
         ixl[over] = ixu[over] - size[over]
         ixl[under] = 0
-        ixu[under] = ashape[under]
-        # NOTE: same as:          ixl, ixu =  shift(a, ixl, ixu)
+        ixu[under] = size[under]
+
 
         return _return(a, ixl, ixu, return_index)
 
-    if fill_first:
-        # determine pad widths
-        pl = -ixl
-        pl[pl < 0] = 0
-        pu = ixu - a.shape
-        pu[pu < 0] = 0
-        padwidth = tuple(zip(pl, pu))
+    # if fill_first:
+    # determine pad widths
+    pl = -ixl
+    pl[pl < 0] = 0
+    pu = ixu - a.shape
+    pu[pu < 0] = 0
+    padwidth = tuple(zip(pl, pu))
 
-        # print(padwidth)
-        # pad the array / mask
+    # print(padwidth)
+    # pad the array / mask
+    try:
         padded = np.pad(a, padwidth, pad, **kws)
+    except:
+        from IPython import embed
+        embed()
+        raise
 
-        # save return indices if requested
-        if return_index == 1:
-            ri = ixl[:]
+    # save return indices if requested
+    if return_index == 1:
+        ri = ixl[:]
 
-        # shift index ranges upward (padding extends the array, so we need to adjust the indices)
-        ixl, ixu = shift(a, ixl, ixu)
-        sub = take_from_ranges(padded, ixl, ixu)
+    # shift index ranges upward (padding extends the array, so we need to adjust the indices)
+    ixl, ixu = shift(a, ixl, ixu)
+    sub = take_from_ranges(padded, ixl, ixu)
 
-        # else:
-        # TODO:  YOU CAN DECORATE np.pad to accomplish this functionality
-        if not mask is None:
-            if not mask is False:
-                mask = np.pad(mask, padwidth, pad, **kws)
-                mask = take_from_ranges(mask, ixl, ixu)
-            sub = np.ma.array(sub, mask=mask)
+    # else:
+    # TODO:  YOU CAN DECORATE np.pad to accomplish this functionality
+    if not mask is None:
+        if not mask is False:
+            mask = np.pad(mask, padwidth, pad, **kws)
+            mask = take_from_ranges(mask, ixl, ixu)
+        sub = np.ma.array(sub, mask=mask)
 
-        if return_index == 0:
-            return sub
+    if return_index == 0:
+        return sub
 
-        if return_index == 1:
-            return sub, ri
+    if return_index == 1:
+        return sub, ri
 
-        if return_index == 2:
-            grid = ndgrid.like(a)
-            gpadded = np.pad(grid, padwidth, pad, **kws)
-            ix = take_from_ranges(gpadded, ixl, ixu)
-            return sub, ix
+    if return_index == 2:
+        grid = ndgrid.like(a)
+        gpadded = np.pad(grid, padwidth, pad, **kws)
+        ix = take_from_ranges(gpadded, ixl, ixu)
+        return sub, ix
+
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

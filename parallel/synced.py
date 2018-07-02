@@ -1,11 +1,28 @@
-import  ctypes
+"""
+Multi-dimensional arrays with synchronized element access
+"""
+
+import ctypes
+import logging
+import traceback
 import multiprocessing as mp
 
 import numpy as np
 
+
+def init_synced_array(shape, fill_value=0, dtype=ctypes.c_double):
+    global shared_array
+
+    size = np.atleast_1d(shape).prod()
+    base = mp.Array(dtype, size)
+    base[:] = fill_value
+
+    shared_array = np.ctypeslib.as_array(base.get_obj())
+    shared_array = shared_array.reshape(shape)
+
 #****************************************************************************************************
 class SyncedCounter(object):
-    '''
+    """
     synchronized shared counter
 
     Bonus: since we've now placed a more coarse-grained lock on the modification
@@ -30,59 +47,53 @@ class SyncedCounter(object):
           back to Value
         * Process 1 assigns its incremented value (atomically), blowing away the
           increment performed by Process 2
-    '''
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """
     def __init__(self, initval=0):
         self.val = mp.Value('i', initval)
-        self.lock = mp.Lock()
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __str__(self):
         return str(self.val.value)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __repr__(self):
         return str(self.val.value)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __iadd__(self, val):
-        with self.lock:
+        with self.val._lock:
             self.val.value += val
         return self
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __mod__(self, val):
-        with self.lock:
+        with self.val._lock:
             return self.val.value % val
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def inc(self, val=1):
-        with self.lock:
+        with self.val._lock:
             self.val.value += val
+            return self.val.value
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def value(self):
-        with self.lock:
+    def get_value(self):
+        with self.val._lock:
             return self.val.value
 
 
 
 #****************************************************************************************************
 class SyncedArray(np.ndarray):
-    '''
+    """
     Wrapper class for synchronized parallel write access to shared memory with
     all the numpy indexing / slicing niceties.
 
     Notes:
         see http://eli.thegreenplace.net/2012/01/04/shared-counter-with-pythons-multiprocessing
-    '''
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """
     def __new__(cls, data=None, shape=None, fill_value=0, dtype=ctypes.c_double):
         # Create the ndarray instance of our type, given the usual
         # ndarray input arguments.  This will call the standard
         # ndarray constructor, but return an object of our type.
         # It also triggers a call to NDArray.__array_finalize__
         #print( 'In __new__ with class %s' % cls)
+
+        logging.debug('In __new__ with class %s' % cls)
 
         if data is None and shape is None:
             raise ValueError('Need either data or shape, or both')
@@ -108,7 +119,17 @@ class SyncedArray(np.ndarray):
         ## Finally, we must return the newly created object:
         return obj
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __getstate__(self):
+        print('pickling %s', self)
+        return self.__dict__
+
+    def __setstate__(self, state):
+        print('unpickling %s', self)
+        # re-instate our __dict__ state from the pickled state
+        # print(state )
+        # self.__dict__.update(state)
+        super().__setstate__(state)
+
     def __array_finalize__(self, obj):
         #print('In array_finalize:')
         #print('   self type is %s' % type(self))
@@ -144,14 +165,20 @@ class SyncedArray(np.ndarray):
 
         # We do not need to return anything
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __array_wrap__(self,  out_arr, context=None):
         #return an array ofter ufunc rather than MetaArray
         return np.asarray(out_arr)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __setitem__(self, key, val):
-        #TODO: optional context manager...??
+
+        if not hasattr(self, '_shared'):
+            print('!'*80)
+            print(key)
+            print(val)
+            print('*'*80)
+            traceback.print_stack()
+            print('='*80)
+
         if self._shared:
             with self._shared.get_lock(): # synchronize access
                 return super().__setitem__(key, val)
@@ -159,7 +186,6 @@ class SyncedArray(np.ndarray):
             #FIXME NOT  SURE WHY THIS IS HERE
             return super().__setitem__(key, val)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __iadd__(self, val):
         if self._shared:
             with self._shared.get_lock():

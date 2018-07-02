@@ -25,6 +25,7 @@ def fold(a, wsize, overlap=0, axis=0, **kw):
     q[0,overlap+k] *= 10
     q[1,k] == q[0,overlap+k]  #is True
     """
+    a = np.asarray(a)
     if a.size < wsize:
         warnings.warn('Window size larger than data size')
         return a[None]
