@@ -3,7 +3,7 @@ import re
 import inspect
 import functools
 
-from recipes.oop import get_class_that_defined_method
+from recipes.introspection import get_class_that_defined_method
 
 
 def func2str(func, show_class=True, submodule_depth=1):

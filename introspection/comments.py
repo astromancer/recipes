@@ -16,7 +16,8 @@ SRE_LINE_COMMENT = re.compile('((\s*)#)(.*)')  # (\s*#)(\s*?)(.*)
 
 
 def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
-         remove_commented_source=True, remove_todo=True, remove_fixme=True, ):
+         remove_commented_source=True, remove_todo=True, remove_fixme=True,
+         remove_empty=False):
     """
 
     Parameters

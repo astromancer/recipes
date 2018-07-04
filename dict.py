@@ -75,7 +75,7 @@ class OrderedAttrDict(OrderedDict):
 
 class Indexable(object):
     """
-    Item access through integer keys like list
+    Mixin class that enables dict item access through integer keys like list
 
     >>> class X(Indexable, dict):
     >>>     pass
@@ -155,25 +155,25 @@ class ListLike(Indexable, OrderedDict):
 class AttrReadItem(dict):
     def __getattr__(self, attr):
         """
-        Try to get the data. If attr is not a key, fall-back and get the attr
+        Try to get the value in the dict associated with `attr`. If attr is
+        not a key, try get the attribute.
+        Note: Items keyed on names that are identical to the `dict` builtin
+        methods, eg. 'keys', will not be accessible through attribute lookup.
+
+        >>> x = AttrReadItem(hello=0, world=2)
+        >>> x.hello, x.world # (0, 1)
+        >>> x['keys'] = None
+        >>> x.keys  # <function AttrReadItem.keys>
+
         """
         if attr in self:
             return super().__getitem__(attr)
+        #
         try:
             return super().__getattr__(attr)
         except Exception:
             raise AttributeError('%r object has no attribute %r' %
                                  (self.__class__.__name__, attr))
-
-    # def __setattr__(self, key, value):
-    #     raise NotImplementedError
-
-    # def __getattr__(self, key):
-    #     if key in self:
-    #         return self[key]
-    #
-    #     except KeyError:
-    #         raise AttributeError(key)
 
 
 # class ListLike(AttrReadItem, OrderedDict, Indexable):
