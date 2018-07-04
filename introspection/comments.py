@@ -144,12 +144,19 @@ def extract(lines, up_to_line=math.inf):
 
     return line_nrs, comments, inlines, iblock
 
+def _is_expr(node):
+    if isinstance(node, ast.Expr):
+        if isinstance(node.value, ast.Name):
+            return False
+
+
 
 def is_source(block):
     try:
         # try to parse the code block
         tree = ast.parse(textwrap.dedent(block))
-        return True
+
+        # if we got here, the compiler thinks this is source code.
         # Note this check will flag the following block (between ---) as valid
         # source code even though it is not:
         # -------------------------------------------------------------
@@ -159,6 +166,26 @@ def is_source(block):
         # as
         # source
         # -------------------------------------------------------------
+
+        # additional check: Filter all the nodes containing an expression
+        # statement (`ast.Expr`) containing only a `ast.Name` with a `ast.Load`
+        # context.
+        for node in tree.body:
+            if not isinstance(node, ast.Expr):
+                return True
+
+            # we have an expression statement
+            if not isinstance(node.value, ast.Name):
+                return True
+
+        return True
+        # Note: this is still imperfect.
+        # -------------------------------------------------------------
+        # - blablabla
+        # isOK
+        # -------------------------------------------------------------
+
+
     except:
         return False
 
