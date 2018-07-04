@@ -1,3 +1,4 @@
+import ast
 import math
 import os
 import re
@@ -49,12 +50,20 @@ def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
     # comments, blocks = extract(lines, up_to_line)
     # return comments, blocks
 
-    # line_nrs, comments, inlines, block_slices = extract(lines, up_to_line)
-    return extract(lines, up_to_line)
+    line_nrs, comments, inlines, iblocks = extract(lines, up_to_line)
+    # return extract(lines, up_to_line)
 
+    remove = set()
     if remove_commented_source:
-        # try to parse the code block
-        pass
+        for b in iblocks:
+            nrs = range(*b)
+            s = '\n'.join(comments[l] for l in nrs)
+            if is_source(s):
+                remove += list(nrs)
+
+
+
+
 
     # map source line indices to slices
     # block_slices = list(map(slice, *zip(*blocks)))
@@ -81,6 +90,9 @@ def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
     # initial_indent
     return blocks
 
+# def _make_blocks():
+#     blocks =
+#
 
 def extract(lines, up_to_line=math.inf):
     """
@@ -131,6 +143,25 @@ def extract(lines, up_to_line=math.inf):
             break
 
     return line_nrs, comments, inlines, iblock
+
+
+def is_source(block):
+    try:
+        # try to parse the code block
+        tree = ast.parse(textwrap.dedent(block))
+        return True
+        # Note this check will flag the following block (between ---) as valid
+        # source code even though it is not:
+        # -------------------------------------------------------------
+        #
+        # this
+        # masquerades
+        # as
+        # source
+        # -------------------------------------------------------------
+    except:
+        return False
+
 
 # def hard_wrap(filename, width=80, up_to_line=math.inf, ):
 #
