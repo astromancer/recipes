@@ -83,8 +83,11 @@ def extract(lines, up_to_line=math.inf):
 
     """
     # first find the comments
-    comments = {}
-    blocks = []                  # multi-line blocks start and end numbers
+    # comments = {}
+    comments = []       # comments with 
+    line_nrs = []
+    in_line = []        # boolean flags indicating if comment preceded by code
+    blocks = []         # multi-line blocks start and end numbers
     prev = -2
     in_block_prev = False
     blk0, blk1 = 0, None
@@ -109,7 +112,7 @@ def extract(lines, up_to_line=math.inf):
                 blk0, blk1 = i, None
 
             # capture
-            comments[i] = (content, inline)
+            # comments[i] = (content, inline)
 
             in_block_prev = not inline
             prev = i
