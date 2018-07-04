@@ -11,6 +11,9 @@ SRE_SPACE = re.compile('(\s*)')
 SRE_LINE_COMMENT = re.compile('((\s*)#)(.*)')  # (\s*#)(\s*?)(.*)
 
 
+# FIXME: have to check that this doesn't flag strings containing a #
+
+
 def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
          remove_commented_source=True, remove_todo=True, remove_fixme=True, ):
     """
@@ -43,16 +46,18 @@ def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
 
     lines = source.splitlines()
 
-    comments, blocks = extract(lines, up_to_line)
-    return comments, blocks
+    # comments, blocks = extract(lines, up_to_line)
+    # return comments, blocks
+
+    # line_nrs, comments, inlines, block_slices = extract(lines, up_to_line)
+    return extract(lines, up_to_line)
 
     if remove_commented_source:
         # try to parse the code block
         pass
 
-
     # map source line indices to slices
-    block_slices = list(map(slice, *zip(*blocks)))
+    # block_slices = list(map(slice, *zip(*blocks)))
 
     # slices can be used to get comment blocks from list of source lines
     for sl in block_slices:
@@ -83,11 +88,11 @@ def extract(lines, up_to_line=math.inf):
 
     """
     # first find the comments
-    # comments = {}
-    comments = []       # comments with 
-    line_nrs = []
-    in_line = []        # boolean flags indicating if comment preceded by code
-    blocks = []         # multi-line blocks start and end numbers
+    comments = {}
+    # comments = []       # comments with octothorp / hex / hash stripped
+    line_nrs = []  # 0 base line numbers
+    inlines = []  # boolean flags indicating if comment preceded by code
+    iblock = []  # multi-line blocks start and end numbers
     prev = -2
     in_block_prev = False
     blk0, blk1 = 0, None
@@ -108,19 +113,24 @@ def extract(lines, up_to_line=math.inf):
             else:
                 # new block
                 if blk1:
-                    blocks.append([blk0, blk1 + 1])
+                    iblock.append((blk0, blk1 + 1))
                 blk0, blk1 = i, None
 
             # capture
-            # comments[i] = (content, inline)
+            comments[i] = content  # (content, inline)
+            # comments.append(content)
+            inlines.append(inline)
+            line_nrs.append(i)
 
+            # flags for block id
             in_block_prev = not inline
             prev = i
 
+        # exit clause
         if i > up_to_line:
             break
 
-    return comments, blocks
+    return line_nrs, comments, inlines, iblock
 
 # def hard_wrap(filename, width=80, up_to_line=math.inf, ):
 #
