@@ -59,18 +59,16 @@ def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
             nrs = range(*b)
             s = '\n'.join(comments[l] for l in nrs)
             if is_source(s):
-                remove += list(nrs)
+                remove |= set(nrs)
 
-
-
-
+    return remove
 
     # map source line indices to slices
     # block_slices = list(map(slice, *zip(*blocks)))
 
     # slices can be used to get comment blocks from list of source lines
-    for sl in block_slices:
-        block = lines[sl]
+    for b in iblocks:
+        block = lines[slice(*b)]
         if max(map(len, block)) > hard_wrap:
             match = SRE_LINE_COMMENT.match(block[0])
             repl, indent, content = match.groups()
@@ -89,6 +87,7 @@ def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
 
     # initial_indent
     return blocks
+
 
 # def _make_blocks():
 #     blocks =
@@ -144,11 +143,11 @@ def extract(lines, up_to_line=math.inf):
 
     return line_nrs, comments, inlines, iblock
 
+
 def _is_expr(node):
     if isinstance(node, ast.Expr):
         if isinstance(node.value, ast.Name):
             return False
-
 
 
 def is_source(block):
@@ -170,7 +169,9 @@ def is_source(block):
         # additional check: Filter all the nodes containing an expression
         # statement (`ast.Expr`) containing only a `ast.Name` with a `ast.Load`
         # context.
+        ok = True
         for node in tree.body:
+            # check if tree has anything that is not an expressions statement
             if not isinstance(node, ast.Expr):
                 return True
 
@@ -178,17 +179,25 @@ def is_source(block):
             if not isinstance(node.value, ast.Name):
                 return True
 
-        return True
-        # Note: this is still imperfect.
-        # -------------------------------------------------------------
-        # - blablabla
-        # isOK
-        # -------------------------------------------------------------
+        # if we get here, the entire tree is composed of expression statements
+        # with Name
+        return False
 
+        # Note: still imperfect. The following will be treated as code
+        # -------------------------------------------------------------
+        # * gork
+        # -- item
+        # whatever
+        # -------------------------------------------------------------
+        # Note: still imperfect. double comments `## hello`
+        # Note: this block will *not* be treated as source
+        # -------------------------------------------------------------
+        # plot model residuals
+        # np.ma.median(pixels, 1)
+        # -------------------------------------------------------------
 
     except:
         return False
-
 
 # def hard_wrap(filename, width=80, up_to_line=math.inf, ):
 #
