@@ -132,25 +132,12 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     # line list. might be slow for large codebase
     lines = source.splitlines()
 
-    # Reconstruct import lines + capture module names
-    sourceTree = ast.parse(source)
-    # imEx = ImportExtractor(up_to_line, not preserve_local_imports)
-    # imEx.visit(sourceTree)
+    # Capture import nodes
+    imC = ImportCapture2(up_to_line, not preserve_local_imports)
+    sourceTree = imC.visit(ast.parse(source))
 
-    #
-    imC = ImportCapture(up_to_line, not preserve_local_imports)
-    imC.visit(sourceTree)
-    # split single line multi-module statements like: `import os, re, this`
-    # imC._split_lines()
-
-    # collect the statements that will be re-shuffled
-    if filter_unused:
-        tr = FilterUnusedImports(imC.used_names)
-        newTree = tr.visit(sourceTree)
-
-    # embed()
-
-    # statements = imEx.statements
+    # collect the import statements
+    statements = sourceTree.body
 
     # We have to be careful with multi-line imports since ast has no special
     # handling for these ito giving statement line end numbers. Lines ending on
@@ -158,12 +145,12 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     # tuples are handled below
     cutLines = []
     is_multiline = []
-    for i, s in enumerate(imC.statements):
+    for i, s in enumerate(statements):
         ln = s.lineno - 1
         line = lines[ln]
         cutLines.append(ln)
 
-        # line continuation
+        # line continuation`
         flag = False
         while line.endswith('\\'):
             ln += 1
@@ -183,12 +170,17 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
         if flag:
             is_multiline.append(i)
 
+    if filter_unused:
+        newTree = imC.filter_unused(sourceTree)
+        statements = newTree.body
+
+    embed()
+
     # count how many times a particular module is used in import statements,
     # and check whether there are ImportFrom style imports for this module
-
     moduleCount = defaultdict(int)
     moduleIsFrom = defaultdict(list)
-    for s in imC.statements:
+    for s in statements:
         is_from = isinstance(s, ast.ImportFrom)
         name = get_module_name(s)
         moduleCount[name] += 1
@@ -221,7 +213,7 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
 
     # divide statements into groups
     groups = defaultdict(list)
-    for gid, grp in itt.groupby(imC.statements, grouper):
+    for gid, grp in itt.groupby(statements, grouper):
         groups[gid].extend(grp)
 
     # return imC, groups
@@ -321,6 +313,23 @@ def rewrite(node, width=80):
     return s
 
 
+def remove_unused_names(node, unused):
+    i = 0
+    j = len(node.names)
+    while i < j:
+        alias = node.names[i]
+        if (alias.asname in unused) or (alias.name in unused):
+            r = node.names.pop(i)
+            print('removing', r.name, r.asname, 'since',
+                  ['alias.asname in unused',
+                   'alias.name in unused'][(alias.name in unused)])
+            j -= 1
+        i += 1
+
+    if len(node.names):
+        return node
+
+
 def _gen_node_names(node):
     if len(node.names):
         for alias in node.names:
@@ -332,19 +341,16 @@ def _gen_node_names(node):
         yield node.module
 
 
-def remove_unused_names(node, unused):
-    i = 0
-    j = len(node.names)
-    while i < j:
-        alias = node.names[i]
-        if (alias.asname in unused) or (alias.name in unused):
-            r = node.names.pop(i)
-            print(i, r.name, r.asname)
-            j -= 1
-        i += 1
+def gen_module_names(nodes):
+    for node in nodes:
+        if isinstance(node, ast.ImportFrom):
+            if node.level:
+                return '.'
+            yield node.module.split('.')[0]
 
-    if len(node.names):
-        return node
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                yield alias.name.split('.')[0]
 
 
 def get_module_name(node):
@@ -362,17 +368,97 @@ def get_module_name(node):
         else:
             TypeError('Split single line multi-module import statements first.')
 
-    raise TypeError('Invalid Node type')
+    raise TypeError('Invalid Node type %r' % node)
 
 
 def line_sort(line):
     return line.startswith('from'), len(line)
 
 
+class ImportCapture2(ast.NodeTransformer):
+    def __init__(self, max_line_nr=math.inf, capture_local=True):
+        #
+        self.max_line_nr = max_line_nr  # internal line nrs are 1 base
+        self.indent_ok = math.inf  # all statements will be captured
+        if bool(capture_local):
+            self.indent_ok = 1  # any indented statements will be ignores
+
+        #
+        self.used_names = set()
+        self.imported_names = []
+        # self.filter_unused = False  # for first run,
+
+    def visit_Module(self, node):
+        module = self.generic_visit(node)
+        new_body = []
+        for i, node in enumerate(module.body):
+
+            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+
+            new_body.append(node)
+        return ast.Module(new_body)
+
+    def filter_unused(self, module):
+        # filter unused import statements
+        unusedNames = set(self.imported_names) - self.used_names
+        new_body = []
+        for i, node in enumerate(module.body):
+
+            if not isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+
+            if self.imported_names[i] in unusedNames:  #
+                #TODO: deal with
+                # from recipes.iter import interleave, grouper
+                # style where 1 unused
+
+                continue
+
+            print(i, self.imported_names[i], self.imported_names[i] in
+                  unusedNames, ast.dump(node))
+            new_body.append(node)
+        return ast.Module(new_body)
+
+    def visit_Import(self, node):
+        if self._should_capture(node):
+            # capture imported names note should probably do inside visit_alias
+            self.imported_names.extend(_gen_node_names(node))
+
+            # split 1 line multi-module statements like: `import os, re, this`
+            if len(node.names) > 1:
+                new_nodes = []
+                for i, alias in enumerate(node.names):
+                    new_node = ast.Import([ast.alias(alias.name, alias.asname)])
+                    # ast.copy_location(new_node, node)
+                    # if i:
+                    #     ast.increment_lineno(new_node)
+                    #     # todo: should do this with remaining imports also if
+                    #     #  you want to compile this tree
+                    new_nodes.append(new_node)
+                return new_nodes
+
+            return self.generic_visit(node)
+
+    def visit_ImportFrom(self, node):
+        if self._should_capture(node):
+            # capture imported names note should probably do inside visit_alias
+            self.imported_names.extend(_gen_node_names(node))
+            return self.generic_visit(node)
+
+    def visit_Name(self, node):
+        if self._should_capture(node):
+            self.used_names.add(node.id)
+
+    def _should_capture(self, node):
+        return (node.lineno <= self.max_line_nr) and \
+               (node.col_offset < self.indent_ok)
+
+
 class ImportCapture(ast.NodeVisitor):
     def __init__(self, max_line_nr=math.inf, capture_local=True):
         self.statements = []
-        self.used_names = []
+        self.used_names = set()
         self.max_line_nr = max_line_nr  # internal line nrs are 1 base
         self.indent_ok = math.inf  # all statements will be captured
         if bool(capture_local):
@@ -392,7 +478,7 @@ class ImportCapture(ast.NodeVisitor):
 
     def visit_Name(self, node):
         if self._should_capture(node):
-            self.used_names.append(node.id)
+            self.used_names.add(node.id)
 
         self.generic_visit(node)
 
@@ -404,7 +490,7 @@ class ImportCapture(ast.NodeVisitor):
         # make sure we have one unique module name per import line
         for i in range(len(self.statements)):
             node = self.statements[i]
-            if isinstance(node, ast.Import) and len(node.names):
+            if isinstance(node, ast.Import) and len(node.names) > 1:
                 node = self.statements.pop(i)
                 for j, alias in enumerate(node.names):
                     new_node = ast.Import([ast.alias(alias.name, alias.asname)])
@@ -449,22 +535,35 @@ class ImportCapture(ast.NodeVisitor):
 #         print('hello')
 #         self.generic_visit(node)
 
-
-class FilterUnusedImports(ast.NodeTransformer):
-    def __init__(self, unused):
+class FilterUnusedImports(ImportCapture):
+    def __init__(self, max_line_nr=math.inf, capture_local=True, unused=()):
+        ImportCapture.__init__(self, max_line_nr, capture_local)
         self.unused = tuple(unused)
 
-    def visit_Import(self, node):
-        remove_unused_names(node, self.unused)
-        self.generic_visit(node)
-        if len(node.names):
-            return node
+    def _should_capture_import(self, node):
+        return isinstance(node, (ast.Import, ast.ImportFrom)) and \
+               get_module_name(node) not in self.unused
 
-    def visit_ImportFrom(self, node):
-        remove_unused_names(node, self.unused)
-        self.generic_visit(node)
-        if len(node.names):
-            return node
+    def _should_capture(self, node):
+        return super()._should_capture(node) and \
+               self._should_capture_import(node)
+
+#
+# class FilterUnusedImports(ast.NodeTransformer):
+#     def __init__(self, unused):
+#         self.unused = tuple(unused)
+#
+#     def visit_Import(self, node):
+#         remove_unused_names(node, self.unused)
+#         self.generic_visit(node)
+#         if len(node.names):
+#             return node
+#
+#     def visit_ImportFrom(self, node):
+#         remove_unused_names(node, self.unused)
+#         self.generic_visit(node)
+#         if len(node.names):
+#             return node
 
 # class ImportStatement(object):  # DEPRECATED
 #     """

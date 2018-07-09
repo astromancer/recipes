@@ -1,12 +1,14 @@
 #! /usr/bin/python3
 
 if __name__ == '__main__':
-    # import argparse # TODO
     import sys
-    from .imports import tidy
+    from recipes.introspection.imports import tidy
 
     filename = sys.argv[1]
 
     print('Tidying import statements in %r' % filename)
-    tidy(filename)
+    s = tidy(filename, dry_run=True)
+    print()
+    # print(s)
+    print()
     print('Done.')
