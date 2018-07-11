@@ -10,7 +10,42 @@ from .iter import flatiter
 # TODO: a factory function which takes requested props, eg: indexable=True,
 # attr=True, ordered=True)
 
-# ====================================================================================================
+def pformat(d, indent=0):
+    s = '{'
+    last = len(d) - 1
+    w = max(map(len, d.keys()))
+    for i, (k, v) in enumerate(d.items()):
+        if i:
+            _indent = 1 + indent
+        else:
+            _indent = 0
+        space = _indent * ' '
+        s += '{}{: <{}s}: '.format(space, k, w)
+        if isinstance(v, dict):
+            s += pformat(v, w + 3)
+        else:
+            s += '%s' % str(v)
+
+        s += [',\n', '}'][i == last]
+
+    return s
+
+
+def pprint(d):
+    print(pformat(d))
+
+
+class Pprinter(object):
+    """Mixin class that pretty prints dictionary content"""
+
+    def __str__(self):
+        s = pformat(self)
+        cls_name = self.__class__.__name__
+        indent = ' ' * (len(cls_name) + 1)
+        s = s.replace('\n', '\n' + indent)
+        return '%s(%s)' % (cls_name, s)
+
+
 class Invertible(object):
     """
     Mixin class for invertible mappings
@@ -21,7 +56,6 @@ class Invertible(object):
         # TODO
         return True
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def inverse(self):
         if self.is_invertible():
             return self.__class__.__bases__[1](zip(self.values(), self.keys()))
@@ -51,7 +85,7 @@ class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
-        # pros: IDE lookup for keys
+        # pros: IDE autocomplete works on keys
         # caveats: inheritance: have to init this superclass first??
 
     def copy(self):
@@ -101,7 +135,7 @@ class Indexable(object):
         return super().__getitem__(key)
 
 
-class ListLike(Indexable, OrderedDict):
+class ListLike(Indexable, OrderedDict, Pprinter):
     """
     Ordered dict with key access via attribute lookup. Also has some
     list-like functionality: indexing by int and appending new data.
