@@ -9,6 +9,6 @@ if __name__ == '__main__':
     print('Tidying import statements in %r' % filename)
     s = tidy(filename, dry_run=True)
     print()
-    # print(s)
+    print(s)
     print()
     print('Done.')
