@@ -259,7 +259,7 @@ def decimal_repr(n, precision=None, significant=3, sign='-', compact=False,
 
 
 def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
-             compact=False, unicode=True, latex=False, engineering=False):
+             compact=False, unicode=None, latex=None, engineering=False):
     r"""
     Scientific numeral representation strings in various formats.
     See:  https://en.wikipedia.org/wiki/Scientific_notation
@@ -277,7 +277,7 @@ def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
         style to use for multiplication symbol.
         * If value is either 'x' or '.':
             The symbol used is decided based on the unicode and latex flags
-            as per the following:
+            as per the following table:
                 unicode:    '×'         or      '·'
                 latex:      '\times'    or      '\cdot'
                 str:         'x'        or      '*'
@@ -309,6 +309,8 @@ def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
         raise ValueError('Only scalars are accepted by this function.')
 
     # check flags
+    if (unicode, latex) == (None, None):
+        unicode = True              # default is to prefer unicode
     assert not (unicode and latex)  # can't do both!
 
     #
@@ -333,8 +335,8 @@ def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
         else:
             pwrFmt = '%i'
             if latex:
-                pwrFmt = '{%i}'
-                times = UNI_MULT.get(times, times)
+                pwrFmt = '^{%i}'
+                times = LATEX_MULT.get(times, times)
             exp = '' if m == 1 else pwrFmt % m
 
     #

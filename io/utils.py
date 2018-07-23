@@ -152,6 +152,82 @@ def walklevel(dir_, depth=1):
 from recipes.string import overlay  # , banner
 
 
+#TODO: filter ipython noise:
+#  File "/usr/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+#     "__main__", mod_spec)
+#   File "/usr/lib/python3.6/runpy.py", line 85, in _run_code
+#     exec(code, run_globals)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel_launcher.py", line 16, in <module>
+#     app.launch_new_instance()
+#   File "/usr/local/lib/python3.6/dist-packages/traitlets/config/application.py", line 658, in launch_instance
+#     app.start()
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelapp.py", line 486, in start
+#     self.io_loop.start()
+#   File "/usr/local/lib/python3.6/dist-packages/tornado/platform/asyncio.py", line 127, in start
+#     self.asyncio_loop.run_forever()
+#   File "/usr/lib/python3.6/asyncio/base_events.py", line 422, in run_forever
+#     self._run_once()
+#   File "/usr/lib/python3.6/asyncio/base_events.py", line 1432, in _run_once
+#     handle._run()
+#   File "/usr/lib/python3.6/asyncio/events.py", line 145, in _run
+#     self._callback(*self._args)
+#   File "/usr/local/lib/python3.6/dist-packages/tornado/ioloop.py", line 759, in _run_callback
+#     ret = callback()
+#   File "/usr/local/lib/python3.6/dist-packages/tornado/stack_context.py", line 276, in null_wrapper
+#     return fn(*args, **kwargs)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 263, in enter_eventloop
+#     self.eventloop(self)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/eventloops.py", line 134, in loop_qt5
+#     return loop_qt4(kernel)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/eventloops.py", line 122, in loop_qt4
+#     _loop_qt(kernel.app)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/eventloops.py", line 106, in _loop_qt
+#     app.exec_()
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/eventloops.py", line 39, in process_stream_events
+#     kernel.do_one_iteration()
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 298, in do_one_iteration
+#     stream.flush(zmq.POLLIN, 1)
+#   File "/usr/local/lib/python3.6/dist-packages/zmq/eventloop/zmqstream.py", line 357, in flush
+#     self._handle_recv()
+#   File "/usr/local/lib/python3.6/dist-packages/zmq/eventloop/zmqstream.py", line 480, in _handle_recv
+#     self._run_callback(callback, msg)
+#   File "/usr/local/lib/python3.6/dist-packages/zmq/eventloop/zmqstream.py", line 432, in _run_callback
+#     callback(*args, **kwargs)
+#   File "/usr/local/lib/python3.6/dist-packages/tornado/stack_context.py", line 276, in null_wrapper
+#     return fn(*args, **kwargs)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 283, in dispatcher
+#     return self.dispatch_shell(stream, msg)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 233, in dispatch_shell
+#     handler(stream, idents, msg)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 399, in execute_request
+#     user_expressions, allow_stdin)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/ipkernel.py", line 208, in do_execute
+#     res = shell.run_cell(code, store_history=store_history, silent=silent)
+#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/zmqshell.py", line 537, in run_cell
+#     return super(ZMQInteractiveShell, self).run_cell(*args, **kwargs)
+#   File "/usr/local/lib/python3.6/dist-packages/IPython/core/interactiveshell.py", line 2662, in run_cell
+#     raw_cell, store_history, silent, shell_futures)
+#   File "/usr/local/lib/python3.6/dist-packages/IPython/core/interactiveshell.py", line 2785, in _run_cell
+#     interactivity=interactivity, compiler=compiler, result=result)
+#   File "/usr/local/lib/python3.6/dist-packages/IPython/core/interactiveshell.py", line 2903, in run_ast_nodes
+#     if self.run_code(code, result):
+#   File "/usr/local/lib/python3.6/dist-packages/IPython/core/interactiveshell.py", line 2963, in run_code
+#     exec(code_obj, self.user_global_ns, self.user_ns)
+#   File "<ipython-input-5-595b05a8badd>", line 24, in <module>
+
+# TODO: filter the stuff here:
+#   File "/usr/lib/python3.6/warnings.py", line 99, in _showwarnmsg
+#     msg.file, msg.line)
+#   File "/usr/lib/python3.6/logging/__init__.py", line 1999, in _showwarning
+#     s = warnings.formatwarning(message, category, filename, lineno, line)
+#   File "/usr/local/lib/python3.6/dist-packages/recipes/io/utils.py", line 268, in _formatwarning
+#     return self._wrap_message(self.original(*args, **kws)) + os.linesep
+#   File "/usr/local/lib/python3.6/dist-packages/recipes/io/utils.py", line 176, in _wrap_message
+#     return os.linesep.join((self.pre, msg, self._wrap_tb(), self.post))
+#   File "/usr/local/lib/python3.6/dist-packages/recipes/io/utils.py", line 179, in _wrap_tb
+#     tb = ''.join(traceback.format_stack())
+
+
 class Tracer(object):
     _txtwidth = 80
 
@@ -227,7 +303,7 @@ class WarningTraceback(Tracer):
 
     def __init__(self, active=True, banner=True):
         """
-        Activate full tracebacks for warnings
+        Activate full traceback for warnings
 
         Parameters
         ----------
@@ -241,14 +317,16 @@ class WarningTraceback(Tracer):
 
         >>> wtb = WarningTraceback()
         >>> warnings.warn('Dinosaurs!')
+
         ------------------------------- WarningTraceback -------------------------------
         /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:5: UserWarning: Dinosaurs!
           File "/usr/lib/python3.5/runpy.py", line 193, in _run_module_as_main
             "__main__", mod_spec)
-        ...
+        ... <some lines omitted for brevity>
           File "/usr/lib/python3.5/warnings.py", line 18, in showwarning
             file.write(formatwarning(message, category, filename, lineno, line))
         --------------------------------------------------------------------------------
+
         >>> wtb.off()
         >>> warnings.warn('Dinosaurs!')
         /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:1: UserWarning: Dinosaurs!

@@ -15,6 +15,7 @@ from stdlib_list import stdlib_list
 
 # list of builtin modules
 easterEggs = ['this', 'antigravity']
+# notListed = 'keyword'  # todo.  auto-generated module for builtin keywords
 builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs
 
 # object that finds system location of module from name
@@ -27,7 +28,10 @@ module_type_names = ['builtin', 'third-party', 'local', 'relative']
 LOCAL_MODULES = ['obstools', 'graphical', 'pySHOC', 'recipes', 'tsa', 'mCV',
                  'motley', 'slotmode']
 
-
+# TODO:
+# from matplotlib.collections import LineCollection
+# from matplotlib.collections import EllipseCollection
+# should be merged
 
 def is_builtin(name):  # name.split('.')[0]
     return name in builtin_module_names
@@ -284,7 +288,7 @@ def excision_flagger(lines, line_nrs):
 
     # search through the document header for the import group headers so we
     # don't duplicate them
-    search_depth = min(100, max(cutLines))
+    search_depth = min(100, max(cutLines))  # FIXME: ValueError: max() arg is an empty sequence
     for ln in (set(range(search_depth)) - set(cutLines)):
         line = lines[ln]
         if line.startswith('# ') and line.strip().endswith('libs'):

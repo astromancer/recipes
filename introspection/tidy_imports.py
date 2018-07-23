@@ -7,8 +7,26 @@ if __name__ == '__main__':
     filename = sys.argv[1]
 
     print('Tidying import statements in %r' % filename)
-    s = tidy(filename, dry_run=True)
-    print()
-    print(s)
-    print()
-    print('Done.')
+
+    try:
+        s = tidy(filename, dry_run=True)
+        print('\n'.join(s.split('\n', 40)[:40]))
+        print()
+        print('Done.')
+        print()
+
+    except Exception as err:
+        from IPython import embed
+        import traceback, textwrap
+
+        header = textwrap.dedent(
+                """\
+                Caught the following %s:
+                ------ Traceback ------
+                %s
+                -----------------------
+                
+                """) % (err.__class__.__name__, traceback.format_exc())
+
+        print(header)
+        raise

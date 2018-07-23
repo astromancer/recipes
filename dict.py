@@ -10,19 +10,52 @@ from .iter import flatiter
 # TODO: a factory function which takes requested props, eg: indexable=True,
 # attr=True, ordered=True)
 
-def pformat(d, indent=0):
+
+def pformat(dict_):
+    """
+    pformat (nested) dict types
+
+    Parameters
+    ----------
+    dict_: dict
+        Mapping to convert to str
+
+    Returns
+    -------
+    str
+
+    Examples
+    --------
+        >>> pprint(dict(x='hello',
+                        longkey='w',
+                        foo=dict(nested=1,
+                                 what='lkdskldlkdlklkdlkd',
+                                 x=dict(triple='nestnestnestnestyyy'))))
+
+        {x      : hello,
+         longkey: w,
+         foo    : {nested: 1,
+                   what  : lkdskldlkdlklkdlkd,
+                   x     : {triple: nestnestnestnestyyy}}}
+
+    """
     s = '{'
-    last = len(d) - 1
-    w = max(map(len, d.keys()))
-    for i, (k, v) in enumerate(d.items()):
-        if i:
-            _indent = 1 + indent
+    last = len(dict_) - 1
+    # make sure we line up the values
+    w = max(map(len, dict_.keys()))
+    for i, (k, v) in enumerate(dict_.items()):
+        if i == 0:
+            indent = 0
         else:
-            _indent = 0
-        space = _indent * ' '
+            indent = 1
+
+        space = indent * ' '
         s += '{}{: <{}s}: '.format(space, k, w)
+
         if isinstance(v, dict):
-            s += pformat(v, w + 3)
+            ds = pformat(v)
+            ws = ' ' * (w + 3)
+            s += ds.replace('\n', '\n' + ws)
         else:
             s += '%s' % str(v)
 
@@ -31,8 +64,8 @@ def pformat(d, indent=0):
     return s
 
 
-def pprint(d):
-    print(pformat(d))
+def pprint(dict_):
+    print(pformat(dict_))
 
 
 class Pprinter(object):
@@ -267,12 +300,10 @@ class TransDict(UserDict):
     intended meaning in a call signature.
     """
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
         self._map = {}
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def add_translations(self, dic=None, **kwargs):
         """enable on-the-fly shorthand translation"""
         dic = dic or {}
@@ -281,21 +312,17 @@ class TransDict(UserDict):
     # alias
     add_vocab = add_translations
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __contains__(self, key):
         return super().__contains__(self._map.get(key, key))
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
         """if key not in keywords, try translate"""
         return self[self._map[key]]
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def allkeys(self):
         # TODO: Keysview**
         return flatiter((self.keys(), self._map.keys()))
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def many2one(self, many2one):
         # self[one]       #error check
         for many, one in many2one.items():
@@ -313,11 +340,9 @@ class Many2OneMap(TransDict):
         super().__init__(dic, **kwargs)
         self._eqmap = []  # equivalence mappings
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def add_map(self, func):
         self._eqmap.append(func)
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
         try:
             # try translate with vocab
@@ -329,7 +354,6 @@ class Many2OneMap(TransDict):
                     return self[emap(key)]
             raise err
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __contains__(self, key):
         if super().__contains__(key):
             return True  # no translation needed
@@ -356,7 +380,6 @@ class IndexableOrderedDict(OrderedDict):
 # ****************************************************************************************************
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, default_factory=None, *a, **kw):
         if (default_factory is not None and
                 not isinstance(default_factory, Callable)):
@@ -365,21 +388,18 @@ class DefaultOrderedDict(OrderedDict):
         OrderedDict.__init__(self, *a, **kw)
         self.default_factory = default_factory
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __getitem__(self, key):
         try:
             return OrderedDict.__getitem__(self, key)
         except KeyError:
             return self.__missing__(key)
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __missing__(self, key):
         if self.default_factory is None:
             raise KeyError(key)
         self[key] = value = self.default_factory()
         return value
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __reduce__(self):
         if self.default_factory is None:
             args = tuple()
@@ -387,21 +407,17 @@ class DefaultOrderedDict(OrderedDict):
             args = self.default_factory,
         return type(self), args, None, None, self.items()
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def copy(self):
         return self.__copy__()
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __copy__(self):
         return type(self)(self.default_factory, self)
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __deepcopy__(self, memo):
         import copy
         return type(self)(self.default_factory,
                           copy.deepcopy(self.items()))
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __repr__(self):
         return 'OrderedDefaultDict(%s, %s)' % (self.default_factory,
                                                OrderedDict.__repr__(self))
