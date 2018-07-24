@@ -78,6 +78,9 @@ class Pprinter(object):
         s = s.replace('\n', '\n' + indent)
         return '%s(%s)' % (cls_name, s)
 
+    def __repr__(self):
+        return str(self)
+
 
 class Invertible(object):
     """
