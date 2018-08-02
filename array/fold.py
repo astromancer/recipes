@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def fold(a, wsize, overlap=0, axis=0, **kw):
     """
     segment an array at given wsize, overlap,
@@ -11,7 +11,7 @@ def fold(a, wsize, overlap=0, axis=0, **kw):
     segment.
 
     keywords are passed to np.pad used to fill up the array to the required length.  This
-    method works on multidimentional and masked array as well.
+    method works on multi-dimensional and masked array as well.
 
     keyword arguments are passed to np.pad to fill up the elements in the last window (default is
     symmetric padding).
@@ -44,9 +44,9 @@ def fold(a, wsize, overlap=0, axis=0, **kw):
 
 
 def rebin(x, binsize, t=None, e=None):
-    '''
+    """
     Rebin time series data. Assumes data are evenly sampled in time (constant time steps).
-    '''
+    """
     xrb = fold(x, binsize).mean(1)
     returns = (xrb,)
 
@@ -62,7 +62,7 @@ def rebin(x, binsize, t=None, e=None):
         return returns[0]
     return returns
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def gen(a, wsize, overlap=0, axis=0, **kw):
     """
     Generator version of fold.
@@ -79,7 +79,6 @@ def gen(a, wsize, overlap=0, axis=0, **kw):
         i += 1
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def padder(a, wsize, overlap=0, axis=0, **kw):
     """ """
     assert wsize > 0, 'wsize > 0'
@@ -93,13 +92,15 @@ def padder(a, wsize, overlap=0, axis=0, **kw):
     Nseg, leftover = divmod(N - overlap, step)
 
     if leftover:
-        pad_mode = kw.pop('pad', 'mask')  # default is to mask the "out of array" values
+        # default is to mask the "out of array" values
+        pad_mode = kw.pop('pad', 'mask')
         if pad_mode == 'mask' and (mask is None or mask is False):
             mask = np.zeros(a.shape, bool)
 
+        # pad the array at the end with `pad_end` number of values
         pad_end = step - leftover
         pad_width = np.zeros((a.ndim, 2), int)  # initialise pad width indicator
-        pad_width[axis, -1] = pad_end  # pad the array at the end with 'pad_end' number of values
+        pad_width[axis, -1] = pad_end
         pad_width = list(map(tuple, pad_width))  # map to list of tuples
 
         # pad (apodise) the input signal (and mask)
@@ -118,10 +119,10 @@ def padder(a, wsize, overlap=0, axis=0, **kw):
     return a, int(Nseg)
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def get_strided_array(a, size, overlap, axis=0):
     """
-    Fold array `a` along `axis` with given `size` and `overlap`. Use strides (byte-steps) for memory efficiency
+    Fold array `a` along `axis` with given `size` and `overlap`. Use strides
+    (byte-steps) for memory efficiency.
     By default, insert the new axis in the position before `axis`.
     """
     if axis < 0:
@@ -138,7 +139,6 @@ def get_strided_array(a, size, overlap, axis=0):
     return as_strided(a, new_shape, new_strides)
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def get_nocc(N, wsize, overlap):
     """
     Return an array of length N, with elements representing the number of
