@@ -39,6 +39,8 @@ def pformat(dict_):
                    x     : {triple: nestnestnestnestyyy}}}
 
     """
+    assert isinstance(dict_, dict), 'Object is not a dict'
+
     s = '{'
     last = len(dict_) - 1
     # make sure we line up the values
@@ -51,14 +53,16 @@ def pformat(dict_):
 
         space = indent * ' '
         s += '{}{: <{}s}: '.format(space, k, w)
-
+        ws = ' ' * (w + 3)
         if isinstance(v, dict):
             ds = pformat(v)
-            ws = ' ' * (w + 3)
-            s += ds.replace('\n', '\n' + ws)
         else:
-            s += '%s' % str(v)
+            ds = str(v)
 
+        # objects with multi-line representations need to be indented
+        ds = ds.replace('\n', '\n' + ws)
+        s += ds
+        # closing bracket
         s += [',\n', '}'][i == last]
 
     return s
