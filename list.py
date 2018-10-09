@@ -1,12 +1,15 @@
 """
 Recipes involving lists
 """
+
+import re
 import operator
 import functools
 import collections as coll
 import itertools as itt
 
-from .iter import flatiter, pairwise
+import more_itertools as mit
+
 from .dict import DefaultOrderedDict
 
 
@@ -59,7 +62,7 @@ where = multi_index
 
 
 def flatten(l):
-    return list(flatiter(l))
+    return list(mit.flatiter(l))
 
 
 def lists(mapping):
@@ -69,7 +72,7 @@ def lists(mapping):
 
 def listsplit(L, idx):
     """Split a list into sublists at the given indices"""
-    return list(map(L.__getitem__, itt.starmap(slice, pairwise(idx))))
+    return list(map(L.__getitem__, itt.starmap(slice, mit.pairwise(idx))))
 
 
 def listfind(L, item, start=0, indexer=None):
@@ -165,7 +168,7 @@ def list_duplicates(seq):
 
 def where_duplicate(seq):
     """Return lists of indices of duplicate entries"""
-    return nthzip(1, *list_duplicates(seq))
+    return nth_zip(1, *list_duplicates(seq))
 
 
 def sort_by_index(*its, index=None):
@@ -173,7 +176,8 @@ def sort_by_index(*its, index=None):
     if index is None:
         return its
     else:
-        return tuple(list(map(it.__getitem__, ix)) for it, ix in zip(its, itt.repeat(index)))
+        return tuple(list(map(it.__getitem__, ix))
+                     for it, ix in zip(its, itt.repeat(index)))
 
 
 def rebuild_without(it, idx):

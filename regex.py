@@ -1,7 +1,26 @@
+
+import re
+import pathlib
+
+
+class Path(type(pathlib.Path())):  # HACK!
+    def reglob(self, exp):
+        """
+        glob.glob() style searching with regex
+
+        :param exp: Regex expression for filename
+        """
+        m = re.compile(exp)
+
+        names = map(lambda p: p.name, self.iterdir())
+        res = filter(m.match, names)
+        res = map(lambda p: self / p, res)
+
+        return res
+
+
 # Function pcre_detidy to convert xmode regex string to non-xmode.
 # Rev: 20160225_1800
-import re
-
 
 def detidy_cb(m):
     if m.group(2):

@@ -3,11 +3,11 @@ import inspect
 
 from recipes.decor.base import DecoratorBase
 from recipes.string import func2str
-from recipes.oop import ClassProperty
+from recipes.oo import ClassProperty
 from recipes.decor.memoize import memoize
 
 import logging
-from .progressbar import ProgressBarBase
+from .pprint.progressbar import ProgressBarBase
 
 
 # class LoggingMixin():

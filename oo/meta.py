@@ -1,10 +1,10 @@
 # import functools
 
 # from IPython import embed
-# ===============================================================================
+# ==============================================================================
 def flaggerFactory(flag='_flagged', collection='_flagged'):
     """
-    Factory for creating class-decorator pair for method flagging and collection.
+    Factory for creating class-decorator pair for method flagging and collection
 
     Parameters
     ----------
@@ -42,11 +42,11 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     GrandChild().bar()  #prints 'foo!'
     """
 
-    # *******************************************************************************
+    # **************************************************************************
     class MethodFlaggerMeta(type):
         """Metaclass to collect methods flagged with decorator"""
 
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         def __new__(meta, name, bases, namespace, **kw):
             cls = super().__new__(meta, name, bases, namespace)
 
@@ -63,14 +63,14 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
             setattr(cls, collection, coll)
             return cls
 
-    # *******************************************************************************
+    # **************************************************************************
     class FlaggedMixin(metaclass=MethodFlaggerMeta):
         """
         Mixin that collects the flagged methods in a dict and assigns it to the
         %s attribute.
         """
 
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         def __init__(self, *args, **kw):
             # bind the flagged methods to the instance
             # logging.debug('Collected these functions: %s', getattr(self, collection))
@@ -80,7 +80,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
                     for (name, method) in getattr(self, collection).items()}
             setattr(self, collection, flagged_methods)
 
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     # TODO: use case without arguments
     def flagger(*args):
@@ -103,13 +103,13 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     return FlaggedMixin, flagger
 
 
-# ===============================================================================
+# ==============================================================================
 def altflaggerFactory(flag='_flagged', collection='_flagged'):
     """
     Factory for creating class-decorator pair for method flagging and collection.
     This implementation avoids using a metaclass (in some cases this plays better
     with multiple inheritance. (metaclass conflicts)).  However, it may not work
-    if your class has properties that reference values set after initialisation.
+    if your class has properties that reference values set after initialization.
     It also does not support inheritance of flagged methods.
 
     Examples
@@ -131,8 +131,10 @@ def altflaggerFactory(flag='_flagged', collection='_flagged'):
     be the outermost (top) one.
     """
 
-    class FlaggedMixin():
-        """Mixin that binds the flagged classmethods to an instance of the class"""
+    class FlaggedMixin(object):
+        """
+        Mixin that binds the flagged classmethods to an instance of the class
+        """
 
         def __init__(self, *args, **kw):
             # collect the flagged methods via introspection

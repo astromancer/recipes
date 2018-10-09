@@ -1,5 +1,5 @@
 """
-Objects that are useful in object oriented programming approaches
+Some object oriented code patterns.
 """
 
 
@@ -43,6 +43,13 @@ class ClassProperty(property):
 
 
 class SelfAware(object):  # SelfAware
+    """
+    Implements a new instance from existing instance usage pattern
+
+    Example:
+        A = SelfAware
+        A(A(A(1)))
+    """
     _skip_init = False
 
     def __new__(cls, *args):

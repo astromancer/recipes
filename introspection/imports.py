@@ -57,7 +57,7 @@ def get_module_typecode(module_name):
     if is_builtin(module_name):
         return 0
     if is_local(module_name):
-        return 2
+        return 2                   # FIXME: relative imports flagged as local...
     if module_name == '':
         return 3
     return 1

@@ -37,7 +37,7 @@ def func2str(func, show_class=True, submodule_depth=1):
         if isinstance(func, functools.partial):
             func = func.func
             # represent missing arguments with unicode centre dot
-            cdot = u'\u00B7'
+            cdot = '·' #u'\u00B7'
             argstr = str(func.args).strip(')') + ', %s)' % cdot
             return 'partial(%s%s)' % (func2str(func.func), argstr)
         # just a plain function # FIXME: module???
