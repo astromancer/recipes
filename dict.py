@@ -83,7 +83,11 @@ class Pprinter(object):
         return '%s(%s)' % (cls_name, s)
 
     def __repr__(self):
-        return str(self)
+        s = pformat(self)
+        cls_name = self.__class__.__name__
+        indent = ' ' * (len(cls_name) + 1)
+        s = s.replace('\n', '\n' + indent)
+        return '%s(%r)' % (cls_name, s)
 
 
 class Invertible(object):
