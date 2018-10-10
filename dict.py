@@ -1,7 +1,7 @@
 """
 Recipes involving dictionaries
 """
-
+import numbers
 from collections import Callable, UserDict, OrderedDict
 
 from .iter import flatiter
@@ -165,7 +165,7 @@ class Indexable(object):
     """
 
     def __getitem__(self, key):
-        if isinstance(key, int):
+        if isinstance(key, numbers.Integral):
             # note, this dissallows integer keys for parent object
             l = len(self)
             assert -l <= key < l, 'Invalid index: %r' % key
