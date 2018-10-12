@@ -188,16 +188,17 @@ class ListLike(Indexable, OrderedDict, Pprinter):
     _auto_name_fmt = 'item%i'
 
     def __init__(self, items=None, **kws):
-        # if we get a list / tuple try interpret as list of arrays (group
-        # labels)
         if items is None:
+            # construct from keywords
             super().__init__(**kws)
         elif isinstance(items, (list, tuple)):
+            # construct from sequence: make keys using `_auto_name_fmt`
             super().__init__()
             for i, item in enumerate(items):
                 if self._allow_item(item):
                     self[self._auto_name()] = self._convert_item(item)
         else:
+            # construct from mapping
             super().__init__(items, **kws)
 
     def __setitem__(self, key, item):
