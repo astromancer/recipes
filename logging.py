@@ -41,18 +41,18 @@ class LoggingMixin(object):
     @ClassProperty
     @classmethod
     @memoize
-    def logname(cls):
+    def log_name(cls):
         parts = cls.__module__.split('.') + [cls.__name__]
         parts = parts[-cls._show_module_depth - 1:]
         name = '.'.join(filter(None, parts))
         return name
 
-    # making the logger a property also avoids pickling error for inherited classes
+    # making the logger a property avoids pickling error for inherited classes
     @ClassProperty
     @classmethod
     @memoize
     def logger(cls):
-        return logging.getLogger(cls.logname)
+        return logging.getLogger(cls.log_name)
 
 
 # ====================================================================================================

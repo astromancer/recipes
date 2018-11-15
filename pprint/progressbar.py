@@ -19,8 +19,8 @@ def move_cursor(val):
 
 
 class ProgressBarBase(object):
-    def __init__(self, precision=2, width=None, symbol='=', align='^', sides='|',
-                 every=None):  # , pfmt=None):
+    def __init__(self, precision=2, width=None, symbol='=', align='^',
+                 sides='|', every=None):
         """ """
         self.sigfig = precision
         self.symbol = str(symbol)
@@ -35,7 +35,7 @@ class ProgressBarBase(object):
         self.pfmt = '{0:.%i%%}' % self.sigfig
         self.count = 0
         self.end = 0  # will be set upon call to create
-        self.every = every # explicitly say how often you want the progressbar to emit
+        self.every = every  # how frequently progressbar will emit during loop
         self.stream = None
 
     def create(self, end, stream=sys.stdout):
@@ -45,9 +45,9 @@ class ProgressBarBase(object):
         self.end = int(end)
         every = resolve_percentage(self.every, self.end)
         if every is None:
-            # only have to update when progress has advanced enough to change text
+            # only update once progress has advanced enough to change text
             every = math.ceil(10 ** (self.sigfig + 2) / self.end)
-        self.every = every
+        self.every = max(every, 1)
         self.stream = stream
 
     def inc(self):
@@ -97,10 +97,12 @@ class ProgressBarBase(object):
         # percentage completeness displayed to sigfig decimals
         percentage = self.pfmt.format(frac)
 
+        # integer fraction of completeness of for loop.
         w = self.width - len(self.sides)
-        ifb = int(round(frac * w))  # integer fraction of completeness of for loop.
+        ifb = int(round(frac * w))
 
-        bar = (self.symbol * ifb).ljust(w)  # filled up to 'width' in whitespaces
+        # filled up to 'width' in whitespaces
+        bar = (self.symbol * ifb).ljust(w)
         bar = self.sides + bar + self.sides
 
         return bar, percentage

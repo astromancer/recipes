@@ -599,6 +599,7 @@ class PrettyPrinter(pprint.PrettyPrinter):
             precision = precision or 3
 
         self.precision = precision
+        self.minimalist = minimalist
 
         super().__init__(indent, width, depth, stream, compact=compact)
 
@@ -609,8 +610,9 @@ class PrettyPrinter(pprint.PrettyPrinter):
         and whether the object represents a recursive construct.
         """
         # intercept float formatting
-        if isinstance(obj, (int, float)):
-            return self._floatFormatFunc(obj, self.precision)
+        if isinstance(obj, numbers.Real):
+            return self._floatFormatFunc(obj, self.precision,
+                                         compact=self.minimalist)
 
         # for str, return the str instead of its repr
         if isinstance(obj, str):
