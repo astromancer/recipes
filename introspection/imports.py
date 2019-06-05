@@ -281,7 +281,6 @@ def make_tree(statements, aesthetic=True, alphabetic=False, ):
     """"""
 
     # collect the import statements
-    statements = merge_duplicates(statements)
     root = Node("body")
 
     # no import statements ?
@@ -387,6 +386,9 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     # correctly in new tree
     if report:
         print_imports_tree(root)
+
+    if len(root.children) == 0:
+        return
 
     # create new source code with import statements re-shuffled
     write_to = write_to or filename  # default is to overwrite input file
@@ -543,7 +545,6 @@ def remove_unused_names(node, unused):
 def merge_duplicates(stm):
     # assume sorted already
     # combine separate statements that import from the same module
-
     stm = sorted(stm, key=partial(get_module_names, split=False))
 
     r = []
@@ -611,7 +612,7 @@ class ImportCapture(ast.NodeTransformer):
     # TODO: scope aware capture
 
     def __init__(self, max_line_nr=math.inf, capture_local=True, split=True,
-                 filter_unused=True):
+                 filter_unused=True, merge_duplicates=True):
         #
         self.max_line_nr = max_line_nr  # internal line nrs are 1 base
         self.indent_ok = 0  # any indented statement will be ignored
@@ -620,6 +621,7 @@ class ImportCapture(ast.NodeTransformer):
 
         self.split = bool(split)
         self.filter_unused = bool(filter_unused)
+        self.merge_duplicates = bool(merge_duplicates)
         #
         self.used_names = set()
         self.imported_names = []
@@ -663,6 +665,9 @@ class ImportCapture(ast.NodeTransformer):
 
             # print('append', node)
             new_body.append(node)
+
+        if self.merge_duplicates:
+            new_body = merge_duplicates(new_body)
 
         return ast.Module(new_body)
 
