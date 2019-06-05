@@ -2,15 +2,15 @@ import atexit
 import functools
 from pathlib import Path
 
-from decor.base import OptionalArgumentsDecorator
-from decor.expose import SameLineDone
+from recipes.decor.base import OptionalArgumentsDecorator
+from recipes.decor.expose import SameLineDone
 from recipes.io import load_pickle, save_pickle
 
 
 # def same_line_done():
 
 
-class persistant_memoizer():
+class persistent_memoizer():
     """memoizer that saves cache to file at program termination"""
 
     def __init__(self, filename, verbose=True):  # TODO: use decoratorbase here?
@@ -51,7 +51,7 @@ class persistant_memoizer():
 
 
 
-@persistant_memoizer('~/work/.test_cache')
+@persistent_memoizer('~/work/.test_cache')
 def foo(n):
     return n*2
 

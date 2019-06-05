@@ -1,20 +1,25 @@
-
-
 import inspect
 
 
 def decorateAll(decorator=None, exclude=()):
-    """A decorator that applies a given decorator to all methods in a class. Useful for profiling / debugging."""
+    """
+    A decorator that applies a given decorator to all methods in a class.
+    Useful for profiling / debugging.
+    """
+
     def wrapper(cls):
         if decorator is not None:
-            for name, method in inspect.getmembers(cls, predicate=inspect.isfunction):
-                # NOTE: For same reason, static methods don't like being decorated like this
-                is_static = isinstance(cls.__dict__.get(name, None), staticmethod)
+            for name, method in inspect.getmembers(
+                    cls, predicate=inspect.isfunction):
+                # NOTE: For same reason, static methods don't like being
+                #   decorated like this
+                is_static = isinstance(
+                        cls.__dict__.get(name, None), staticmethod)
                 if not (is_static or name in exclude):
                     setattr(cls, name, decorator(method))
         return cls
-    return wrapper
 
+    return wrapper
 
 # import functools
 #

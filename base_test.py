@@ -1,4 +1,4 @@
-from decor.base import OptionalArgumentsDecorator
+from recipes.decor.base import OptionalArgumentsDecorator
 
 @OptionalArgumentsDecorator
 def foo1():
