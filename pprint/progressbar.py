@@ -1,11 +1,14 @@
-import math
+
+# std libs
 import os
 import sys
+import math
 
-
+# relative libs
 from . import overlay
 from ..misc import get_terminal_size
-from ..string import resolve_percentage
+
+
 
 
 # import time

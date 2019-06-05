@@ -1,7 +1,11 @@
+
+# third-party libs
 import numpy as np
 import matplotlib.pyplot as plt
 
+# local libs
 from recipes import pprint
+
 
 
 def plot_chains_ts(samples, names=None, truths=None, truth_color='k',

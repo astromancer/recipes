@@ -1,14 +1,18 @@
-import itertools as itt
+
+# std libs
 import os
-import pickle
 import sys
-import traceback
+import pickle
 import warnings
+import traceback
+import itertools as itt
 from pathlib import Path
 
+# local libs
 import motley
+from recipes.pprint import overlay
 from recipes.interactive import is_interactive
-from recipes.pprint import overlay  # , banner
+
 
 
 # ===============================================================================

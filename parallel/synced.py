@@ -2,13 +2,15 @@
 Multi-dimensional arrays with synchronized element access
 """
 
+
+# std libs
 import ctypes
-import logging
-import traceback
 import multiprocessing as mp
 import multiprocessing.managers as mgr
 
+# third-party libs
 import numpy as np
+
 
 # methods that need sync:
 methods_to_sync = (

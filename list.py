@@ -2,15 +2,21 @@
 Recipes involving lists
 """
 
+
+# std libs
 import re
 import operator
 import functools
-import collections as coll
 import itertools as itt
+import collections as coll
 
+# third-party libs
 import more_itertools as mit
 
+# relative libs
 from .dict import DefaultOrderedDict
+
+
 
 
 

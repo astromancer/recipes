@@ -1,20 +1,21 @@
-import ast
-import math
-import os
-from functools import partial
 
-from IPython import embed
-
+# std libs
 import io
+import ast
 import sys
+import math
 import itertools as itt
+from functools import partial
 from collections import defaultdict
+
+# third-party libs
+from stdlib_list import stdlib_list
+from anytree import Node, RenderTree
+
+
 # from importlib.machinery import PathFinder
 
-import more_itertools as mit
-from stdlib_list import stdlib_list
 
-from anytree import Node, RenderTree
 
 # list of builtin modules
 easterEggs = ['this', 'antigravity']

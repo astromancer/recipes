@@ -2,16 +2,18 @@
 Host of useful miscellaneous classes and functions.
 """
 
-import os
+
+# std libs
 import sys
 import shutil
 import logging
-from collections import Set, Mapping, deque
 from numbers import Number
+from collections import Set, Mapping, deque
 
-import numpy as np
-
+# relative libs
 from .interactive import is_interactive
+
+
 
 logger = logging.getLogger('recipes.misc')
 

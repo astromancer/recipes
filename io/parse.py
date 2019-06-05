@@ -1,10 +1,14 @@
+
+# std libs
 import os
 import glob
 from functools import partial
 from collections import Callable
 
-from .utils import warn, iocheck, read_data_from_file
+# relative libs
 from ..set import OrderedSet
+from .utils import warn, iocheck, read_data_from_file
+
 
 
 def resolver(givenpath, input_):

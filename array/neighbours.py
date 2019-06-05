@@ -1,8 +1,13 @@
-import numpy as np
 
+# third-party libs
+import numpy as np
+from IPython import embed
+from sklearn.neighbors import NearestNeighbors
+
+# relative libs
 from . import ndgrid
 
-from IPython import embed
+
 
 #TODO: optimize - class with dynamically generated methods?
 
@@ -254,7 +259,6 @@ def _return(a, ixl, ixu, return_index):
 
 
 
-from sklearn.neighbors import NearestNeighbors
 #****************************************************************************************************
 class NearestNeighbours(NearestNeighbors):
     """fix these aggregious american spelling errors"""

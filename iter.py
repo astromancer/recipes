@@ -2,12 +2,16 @@
 Common patterns involving iterables
 """
 
+
+# std libs
 import operator
 import functools
 import itertools as itt
-from collections import Iterable, deque
+from collections import Iterable
 
+# third-party libs
 import more_itertools as mit
+
 
 
 # TODO: Wrapper class which Implements a .list method

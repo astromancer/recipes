@@ -1,9 +1,8 @@
-from subprocess import Popen, PIPE
-import queue
-from queue import Empty
 import threading
-
+import queue
+from subprocess import Popen, PIPE
 from collections import defaultdict
+
 
 #from IPython import embed
 

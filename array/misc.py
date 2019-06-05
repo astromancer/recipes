@@ -1,9 +1,13 @@
 """
 Common algorithms involving arrays
 """
+
+# third-party libs
 import numpy as np
 
+# local libs
 from recipes.list import flatten, where_duplicate
+
 
 
 # from IPython import embed

@@ -1,10 +1,14 @@
 """
 Miscellaneous functions for pretty printing
 """
+
+# std libs
 import os
 import functools
 
+# relative libs
 from ..introspection import get_class_that_defined_method
+
 
 
 def seq_repr_trunc(seq, max_items=10, edge_items=1, sep=','):

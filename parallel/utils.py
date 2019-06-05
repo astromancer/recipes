@@ -1,18 +1,24 @@
 
+
+# std libs
 import time
-# import ctypes
 import logging
-# import traceback
 import itertools as itt
 import multiprocessing as mp
+
+# third-party libs
+import psutil
+import numpy as np
+
+# local libs
+from recipes.iter import chunker
+from recipes.logging import LoggingMixin
+# import ctypes
+# import traceback
 # from contextlib import ExitStack
 
-import numpy as np
-import psutil #monitoring lib
 
-from recipes.iter import chunker
 
-from recipes.logging import LoggingMixin
 
 #====================================================================================================
 def monCPU(filename, interval, alive, maxsize=1e6):

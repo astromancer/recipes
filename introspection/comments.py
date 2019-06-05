@@ -1,12 +1,10 @@
-import ast
-import math
 import os
 import re
-
+import ast
+import math
 import textwrap
-from collections import defaultdict
 
-from IPython import embed
+
 
 SRE_SPACE = re.compile('(\s*)')
 SRE_LINE_COMMENT = re.compile('((\s*)#)(.*)')  # (\s*#)(\s*?)(.*)

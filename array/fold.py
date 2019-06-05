@@ -1,7 +1,11 @@
+
+# std libs
 import warnings
 
+# third-party libs
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
+
 
 
 def fold(a, wsize, overlap=0, axis=0, **kw):

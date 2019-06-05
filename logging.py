@@ -1,16 +1,20 @@
-import functools
-import inspect
 
-from recipes.decor.base import DecoratorBase
-from recipes.pprint import func2str
+# std libs
+import logging
+import functools
+from contextlib import contextmanager
+
+# local libs
 from recipes.oo import ClassProperty
 from recipes.decor.memoize import memoize
+from recipes.decor.base import DecoratorBase
 
-import logging
+# relative libs
 from .pprint.progressbar import ProgressBarBase
 
 
-from contextlib import contextmanager
+
+
 
 
 @contextmanager

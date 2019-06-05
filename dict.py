@@ -1,10 +1,14 @@
 """
 Recipes involving dictionaries
 """
+
+# std libs
 import numbers
 from collections import Callable, UserDict, OrderedDict
 
+# relative libs
 from .iter import flatiter
+
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
