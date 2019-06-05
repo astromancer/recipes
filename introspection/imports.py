@@ -148,9 +148,9 @@ def _make_children(node, statements, func, sort, lvl):
         # node.stm = sorted(map(rewrite, statements), key=len)
         # if we split down to the statement level, each node has one statement
         node.stm = rewrite(statements[0])
-        node.order = min(len(node.stm), 80)
         # order groups by maximal statement length
-        if lvl > 3:
+        if lvl >= 3:
+            node.order = min(len(node.stm), 80)
             parent = node.parent
             for _ in range(3, lvl):
                 parent.order = max(node.order, parent.order)
@@ -191,8 +191,9 @@ def print_imports_tree(tree, ws=50):
     """
     for pre, _, node in RenderTree(tree, childiter=sort_nodes):
         # lvl = len(pre) // 4
-        stm = repr(getattr(node, 'stm', ''))
-        nl = '\n' + pre[:-4] + ' ' * len(str(node.name)) + 4
+        # stm = str(getattr(node, 'order', '')) + ' ' + getattr(node, 'stm', '')
+        stm = getattr(node, 'stm', '')
+        nl = '\n' + pre[:-4] + ' ' * (len(str(node.name)) + 4)
         stm = stm.replace('\n', nl)
         pre = f'{pre}{node.name}'
         w = ws - len(pre)
@@ -311,6 +312,10 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     # collect the import statements
     statements = merge_duplicates(importsTree.body)
 
+    # no import statements ?
+    if len(statements) == 0:
+        return '' if dry_run else None
+
     if aesthetic:
         # hierarchical group sorting for aesthetic
 
@@ -335,6 +340,7 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     # make tree
     root = Node("body")
     make_branch(root, statements, groupers, sorters)
+    return root
 
     # at this point the import statements should be grouped and sorted
     # correctly in the tree

@@ -2,18 +2,23 @@
 
 if __name__ == '__main__':
     import sys
-    from recipes.introspection.imports import tidy
+    from recipes.introspection.imports import tidy, print_imports_tree
+    import motley
 
     filename = sys.argv[1]
 
-    print('Tidying import statements in %r' % filename)
+    print('Tidying import statements in %s' % motley.blue(filename))
 
     try:
         s = tidy(filename, dry_run=True)
-        print('\n'.join(s.split('\n', 40)[:40]))
-        print()
-        print('Done.')
-        print()
+
+        print_imports_tree(s)
+
+        # if s == '':
+        #     print(filename, 'has no imports')
+
+        # print('\n'.join(s.split('\n', 40)[:40]))
+        # print('Done.')
 
     except Exception as err:
         from IPython import embed
