@@ -16,7 +16,8 @@ from .interactive import is_interactive
 logger = logging.getLogger('recipes.misc')
 
 
-def get_terminal_size(fallback=(80, 24)):  # WARNING: NOT DYNAMIC.
+def get_terminal_size(fallback=(80, 24)):
+    # NOTE: NOT DYNAMIC. ie. resizing a window voids this ?
     """Returns the initial terminal size."""
 
     # FIXME: not dynamic
@@ -102,42 +103,3 @@ class Unbuffered(object):
         return getattr(self.stream, attr)
 
 
-##########################################################################################################################################
-# Orphan functions
-##########################################################################################################################################
-
-# CURRENTLY NOT WORKING!!!!
-# ====================================================================================================
-def chebInterp(x, f, y, Nplims=(10, 1000)):
-    """Chebyshev interpolation.
-       x,f data points
-       y - interpolation points
-       Nplims - lower and upper limits for number of points to use in computation.
-    """
-
-    if y.max() > x.max() or y.min() < x.min():
-        print(' WARNING! Extrapolating!')
-
-    n = len(x)
-    Nl, Nu = Nplims
-    if n > Nu:
-        idx = [np.argmin(np.abs(x - yp)) for yp in
-               y]  # indices of closest matching points in x
-        if np.ptp(idx) > Nu - Nl:
-            print('SPLIT!')
-        else:
-            print('Using points:', np.min(idx) - Nl / 2, np.max(idx) + Nl / 2)
-            l = slice(np.min(idx) - Nl / 2, np.max(idx) + Nl / 2, 1)
-            x = x[l]
-            f = f[l]
-
-    # scale the interval
-    x /= x.max() * len(x)
-    y /= y.max() * len(x)
-
-    k = np.arange(len(x))
-    Tx = np.cos(np.outer(np.arccos(x), k))
-    Ty = np.cos(np.outer(np.arccos(y), k))
-    a = la.solve(Tx, f)
-    p = np.dot(Ty, a)
-    return p

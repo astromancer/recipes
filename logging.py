@@ -2,12 +2,40 @@ import functools
 import inspect
 
 from recipes.decor.base import DecoratorBase
-from recipes.string import func2str
+from recipes.pprint import func2str
 from recipes.oo import ClassProperty
 from recipes.decor.memoize import memoize
 
 import logging
 from .pprint.progressbar import ProgressBarBase
+
+
+from contextlib import contextmanager
+
+
+@contextmanager
+def all_logging_disabled(highest_level=logging.CRITICAL):
+    # source: https://gist.github.com/simon-weber/7853144
+    """
+    A context manager that will prevent any logging messages
+    triggered during the body from being processed.
+    :param highest_level: the maximum logging level in use.
+      This would only need to be changed if a custom level greater than CRITICAL
+      is defined.
+    """
+    # two kind-of hacks here:
+    #    * can't get the highest logging level in effect => delegate to the user
+    #    * can't get the current module-level override => use an undocumented
+    #       (but non-private!) interface
+
+    previous_level = logging.root.manager.disable
+
+    logging.disable(highest_level)
+
+    try:
+        yield
+    finally:
+        logging.disable(previous_level)
 
 
 # class LoggingMixin():
@@ -67,7 +95,7 @@ class catch_and_log(DecoratorBase, LoggingMixin):
         super().__init__(func)
 
         # NOTE: partial functions don't have the __name__, __module__ attributes!
-        # retriev the deepest func attribute -- the original func
+        # retrieve the deepest func attribute -- the original func
         while isinstance(func, functools.partial):
             func = func.func
         self.__module__ = func.__module__
@@ -79,13 +107,12 @@ class catch_and_log(DecoratorBase, LoggingMixin):
             return result
         except Exception as err:
             self.logger.exception(
-                '%s' % str(args))  # logs full trace by default
+                    '%s' % str(args))  # logs full trace by default
 
 
 class ProgressLogger(ProgressBarBase):
     def __init__(self, precision=2, width=None, symbol='=', align='^',
-                 sides='|',
-                 every='2.5%', logname='progress'):
+                 sides='|', every='2.5%', logname='progress'):
         ProgressBarBase.__init__(self, precision, width, symbol, align, sides,
                                  every)
         self.name = logname

@@ -11,7 +11,8 @@ from .iter import flatiter
 # attr=True, ordered=True)
 
 
-def pformat(dict_):
+def pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
+            item_sep=','):
     """
     pformat (nested) dict types
 
@@ -19,6 +20,11 @@ def pformat(dict_):
     ----------
     dict_: dict
         Mapping to convert to str
+    brackets
+    sep
+    post_sep_space
+    item_sep
+    converter
 
     Returns
     -------
@@ -40,30 +46,39 @@ def pformat(dict_):
 
     """
     assert isinstance(dict_, dict), 'Object is not a dict'
+    # FIXME: MutableMapping
 
-    s = '{'
+    if brackets in ('', None):
+        brackets = [''] * 2
+
+    assert len(brackets) == 2, 'Invalid brackets: %r' % brackets
+
+    s = brackets[0]
+    bs = len(brackets[0])
     last = len(dict_) - 1
     # make sure we line up the values
-    w = max(map(len, dict_.keys()))
-    for i, (k, v) in enumerate(dict_.items()):
+    # note that keys may not be str, so first convert
+    keys = tuple(map(str, dict_.keys()))
+    w = max(map(len, keys)) + post_sep_space
+    for i, (k, v) in enumerate(zip(keys, dict_.values())):
         if i == 0:
             indent = 0
         else:
-            indent = 1
+            indent = bs
 
         space = indent * ' '
-        s += '{}{: <{}s}: '.format(space, k, w)
-        ws = ' ' * (w + 3)
+        s += '{}{: <{}s}{} '.format(space, k, w, sep)
+        ws = ' ' * (w + bs + 2)
         if isinstance(v, dict):
-            ds = pformat(v)
+            ds = pformat(v, converter, brackets, sep, post_sep_space, item_sep)
         else:
-            ds = str(v)
+            ds = converter(v)
 
         # objects with multi-line representations need to be indented
         ds = ds.replace('\n', '\n' + ws)
         s += ds
         # closing bracket
-        s += [',\n', '}'][i == last]
+        s += ['%s\n' % item_sep, brackets[1]][i == last]
 
     return s
 
@@ -110,7 +125,7 @@ class InvertibleDict(Invertible, dict):
 
 
 class AutoVivification(dict):
-    """Implement autovivification feature for dict."""
+    """Implement auto-vivification feature for dict."""
 
     def __missing__(self, key):
         value = self[key] = type(self)()
@@ -166,7 +181,7 @@ class Indexable(object):
 
     def __getitem__(self, key):
         if isinstance(key, numbers.Integral):
-            # note, this dissallows integer keys for parent object
+            # note, this disallows integer keys for parent object
             l = len(self)
             assert -l <= key < l, 'Invalid index: %r' % key
             return self[list(self.keys())[key]]
@@ -232,27 +247,34 @@ class ListLike(Indexable, OrderedDict, Pprinter):
 
 
 class AttrReadItem(dict):
+    """
+    Dictionary with item access through attribute lookup.
+
+    Note: Items keyed on names that are identical to the `dict` builtin
+     methods, eg. 'keys', will not be accessible through attribute lookup.
+
+    >>> x = AttrReadItem(hello=0, world=2)
+    >>> x.hello, x.world # (0, 2)
+    >>> x['keys'] = None
+    >>> x.keys  # <function AttrReadItem.keys>
+    """
+
+    # TODO: raise when trying to set attributes??
+
     def __getattr__(self, attr):
         """
         Try to get the value in the dict associated with `attr`. If attr is
         not a key, try get the attribute.
-        Note: Items keyed on names that are identical to the `dict` builtin
-        methods, eg. 'keys', will not be accessible through attribute lookup.
-
-        >>> x = AttrReadItem(hello=0, world=2)
-        >>> x.hello, x.world # (0, 1)
-        >>> x['keys'] = None
-        >>> x.keys  # <function AttrReadItem.keys>
-
         """
         if attr in self:
-            return super().__getitem__(attr)
+            return self[attr]
+            # return super().__getitem__(attr)
         #
-        try:
-            return super().__getattr__(attr)
-        except Exception:
-            raise AttributeError('%r object has no attribute %r' %
-                                 (self.__class__.__name__, attr))
+        # try:
+        return super().__getattribute__(attr)
+        # except Exception:
+        #     raise AttributeError('%r object has no attribute %r' %
+        #                          (self.__class__.__name__, attr))
 
 
 # class ListLike(AttrReadItem, OrderedDict, Indexable):

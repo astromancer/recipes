@@ -1,7 +1,8 @@
-# import functools
+"""
+Tricks with metaclasses
+"""
 
-# from IPython import embed
-# ==============================================================================
+
 def flaggerFactory(flag='_flagged', collection='_flagged'):
     """
     Factory for creating class-decorator pair for method flagging and collection
@@ -22,31 +23,33 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
 
     Examples
     --------
-    #implicit alias declaration
-    AliasManager, alias = flaggerFactory(collection='_aliases')
+    >>> # implicit alias declaration
+    ... AliasManager, alias = flaggerFactory(collection='_aliases')
+    ...
+    ... class Child(AliasManager):
+    ...     def __init__(self):
+    ...         super().__init__()
+    ...         for (alias,), method in self._aliases.items():
+    ...             setattr(self, alias, method)
+    ...
+    ...     @alias('bar')
+    ...     def foo(self):
+    ...         '''foo doc'''
+    ...         print('foo!')
+    ...
+    ... class GrandChild(Child): pass
+    ... GrandChild().bar()  # prints 'foo!'
 
-    class Child(AliasManager):
-        def __init__(self):
-            super().__init__(self)
-            for (alias,), method in self._aliases.items():
-                setattr(self, alias, method)
-
-        @alias('bar')
-        def foo(self):
-            '''foo doc'''
-            print('foo!')
-
-    class GrandChild(Child):
-        pass
-
-    GrandChild().bar()  #prints 'foo!'
     """
+
+    # ensure we have str for the attributes
+    assert isinstance(flag, str)
+    assert isinstance(collection, str)
 
     # **************************************************************************
     class MethodFlaggerMeta(type):
         """Metaclass to collect methods flagged with decorator"""
 
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         def __new__(meta, name, bases, namespace, **kw):
             cls = super().__new__(meta, name, bases, namespace)
 
@@ -70,17 +73,14 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
         %s attribute.
         """
 
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         def __init__(self, *args, **kw):
             # bind the flagged methods to the instance
             # logging.debug('Collected these functions: %s', getattr(self, collection))
 
             flagged_methods = {
                 name: getattr(self, method)
-                    for (name, method) in getattr(self, collection).items()}
+                for (name, method) in getattr(self, collection).items()}
             setattr(self, collection, flagged_methods)
-
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     # TODO: use case without arguments
     def flagger(*args):
@@ -90,6 +90,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
         The decorator will preserve docstrings etc., as it returns the original
         function.
         """
+
         # TODO: check if args hashable
 
         def decorator(func):
@@ -103,7 +104,6 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     return FlaggedMixin, flagger
 
 
-# ==============================================================================
 def altflaggerFactory(flag='_flagged', collection='_flagged'):
     """
     Factory for creating class-decorator pair for method flagging and collection.
@@ -131,6 +131,10 @@ def altflaggerFactory(flag='_flagged', collection='_flagged'):
     be the outermost (top) one.
     """
 
+    # ensure we have str for the attributes
+    assert isinstance(flag, str)
+    assert isinstance(collection, str)
+
     class FlaggedMixin(object):
         """
         Mixin that binds the flagged classmethods to an instance of the class
@@ -150,7 +154,10 @@ def altflaggerFactory(flag='_flagged', collection='_flagged'):
     def flagger(*args):
         """Decorator for flagging methods"""
 
+        #
         def decorator(func):
+            # adds an attribute to the decorated function with the name
+            # passed in as `flag`
             setattr(func, flag, args)
             return func
 

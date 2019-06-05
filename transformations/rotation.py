@@ -74,6 +74,10 @@ def rotation_matrix_2d(theta):
                      [sin, cos]])
 
 
+def rotate_2d(xy, theta):
+    return rotation_matrix_2d(theta) @ xy
+
+
 def rotation_matrix_3d(axis, theta):
     """
     Use Euler–Rodrigues formula to generate the 3x3 rotation matrix for
@@ -103,7 +107,7 @@ def rotation_matrix_3d(axis, theta):
     return R
 
 
-def rotate(data, axis, theta):
+def rotate(data, axis, theta):  # TODO: rename rotate_3d
     """Rotate `data` about `axis` by `theta` radians"""
     # Cast array in shape for matrix
     # data = data.reshape(data.shape)

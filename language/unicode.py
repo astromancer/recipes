@@ -1,8 +1,9 @@
 # TODO: class for these : unicode.super.j # 'ʲ'
 
-# SUB_SYMBOLS = '₊ 	₋ 	₌ 	₍ 	₎ 	'
-# UNICODE_SUP_NRS = '⁰¹²³⁴⁵⁶⁷⁸⁹'
+# SUB_SYMBOLS = '₊ 	₋ 	₌ 	₍ 	₎ 	⁻'
+SUP_NRS = list('⁰¹²³⁴⁵⁶⁷⁸⁹')
 SUB_NRS = list('₀₁₂₃₄₅₆₇₈₉')
+
 SUB_LATIN = dict(a='ₐ',
                  e='ₑ',
                  h='ₕ',

@@ -1,62 +1,4 @@
-import os
 import re
-import inspect
-import functools
-
-from recipes.introspection import get_class_that_defined_method
-
-
-def func2str(func, show_class=True, submodule_depth=1):
-    """
-    Get a nice string representing the function.
-
-    Parameters
-    ----------
-    func: Callable
-        The callable to represent
-    show_class: bool
-        whether to show the class name eg: 'MyClass.method'
-    submodule_depth: int
-        number of sub-module levels to show.
-        eg: 'foo.sub.MyClass.method'  for depth of 2
-
-    Returns
-    -------
-    str
-
-    """
-
-    if show_class:
-        cls = get_class_that_defined_method(func)
-    else:
-        cls = None
-        submodule_depth = 0
-
-    if cls is None:
-        # handle partial
-        if isinstance(func, functools.partial):
-            func = func.func
-            # represent missing arguments with unicode centre dot
-            cdot = '·' #u'\u00B7'
-            argstr = str(func.args).strip(')') + ', %s)' % cdot
-            return 'partial(%s%s)' % (func2str(func.func), argstr)
-        # just a plain function # FIXME: module???
-        return func.__name__
-    else:
-        # a class method
-        parents = cls.__module__.split('.')
-        prefixes = parents[:-submodule_depth - 1:-1]
-        parts = prefixes + [cls.__name__, func.__name__]
-        return '.'.join(parts)
-
-
-def get_module_name(filename, depth=1):
-    name = inspect.getmodulename(filename)
-    if name == '__init__':
-        from pathlib import Path
-        return filename[-depth-1:-1]
-
-    return name.split('.', name.count('.') - depth)[-1]
 
 
 def resolve_percentage(val, total, as_int=True):
@@ -74,64 +16,6 @@ def resolve_percentage(val, total, as_int=True):
         else:
             raise ValueError('Invalid percentage')
     return val
-
-
-def overlay(text, bgtext='', alignment='^', width=None):
-    """overlay text on bgtext using given alignment."""
-
-    # TODO: verbose alignment name conversions. see ansi.table.get_alignment
-
-    if not (bgtext or width):  # nothing to align on
-        return text
-
-    if not bgtext:
-        bgtext = ' ' * width  # align on clear background
-    elif not width:
-        width = len(bgtext)
-
-    if len(bgtext) < len(text):  # pointless alignment
-        return text
-
-    # do alignment
-    if alignment == '<':  # left aligned
-        overlayed = text + bgtext[len(text):]
-    elif alignment == '>':  # right aligned
-        overlayed = bgtext[:-len(text)] + text
-    elif alignment == '^':  # center aligned
-        div, mod = divmod(len(text), 2)
-        pl, ph = div, div + mod
-        # start and end indeces of the text in the center of the bgtext
-        idx = width // 2 - pl, width // 2 + ph
-        overlayed = bgtext[:idx[0]] + text + bgtext[
-                                             idx[1]:]  # center text on bgtext
-
-    return overlayed
-
-
-def banner(text, swoosh='=', width=80, title=None, align='^'):
-    """
-
-    Parameters
-    ----------
-    text
-    swoosh
-    width
-    title
-    align
-
-    Returns
-    -------
-
-    """
-
-    swoosh = swoosh * width
-    if title is None:
-        pre = swoosh
-    else:
-        pre = overlay(' ', swoosh, align)
-
-    banner = os.linesep.join((pre, text, swoosh, ''))
-    return banner
 
 
 def rreplace(s, subs, repl):
@@ -227,10 +111,3 @@ def matchBrackets(s, brackets='()', return_index=True):
 
     if return_index:
         return None, None
-
-
-def seq_repr_trunc(seq, n=3):
-    """"""
-    if len(seq) > n:
-        return '(%i ... %i)' % (seq[0], seq[-1])
-    return repr(seq)

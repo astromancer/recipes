@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from recipes.pprint import numeric_repr
+from recipes import pprint
 
 
 def plot_chains_ts(samples, names=None, truths=None, truth_color='k',
@@ -52,8 +52,9 @@ def parameter_estimate(samples, percentiles=(16, 50, 84), names=None,
     μ = q[1]
     δ = abs(q[[0, -1]] - q[1])
 
-    μs = np.vectorize(numeric_repr, ['U10'])(μ, switch=3)
-    δs = np.vectorize(numeric_repr, ['U10'])(δ, switch=3)
+    # TODO: use pprint.uarray
+    μs = np.vectorize(pprint.numeric, ['U10'])(μ, switch=3)
+    δs = np.vectorize(pprint.numeric, ['U10'])(δ, switch=3)
 
     s = ['%s^{+%s}_{-%s}' % (v, u, l) for (v, (u, l)) in zip(μs, δs.T)]
     # TODO: sometimes it may be sufficient to do a \pm format display

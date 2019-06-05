@@ -2,8 +2,10 @@ import math
 import os
 import sys
 
-from recipes.misc import get_terminal_size
-from recipes.string import overlay, resolve_percentage
+
+from . import overlay
+from ..misc import get_terminal_size
+from ..string import resolve_percentage
 
 
 # import time
@@ -73,7 +75,7 @@ class ProgressBarBase(object):
             if not self.needs_update(i):
                 return
 
-        # always update when state given
+        # always update when index given
         if i >= self.end:  # unless state beyond end
             return
 
@@ -91,7 +93,7 @@ class ProgressBarBase(object):
         return overlay(percentage, bar, self.align)
 
     def format(self, i):
-        """Make progress/percentage indicator strings."""
+        """Make progress/percentage indicator strings"""
 
         frac = i / self.end
         # percentage completeness displayed to sigfig decimals

@@ -7,6 +7,8 @@ import warnings
 from pathlib import Path
 
 import motley
+from recipes.interactive import is_interactive
+from recipes.pprint import overlay  # , banner
 
 
 # ===============================================================================
@@ -43,7 +45,7 @@ def iocheck(instr, check, raise_error=0, convert=None):
     Returns the original list if input is valid.
     """
     if not check(instr):
-        msg = 'Invalid input!! %r \nPlease try again: ' % instr  # REPITITION!!!!!!!!!!!!
+        msg = 'Invalid input!! %r \nPlease try again: ' % instr
         if raise_error == 1:
             raise ValueError(msg)
         elif raise_error == 0:
@@ -57,7 +59,6 @@ def iocheck(instr, check, raise_error=0, convert=None):
         return instr
 
 
-# ===============================================================================
 def read_file_slice(filename, *which):
     """
     Read a slice of lines from a file.
@@ -97,7 +98,9 @@ def read_data_from_file(filename, n=None, remove_blank=True, echo=False):
         chunk = itt.islice(fp, n)
         content = map(lambda s: s.strip(os.linesep), chunk)  # strip newlines
         if remove_blank:
-            content = filter(None, content)  # filters out empty lines [s for s in fp if s]
+            # filters out empty lines [s for s in fp if s]
+            content = filter(None, content)
+
         content = list(content)  # create the content list from the filter
 
     # Optionally print the content
@@ -149,121 +152,137 @@ def walklevel(dir_, depth=1):
             del dirs[:]
 
 
-from recipes.string import overlay  # , banner
+# class Singleton(object):
+#     # source
+#     # https://python-3-patterns-idioms-test.readthedocs.io/en/latest/Singleton.html
+#     class __Singleton:
+#         def __init__(self, arg):
+#             self.val = arg
+#
+#         def __str__(self):
+#             return repr(self) + self.val
+#
+#     instance = None
+#
+#     def __init__(self, arg):
+#         if Singleton.instance is None:
+#             Singleton.instance = Singleton.__Singleton(arg)
+#         else:
+#             Singleton.instance.val = arg
+#
+#     def __getattr__(self, name):
+#         return getattr(self.instance, name)
+# #
+# Singleton/BorgSingleton.py
+# Alex Martelli's 'Borg'
+
+# class Borg:
+#     _shared_state = {}
+#
+#     def __init__(self):
+#         self.__dict__ = self._shared_state
+#
+#
+# class Singleton(Borg):
+#     def __init__(self, arg):
+#         Borg.__init__(self)
+#         self.val = arg
+#
+#     def __str__(self):
+#         return self.val
 
 
-#TODO: filter ipython noise:
-#  File "/usr/lib/python3.6/runpy.py", line 193, in _run_module_as_main
-#     "__main__", mod_spec)
-#   File "/usr/lib/python3.6/runpy.py", line 85, in _run_code
-#     exec(code, run_globals)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel_launcher.py", line 16, in <module>
-#     app.launch_new_instance()
-#   File "/usr/local/lib/python3.6/dist-packages/traitlets/config/application.py", line 658, in launch_instance
-#     app.start()
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelapp.py", line 486, in start
-#     self.io_loop.start()
-#   File "/usr/local/lib/python3.6/dist-packages/tornado/platform/asyncio.py", line 127, in start
-#     self.asyncio_loop.run_forever()
-#   File "/usr/lib/python3.6/asyncio/base_events.py", line 422, in run_forever
-#     self._run_once()
-#   File "/usr/lib/python3.6/asyncio/base_events.py", line 1432, in _run_once
-#     handle._run()
-#   File "/usr/lib/python3.6/asyncio/events.py", line 145, in _run
-#     self._callback(*self._args)
-#   File "/usr/local/lib/python3.6/dist-packages/tornado/ioloop.py", line 759, in _run_callback
-#     ret = callback()
-#   File "/usr/local/lib/python3.6/dist-packages/tornado/stack_context.py", line 276, in null_wrapper
-#     return fn(*args, **kwargs)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 263, in enter_eventloop
-#     self.eventloop(self)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/eventloops.py", line 134, in loop_qt5
-#     return loop_qt4(kernel)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/eventloops.py", line 122, in loop_qt4
-#     _loop_qt(kernel.app)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/eventloops.py", line 106, in _loop_qt
-#     app.exec_()
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/eventloops.py", line 39, in process_stream_events
-#     kernel.do_one_iteration()
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 298, in do_one_iteration
-#     stream.flush(zmq.POLLIN, 1)
-#   File "/usr/local/lib/python3.6/dist-packages/zmq/eventloop/zmqstream.py", line 357, in flush
-#     self._handle_recv()
-#   File "/usr/local/lib/python3.6/dist-packages/zmq/eventloop/zmqstream.py", line 480, in _handle_recv
-#     self._run_callback(callback, msg)
-#   File "/usr/local/lib/python3.6/dist-packages/zmq/eventloop/zmqstream.py", line 432, in _run_callback
-#     callback(*args, **kwargs)
-#   File "/usr/local/lib/python3.6/dist-packages/tornado/stack_context.py", line 276, in null_wrapper
-#     return fn(*args, **kwargs)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 283, in dispatcher
-#     return self.dispatch_shell(stream, msg)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 233, in dispatch_shell
-#     handler(stream, idents, msg)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/kernelbase.py", line 399, in execute_request
-#     user_expressions, allow_stdin)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/ipkernel.py", line 208, in do_execute
-#     res = shell.run_cell(code, store_history=store_history, silent=silent)
-#   File "/usr/local/lib/python3.6/dist-packages/ipykernel/zmqshell.py", line 537, in run_cell
-#     return super(ZMQInteractiveShell, self).run_cell(*args, **kwargs)
-#   File "/usr/local/lib/python3.6/dist-packages/IPython/core/interactiveshell.py", line 2662, in run_cell
-#     raw_cell, store_history, silent, shell_futures)
-#   File "/usr/local/lib/python3.6/dist-packages/IPython/core/interactiveshell.py", line 2785, in _run_cell
-#     interactivity=interactivity, compiler=compiler, result=result)
-#   File "/usr/local/lib/python3.6/dist-packages/IPython/core/interactiveshell.py", line 2903, in run_ast_nodes
-#     if self.run_code(code, result):
-#   File "/usr/local/lib/python3.6/dist-packages/IPython/core/interactiveshell.py", line 2963, in run_code
-#     exec(code_obj, self.user_global_ns, self.user_ns)
-#   File "<ipython-input-5-595b05a8badd>", line 24, in <module>
+# from recipes.oo.meta import SingletonMetaClass
 
-# TODO: filter the stuff here:
-#   File "/usr/lib/python3.6/warnings.py", line 99, in _showwarnmsg
-#     msg.file, msg.line)
-#   File "/usr/lib/python3.6/logging/__init__.py", line 1999, in _showwarning
-#     s = warnings.formatwarning(message, category, filename, lineno, line)
-#   File "/usr/local/lib/python3.6/dist-packages/recipes/io/utils.py", line 268, in _formatwarning
-#     return self._wrap_message(self.original(*args, **kws)) + os.linesep
-#   File "/usr/local/lib/python3.6/dist-packages/recipes/io/utils.py", line 176, in _wrap_message
-#     return os.linesep.join((self.pre, msg, self._wrap_tb(), self.post))
-#   File "/usr/local/lib/python3.6/dist-packages/recipes/io/utils.py", line 179, in _wrap_tb
-#     tb = ''.join(traceback.format_stack())
+class MessageWrapper(object):
 
+    def __init__(self, wrapped, title=None, width=80, char='='):
+        self.active = True
 
-class Tracer(object):
-    _txtwidth = 80
+        if isinstance(wrapped, MessageWrapper):
+            # avoid wrapping multiple times !!!
+            self.wrapped = wrapped.wrapped
+        else:
+            self.wrapped = wrapped
 
-    def __init__(self, active=True, banner=True):
-        self.stdout = sys.stdout
-        # self.original = original
-        self._active = bool(active)
-        self.banner = bool(banner)
-        self.pre, self.post, self.pre_tb, self.post_tb = ('', '', '', '')
+        # get the class name and pad with single whitespace on each side
+        title = self.get_title(title)
+        self.width = int(width)
+        self.pre = os.linesep + overlay(title, char * self.width, '^')
+        self.post = (char * self.width)
 
-        if self.banner:
-            name = self.__class__.__name__.join('  ')
-            tw = self._txtwidth
-            self.pre = overlay(name, '=' * tw, '^')
-            self.post = ('=' * tw)
+    def __call__(self, *args, **kws):
+        return self._wrap_message(
+                self.wrapped(*args, **kws))
 
-            self.pre_tb = overlay('Traceback ', '-' * tw, '^')
-            self.post_tb = ('-' * tw)
+    def get_title(self, title):
+        if title is None:
+            title = self.__class__.__name__
+        return title.join('  ')
 
     def _wrap_message(self, msg):
-        # make banner
-        return os.linesep.join((self.pre, msg, self._wrap_tb(), self.post))
-
-    def _wrap_tb(self):
-        tb = ''.join(traceback.format_stack())
-        return os.linesep.join((self.pre_tb, tb, self.post_tb))
+        if self.active:
+            # make banner
+            return os.linesep.join((self.pre,
+                                    msg,
+                                    self.post))
+        else:
+            return msg
 
     def on(self):
-        self._active = True
-        # self.write = self._write
+        self.active = True
 
     def off(self):
-        self._active = False
+        self.active = False
 
 
-class TracePrints(Tracer):  # TODO: as context wrapper
+class TracebackWrapper(MessageWrapper):
+    """
+    Base class for printing and modifying stack traceback
+    """
+    trim_ipython_stack = True
+
+    def __init__(self, title='Traceback', width=80, char='-'):
+        super().__init__(self._format_stack, title, width, char)
+
+    def _format_stack(self):
+        stack = traceback.format_stack()
+        # if we are in IPython, we do't actually want to print the entire
+        # stack containing all the IPython code execution boilerplate noise,
+        # so we filter all that crap here
+        msg = ''
+        i = 0
+        if is_interactive() and self.trim_ipython_stack:
+            trigger = 'exec(code_obj, self.user_global_ns, self.user_ns)'
+            enum_stack = enumerate(stack)
+            for i, s in enum_stack:
+                if trigger in s:
+                    break
+
+            # when code execution is does via a magic, there is even more
+            # IPython boilerplate to remove
+            trigger = "exec(compiler(f.read(), fname, 'exec'), glob, loc)"
+            for i, s in enum_stack:
+                if trigger in s:
+                    break
+
+            i += 1
+            msg = '< %i lines omitted >\n\n' % i
+            # msg += '\n\n'
+
+        for s in stack[i:]:
+            if '_showwarnmsg' in s:
+                # last few lines in the stack are those that wrap the warning
+                # message, so we filter those
+                break
+
+            msg += s
+
+        return msg
+
+
+class TracePrints(MessageWrapper):
+    # TODO: as context wrapper : see contextlib.redirect_stdout
     """
     Class that can be used to find print statements in unknown source code
 
@@ -273,50 +292,50 @@ class TracePrints(Tracer):  # TODO: as context wrapper
     >>> print("I am here")
     """
 
-    def __init__(self, active=True, banner=True):
-        # self.stdout = sys.stdout
-        Tracer.__init__(self, active, banner)
-        # self._write = self.wrap_banner(self.stdout.write, False, self.stdout)
-        # set active
-        (self.off, self.on)[self._active]()
+    def __init__(self, title=None, width=80, char='='):
+        super().__init__(lambda s: s, title, width, char)
+        self.format_stack = TracebackWrapper()
+        self.stdout = sys.stdout
 
-        # self._write = self.wrap_banner(self.stdout.write)
+    def _wrap_message(self, msg):
+        return super()._wrap_message(
+                os.linesep.join((msg, self.format_stack())))
 
     def write(self, s):
         # print() statements usually involve two calls to stdout.write
         # first to write the content, second to write a newline if we are
         # writing newline, skip the banner
-        if (not self._active) or (s == os.linesep):
+        if (not self.active) or (s == os.linesep):
             self.stdout.write(s)
-            return
-
-        self.stdout.write(self._wrap_message(s))
+        else:
+            self.stdout.write(self(s))
 
     def flush(self):
         self.stdout.flush()
 
 
-class WarningTraceback(Tracer):
+class WarningTraceback(MessageWrapper):
     """
     Class that help to track down warning statements in unknowns source code
     """
 
-    def __init__(self, active=True, banner=True):
+    # if warnings.formatwarning is self._formatwarning
+
+    # from warnings import formatwarning
+    # original = formatwarning
+
+    def __init__(self, title=None, width=80, char='='):
         """
         Activate full traceback for warnings
 
         Parameters
         ----------
-        active
-        banner
 
         Examples
         --------
-        >>> import warnings
-        >>> from recipes.io.utils import WarningTraceback
-
         >>> wtb = WarningTraceback()
         >>> warnings.warn('Dinosaurs!')
+        # TODO: generate this output dynamically ???
 
         ------------------------------- WarningTraceback -------------------------------
         /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:5: UserWarning: Dinosaurs!
@@ -332,24 +351,22 @@ class WarningTraceback(Tracer):
         /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:1: UserWarning: Dinosaurs!
           Entry point for launching an IPython kernel.
         """
-        # backup original warning formatter
-        self.original = warnings.formatwarning
-        Tracer.__init__(self, active, banner)
-        # self._write = self.wrap_banner(self.original, True, self.stdout)
-        # set active
-        (self.off, self.on)[self._active]()
 
-    def _formatwarning(self, *args, **kws):
-        # make banner
-        return self._wrap_message(self.original(*args, **kws)) + os.linesep
+        super().__init__(warnings.formatwarning, title, width, char)
+        self.format_stack = TracebackWrapper()
+        self.on()
+
+    def _wrap_message(self, msg):
+        return super()._wrap_message(
+                os.linesep.join((msg, self.format_stack())))
 
     def on(self):
-        self._active = True
-        warnings.formatwarning = self._formatwarning
+        self.active = True
+        warnings.formatwarning = self
 
     def off(self):
-        self._active = False
-        warnings.formatwarning = self.original
+        self.active = False
+        warnings.formatwarning = self.wrapped
 
 
 if __name__ == '__main__':
@@ -360,7 +377,5 @@ if __name__ == '__main__':
 
     wtb = WarningTraceback()
     warnings.warn('Dinosaurs!!')
-
-    # from IPython import embed
-    # sys.stdout = sys.stdout.stdout
-    # embed()
+    # restore
+    wtb.off()

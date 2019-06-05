@@ -1,12 +1,10 @@
-# builtin libs
-import re
+# std libs
 import math
 import pprint
 import numbers
-from functools import partial
 
 # third-party libs
-from IPython import embed
+import numpy as np
 
 # TODO: numbers with uncertainty!!!!
 
@@ -43,6 +41,10 @@ METRIC_PREFIXES = {-24: 'y',
                    18: 'E',
                    21: 'Z',
                    24: 'Y'}
+
+#  centi-, deci-, deka-, and hecto-) ???
+
+
 
 
 def signum(n):
@@ -125,8 +127,53 @@ def get_significant_digits(x, n=3):
     return nrs, m
 
 
-def decimal_repr(n, precision=None, significant=3, sign='-', compact=False,
-                 unicode=False, left_pad=0, right_pad=0):
+def _check_pad(pad):
+    if isinstance(pad, numbers.Integral):
+        char = ' '
+    else:
+        pad, char = pad
+        pad = int(pad)
+        char = str(char)
+
+    if len(char) != 1:
+        raise ValueError('padding string should be a single character')
+
+    return pad, char
+
+
+def eng(value, significant=None, base=10, unit=''):
+    """
+    Format a number in engineering format
+
+    Parameters
+    ----------
+    value
+    significant
+    base
+    unit
+
+    Returns
+    -------
+
+    """
+    # significant = int(significant)
+    sign = signum(value)
+    value = np.abs(value)
+    if sign == 0:
+        return str(value)
+
+    pwr = np.log(value) / np.log(base)
+    pwr3 = int((pwr // 3) * 3)
+    prefix = METRIC_PREFIXES[pwr3]
+
+    size = value / (base ** pwr3)
+    if significant is None:
+        significant = [0, 1][pwr3 < 0]
+    return '{:.{:d}f}{}'.format(size, significant, f' {prefix}{unit}')
+
+
+def decimal(n, precision=None, significant=3, sign='-', compact=False,
+            unicode=False, left_pad=0, right_pad=0):
     """
     Minimalist decimal representation of float as str up to given number
     of significant digits (relative), or decimal precision (absolute).
@@ -172,9 +219,9 @@ def decimal_repr(n, precision=None, significant=3, sign='-', compact=False,
 
     Examples
     --------
-    >>> decimal_repr(2.0000001, 3)
+    >>> decimal(2.0000001, 3)
     '2'
-    >>> decimal_repr(3.14159265, 5)
+    >>> decimal(3.14159265, 5)
     '3.14159'
     """
     # ensure we have a scalar
@@ -187,9 +234,8 @@ def decimal_repr(n, precision=None, significant=3, sign='-', compact=False,
         return str(n)  # 'inf'
 
     # pad relative to decimal position
-    # assert isinstance(left_pad, numbers.Integral)
-    left_pad = int(left_pad)
-    right_pad = int(right_pad)
+    left_pad, left_pad_char = _check_pad(left_pad)
+    right_pad, right_pad_char = _check_pad(right_pad)
 
     # automatically decide on a precision value if not given
     if (precision is None) or (left_pad > 0) or (right_pad > 0):
@@ -205,8 +251,9 @@ def decimal_repr(n, precision=None, significant=3, sign='-', compact=False,
     if isinstance(sign, bool):
         sign = '-+'[sign]
     if not isinstance(sign, str) or sign not in ' -+':
-        raise ValueError('Invalid sign %r. Use one of "+", "-", " ". Set '
-                         '`unicode=True` if you want a unicode minus.')
+        raise ValueError(
+                f'Invalid sign {sign!r}. Use one of "+", "-", " ". Set '
+                f'`unicode=True` if you want a unicode minus.')
     # if sign not in ' -+':
     #     raise ValueError('Invalid sign %r. Use one of "+", "-", " ". Set '
     #                      '`unicode=True` if you want a unicode minus.' % sign)
@@ -228,7 +275,7 @@ def decimal_repr(n, precision=None, significant=3, sign='-', compact=False,
             w = left_pad + precision + int(precision > 0)
             #                        ⤷ +1 if number has decimal point
             # +1 since number with order of magnitude of 1 has width of 2
-            s = s.rjust(w)
+            s = s.rjust(w, left_pad_char)
 
     # strip redundant zeros
     n_stripped = 0
@@ -249,7 +296,7 @@ def decimal_repr(n, precision=None, significant=3, sign='-', compact=False,
     if right_pad > max(precision - n_stripped, 0):
         w = max(right_pad, precision) + max(left_pad, m + 1) \
             + int(('.' not in s))  # +1 if repr has dot
-        s = s.ljust(w)
+        s = s.ljust(w, right_pad_char)
 
     if unicode:
         s = s.replace('-', '−')
@@ -258,8 +305,8 @@ def decimal_repr(n, precision=None, significant=3, sign='-', compact=False,
     # TODO: signed better
 
 
-def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
-             compact=False, unicode=None, latex=None, engineering=False):
+def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
+        compact=False, unicode=None, latex=None, engineering=False):
     r"""
     Scientific numeral representation strings in various formats.
     See:  https://en.wikipedia.org/wiki/Scientific_notation
@@ -270,9 +317,8 @@ def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
         The number to be represented
     significant: int
         Number of significant figures to display.
-    compact: bool
-        should redundant zeros after decimal point be stripped to yield a
-        more compact representation of the same number?
+    sign: bool # todo: always_sign better name
+        add '+' to positive numbers if True.
     times: str
         style to use for multiplication symbol.
         * If value is either 'x' or '.':
@@ -283,8 +329,9 @@ def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
                 str:         'x'        or      '*'
         * using 'E' or 'e' will switch to E-notation style. eg.: 1.3e-12
         * Any other str may be passed in which case it will be used verbatim.
-    sign: bool
-        add '+' to positive numbers
+    compact: bool
+        should redundant zeros after decimal point be stripped to yield a
+        more compact representation of the same number?
     unicode: bool
         prefer unicode minus '−' over '-'
         prefer unicode infinity '∞' over 'inf'
@@ -310,7 +357,7 @@ def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
 
     # check flags
     if (unicode, latex) == (None, None):
-        unicode = True              # default is to prefer unicode
+        unicode = True  # default is to prefer unicode
     assert not (unicode and latex)  # can't do both!
 
     #
@@ -347,7 +394,7 @@ def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
     # finally bring it all together
     v = n * (10 ** -m)  # coefficient / mantissa / significand as float
     # mantissa as str
-    mantis = decimal_repr(v, None, significant, sign, compact, unicode)
+    mantis = decimal(v, None, significant, sign, compact, unicode)
 
     # mantis = formatter(v)
 
@@ -360,12 +407,14 @@ def sci_repr(n, significant=5, sign=False, times='x',  # x10='x' ?
     return r
 
 
-def numeric_repr(n, precision=2, switch=5, sign='-', times='x',
-                 compact=True, unicode=True, latex=False, engineering=False):
+def numeric(n, precision=2, significant=3, sign='-', times='x',
+            compact=True, unicode=True, latex=False, engineering=False,
+            switch=5):
     """
 
     Parameters
     ----------
+    significant
     n
     precision
     switch: int
@@ -390,7 +439,12 @@ def numeric_repr(n, precision=2, switch=5, sign='-', times='x',
     """
     # ensure we have a scalar
     if not isinstance(n, numbers.Real):
-        raise ValueError('Only scalars are accepted by this function.')
+        try:
+            n = float(n)
+        except ValueError as err:
+            raise ValueError('Only scalars are accepted by this function.') \
+                from err
+
     # check special behaviour flags
     assert not (unicode and latex)  # can't do both!
 
@@ -398,7 +452,7 @@ def numeric_repr(n, precision=2, switch=5, sign='-', times='x',
     m = order_of_magnitude(n)  # might be -inf
 
     # if compact:
-    #     formatter = partial(decimal_repr, precision=precision)
+    #     formatter = partial(decimal, precision=precision)
     # else:
     #     formatter = ('{:.%if}' % precision).format
 
@@ -416,10 +470,10 @@ def numeric_repr(n, precision=2, switch=5, sign='-', times='x',
     # m = order_of_magnitude(n)
     if math.isinf(m) or abs(m) < switch:
         # handle case n == 0 and normal float formatting
-        return decimal_repr(n, precision, 'ignored', sign, compact, unicode)
+        return decimal(n, precision, None, sign, compact, unicode)
 
-    return sci_repr(n, precision, sign, times, compact, unicode, latex,
-                    engineering)
+    return sci(n, significant, sign, times, compact, unicode, latex,
+               engineering)
 
 
 # ------------------------------------------------------------------------------
@@ -463,8 +517,8 @@ def precision_rule_dpg(u):
 #     return -m + r  # precision
 
 
-def decimal_repr_u(x, u, precision=None, compact=False,
-                   sign=False, unicode=True, latex=False):
+def decimal_u(x, u, precision=None, compact=False,
+              sign=False, unicode=True, latex=False):
     """
     Represent a number with associated standard deviation uncertainty as str.
 
@@ -487,21 +541,21 @@ def decimal_repr_u(x, u, precision=None, compact=False,
         precision = precision_rule_dpg(u)
     precision = int(precision)  # type enforcement
 
-    xr, ur = (decimal_repr(y, precision, 0, compact, sign=sign)
-              for y in (x, u))
+    xr = decimal(x, precision, 0, sign, compact)
+    ur = decimal(u, precision, 0, '', compact)
 
     if unicode:
         return '%s ± %s' % (xr, ur)
 
     if latex:
-        return '$%s \pm %s$' % (xr, ur)
+        return r'$%s \pm %s$' % (xr, ur)
 
     return '%s +/- %s' % (xr, ur)
 
 
-def pprint_uarray(x, u, significant=None, compact=False, times='x',
-                  sign=False, unicode=True, latex=False,
-                  engineering=False):
+def uarray(x, u, significant=None, switch=5, compact=False, times='x',
+           sign='-', unicode=True, latex=False,
+           engineering=False):
     """
 
     Parameters
@@ -522,67 +576,89 @@ def pprint_uarray(x, u, significant=None, compact=False, times='x',
     -------
 
     """
-    # Note: numpy offers now way of formatting arrays where the formatting is
+    # Note: numpy offers no way of formatting arrays where the formatting is
     #  decided based on the number of array elements that will be displayed.
-    # this needs a PR!!!
+    #  this needs a PR!!!
 
-    # TODO;
-    # max_line_width=None, precision=None,
-    # suppress_small=None, separator=' ', prefix="",
-    # style=np._NoValue, formatter=None, threshold=None,
-    # edgeitems=None, sign=None, floatmode=None, suffix=""
+    # TODO:
+    #  max_line_width=None, precision=None,
+    #  suppress_small=None, separator=' ', prefix="",
+    #  style=np._NoValue, formatter=None, threshold=None,
+    #  edgeitems=None, sign=None, floatmode=None, suffix=""
 
-    import numpy as np
     # It's important here to line up the various parts of the representation
     # so that the numbers can easily be compared scrolling your eye along a
     # column. We also might want uniform magnitude scaling across the array.
 
     if np.size(x) > 1000:
-        raise NotImplementedError
+        raise NotImplementedError  # TODO: get_edge_items etc...
 
     # decide on scientific vs decimal notation
     logn = np.log10(abs(x))
     oom = np.floor(np.round(logn, 9)).astype(int)
     mmin, mmax = oom.min(), oom.max()
     mag_rng = mmax - mmin  # dynamic range in order of magnitude
-    if mag_rng > 3:
-        'use sci_repr for entire array'
+    if mag_rng > switch:
+        'use sci for entire array'
         raise NotImplementedError
     else:
         # use decimal representation for entire array
         # TODO: def decimal_repr_array():
 
         if significant is None:
-            pmax = np.vectorize(precision_rule_dpg)(u).max()
+            # get precision values from the Data Particle Group rules
+            precision = np.vectorize(precision_rule_dpg)(u).max()
+        else:
+            precision = significant
 
         # get plus-minus character
-        if unicode:
-            pm = UNI_PM
-        elif latex:
-            pm = '\pm'
-        else:
-            pm = '+-'
-        # spacing
-        pm = ' %s ' % pm
+        # if unicode:
+        #     pm = UNI_PM
+        # elif latex:
+        #     pm = '\pm'
+        # else:
+        #     pm = '+-'
+        # # spacing
+        # pm = ' %s ' % pm
 
         # here we can either display all digits for all elements up to
         # `significant` or we can fill trailing whitespace up to `significant`.
 
         # option 1
-        xr = np.vectorize(decimal_repr)(x, pmax, compact=False, sign=' ', )
-        ur = np.vectorize(decimal_repr)(u, pmax, None, False)
-        return list(map(pm.join, zip(xr, ur)))
+        xr = np.vectorize(decimal_u)(x, u, precision=precision,
+                                     compact=compact, sign=sign,
+                                     unicode=unicode, latex=latex)
+
+        # handle masked arrays
+        if np.ma.is_masked(xr):
+            xr = np.ma.filled(xr, str(np.ma.masked))
+
+        return xr
 
         # option 2
 
-        return xr
+        # return xr
 
     # σ = unp.std_devs(a)
     # return list(map(leading_decimal_zeros, σ))
 
 
-def sci_repr_array():
+def sci_array(n, significant=5, sign='-', times='x',  # x10='x' ?
+              compact=False, unicode=None, latex=None, engineering=False):
     """Scientific representation for arrays of scalars"""
+    return np.vectorize(sci)(n, significant=significant, sign=sign,
+                             times=times, compact=compact, unicode=unicode,
+                             latex=latex, engineering=engineering)
+
+
+def numeric_array(n, precision=2, significant=3, switch=5, sign='-', times='x',
+                  compact=True, unicode=True, latex=False, engineering=False):
+    """Pretty numeric representations for arrays of scalars"""
+    return np.vectorize(numeric)(n, precision=precision,
+                                 significant=significant, switch=switch,
+                                 sign=sign, times=times, compact=compact,
+                                 unicode=unicode, latex=latex,
+                                 engineering=engineering)
 
 
 #
@@ -593,7 +669,7 @@ class PrettyPrinter(pprint.PrettyPrinter):
                  compact=False, precision=None, minimalist=True):
 
         if minimalist:
-            self._floatFormatFunc = decimal_repr
+            self._floatFormatFunc = decimal
         else:
             self._floatFormatFunc = '{:.{}f}'.format
             precision = precision or 3
@@ -630,10 +706,10 @@ if __name__ == '__main__':
     assert leading_decimal_zeros(1000.0001) == 3
     assert leading_decimal_zeros(12e-23) == 21
 
-    assert decimal_repr(3.14159265, 5) == '3.14159'
-    assert decimal_repr(2.0000001, 3) == '2'
-    assert decimal_repr(2.01000001, 1) == '2'
-    assert decimal_repr(2.01000001, 2) == '2.01'
+    assert decimal(3.14159265, 5) == '3.14159'
+    assert decimal(2.0000001, 3) == '2'
+    assert decimal(2.01000001, 1) == '2'
+    assert decimal(2.01000001, 2) == '2.01'
 
     # test padding
     import random
@@ -642,7 +718,7 @@ if __name__ == '__main__':
         p = 6
         l = random.randrange(0, 10)
         r = random.randrange(0, 10)
-        s = decimal_repr(40.3344000, precision=p, left_pad=l, right_pad=r)
+        s = decimal(40.3344000, precision=p, left_pad=l, right_pad=r)
         i, d, e = s.partition('.')
         assert len(i) >= l
         assert len(d + e) == max(r, p + 1)
@@ -822,7 +898,7 @@ if __name__ == '__main__':
 #         return item
 #
 #     if minimalist:
-#         floatFormatFunc = decimal_repr
+#         floatFormatFunc = decimal
 #     else:
 #         floatFormatFunc = '{:.{}f}'.format
 #         precision = precision or 3
@@ -866,5 +942,3 @@ if __name__ == '__main__':
 #
 #     # else:       #not str, int, float, or iterable
 #     # return str(item)
-
-
