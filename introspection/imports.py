@@ -141,7 +141,9 @@ def echo(_):
 
 
 def _make_children(node, statements, func, sort, lvl):
-    statements = sorted(statements, key=func)
+    statements = list(statements)
+    if func:
+        statements.sort(key=func)
     # prevent branches with many levels yet single entries
     if (func is None) or (len(statements) == 1):
         # deepest level. Leaf nodes get attributes here
@@ -193,14 +195,15 @@ def print_imports_tree(tree, ws=50):
         # lvl = len(pre) // 4
         # stm = str(getattr(node, 'order', '')) + ' ' + getattr(node, 'stm', '')
         stm = getattr(node, 'stm', '')
-        nl = '\n' + pre[:-4] + ' ' * (len(str(node.name)) + 4)
-        stm = stm.replace('\n', nl)
+        if '\n' in stm:
+            stm = stm.replace('\n',
+                              '\n' + pre[:-4] + ' ' * (len(str(node.name)) + 4))
         pre = f'{pre}{node.name}'
         w = ws - len(pre)
         print(f'{pre}{stm: >{w + len(stm)}s}')
 
 
-def write_imports(stream, tree, headers=True, suffix='libs'):
+def write_imports_tree(stream, tree, headers=True, suffix='libs'):
     for pre, _, node in RenderTree(tree, childiter=sort_nodes):
         lvl = len(pre) // 4
         if lvl == 1 and headers:
@@ -229,6 +232,8 @@ class _FunkyDict(dict):
 
 
 class Funky(object):
+    # Helper class for creating the lower branches of the tree (grouping
+    # submodules)
     def __init__(self, statements):
         names = map(get_module_names, statements)
         self.subs = [_FunkyDict({s: su for s, su in zip(statements, sub) if su})
@@ -251,9 +256,85 @@ class Funky(object):
 #     visitor.visit(tree)
 #     return visitor.modules
 
+def get_style_groups(statements):
+    # moduleNameCount = defaultdict(int)
+    moduleIsFrom = defaultdict(list)
+
+    # count how many times any given module is used in import
+    # statements, and check whether there are ImportFrom style
+    # imports for this module
+    for node in statements:
+        name = get_module_names(node)[0]
+        # moduleNameCount[name] += 1
+        moduleIsFrom[name].append(isinstance(node, ast.ImportFrom))
+
+    # some logic on the ImportFrom statements to help with sorting.
+    # Make groups for modules having
+    #   0: only `import x` style;
+    #   1: mixed styles: eg: `import x`; `from x.y import a`
+    #   2: only  `from x import y` style
+    return {m: any(b) + all(b)
+            for m, b in moduleIsFrom.items()}
+
+
+def make_tree(statements, aesthetic=True, alphabetic=False, ):
+    """"""
+
+    # collect the import statements
+    statements = merge_duplicates(statements)
+    root = Node("body")
+
+    # no import statements ?
+    if len(statements) == 0:
+        return root
+
+    if aesthetic:
+        # hierarchical group sorting for aesthetic
+        importStyleGroups = get_style_groups(statements)
+
+        def lvl1(stm):
+            return importStyleGroups[get_module_names(stm, depth=0)]
+
+        # decision functions
+        groupers = [get_module_kind, lvl1, ] + list(Funky(statements))
+        sorters = [MODULE_GROUP_NAMES.index, echo]
+
+    elif alphabetic:
+        raise NotImplementedError
+
+    # make tree
+    make_branch(root, statements, groupers, sorters)
+    return root
+
+
+def get_tree(source, up_to_line=math.inf, filter_unused=True,
+             alphabetic=False, aesthetic=True, preserve_scope=True):
+
+    # Capture import nodes
+    split_multi_module = True
+    net = ImportCapture(up_to_line, not preserve_scope,
+                        split_multi_module, filter_unused)
+    importsTree = net.visit(ast.parse(source))
+    # todo: check if faster to find imports with re then parse!!!
+
+    # group and sort (creates a new tree structure)
+    return make_tree(importsTree.body, aesthetic, alphabetic), net
+
+
+def get_tree_file(filename, up_to_line=math.inf, filter_unused=True,
+             alphabetic=False, aesthetic=True, preserve_scope=True):
+
+    filename = str(filename)
+    with open(filename) as fp:
+        source = fp.read()
+
+    root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
+                              aesthetic, preserve_scope)
+    return root
+
 
 def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
-         aesthetic=True, preserve_local_imports=True, keep_multiline=True,
+         aesthetic=True, preserve_scope=True, keep_multiline=True,
          headers=None, write_to=None, dry_run=False, report=False):
     """
     Tidy up import statements that might lie scattered throughout hastily
@@ -273,7 +354,7 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     aesthetic: bool
         sort aesthetically. The sorting rules are as follow:
         # TODO
-    preserve_local_imports: bool
+    preserve_scope: bool
         Whether or not to move the import statements that are in a local scope
     headers: bool or None
         whether to print comment labels eg 'third-party libs' above different
@@ -300,50 +381,12 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     with open(filename) as fp:
         source = fp.read()
 
-    # line list. might be slow for large codebase
-    lines = source.splitlines()
-
-    # Capture import nodes
-    split_multi_module = True
-    imC = ImportCapture(up_to_line, not preserve_local_imports,
-                        split_multi_module, filter_unused)
-    importsTree = imC.visit(ast.parse(source))
-
-    # collect the import statements
-    statements = merge_duplicates(importsTree.body)
-
-    # no import statements ?
-    if len(statements) == 0:
-        return '' if dry_run else None
-
-    if aesthetic:
-        # hierarchical group sorting for aesthetic
-
-        # some logic on the ImportFrom statements to help with sorting.
-        # Make groups for modules having
-        #   0: only `import x` style;
-        #   1: mixed styles: eg: `import x`; `from x.y import a`
-        #   2: only  `from x import y` style
-        importStyleGroups = {m: any(b) + all(b)
-                             for m, b in imC.moduleIsFrom.items()}
-
-        def lvl1(stm):
-            return importStyleGroups[get_module_names(stm, depth=0)]
-
-        # decision functions
-        groupers = [get_module_kind, lvl1, ] + list(Funky(statements))
-        sorters = [MODULE_GROUP_NAMES.index, echo]
-
-    elif alphabetic:
-        raise NotImplementedError
-
-    # make tree
-    root = Node("body")
-    make_branch(root, statements, groupers, sorters)
-    return root
-
+    root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
+                              aesthetic, preserve_scope)
     # at this point the import statements should be grouped and sorted
-    # correctly in the tree
+    # correctly in new tree
+    if report:
+        print_imports_tree(root)
 
     # create new source code with import statements re-shuffled
     write_to = write_to or filename  # default is to overwrite input file
@@ -356,14 +399,17 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     if headers is None:
         headers = (len(root.children) > 1)
 
+    # line list. might be slow for large codebase
+    lines = source.splitlines()
+
     # get line numbers for removal
-    cutLines, _ = excision_flagger(lines, imC.line_nrs)
+    cutLines, _ = excision_flagger(lines, captured.line_nrs)
 
     # write the document header
     write_lines(stream, lines[:cutLines[0]])
 
     # write the ordered import statements (render the tree!)
-    write_imports(stream, root, headers)
+    write_imports_tree(stream, root, headers)
 
     # finally rebuild the remaining source code, omitting the previously
     # extracted import lines
@@ -580,9 +626,6 @@ class ImportCapture(ast.NodeTransformer):
         self._current_names = []
         self.line_nrs = []
 
-        self.moduleNameCount = defaultdict(int)
-        self.moduleIsFrom = defaultdict(list)
-
         # self.module_name_counts = defaultdict(int)
 
     def visit_Module(self, node):
@@ -617,13 +660,6 @@ class ImportCapture(ast.NodeTransformer):
                     # style imports where some imported names are unused
                     if isinstance(node, ast.ImportFrom):
                         remove_unused_names(node, unused)
-
-            # count how many times any given module is used in import
-            # statements, and check whether there are ImportFrom style
-            # imports for this module
-            name = get_module_names(node)[0]
-            self.moduleNameCount[name] += 1
-            self.moduleIsFrom[name].append(isinstance(node, ast.ImportFrom))
 
             # print('append', node)
             new_body.append(node)
