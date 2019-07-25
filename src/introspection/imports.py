@@ -29,12 +29,18 @@ builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs
 MODULE_GROUP_NAMES = ['std', 'third-party', 'local', 'relative']
 
 # list of local module names
-# TODO: this in seperate file
+# TODO: this in separate file
 LOCAL_MODULES = ['obstools', 'graphical', 'pySHOC', 'recipes', 'tsa', 'mCV',
                  'motley', 'slotmode']
 
+# FIXME: this weird gotcha:
+# import logging
+# import logging.config # THIS WILL GET REMOVED??
+# logging.config
 
-# TODO: local import that is already in global namespace
+# FIXME: decorators are not detected as used names!!!!!!!
+# TODO: unit tests!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# TODO: local import that are already in global namespace
 
 # TODO:
 # from matplotlib.collections import LineCollection
@@ -376,6 +382,12 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     #                         "from uncertainties import unumpy as unp"
 
     # fixme: keep multiline imports as multiline
+
+    # todo: make a function that can do this for input strings!!!
+
+    # FIXME:
+    # from .. import Model # GETS KILLED
+    # class SegmentedImageModel(Model, LabelGroupsMixin, LoggingMixin): pass
 
     filename = str(filename)
     with open(filename) as fp:

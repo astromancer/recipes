@@ -4,8 +4,6 @@ import ast
 import math
 import textwrap
 
-
-
 SRE_SPACE = re.compile('(\s*)')
 SRE_LINE_COMMENT = re.compile('((\s*)#)(.*)')  # (\s*#)(\s*?)(.*)
 

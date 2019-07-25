@@ -198,7 +198,8 @@ def to_list(data, check=None, **kws):
             badnames.append(nm)
         i += 1
         if i >= max_check and not check is trivial:
-            warn('The input list is too long. '
+            # warn
+            ('The input list is too long. '
                  'Skipping remaining validity checks\n')
             break
 

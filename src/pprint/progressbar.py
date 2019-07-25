@@ -1,19 +1,12 @@
-
 # std libs
 import os
 import sys
 import math
 
 # relative libs
-from . import overlay
+from .misc import overlay
 from ..misc import get_terminal_size
-
-
-
-
-# import time
-# import functools
-# from . import codes
+from ..string import resolve_percentage
 
 
 def move_cursor(val):

@@ -40,7 +40,7 @@ def seq_repr_trunc(seq, max_items=10, edge_items=1, sep=','):
                           )).join(brackets)
 
 
-def func2str(func, show_class=True, submodule_depth=1):
+def method(func, show_class=True, submodule_depth=1):
     """
     Get a nice string representing the function.
 
@@ -73,7 +73,7 @@ def func2str(func, show_class=True, submodule_depth=1):
             # represent missing arguments with unicode centre dot
             cdot = '·'  # u'\u00B7'
             argstr = str(func.args).strip(')') + ', %s)' % cdot
-            return 'partial(%s%s)' % (func2str(func.func), argstr)
+            return 'partial(%s%s)' % (method(func.func), argstr)
         # just a plain function # FIXME: module???
         return func.__name__
     else:

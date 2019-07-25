@@ -2,7 +2,6 @@
 Recipes involving lists
 """
 
-
 # std libs
 import re
 import operator
@@ -15,9 +14,7 @@ import more_itertools as mit
 
 # relative libs
 from .dict import DefaultOrderedDict
-
-
-
+from .iter import nth_zip
 
 
 def xmap(func, it, return_type=list):
@@ -36,11 +33,10 @@ def rmap(func, iterable):
     """recursive mapping with type preservation"""
     if isinstance(iterable, coll.Iterable):
         return type(iterable)(
-            map(functools.partial(rmap, func), iterable)
+                map(functools.partial(rmap, func), iterable)
         )
     else:
         return func(iterable)
-
 
 
 # def lzip(*its):
@@ -63,6 +59,7 @@ def multi_index(seq, val, default=None):
             return default
     else:
         return idx
+
 
 where = multi_index
 
@@ -168,13 +165,13 @@ def gen_duplicates(seq):
 
 
 def list_duplicates(seq):
-    """Return tuples of item, indeces pairs for duplicate values."""
+    """Return tuples of item, indices pairs for duplicate values."""
     return list(gen_duplicates(seq))
 
 
 def where_duplicate(seq):
     """Return lists of indices of duplicate entries"""
-    return nth_zip(1, *list_duplicates(seq))
+    return nth_zip(1, *gen_duplicates(seq))
 
 
 def sort_by_index(*its, index=None):
@@ -279,7 +276,8 @@ def sortmore(*args, **kw):
         _key = lambda x: (globalkey(*x), key(x[0]))
     elif isinstance(key, tuple):
         key = (k if k else lambda x: 0 for k in key)
-        _key = lambda x: (globalkey(*x),) + tuple(f(z) for (f, z) in zip(key, x))
+        _key = lambda x: (globalkey(*x),) + tuple(
+                f(z) for (f, z) in zip(key, x))
     else:
         raise KeyError(("Keyword arg 'key' should be 'None', callable, or a"
                         "sequence of callables, not {}").format(type(key)))
@@ -296,9 +294,9 @@ def sorter(*args, **kw):
     """alias for sortmore"""
     return sortmore(*args, **kw)
 
+
 # copy docstring
 sorter.__doc__ = sortmore.__doc__
-
 
 
 class UniformObjectContainer(coll.UserList):
@@ -309,11 +307,9 @@ class UniformObjectContainer(coll.UserList):
     # TODO: access container object attributes through __getattr__ ?
 
     # def __init__(self, obj):
-        # check uniform ...
+    # check uniform ...
 
     # def __getattr__(self, item):
-
-
 
     def attrgetter(self, *attrs):
         """

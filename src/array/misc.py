@@ -9,8 +9,36 @@ import numpy as np
 from recipes.list import flatten, where_duplicate
 
 
-
 # from IPython import embed
+
+
+def vectorize(fn, otypes=None, doc=None, excluded=None, cache=False,
+              signature=None):
+    # adapted from :
+    #   https://gist.github.com/dbaston/b41c3fa8c02ac151e52e132509c89b4c
+
+    vectorized = np.vectorize(fn, otypes, doc, excluded, cache, signature)
+
+    def runner(*args, **kwargs):
+        # In theory, it should be possible to replace this with
+        # np.ma.logical_or.reduce([a.mask for a in args])
+        # In practice, it seems to generate an error when the
+        # internal storage of the arguments is different
+        # ValueError: setting an array element with a sequence.
+        masked_args = [_ for _ in args if isinstance(_, np.ma.MaskedArray)]
+        if not masked_args:
+            return vectorized(*args, **kwargs)
+        else:
+            combined_mask = masked_args[0].mask
+            for arg in masked_args[1:]:
+                combined_mask = combined_mask | arg.mask
+
+            vals = np.ma.where(combined_mask,
+                               np.ma.masked,
+                               vectorized(*args, **kwargs))
+            return vals
+
+    return runner
 
 
 def is_broadcastable(shp1, shp2):
@@ -38,7 +66,8 @@ def unique_rows(a, return_index=False, return_inverse=False):
     res = np.unique(cast, return_index, return_inverse)
     if return_index or return_inverse:
         res, *rest = res
-    unqarr = res.view(a.dtype).reshape(-1, a.shape[1])  # recast/reshape to original type/shape
+    unqarr = res.view(a.dtype).reshape(-1, a.shape[
+        1])  # recast/reshape to original type/shape
     if return_index or return_inverse:
         return tuple([unqarr] + rest)
     else:

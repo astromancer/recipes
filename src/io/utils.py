@@ -1,4 +1,3 @@
-
 # std libs
 import os
 import sys
@@ -10,9 +9,8 @@ from pathlib import Path
 
 # local libs
 import motley
-from recipes.pprint import overlay
+from recipes.pprint.misc import overlay
 from recipes.interactive import is_interactive
-
 
 
 # ===============================================================================
@@ -22,7 +20,11 @@ def load_pickle(filename):
 
 
 def save_pickle(filename, data):
-    with Path(filename).open('wb') as fp:
+    path = Path(filename)
+    if not path.parent.exists():
+        path.parent.mkdir()
+
+    with path.open('wb') as fp:
         pickle.dump(data, fp)
 
 

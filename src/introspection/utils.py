@@ -2,14 +2,12 @@ import inspect
 
 
 def get_module_name(filename, depth=1):
-    # TODO: more to recipes.introspection
-
     name = inspect.getmodulename(filename)
     # for modules that have `__init__.py`
     if name == '__init__':
-        return filename[-depth - 1:-1]
+        return '.'.join(filename.split('/')[-depth - 1:-1])
 
-    # note the followingblock merely splits the filename.  no checks
+    # note the following block merely splits the filename.  no checks
     #  are done to see if the path is actually a valid python module
     current_depth = name.count('.')
     if depth > current_depth:

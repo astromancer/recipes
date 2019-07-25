@@ -7,14 +7,18 @@ import numbers
 # third-party libs
 import numpy as np
 
+# local libs
+from recipes.array.misc import vectorize
 
-# TODO: numbers with uncertainty!!!!
+
+# support
 
 # Unicode
 UNI_PWR = dict(enumerate('²³⁴⁵⁶⁷⁸⁹', 2))  # '¹²³⁴⁵⁶⁷⁸⁹'
 UNI_NEG_PWR = '⁻'  # '\N{SUPERSCRIPT MINUS}'
 UNI_PM = '±'
 UNI_MULT = {'x': '×', '.': '·'}
+UNI_HMS = 'ʰᵐˢ'
 # '\N{MINUS SIGN}'              '−'     u'\u2212'
 # '\N{PLUS-MINUS SIGN}'         '±'
 # '\N{MULTIPLICATION SIGN}'     '×' 	u'\u00D7'
@@ -23,7 +27,7 @@ UNI_MULT = {'x': '×', '.': '·'}
 # convert unicode to hex-16: '%x' % ord('⁻')
 
 # LaTeX
-LATEX_MULT = {'x': r'\times', '.': '\cdot'}
+LATEX_MULT = {'x': r'\times', '.': r'\cdot'}
 
 # The SI metric prefixes
 METRIC_PREFIXES = {-24: 'y',
@@ -44,9 +48,8 @@ METRIC_PREFIXES = {-24: 'y',
                    21: 'Z',
                    24: 'Y'}
 
+
 #  centi-, deci-, deka-, and hecto-) ???
-
-
 
 
 def signum(n):
@@ -143,6 +146,90 @@ def _check_pad(pad):
     return pad, char
 
 
+def to_sexagesimal(t):
+    """Convert time in seconds to hms tuple"""
+    m, s = divmod(t, 60)
+    h, m = divmod(m, 60)
+    return h, m, s  # TODO: use named tuple ??
+
+
+_sexagesimal_docstring_template = \
+    """
+    Convert time in seconds to sexagesimal representation
+
+    Parameters
+    ----------
+    t : float
+        time in seconds
+    precision: int or None
+        maximum precision to use. Will be ignored if a shorter numerical
+        representation exists
+    sep: str
+        separator(s) to use for time representation
+    short: bool or None
+        will strip unnecessary parts from the repr if True.
+        eg: '0h00m15.4s' becomes '15.4s'
+    unicode: bool
+        Unicode superscripts
+
+    Returns
+    -------
+    formatted time str
+
+    Examples
+    --------
+    >>> {0}(1e4)
+    '2h46m40s'
+    >>> {0}(1.333121112e2, 5)
+    '2m13.31211s'
+    >>> {0}(1.333121112e2, 5, ':')
+    '0:02:13.31211'
+    >>> {0}(1.333121112e2, 5, short=False)
+    '0h02m13.31211s'
+    """
+
+
+def sexagesimal(t, precision=None, sep='hms', short=None, unicode=False):
+    # TODO: unit tests!!!
+
+    if len(sep) == 1:
+        sep = (sep, sep, '')
+
+    if short is None:
+        # short representation only meaningful if time expressed in hms units
+        short = (sep == 'hms')
+
+    if unicode and (sep == 'hms'):
+        sep = UNI_HMS
+
+    #
+    sexa = to_sexagesimal(t)
+    precision = (0, 0, precision)
+
+    tstr = ''
+    left_pad = 0
+    for i, (n, p, s) in enumerate(zip(sexa, precision, sep)):
+        # if this is the first non-zero part, skip zfill
+        if len(tstr):
+            left_pad = 2
+
+        part = decimal(n, p, left_pad=(left_pad, '0'))
+
+        # special treatment for last (meaningful) sexagesimal part
+        last = (i == 2)
+        if short and not (last or float(part) or len(tstr)):
+            # if short format requested and final part has 0s only, omit
+            continue
+        tstr += (part + s)
+
+    return tstr
+
+
+hms = sexagesimal
+sexagesimal.__doc__ = _sexagesimal_docstring_template.format('sexagesimal')
+hms.__doc__ = _sexagesimal_docstring_template.format('hms')
+
+
 def eng(value, significant=None, base=10, unit=''):
     """
     Format a number in engineering format
@@ -175,9 +262,9 @@ def eng(value, significant=None, base=10, unit=''):
 
 
 def decimal(n, precision=None, significant=3, sign='-', compact=False,
-            unicode=False, left_pad=0, right_pad=0):
+            unicode=False, left_pad=0, right_pad=0, thousands=''):
     """
-    Minimalist decimal representation of float as str up to given number
+    Decimal representation of float as str up to given number
     of significant digits (relative), or decimal precision (absolute).
 
     Parameters
@@ -197,7 +284,7 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     sign: str or bool
         True: always sign; False: only negative
         '+' or '-' or ' ' like builtin format spec
-    compact : bool
+    compact : bool      # TODO: shortest
         should redundant zeros and decimal point be stripped?
     unicode:
         prefer unicode minus '−' over '-'
@@ -212,8 +299,9 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
         Trailing whitespace padding relative to decimal point.
         eg.:
             '1.233' ---> ' 1.233  ' (with right_pad=5)
+    thousands: str
+        thousands separator
 
-    # TODO: options for thousand_separator spaces or commas
 
     Returns
     -------
@@ -226,9 +314,17 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     >>> decimal(3.14159265, 5)
     '3.14159'
     """
+    # # handel masked values
+    # if isinstance(n, np.ma.core.MaskedConstant):
+    #     return '--'
+
     # ensure we have a scalar
     if not isinstance(n, numbers.Real):
         raise ValueError('Only scalars are accepted by this function.')
+
+    # handle nans
+    if np.isnan(n):
+        return 'nan'
 
     if math.isinf(n):
         if unicode:
@@ -262,7 +358,10 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     sign_fmt = sign
 
     # format the number
-    s = '{:{}.{}f}'.format(n, sign_fmt, precision)
+    if thousands:
+        s = '{:{},.{}f}'.format(n, sign_fmt, precision).replace(',', thousands)
+    else:
+        s = '{:{}.{}f}'.format(n, sign_fmt, precision)
     # s = '{: >{}{}.{}f}'.format(n, sign_fmt, w, precision)
     # return s
     # pad with whitespace relative to decimal position. useful when displaying
@@ -346,16 +445,21 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
         scientific notation with base 1000.
 
 
-    # TODO: spacing options
+    # TODO: spacing options.  # ' x ' as times :)
     # todo: SI prefixes
 
     Returns
     -------
     str
     """
+
     # ensure we have a scalar
     if not isinstance(n, numbers.Real):
         raise ValueError('Only scalars are accepted by this function.')
+
+    # handle nans
+    if np.isnan(n):
+        return 'nan'
 
     # check flags
     if (unicode, latex) == (None, None):
@@ -411,7 +515,7 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
 
 def numeric(n, precision=2, significant=3, sign='-', times='x',
             compact=True, unicode=True, latex=False, engineering=False,
-            switch=5):
+            switch=5, thousands=''):
     """
 
     Parameters
@@ -434,6 +538,7 @@ def numeric(n, precision=2, significant=3, sign='-', times='x',
     unicode
     latex
     engineering
+    thousands
 
     Returns
     -------
@@ -472,7 +577,8 @@ def numeric(n, precision=2, significant=3, sign='-', times='x',
     # m = order_of_magnitude(n)
     if math.isinf(m) or abs(m) < switch:
         # handle case n == 0 and normal float formatting
-        return decimal(n, precision, None, sign, compact, unicode)
+        return decimal(n, precision, None, sign, compact, unicode,
+                       thousands=thousands)
 
     return sci(n, significant, sign, times, compact, unicode, latex,
                engineering)
@@ -555,6 +661,12 @@ def decimal_u(x, u, precision=None, compact=False,
     return '%s +/- %s' % (xr, ur)
 
 
+# def vectorize():
+#     # handle masked arrays
+#     if np.ma.is_masked(xr):
+#         xr = np.ma.filled(xr, str(np.ma.masked))
+
+
 def uarray(x, u, significant=None, switch=5, compact=False, times='x',
            sign='-', unicode=True, latex=False,
            engineering=False):
@@ -592,8 +704,12 @@ def uarray(x, u, significant=None, switch=5, compact=False, times='x',
     # so that the numbers can easily be compared scrolling your eye along a
     # column. We also might want uniform magnitude scaling across the array.
 
+    # TODO: first decide which items to display.  get_edge_items etc...
+
     if np.size(x) > 1000:
-        raise NotImplementedError  # TODO: get_edge_items etc...
+        #
+        raise NotImplementedError('Probably not a good idea. Not yet tested for'
+                                  '  large arrays.')
 
     # decide on scientific vs decimal notation
     logn = np.log10(abs(x))
@@ -609,7 +725,7 @@ def uarray(x, u, significant=None, switch=5, compact=False, times='x',
 
         if significant is None:
             # get precision values from the Data Particle Group rules
-            precision = np.vectorize(precision_rule_dpg)(u).max()
+            precision = vectorize(precision_rule_dpg)(u).max()
         else:
             precision = significant
 
@@ -627,13 +743,9 @@ def uarray(x, u, significant=None, switch=5, compact=False, times='x',
         # `significant` or we can fill trailing whitespace up to `significant`.
 
         # option 1
-        xr = np.vectorize(decimal_u)(x, u, precision=precision,
-                                     compact=compact, sign=sign,
-                                     unicode=unicode, latex=latex)
-
-        # handle masked arrays
-        if np.ma.is_masked(xr):
-            xr = np.ma.filled(xr, str(np.ma.masked))
+        xr = vectorize(decimal_u)(x, u, precision=precision,
+                                  compact=compact, sign=sign,
+                                  unicode=unicode, latex=latex)
 
         return xr
 
@@ -648,19 +760,23 @@ def uarray(x, u, significant=None, switch=5, compact=False, times='x',
 def sci_array(n, significant=5, sign='-', times='x',  # x10='x' ?
               compact=False, unicode=None, latex=None, engineering=False):
     """Scientific representation for arrays of scalars"""
-    return np.vectorize(sci)(n, significant=significant, sign=sign,
-                             times=times, compact=compact, unicode=unicode,
-                             latex=latex, engineering=engineering)
+    # masked data handled implicitly by vectorize
+    # from recipes.array.misc import vectorize
+
+    return vectorize(sci)(n, significant=significant, sign=sign,
+                          times=times, compact=compact, unicode=unicode,
+                          latex=latex, engineering=engineering)
 
 
 def numeric_array(n, precision=2, significant=3, switch=5, sign='-', times='x',
-                  compact=True, unicode=True, latex=False, engineering=False):
+                  compact=False, unicode=True, latex=False, engineering=False,
+                  thousands=''):
     """Pretty numeric representations for arrays of scalars"""
-    return np.vectorize(numeric)(n, precision=precision,
-                                 significant=significant, switch=switch,
-                                 sign=sign, times=times, compact=compact,
-                                 unicode=unicode, latex=latex,
-                                 engineering=engineering)
+    return vectorize(numeric)(n, precision=precision,
+                              significant=significant, switch=switch,
+                              sign=sign, times=times, compact=compact,
+                              unicode=unicode, latex=latex,
+                              engineering=engineering, thousands=thousands)
 
 
 #
