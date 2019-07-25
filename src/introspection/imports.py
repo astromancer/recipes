@@ -1,4 +1,3 @@
-
 # std libs
 import io
 import ast
@@ -12,15 +11,13 @@ from collections import defaultdict
 from stdlib_list import stdlib_list
 from anytree import Node, RenderTree
 
-
 # from importlib.machinery import PathFinder
-
 
 
 # list of builtin modules
 easterEggs = ['this', 'antigravity']
-# notListed = 'keyword'  # todo.  auto-generated module for builtin keywords
-builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs
+unlisted = ['keyword']  # auto-generated module for builtin keywords
+builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs + unlisted
 
 # object that finds system location of module from name
 # pathFinder = PathFinder()
@@ -31,21 +28,25 @@ MODULE_GROUP_NAMES = ['std', 'third-party', 'local', 'relative']
 # list of local module names
 # TODO: this in separate file
 LOCAL_MODULES = ['obstools', 'graphical', 'pySHOC', 'recipes', 'tsa', 'mCV',
-                 'motley', 'slotmode']
+                 'motley', 'salticam']
+
 
 # FIXME: this weird gotcha:
 # import logging
 # import logging.config # THIS WILL GET REMOVED??
 # logging.config
 
-# FIXME: decorators are not detected as used names!!!!!!!
 # TODO: unit tests!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # TODO: local import that are already in global namespace
 
-# TODO:
-# from matplotlib.collections import LineCollection
-# from matplotlib.collections import EllipseCollection
-# should be merged
+
+def null(_):
+    return 0
+
+
+def echo(_):
+    return _
+
 
 def is_builtin(name):  # name.split('.')[0]
     return name in builtin_module_names
@@ -124,58 +125,6 @@ def get_module_names(node, split=True, depth=None):
     if split:
         return names.split('.')[idx]
     return names
-
-
-# def get_dotstring(node):
-#     return get_module_names(node, False)
-#
-# #
-# def get_node_name(lvl, gid):
-#     if lvl == 0:
-#         return MODULE_GROUP_NAMES[gid]
-#     # elif lvl == 1:
-#     #     return
-#     else:
-#         return str(gid)
-
-
-def null(_):
-    return 0
-
-
-def echo(_):
-    return _
-
-
-def _make_children(node, statements, func, sort, lvl):
-    statements = list(statements)
-    if func:
-        statements.sort(key=func)
-    # prevent branches with many levels yet single entries
-    if (func is None) or (len(statements) == 1):
-        # deepest level. Leaf nodes get attributes here
-        # node.stm = sorted(map(rewrite, statements), key=len)
-        # if we split down to the statement level, each node has one statement
-        node.stm = rewrite(statements[0])
-        # order groups by maximal statement length
-        if lvl >= 3:
-            node.order = min(len(node.stm), 80)
-            parent = node.parent
-            for _ in range(3, lvl):
-                parent.order = max(node.order, parent.order)
-                parent = parent.parent
-        return
-    else:
-        for gid, grp in itt.groupby(statements, func):
-            child = Node(gid, parent=node, order=sort(gid))
-            yield child, gid, grp
-
-
-def make_branch(node, statements, funcs, sorts, lvl=0):
-    func = funcs[lvl] if lvl < len(funcs) else None
-    sorter = sorts[lvl] if lvl < len(sorts) else null
-    for child, _, grp in _make_children(node, statements, func, sorter, lvl):
-        make_branch(child, grp, funcs, sorts, lvl + 1)
 
 
 def _sort(node):
@@ -284,6 +233,38 @@ def get_style_groups(statements):
             for m, b in moduleIsFrom.items()}
 
 
+def make_branch(node, statements, funcs, sorts, lvl=0):
+    func = funcs[lvl] if lvl < len(funcs) else None
+    sorter = sorts[lvl] if lvl < len(sorts) else null
+    for child, _, grp in _make_children(node, statements, func, sorter, lvl):
+        make_branch(child, grp, funcs, sorts, lvl + 1)
+
+
+def _make_children(node, statements, func, sort, lvl):
+    statements = list(statements)
+    if func:
+        statements.sort(key=func)
+    # prevent branches with many levels yet single entries
+
+    if func is None:
+        # deepest level. Leaf nodes get attributes here.
+        # we split down to the statement level, which means nodes of the
+        # some nodes may only have single import statement statement
+        node.stm = rewrite(statements[0])
+        # order groups by maximal statement length
+        if lvl >= 3:
+            node.order = min(len(node.stm), 80)
+            parent = node.parent
+            for _ in range(3, lvl):
+                parent.order = max(node.order, parent.order)
+                parent = parent.parent
+        return
+    else:
+        for gid, grp in itt.groupby(statements, func):
+            child = Node(gid, parent=node, order=sort(gid))
+            yield child, gid, grp
+
+
 def make_tree(statements, aesthetic=True, alphabetic=False, ):
     """"""
 
@@ -301,7 +282,7 @@ def make_tree(statements, aesthetic=True, alphabetic=False, ):
         def lvl1(stm):
             return importStyleGroups[get_module_names(stm, depth=0)]
 
-        # decision functions
+        # decision functions for
         groupers = [get_module_kind, lvl1, ] + list(Funky(statements))
         sorters = [MODULE_GROUP_NAMES.index, echo]
 
@@ -315,21 +296,18 @@ def make_tree(statements, aesthetic=True, alphabetic=False, ):
 
 def get_tree(source, up_to_line=math.inf, filter_unused=True,
              alphabetic=False, aesthetic=True, preserve_scope=True):
-
     # Capture import nodes
     split_multi_module = True
     net = ImportCapture(up_to_line, not preserve_scope,
                         split_multi_module, filter_unused)
     importsTree = net.visit(ast.parse(source))
-    # todo: check if faster to find imports with re then parse!!!
 
     # group and sort (creates a new tree structure)
     return make_tree(importsTree.body, aesthetic, alphabetic), net
 
 
 def get_tree_file(filename, up_to_line=math.inf, filter_unused=True,
-             alphabetic=False, aesthetic=True, preserve_scope=True):
-
+                  alphabetic=False, aesthetic=True, preserve_scope=True):
     filename = str(filename)
     with open(filename) as fp:
         source = fp.read()
@@ -377,22 +355,56 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     sourceCode: str
         Reformatted source code as a str.
     """
-
     # todo: style preference: "import uncertainties.unumpy as unp" over
     #                         "from uncertainties import unumpy as unp"
 
     # fixme: keep multiline imports as multiline
 
-    # todo: make a function that can do this for input strings!!!
-
-    # FIXME:
-    # from .. import Model # GETS KILLED
-    # class SegmentedImageModel(Model, LabelGroupsMixin, LoggingMixin): pass
-
+    #
     filename = str(filename)
     with open(filename) as fp:
         source = fp.read()
 
+    # output
+    write_to = write_to or filename  # default is to overwrite input file
+
+    if dry_run:
+        stream = io.StringIO()
+    else:
+        stream = open(write_to, 'w')
+
+    _tidy(source, stream, up_to_line, filter_unused, alphabetic, aesthetic,
+          preserve_scope, keep_multiline, headers, report)
+
+    s = None
+    if dry_run:
+        s = stream.getvalue()
+
+    # closing
+    stream.close()
+
+    # if report: # TODO checkout difflib
+    #     print('-' * 160)
+    #     print(filename)
+    #     print('-' * 160)
+
+    return s
+
+
+def tidy_source(source, up_to_line=math.inf, filter_unused=True,
+                alphabetic=False, aesthetic=True, preserve_scope=True,
+                keep_multiline=True, headers=None, report=False):
+    #
+    with io.StringIO() as output_stream:
+        _tidy(source, output_stream, up_to_line, filter_unused, alphabetic,
+              aesthetic, preserve_scope, keep_multiline, headers, report)
+        return output_stream.getvalue()
+
+
+def _tidy(source, output_stream, up_to_line=math.inf, filter_unused=True,
+          alphabetic=False, aesthetic=True, preserve_scope=True,
+          keep_multiline=True, headers=None, report=False):
+    #
     root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
                               aesthetic, preserve_scope)
     # at this point the import statements should be grouped and sorted
@@ -401,15 +413,11 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
         print_imports_tree(root)
 
     if len(root.children) == 0:
+        # no imports
+        output_stream.write(source)
         return
 
     # create new source code with import statements re-shuffled
-    write_to = write_to or filename  # default is to overwrite input file
-    if dry_run:
-        stream = io.StringIO()
-    else:
-        stream = open(write_to, 'w')
-
     # group headings
     if headers is None:
         headers = (len(root.children) > 1)
@@ -421,31 +429,16 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     cutLines, _ = excision_flagger(lines, captured.line_nrs)
 
     # write the document header
-    write_lines(stream, lines[:cutLines[0]])
+    write_lines(output_stream, lines[:cutLines[0]])
 
     # write the ordered import statements (render the tree!)
-    write_imports_tree(stream, root, headers)
+    write_imports_tree(output_stream, root, headers)
 
     # finally rebuild the remaining source code, omitting the previously
     # extracted import lines
     for i, line in enumerate(lines):
         if (i >= cutLines[0]) and (i not in cutLines):
-            write_line(stream, line)
-
-    if dry_run:
-        s = stream.getvalue()
-    else:
-        s = None  # todo get string?
-
-    # closing
-    stream.close()
-
-    # if report: # TODO checkout difflib
-    #     print('-' * 160)
-    #     print(filename)
-    #     print('-' * 160)
-
-    return s
+            write_line(output_stream, line)
 
 
 def line_sort(line):
@@ -496,6 +489,7 @@ def excision_flagger(lines, line_nrs):
 
 
 def accumulate(a, start=0):
+    """Generator that yields cumulative sum of elements of the input iterable"""
     tot = int(start)
     for item in a:
         tot += item
@@ -643,6 +637,10 @@ class ImportCapture(ast.NodeTransformer):
 
         # self.module_name_counts = defaultdict(int)
 
+    def _should_capture(self, node):
+        return (node.lineno <= self.max_line_nr) and \
+               (node.col_offset <= self.indent_ok)
+
     def visit_Module(self, node):
 
         if self.filter_unused and (self.max_line_nr < math.inf):
@@ -685,9 +683,8 @@ class ImportCapture(ast.NodeTransformer):
         return ast.Module(new_body)
 
     def visit_Import(self, node):
+        node = self.generic_visit(node)
         if self._should_capture(node):
-            node = self.generic_visit(node)
-
             # capture line numbers
             self.line_nrs.append(node.lineno - 1)
 
@@ -706,16 +703,16 @@ class ImportCapture(ast.NodeTransformer):
 
             self._current_names = []
             return new_nodes
+        return node
 
     def visit_ImportFrom(self, node):
+        node = self.generic_visit(node)
         if self._should_capture(node):
-            node = self.generic_visit(node)
-
             # capture line numbers and imported names
             self.line_nrs.append(node.lineno - 1)
             self.imported_names.append(self._current_names)
             self._current_names = []
-            return node
+        return node
 
     def visit_alias(self, node):
         name = next(filter(None, (node.asname, node.name)))
@@ -725,448 +722,6 @@ class ImportCapture(ast.NodeTransformer):
         return node
 
     def visit_Name(self, node):
-        # TODO: scope aware
         self.used_names.add(node.id)
+        return node
 
-    def _should_capture(self, node):
-        return (node.lineno <= self.max_line_nr) and \
-               (node.col_offset <= self.indent_ok)
-
-# class ImportCapture(ast.NodeVisitor):
-#     def __init__(self, max_line_nr=math.inf, capture_local=True):
-#         self.statements = []
-#         self.used_names = set()
-#         self.max_line_nr = max_line_nr  # internal line nrs are 1 base
-#         self.indent_ok = math.inf  # all statements will be captured
-#         if bool(capture_local):
-#             self.indent_ok = 1  # ant indented statements will be ignores
-#
-#     def visit_Import(self, node):
-#         if self._should_capture(node):
-#             self.statements.append(node)
-#
-#         self.generic_visit(node)
-#
-#     def visit_ImportFrom(self, node):
-#         if self._should_capture(node):
-#             self.statements.append(node)
-#
-#         self.generic_visit(node)
-#
-#     def visit_Name(self, node):
-#         if self._should_capture(node):
-#             self.used_names.add(node.id)
-#
-#         self.generic_visit(node)
-#
-#     def _should_capture(self, node):
-#         return (node.lineno <= self.max_line_nr) and \
-#                (node.col_offset < self.indent_ok)
-#
-#     def _split_lines(self):  # todo NodeTransformer
-#         # make sure we have one unique module name per import line
-#         for i in range(len(self.statements)):
-#             node = self.statements[i]
-#             if isinstance(node, ast.Import) and len(node.names) > 1:
-#                 node = self.statements.pop(i)
-#                 for j, alias in enumerate(node.names):
-#                     new_node = ast.Import([ast.alias(alias.name, alias.asname)])
-#                     self.statements.insert(i + j, new_node)
-#                     # ast.increment_lineno(node)
-
-# def get_module_names(self):
-#     # to be run after a tree has been visited
-#     for node in self.statements:
-#         if isinstance(node, ast.ImportFrom):
-#             if node.level:
-#                 return '.'
-#             return node.module
-#         if isinstance(node, ast.Import):
-#             return alias.name
-#
-# def _gen_module_names(self):
-#     # to be run after a tree has been visited
-#     for node in self.statements:
-#         if isinstance(node, ast.ImportFrom):
-#             if node.level:
-#                 yield '.'
-#             yield node.module
-#         if isinstance(node, ast.Import):
-#             for alias in node.names:
-#                 yield alias.name
-
-# def _gen_module_names_from(self):
-#     # to be run after a tree has been visited
-#     for node in self.statements:
-#         if isinstance(node, ast.ImportFrom):
-#             if node.level:
-#                 yield '.', True
-#             yield node.module, True
-#         if isinstance(node, ast.Import):
-#             for alias in node.names:
-#                 yield alias.name, False
-
-
-# class ImportLineSplit(ast.NodeTransformer):
-#     def visit_Module(self, node):
-#         print('hello')
-#         self.generic_visit(node)
-
-# class FilterUnusedImports(ImportCapture):
-#     def __init__(self, max_line_nr=math.inf, capture_local=True, unused=()):
-#         ImportCapture.__init__(self, max_line_nr, capture_local)
-#         self.unused = tuple(unused)
-#
-#     def _should_capture_import(self, node):
-#         return isinstance(node, (ast.Import, ast.ImportFrom)) and \
-#                get_module_name(node) not in self.unused
-#
-#     def _should_capture(self, node):
-#         return super()._should_capture(node) and \
-#                self._should_capture_import(node)
-
-#
-# class FilterUnusedImports(ast.NodeTransformer):
-#     def __init__(self, unused):
-#         self.unused = tuple(unused)
-#
-#     def visit_Import(self, node):
-#         remove_unused_names(node, self.unused)
-#         self.generic_visit(node)
-#         if len(node.names):
-#             return node
-#
-#     def visit_ImportFrom(self, node):
-#         remove_unused_names(node, self.unused)
-#         self.generic_visit(node)
-#         if len(node.names):
-#             return node
-
-# class ImportStatement(object):  # DEPRECATED
-#     """
-#     Helper class for editing and sorting import statements. Treat all types
-#     of import syntax in the same object so we can switch between styles and
-#     remove unused statements while still formatting correctly.
-#     """
-#
-#     # _sort_by_length = False
-#
-#     def __init__(self, statement, module, line_nr, names, as_names=()):
-#         # split the import statement into modules, submodules, names, as_names
-#         self.statement = str(statement)
-#         self.module, *self.submodules = str(module).split('.')
-#         self.line_nr = int(line_nr)
-#         self.is_from = self.statement.startswith('from')
-#         self.names = tuple(names)
-#         self.as_names = tuple(as_names)
-#
-#     def __repr__(self):
-#         return repr(self.statement)
-#
-#     def __str__(self):
-#         # TODO: write here!!
-#         return self.statement
-#
-#     def __lt__(self, other):
-#         return (self.is_from, len(self.statement)) < \
-#                (other.is_from, len(other.statement))
-
-#
-# if self._sort_by_length:
-#     return (self.is_from, len(self.statement)) < \
-#            (other.is_from, len(other.statement))
-# return (self.is_from, self.module) < (other.is_from, other.module)
-
-
-# class ImportStatement2(object):
-#     """
-#     Helper class for editing and sorting import statements. Treat all types
-#     of import syntax in the same object so we can switch between styles and
-#     remove unused statements while still formatting correctly.
-#     """
-#
-#     # _sort_by_length = False
-#
-#     def __init__(self, node):
-#         # split the import statement into modules, submodules, names, as_names
-#         if isinstance(ast.Import):
-#
-#
-#
-#         self.statement = str(statement)
-#         self.module, *self.submodules = str(module).split('.')
-#         self.line_nr = int(line_nr)
-#         self.is_from = self.statement.startswith('from')
-#         self.names = tuple(names)
-#         self.as_names = tuple(as_names)
-
-# def filter_unused(nodes, used):
-#     """rewrite an import node as str"""
-#
-#     used = set(used)
-#     for node in nodes:
-#         names = tuple(_gen_node_names(node))
-#         unused = set(names) - used
-#         nr_unused =  len(unused)
-#         if nr_unused == 0:
-#             yield node
-#
-#         elif nr_unused != len(names):
-#             # some of these imported names are used
-#             # remove unused names
-#             node = FilterUnusedImports().visit(node)
-#
-#
-#             for alias in node.names:
-
-
-# if :
-#     alias.asname
-
-
-# s = ''
-# if isinstance(node, ast.ImportFrom):
-#     # for module relative imports, `node.module` holds the sub-module
-#     relative = '.' * node.level
-#     module = ''.join((relative, node.module or '')).strip()
-#     s = 'from %s ' % module
-#
-# # write the aliases
-# s += 'import '
-# s += ', '.join(' as '.join(filter(None, (alias.name, alias.asname)))
-#                for alias in node.names)
-# return s
-
-
-# def get_names(self):
-#     # get imported names as they would reflect in the namespace
-#     for node in self.statements:
-#
-#
-# def get_used_statements(self):
-#     # to be run after parsing source
-#     for node in self.statements:
-#         for name in _gen_node_names(node):
-#             if name not in self.used_names:
-#
-
-
-# class ImportFinder(ast.NodeVisitor):
-#     """
-#     Extract, re-construct and buffer import statements from parsed python source
-#     code.
-#     """
-#
-#     # TODO: option for capturing module names...
-#
-#     def __init__(self, up_to_line=math.inf):
-#         # collect source code line numbers for *start* of import statements
-#         self.last_line = float(up_to_line)
-#         self.line_nrs_1 = []
-#         self.line_nrs_0 = []
-#         self.future = []
-#         self.nr_alias = 1
-#         self.current_nr = 1
-#
-#     def visit_Import(self, node):
-#         self.current_nr = 1
-#         self.nr_alias = 1
-#
-#         ln = node.lineno
-#         if ln <= self.last_line:
-#             self.line_nrs_1.append(ln)
-#             self.line_nrs_0.append(ln - 1)
-#             self.generic_visit(node)
-#
-#     def visit_ImportFrom(self, node):
-#         self.nr_alias = len(node.names)
-#         self.current_nr = 1
-#
-#         ln = node.lineno
-#         if node.module == '__future__':
-#             self.future.append(ln)
-#
-#         if ln <= self.last_line:
-#             self.line_nrs_1.append(ln)
-#             self.line_nrs_0.append(ln - 1)
-#             self.generic_visit(node)
-#
-#
-# class ImportExtractor(ast.NodeVisitor):  # DEPRECATED
-#     """
-#     Extract, re-construct and buffer import statements from parsed python source
-#     code.
-#     """
-#
-#     # TODO: detect if imported things are being used
-#
-#     def __init__(self, max_line_nr=math.inf, capture_local=True):
-#         """
-#
-#         Parameters
-#         ----------
-#         max_line_nr: int
-#             last line of source code for which imports statements will be
-#             extracted
-#         local:  bool
-#             controls whether import statements with local scope will be
-#             extracted
-#         """
-#         # source code line numbers for *start* of import statement. in
-#         # general not possible to know if end of statement is on next line.
-#         self.handle_import = True  # controls how module name is captured
-#         self.current_module = None
-#         self.statement = ''  # statement buffer
-#         self.statements = []  # capture import statement on a single line
-#         self.names = []  # imported names
-#         self._names_buffer = []
-#         self.used_names = []  # used to check if imported gets used
-#         self.line_nrs_0 = []  # zero base line numbers
-#         self.nr_alias = 1
-#         self.current_nr = 1
-#         self.max_line_nr = max_line_nr
-#         self.capture_local = bool(capture_local)
-#         self.skip = False
-#
-#     def visit_Import(self, node):
-#         # "import bar" or "import foo.bar" style
-#
-#         # exit if beyond maximum line nr
-#         line_nr = node.lineno - 1
-#         if line_nr > self.max_line_nr:
-#             return
-#
-#         # optionally capture local imports
-#         self.skip = (not self.capture_local) and (node.col_offset > 0)
-#         if self.skip:
-#             self.generic_visit(node)  # goes to `visit_alias`
-#             return
-#
-#         self.handle_import = True
-#         self.statement = ''
-#         self._names_buffer = []
-#         self.current_nr = 1
-#         self.nr_alias = len(node.names)
-#         self.line_nrs_0.append(line_nr)
-#         self.generic_visit(node)  # goes to `visit_alias`
-#
-#     def visit_ImportFrom(self, node):
-#         # 'from foo import bar' or 'from ..foo.bar import bla' style
-#
-#         # exit if beyond maximum line nr
-#         line_nr = node.lineno - 1
-#         if line_nr > self.max_line_nr:
-#             return
-#
-#         # optionally capture local imports
-#         self.skip = (not self.capture_local) and (node.col_offset > 0)
-#         if self.skip:
-#             self.generic_visit(node)  # goes to `visit_alias`
-#             return
-#
-#         # for module relative imports, `node.module` holds the sub-module
-#         relative = '.' * node.level
-#         module = ''.join((relative, node.module or '')).strip()
-#
-#         self.current_module = module
-#         self.statement = 'from %s import ' % module
-#         self._names_buffer = []
-#         self.current_nr = 1
-#         self.nr_alias = len(node.names)
-#         self.line_nrs_0.append(line_nr)
-#         self.handle_import = False
-#         self.generic_visit(node)  # goes to `visit_alias`
-#
-#     def visit_alias(self, node):
-#         if self.skip:
-#             return
-#
-#         if self.handle_import:
-#             # case `visit_Import`
-#             module = node.name
-#             statement = 'import %s' % module
-#             # this will split "import os, re" style imports into 2 lines
-#             if node.asname:
-#                 statement += (' as %s' % node.asname)
-#                 names = node.asname,
-#             else:
-#                 names = module,
-#
-#             # capture statement
-#             s = ImportStatement(statement, module, self.line_nrs_0[-1], names)
-#             # line nr captured in `visit_Import` above
-#             self.statements.append(s)
-#
-#         else:
-#             # case `visit_ImportFrom`
-#             self.statement += node.name
-#             if node.asname:
-#                 self.statement += (' as %s' % node.asname)
-#                 self._names_buffer.append(node.asname)
-#             else:
-#                 self._names_buffer.append(node.name)
-#
-#             last = (self.current_nr == self.nr_alias)
-#             if not last:
-#                 self.statement += ', '
-#             else:
-#                 # capture statement
-#                 s = ImportStatement(self.statement, self.current_module,
-#                                     self.line_nrs_0[-1], self._names_buffer)
-#                 self.statements.append(s)
-#                 # line nr captured in `visit_Import` above
-#                 self.statement = ''
-#
-#         self.current_nr += 1
-#
-#     def visit_Name(self, node):
-#         self.used_names.append(node.id)
-#
-#     def get_unused_names(self):
-#         unused = set(self.names)
-#         for name in self.used_names:
-#             unused.remove(name)
-#         return unused
-#
-#     def get_unused_modules(self):
-#         unused = []
-#         for i, s in enumerate(self.statements):
-#             for name in s.names:
-#                 if name not in self.used_names:
-#                     unused.append((i, name))
-#         return unused
-#
-#     def get_used_statements(self):
-#         """
-#         Re-create the
-#         Returns
-#         -------
-#
-#         """
-#         used = []
-#         for i, s in enumerate(self.statements):
-#             keep_names = []
-#             for name in s.names:
-#                 if name in self.used_names:
-#                     keep_names.append(name)
-#             n = len(keep_names)
-#             if n:
-#                 if n != len(s.names):
-#                     # s.module, s.line_nr, keep_names
-#                     # ImportStatement()
-#                     pass
-#                 else:
-#                     used.append(s)
-#         return used
-#
-#     def get_modules(self, grouped=True):
-#
-#         if grouped:
-#             names = defaultdict(set)
-#             for s in self.statements:
-#                 name = s.module
-#                 kind = get_module_kind(name)
-#                 names[kind].add(name)
-#             return names
-#         else:
-#             return set(s.module for s in self.statements)
