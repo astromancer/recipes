@@ -1,5 +1,6 @@
 import textwrap
 
+# pseudo_private('x')
 property_mixin_template = \
     """
     class {class_name}Mixin(object):
@@ -26,3 +27,17 @@ def property_factory(name, class_name=None):
     src = property_mixin_template.format(name=name, class_name=class_name)
     exec(textwrap.dedent(src))
     return eval(name.title() + 'Mixin')
+
+
+# class PseudoPrivate(object):
+#     def __init__(self, value):
+#         self.value = value
+#
+#     def __get__(self, instance, owner):
+#         pass
+#
+#     def __set__(self, instance, value):
+#         pass
+#
+#     def __del__(self):
+#         pass

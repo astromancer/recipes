@@ -106,9 +106,19 @@ def get_module_names(node, split=True, depth=None):
 
     if isinstance(node, ast.ImportFrom):
         if node.level:
-            return (str, list)[split]('.' * node.level)[idx]
-        names = node.module
+            # this is a module relative import
+            names = ['.'] * node.level
+            if node.module:
+                names += node.module.split('.')
+            if not split:
+                return ''.join(names[idx])
+            return names[idx]
 
+            # names = (('.' * node.level) + (node.module or ''))
+            # names = names.split('.')[idx]
+            # return (''.join, list)[split](names[idx])
+
+        names = node.module
     elif isinstance(node, ast.Import):
         names = [alias.name for alias in node.names]
         if len(names) == 1:
@@ -159,6 +169,10 @@ def print_imports_tree(tree, ws=50):
         print(f'{pre}{stm: >{w + len(stm)}s}')
 
 
+def print_imports_tree2(tree, ws=50):
+    print(RenderTree(tree).by_attr('stm'))
+
+
 def write_imports_tree(stream, tree, headers=True, suffix='libs'):
     for pre, _, node in RenderTree(tree, childiter=sort_nodes):
         lvl = len(pre) // 4
@@ -190,6 +204,7 @@ class _FunkyDict(dict):
 class Funky(object):
     # Helper class for creating the lower branches of the tree (grouping
     # submodules)
+    # basically a hack to create functions that
     def __init__(self, statements):
         names = map(get_module_names, statements)
         self.subs = [_FunkyDict({s: su for s, su in zip(statements, sub) if su})
@@ -237,20 +252,19 @@ def make_branch(node, statements, funcs, sorts, lvl=0):
     func = funcs[lvl] if lvl < len(funcs) else None
     sorter = sorts[lvl] if lvl < len(sorts) else null
     for child, _, grp in _make_children(node, statements, func, sorter, lvl):
+        # print(lvl, child, _, grp)
         make_branch(child, grp, funcs, sorts, lvl + 1)
 
 
 def _make_children(node, statements, func, sort, lvl):
     statements = list(statements)
-    if func:
-        statements.sort(key=func)
-    # prevent branches with many levels yet single entries
 
-    if func is None:
-        # deepest level. Leaf nodes get attributes here.
-        # we split down to the statement level, which means nodes of the
-        # some nodes may only have single import statement statement
+    if len(statements) == 1:
+        # Deepest level. Leaf nodes get attributes here.
+        # print('PING', lvl, rewrite(statements[0]))
         node.stm = rewrite(statements[0])
+        node.order = min(len(node.stm), 80)
+
         # order groups by maximal statement length
         if lvl >= 3:
             node.order = min(len(node.stm), 80)
@@ -258,11 +272,39 @@ def _make_children(node, statements, func, sort, lvl):
             for _ in range(3, lvl):
                 parent.order = max(node.order, parent.order)
                 parent = parent.parent
+
         return
+
+    # from IPython import embed
+    # embed()
+
+    # prevent branches with many levels yet single entries
+    # if func is None:
+    #     # Deepest level. Leaf nodes get attributes here.
+    #     # we split down to the statement level, which means nodes of the
+    #     # some nodes may only have single import statement
+    #     # node.stm = list(map(rewrite, statements))
+    #     # node.order = min(max(map(len, node.stm)), 80)
+    #     # return
+    #     node.stm = rewrite(statements[0])
+    #
+    #     # order groups by maximal statement length
+    #     if lvl >= 3:
+    #         node.order = min(len(node.stm), 80)
+    #         parent = node.parent
+    #         for _ in range(3, lvl):
+    #             parent.order = max(node.order, parent.order)
+    #             parent = parent.parent
+
+        # gid = func(statements[0])
+        # child = Node(gid, parent=parent, order=sort(gid))
+        # yield child,
+        # return
     else:
-        for gid, grp in itt.groupby(statements, func):
+        statements.sort(key=func)
+        for gid, stm in itt.groupby(statements, func):
             child = Node(gid, parent=node, order=sort(gid))
-            yield child, gid, grp
+            yield child, gid, stm
 
 
 def make_tree(statements, aesthetic=True, alphabetic=False, ):
@@ -282,7 +324,7 @@ def make_tree(statements, aesthetic=True, alphabetic=False, ):
         def lvl1(stm):
             return importStyleGroups[get_module_names(stm, depth=0)]
 
-        # decision functions for
+        # decision functions
         groupers = [get_module_kind, lvl1, ] + list(Funky(statements))
         sorters = [MODULE_GROUP_NAMES.index, echo]
 
@@ -371,6 +413,9 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     if dry_run:
         stream = io.StringIO()
     else:
+        # FIXME: any error that occurs in `_tidy` may leave input file in a
+        #  weird state?? Especially errors with code that cannot be parsed
+        #  due to syntax errors.  TEST FOR THIS!!
         stream = open(write_to, 'w')
 
     _tidy(source, stream, up_to_line, filter_unused, alphabetic, aesthetic,
@@ -724,4 +769,3 @@ class ImportCapture(ast.NodeTransformer):
     def visit_Name(self, node):
         self.used_names.add(node.id)
         return node
-

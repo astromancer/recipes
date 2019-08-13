@@ -1,6 +1,6 @@
 import ast
 import textwrap
-from recipes.introspection.imports import ImportCapture, tidy_str
+from recipes.introspection.imports import ImportCapture, tidy_source
 
 
 def test_detect_decorator():
@@ -23,7 +23,7 @@ def test_preserve_scope():
         from foo import bar
         bar()
     """)
-    s = tidy_str(source, preserve_scope=True)
+    s = tidy_source(source, preserve_scope=True)
     assert s == source
 
 
@@ -32,8 +32,18 @@ def test_merge_import_lines():
     from matplotlib.collections import LineCollection
     from matplotlib.collections import EllipseCollection
     """)
-    s = tidy_str(source, filter_unused=False)
+    s = tidy_source(source, filter_unused=False)
     assert s == "from matplotlib.collections LineCollection, EllipseCollection"
+
+
+def test_():
+    source = textwrap.dedent("""\
+    from .. import CompoundModel, FixedGrid
+    
+    class MyModel(FixedGrid, CompoundModel):
+        pass
+    """)
+
 
 
 # TODO:

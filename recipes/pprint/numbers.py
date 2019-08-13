@@ -1,3 +1,11 @@
+"""
+Pretty formatting of floats, arrays (with uncertainties) in various human
+readable forms
+"""
+
+
+
+# This module designed for convenience and is *not* speed tested (yet)
 
 # std libs
 import math
@@ -10,15 +18,16 @@ import numpy as np
 # local libs
 from recipes.array.misc import vectorize
 
+# note: unicode literals below python3 only!
+# see: https://docs.python.org/3/howto/unicode.html
 
-# support
 
 # Unicode
 UNI_PWR = dict(enumerate('²³⁴⁵⁶⁷⁸⁹', 2))  # '¹²³⁴⁵⁶⁷⁸⁹'
 UNI_NEG_PWR = '⁻'  # '\N{SUPERSCRIPT MINUS}'
 UNI_PM = '±'
 UNI_MULT = {'x': '×', '.': '·'}
-UNI_HMS = 'ʰᵐˢ'
+UNI_HMS = u'ʰᵐˢ'
 # '\N{MINUS SIGN}'              '−'     u'\u2212'
 # '\N{PLUS-MINUS SIGN}'         '±'
 # '\N{MULTIPLICATION SIGN}'     '×' 	u'\u00D7'
@@ -48,6 +57,8 @@ METRIC_PREFIXES = {-24: 'y',
                    21: 'Z',
                    24: 'Y'}
 
+
+sequences = (list, tuple)
 
 #  centi-, deci-, deka-, and hecto-) ???
 
@@ -224,7 +235,7 @@ def sexagesimal(t, precision=None, sep='hms', short=None, unicode=False):
 
     return tstr
 
-
+# alias
 hms = sexagesimal
 sexagesimal.__doc__ = _sexagesimal_docstring_template.format('sexagesimal')
 hms.__doc__ = _sexagesimal_docstring_template.format('hms')
@@ -404,6 +415,20 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     return s
 
     # TODO: signed better
+
+
+def decimal_with_percentage(n, total, precision=None, significant=3, sign='-',
+                            compact=False, unicode=False, left_pad=0,
+                            right_pad=0, thousands='', brackets='()'):
+    if isinstance(precision, sequences):
+        p0, p1 = precision
+    else:
+        p0 = p1 = precision
+
+    d = decimal(n, p0, significant, sign, compact,
+                unicode, left_pad, right_pad, thousands)
+    p = '{:.{}%}'.format(n / total, p1)
+    return d + p.join(brackets)
 
 
 def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
