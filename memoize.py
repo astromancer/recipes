@@ -51,41 +51,58 @@ class to_file(object):  # TODO: use DecoratorBase here?
         return memoizer
 
 
-class memoize():
-    """
-    Decorator that caches a function's return value each time it is called.
-    If called later with the same arguments, the cached value is returned
-    (not re-evaluated).
-    """
+def memoize(f):
+    """ Memoization decorator for functions taking one or more arguments. """
 
-    def __init__(self, func):
-        self.func = func  # can also be a method?
-        self.cache = {}
+    class memodict(dict):
+        def __init__(self, f):
+            self.f = f
 
-    def __call__(self, *args, **kws):
+        def __call__(self, *args):
+            return self[args]
 
-        # if not isinstance(args, collections.Hashable):
-        ## uncacheable. a list, for instance.
-        ## better to not cache than blow up.
-        # return self.func(*args)
+        def __missing__(self, key):
+            ret = self[key] = self.f(*key)
+            return ret
 
-        # arguments may not be hashable. Convert them to strings first.
-        # NOTE: This will not work for objects that do not have unique string representations call to call
-        key = str(args) + str(kws)
+    return memodict(f)
 
-        if key in self.cache:
-            return self.cache[key]
-        else:
-            value = self.func(*args)
-            self.cache[key] = value
-            return value
-
-    def __repr__(self):
-        """Return the function's docstring."""
-        return self.func.__doc__
-
-    def __get__(self, obj, objtype):
-        """Support object methods."""
-        return functools.partial(self.__call__, obj)
-
-    to_file = to_file
+# class memoize():
+#     """
+#     Decorator that caches a function's return value each time it is called.
+#     If called later with the same arguments, the cached value is returned
+#     (not re-evaluated).
+#     """
+#
+#     def __init__(self, func):
+#         self.func = func  # can also be a method?
+#         self.cache = {}
+#
+#     def __call__(self, *args, **kws):
+#
+#         # if not isinstance(args, collections.Hashable):
+#         ## uncacheable. a list, for instance.
+#         ## better to not cache than blow up.
+#         # return self.func(*args)
+#
+#         # arguments may not be hashable. Convert them to strings first.
+#         # NOTE: This will not work for objects that do not have unique string
+#         #  representations call to call
+#         key = str(args) + str(kws)
+#
+#         if key in self.cache:
+#             return self.cache[key]
+#         else:
+#             value = self.func(*args)
+#             self.cache[key] = value
+#             return value
+#
+#     def __repr__(self):
+#         """Return the function's docstring."""
+#         return self.func.__doc__
+#
+#     def __get__(self, obj, objtype):
+#         """Support object methods."""
+#         return functools.partial(self.__call__, obj)
+#
+#     to_file = to_file
