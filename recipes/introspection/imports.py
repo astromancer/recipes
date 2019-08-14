@@ -340,8 +340,8 @@ def get_tree(source, up_to_line=math.inf, filter_unused=True,
              alphabetic=False, aesthetic=True, preserve_scope=True):
     # Capture import nodes
     split_multi_module = True
-    net = ImportCapture(up_to_line, not preserve_scope,
-                        split_multi_module, filter_unused)
+    net = ImportCapture(up_to_line, not preserve_scope, split_multi_module,
+                        filter_unused)
     importsTree = net.visit(ast.parse(source))
 
     # group and sort (creates a new tree structure)
@@ -663,10 +663,10 @@ class ImportCapture(ast.NodeTransformer):
 
     # TODO: scope aware capture
 
-    def __init__(self, max_line_nr=math.inf, capture_local=True, split=True,
+    def __init__(self, up_to_line=math.inf, capture_local=True, split=True,
                  filter_unused=True, merge_duplicates=True):
         #
-        self.max_line_nr = max_line_nr  # internal line nrs are 1 base
+        self.up_to_line = up_to_line  # internal line nrs are 1 base
         self.indent_ok = 0  # any indented statement will be ignored
         if bool(capture_local):
             self.indent_ok = math.inf  # all statements will be captured
@@ -683,13 +683,13 @@ class ImportCapture(ast.NodeTransformer):
         # self.module_name_counts = defaultdict(int)
 
     def _should_capture(self, node):
-        return (node.lineno <= self.max_line_nr) and \
+        return (node.lineno <= self.up_to_line) and \
                (node.col_offset <= self.indent_ok)
 
     def visit_Module(self, node):
 
-        if self.filter_unused and (self.max_line_nr < math.inf):
-            raise ValueError('With `max_line_nr` given and finite, cannot '
+        if self.filter_unused and (self.up_to_line < math.inf):
+            raise ValueError('With `up_to_line` given and finite, cannot '
                              'determine complete list of used names in module.')
 
         # first call to `generic_visit` will build the tree as well as capture

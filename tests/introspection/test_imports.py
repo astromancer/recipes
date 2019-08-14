@@ -36,7 +36,7 @@ def test_merge_import_lines():
     assert s == "from matplotlib.collections LineCollection, EllipseCollection"
 
 
-def test_():
+def test_relative_imports():
     source = textwrap.dedent("""\
     from .. import CompoundModel, FixedGrid
     
@@ -44,7 +44,9 @@ def test_():
         pass
     """)
 
-
+def test_capture_line_limit():
+    imp = ImportCapture(filter_unused=False)
+    imp.visit(ast.parse(source))
 
 # TODO:
 #  test_make_groups
@@ -53,6 +55,7 @@ def test_():
 #  test_sort_alphabetic
 #  test_multiline_imports
 #  test_keep_comments
+#  test_style_preference
 
 """
 import multiprocessing as mp

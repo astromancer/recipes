@@ -3,8 +3,6 @@ Pretty formatting of floats, arrays (with uncertainties) in various human
 readable forms
 """
 
-
-
 # This module designed for convenience and is *not* speed tested (yet)
 
 # std libs
@@ -57,8 +55,8 @@ METRIC_PREFIXES = {-24: 'y',
                    21: 'Z',
                    24: 'Y'}
 
-
 sequences = (list, tuple)
+
 
 #  centi-, deci-, deka-, and hecto-) ???
 
@@ -234,6 +232,7 @@ def sexagesimal(t, precision=None, sep='hms', short=None, unicode=False):
         tstr += (part + s)
 
     return tstr
+
 
 # alias
 hms = sexagesimal
