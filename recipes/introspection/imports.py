@@ -476,6 +476,8 @@ def _tidy(source, output_stream, up_to_line=math.inf, filter_unused=True,
     # write the document header
     write_lines(output_stream, lines[:cutLines[0]])
 
+    # FIXME: too many newlines after imports
+
     # write the ordered import statements (render the tree!)
     write_imports_tree(output_stream, root, headers)
 
