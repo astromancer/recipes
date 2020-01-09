@@ -4,19 +4,21 @@ Recipes involving dictionaries
 
 # std libs
 import numbers
-from collections import Callable, UserDict, OrderedDict
+from collections import Callable, UserDict, OrderedDict, MutableMapping
 
 # relative libs
-from .iter import flatiter
-
+from ..iter import flatiter
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
 # attr=True, ordered=True)
 
+def invert(d):
+    return dict(zip(d.values(), d.keys()))
 
-def pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
-            item_sep=','):
+
+def pformat(dict_, name='', converter=str, brackets='{}', sep=':',
+            post_sep_space=0, item_sep=','):
     """
     pformat (nested) dict types
 
@@ -24,6 +26,7 @@ def pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
     ----------
     dict_: dict
         Mapping to convert to str
+    name
     brackets
     sep
     post_sep_space
@@ -36,7 +39,7 @@ def pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
 
     Examples
     --------
-        >>> pprint(dict(x='hello',
+        >>> pformat(dict(x='hello',
                         longkey='w',
                         foo=dict(nested=1,
                                  what='lkdskldlkdlklkdlkd',
@@ -49,8 +52,15 @@ def pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
                    x     : {triple: nestnestnestnestyyy}}}
 
     """
-    assert isinstance(dict_, dict), 'Object is not a dict'
-    # FIXME: MutableMapping
+    s = _pformat(dict_, converter, brackets, sep, post_sep_space, item_sep)
+    indent = ' ' * (len(name) + 1)
+    s = s.replace('\n', '\n' + indent)
+    return '%s(%r)' % (name, s)
+
+
+def _pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
+             item_sep=','):
+    assert isinstance(dict_, MutableMapping), 'Object is not a dict'
 
     if brackets in ('', None):
         brackets = [''] * 2
@@ -63,6 +73,10 @@ def pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
     # make sure we line up the values
     # note that keys may not be str, so first convert
     keys = tuple(map(str, dict_.keys()))
+    if len(keys) == 0:
+        # empty dict
+        return brackets
+
     w = max(map(len, keys)) + post_sep_space
     for i, (k, v) in enumerate(zip(keys, dict_.values())):
         if i == 0:
@@ -74,7 +88,7 @@ def pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
         s += '{}{: <{}s}{} '.format(space, k, w, sep)
         ws = ' ' * (w + bs + 2)
         if isinstance(v, dict):
-            ds = pformat(v, converter, brackets, sep, post_sep_space, item_sep)
+            ds = _pformat(v, converter, brackets, sep, post_sep_space, item_sep)
         else:
             ds = converter(v)
 
@@ -95,18 +109,10 @@ class Pprinter(object):
     """Mixin class that pretty prints dictionary content"""
 
     def __str__(self):
-        s = pformat(self)
-        cls_name = self.__class__.__name__
-        indent = ' ' * (len(cls_name) + 1)
-        s = s.replace('\n', '\n' + indent)
-        return '%s(%s)' % (cls_name, s)
+        return pformat(self, self.__class__.__name__)
 
     def __repr__(self):
-        s = pformat(self)
-        cls_name = self.__class__.__name__
-        indent = ' ' * (len(cls_name) + 1)
-        s = s.replace('\n', '\n' + indent)
-        return '%s(%r)' % (cls_name, s)
+        return pformat(self, self.__class__.__name__)
 
 
 class Invertible(object):
@@ -405,8 +411,6 @@ class Many2OneMap(TransDict):
         return False
 
 
-# SuperDict = Many2OneMap
-
 class IndexableOrderedDict(OrderedDict):
     def __missing__(self, key):
         if isinstance(key, int):
@@ -415,7 +419,6 @@ class IndexableOrderedDict(OrderedDict):
             return OrderedDict.__missing__(self, key)
 
 
-# ****************************************************************************************************
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
     def __init__(self, default_factory=None, *a, **kw):
@@ -457,15 +460,6 @@ class DefaultOrderedDict(OrderedDict):
                           copy.deepcopy(self.items()))
 
     def __repr__(self):
-        return 'OrderedDefaultDict(%s, %s)' % (self.default_factory,
-                                               OrderedDict.__repr__(self))
-
-
-# DefaultOrderedDict
-
-
-# ====================================================================================================
-def invertdict(d):
-    return dict(zip(d.values(), d.keys()))
-
-# ====================================================================================================
+        return '%s(%s, %s)' % (self.__class__.__name__,
+                               self.default_factory,
+                               OrderedDict.__repr__(self))

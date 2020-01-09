@@ -13,8 +13,8 @@ import collections as coll
 import more_itertools as mit
 
 # relative libs
-from .dict import DefaultOrderedDict
-from .iter import nth_zip
+from .dicts import DefaultOrderedDict
+from ..iter import nth_zip
 
 
 def xmap(func, it, return_type=list):
@@ -160,8 +160,8 @@ def count_repeats(seq):
 
 def gen_duplicates(seq):
     """Yield tuples of item, indices pairs for duplicate values."""
-    tlly = tally(seq)
-    return ((key, locs) for key, locs in tlly.items() if len(locs) > 1)
+    tally_ = tally(seq)
+    return ((key, locs) for key, locs in tally_.items() if len(locs) > 1)
 
 
 def list_duplicates(seq):
@@ -189,6 +189,10 @@ def rebuild_without(it, idx):
     return [v for i, v in enumerate(it) if i not in idx]
 
 
+def echo(_):
+    return _
+
+
 def sortmore(*args, **kw):
     """
     Extends builtin list sorting with ability to to sorts any number of lists
@@ -202,13 +206,13 @@ def sortmore(*args, **kw):
 
     Keywords
     --------
-    globalkey: None
+    global_key: None
         revert to sorting by key function
-    globalkey: callable
+    global_key: callable
         Sort by evaluated value of some combination of all items in the lists
         (call signature of this function needs to be such that it accepts an
         argument tuple of items from each list.
-        eg.: globalkey = lambda *l: sum(l) will order all the lists by the
+        eg.: global_key = lambda *l: sum(l) will order all the lists by the
         sum of the items from each list
 
     if key: None
@@ -233,7 +237,7 @@ def sortmore(*args, **kw):
 
     Examples
     --------
-    Capture sorting indeces:
+    Capture sorting indices:
         l = list('CharacterS')
         In [1]: sortmore(l, range(len(l)))
         Out[1]: (['C', 'S', 'a', 'a', 'c', 'e', 'h', 'r', 'r', 't'],
@@ -248,7 +252,7 @@ def sortmore(*args, **kw):
     if not len(farg):
         return args
 
-    globalkey = kw.pop('globalkey', None)
+    global_key = kw.pop('global_key', None)
     key = kw.pop('key', None)
     order = kw.pop('order', None)
     if kw.pop('reversed', None):
@@ -259,25 +263,29 @@ def sortmore(*args, **kw):
 
     # enable default behaviour
     if key is None:
-        if globalkey:
-            # if global sort function given and no local (secondary) key given, ==> no tiebreakers
+        if global_key:
+            # if global sort function given and no local (secondary) key given
+            # ==> no tiebreakers
             key = lambda x: 0
         else:
-            # if no global sort and no local sort keys given, sort by item values
+            # if no global sort and no local sort keys given, sort by values
             key = lambda x: x
-    if globalkey is None:
-        globalkey = lambda *x: 0
+    if global_key is None:
+        def global_key(*_):
+            return 0
 
     # validity checks for sorting functions
-    if not isinstance(globalkey, coll.Callable):
-        raise ValueError('globalkey needs to be callable')
+    if not isinstance(global_key, coll.Callable):
+        raise ValueError('global_key needs to be callable')
 
     if isinstance(key, coll.Callable):
-        _key = lambda x: (globalkey(*x), key(x[0]))
+        def _key(x):
+            return global_key(*x), key(x[0])
     elif isinstance(key, tuple):
         key = (k if k else lambda x: 0 for k in key)
-        _key = lambda x: (globalkey(*x),) + tuple(
-                f(z) for (f, z) in zip(key, x))
+
+        def _key(x):
+            return (global_key(*x),) + tuple(f(z) for (f, z) in zip(key, x))
     else:
         raise KeyError(("Keyword arg 'key' should be 'None', callable, or a"
                         "sequence of callables, not {}").format(type(key)))
