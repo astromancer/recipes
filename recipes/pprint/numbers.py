@@ -349,6 +349,8 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     if (precision is None) or (left_pad > 0) or (right_pad > 0):
         # order of magnitude and `significant` determines precision
         m = order_of_magnitude(n)
+        if np.isinf(m):
+            m = 0
         if precision is None:
             precision = int(significant) - m - 1
 
@@ -372,6 +374,7 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
         s = '{:{},.{}f}'.format(n, sign_fmt, precision).replace(',', thousands)
     else:
         s = '{:{}.{}f}'.format(n, sign_fmt, precision)
+
     # s = '{: >{}{}.{}f}'.format(n, sign_fmt, w, precision)
     # return s
     # pad with whitespace relative to decimal position. useful when displaying
