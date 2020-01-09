@@ -11,6 +11,8 @@ from numbers import Number
 from collections import Set, Mapping, deque
 
 # relative libs
+import numpy as np
+
 from .interactive import is_interactive
 
 
@@ -105,3 +107,19 @@ class Unbuffered(object):
         return getattr(self.stream, attr)
 
 
+def duplicate_if_scalar(seq):
+    """
+
+    Parameters
+    ----------
+    seq : {number, array-like}
+
+    Returns
+    -------
+
+    """
+    if np.size(seq) == 1:
+        return np.ravel([seq, seq])
+    if np.size(seq) != 2:
+        raise ValueError('Input should be of size 1 or 2')
+    return seq
