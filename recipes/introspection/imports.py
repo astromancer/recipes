@@ -33,7 +33,7 @@ LOCAL_MODULES = ['obstools', 'graphical', 'pySHOC', 'recipes', 'tsa', 'mCV',
 
 # FIXME: this weird gotcha:
 # import logging
-# import logging.config # THIS WILL GET REMOVED??
+# import logging.config # THIS WILL GET REMOVED!
 # logging.config
 
 # TODO: unit tests!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -275,31 +275,6 @@ def _make_children(node, statements, func, sort, lvl):
 
         return
 
-    # from IPython import embed
-    # embed()
-
-    # prevent branches with many levels yet single entries
-    # if func is None:
-    #     # Deepest level. Leaf nodes get attributes here.
-    #     # we split down to the statement level, which means nodes of the
-    #     # some nodes may only have single import statement
-    #     # node.stm = list(map(rewrite, statements))
-    #     # node.order = min(max(map(len, node.stm)), 80)
-    #     # return
-    #     node.stm = rewrite(statements[0])
-    #
-    #     # order groups by maximal statement length
-    #     if lvl >= 3:
-    #         node.order = min(len(node.stm), 80)
-    #         parent = node.parent
-    #         for _ in range(3, lvl):
-    #             parent.order = max(node.order, parent.order)
-    #             parent = parent.parent
-
-        # gid = func(statements[0])
-        # child = Node(gid, parent=parent, order=sort(gid))
-        # yield child,
-        # return
     else:
         statements.sort(key=func)
         for gid, stm in itt.groupby(statements, func):
@@ -414,8 +389,10 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
         stream = io.StringIO()
     else:
         # FIXME: any error that occurs in `_tidy` may leave input file in a
-        #  weird state?? Especially errors with code that cannot be parsed
-        #  due to syntax errors.  TEST FOR THIS!!
+        #  weird state, or even erase all data? Especially errors with code
+        #  that cannot be parsed due to syntax errors.  TEST FOR THIS!!
+        # FIXME: have to ensure file closes properly when error, also not get
+        #  erased   !!!
         stream = open(write_to, 'w')
 
     _tidy(source, stream, up_to_line, filter_unused, alphabetic, aesthetic,
