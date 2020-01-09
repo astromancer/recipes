@@ -50,8 +50,8 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     class MethodFlaggerMeta(type):
         """Metaclass to collect methods flagged with decorator"""
 
-        def __new__(meta, name, bases, namespace, **kw):
-            cls = super().__new__(meta, name, bases, namespace)
+        def __new__(mcs, name, bases, namespace, **kw):
+            cls = super().__new__(mcs, name, bases, namespace)
 
             # emulate inheritance for the flagged methods
             coll = {}
