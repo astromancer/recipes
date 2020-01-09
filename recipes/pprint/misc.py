@@ -10,7 +10,6 @@ import functools
 from ..introspection import get_class_that_defined_method
 
 
-
 def seq_repr_trunc(seq, max_items=10, edge_items=1, sep=','):
     """
 
@@ -112,33 +111,34 @@ def banner(text, swoosh='=', width=80, title=None, align='^'):
     return banner
 
 
-def overlay(text, bgtext='', alignment='^', width=None):
-    """overlay text on bgtext using given alignment."""
+def overlay(text, background='', alignment='^', width=None):
+    """overlay text on background using given alignment."""
 
-    # TODO: verbose alignment name conversions. see ansi.table.get_alignment
+    # TODO: verbose alignment name conversions. see motley.table.get_alignment
 
-    if not (bgtext or width):  # nothing to align on
+    if not (background or width):  # nothing to align on
         return text
 
-    if not bgtext:
-        bgtext = ' ' * width  # align on clear background
+    if not background:
+        background = ' ' * width  # align on clear background
     elif not width:
-        width = len(bgtext)
+        width = len(background)
 
-    if len(bgtext) < len(text):  # pointless alignment
+    if len(background) < len(text):  # pointless alignment
         return text
 
     # do alignment
     if alignment == '<':  # left aligned
-        overlayed = text + bgtext[len(text):]
+        overlaid = text + background[len(text):]
     elif alignment == '>':  # right aligned
-        overlayed = bgtext[:-len(text)] + text
+        overlaid = background[:-len(text)] + text
     elif alignment == '^':  # center aligned
         div, mod = divmod(len(text), 2)
         pl, ph = div, div + mod
-        # start and end indeces of the text in the center of the bgtext
+        # start and end indeces of the text in the center of the background
         idx = width // 2 - pl, width // 2 + ph
-        overlayed = bgtext[:idx[0]] + text + bgtext[
-                                             idx[1]:]  # center text on bgtext
-
-    return overlayed
+        # center text on background
+        overlaid = background[:idx[0]] + text + background[idx[1]:]
+    else:
+        raise ValueError('Alignment character %r not understood' % alignment)
+    return overlaid
