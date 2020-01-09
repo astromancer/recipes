@@ -1,4 +1,3 @@
-
 # std libs
 import logging
 import functools
@@ -6,15 +5,11 @@ from contextlib import contextmanager
 
 # local libs
 from recipes.oo import ClassProperty
-from recipes.decor.memoize import memoize
+# from recipes.decor.memoize import memoize
 from recipes.decor.base import DecoratorBase
 
 # relative libs
 from .pprint.progressbar import ProgressBarBase
-
-
-
-
 
 
 @contextmanager
@@ -72,7 +67,7 @@ class LoggingMixin(object):
     # use `ClassProperty` decorator so we can access via cls.name and cls().name
     @ClassProperty
     @classmethod
-    @memoize
+    # @memoize
     def log_name(cls):
         parts = cls.__module__.split('.') + [cls.__name__]
         parts = parts[-cls._show_module_depth - 1:]
@@ -82,7 +77,7 @@ class LoggingMixin(object):
     # making the logger a property avoids pickling error for inherited classes
     @ClassProperty
     @classmethod
-    @memoize
+    # @memoize
     def logger(cls):
         return logging.getLogger(cls.log_name)
 
