@@ -3,6 +3,21 @@ Some object oriented code patterns.
 """
 
 
+class Singleton(object):
+    class __Singleton:
+        def __str__(self):
+            return repr(self)
+
+    instance = None
+
+    def __init__(self):
+        if Singleton.instance is None:
+            Singleton.instance = Singleton.__Singleton()
+
+    def __getattr__(self, name):
+        return getattr(self.instance, name)
+
+
 class ClassProperty(property):
     """
     Allows properties to be accessed from class or instance
