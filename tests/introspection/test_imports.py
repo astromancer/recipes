@@ -98,5 +98,5 @@ from obstools.phot.proc import TaskExecutor
 from obstools.phot.tracking.core import SegmentationHelper, SlotModeTracker, \
     check_image_drift  # multiline
 
-from graphical.imagine import ImageDisplay
+from graphing.imagine import ImageDisplay
 """
