@@ -1,11 +1,9 @@
-
 # std libs
 import warnings
 
 # third-party libs
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
-
 
 
 def fold(a, wsize, overlap=0, axis=0, **kw):
@@ -34,13 +32,13 @@ def fold(a, wsize, overlap=0, axis=0, **kw):
         warnings.warn('Window size larger than data size')
         return a[None]
 
-    a, Nseg = padder(a, wsize, overlap, **kw)
+    a, n_seg = padder(a, wsize, overlap, **kw)
     sa = get_strided_array(a, wsize, overlap, axis)
 
     # deal with masked data
     if np.ma.isMA(a):
         mask = a.mask
-        if not mask is False:
+        if mask is not False:
             mask = get_strided_array(mask, wsize, overlap)
         sa = np.ma.array(sa, mask=mask)
 
@@ -71,10 +69,10 @@ def gen(a, wsize, overlap=0, axis=0, **kw):
     """
     Generator version of fold.
     """
-    a, Nseg = padder(a, wsize, overlap, **kw)
+    a, n_seg = padder(a, wsize, overlap, **kw)
     step = wsize - overlap
     i = 0
-    while i < Nseg:
+    while i < n_seg:
         start = i * step
         stop = start + wsize
         ix = [slice(None)] * a.ndim
@@ -93,7 +91,7 @@ def padder(a, wsize, overlap=0, axis=0, **kw):
     a = np.asarray(a)  # convert to (un-masked) array
     N = a.shape[axis]
     step = wsize - overlap
-    Nseg, leftover = divmod(N - overlap, step)
+    n_seg, leftover = divmod(N - overlap, step)
 
     if leftover:
         # default is to mask the "out of array" values
@@ -120,7 +118,7 @@ def padder(a, wsize, overlap=0, axis=0, **kw):
     if not mask is None:
         a = np.ma.array(a, mask=mask)
 
-    return a, int(Nseg)
+    return a, int(n_seg)
 
 
 def get_strided_array(a, size, overlap, axis=0):
@@ -149,7 +147,7 @@ def get_nocc(N, wsize, overlap):
     times that the index corresponding to that element would be repeated in
     the strided array.
     """
-    from recipes.list import count_repeats, sortmore
+    from recipes.containers.lists import count_repeats, sortmore
 
     I = fold(np.arange(N), wsize, overlap).ravel()
     if np.ma.is_masked(I):

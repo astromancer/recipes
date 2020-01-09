@@ -16,6 +16,13 @@ import more_itertools as mit
 
 # TODO: Wrapper class which Implements a .list method
 
+def non_unique(itr):
+    prev = next(itr)
+    for item in itr:
+        if item == prev:
+            yield prev
+        prev = item
+
 
 def as_iter(obj, exclude=(str,), return_as=list):
     """
@@ -184,7 +191,7 @@ def chunker(it, size):
 
 
 def group_more(func=None, *its, **kws):
-    from recipes.list import sorter
+    from recipes.containers.lists import sorter
     if not func:
         func = lambda x: x
     its = sorter(*its, key=func)

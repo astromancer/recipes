@@ -6,7 +6,7 @@ Common algorithms involving arrays
 import numpy as np
 
 # local libs
-from recipes.list import flatten, where_duplicate
+from recipes.containers.lists import flatten, where_duplicate
 
 
 # from IPython import embed
