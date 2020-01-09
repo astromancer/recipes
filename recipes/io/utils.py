@@ -8,12 +8,10 @@ import itertools as itt
 from pathlib import Path
 
 # local libs
-import motley
 from recipes.pprint.misc import overlay
 from recipes.interactive import is_interactive
 
 
-# ===============================================================================
 def load_pickle(filename):
     with Path(filename).open('rb') as fp:
         return pickle.load(fp)
@@ -28,22 +26,20 @@ def save_pickle(filename, data):
         pickle.dump(data, fp)
 
 
-# ===============================================================================
-def note(msg):
-    """colourful notes"""
-    colour, style = 'g', 'bold'
-    w = motley.codes.apply('NOTE:', colour, style)
-    print('{} {}'.format(w, msg))
+# def note(msg):
+#     """colourful notes"""
+#     colour, style = 'g', 'bold'
+#     w = motley.codes.apply('NOTE:', colour, style)
+#     print('{} {}'.format(w, msg))
+#
+#
+# def warn(warning):
+#     """colourful warnings"""
+#     colour, style = 'yellow', 'bold'  # 202
+#     w = motley.codes.apply('WARNING:', colour, style)
+#     print('{} {}'.format(w, warning))
 
 
-def warn(warning):
-    """colourful warnings"""
-    colour, style = 'yellow', 'bold'  # 202
-    w = motley.codes.apply('WARNING:', colour, style)
-    print('{} {}'.format(w, warning))
-
-
-# ===============================================================================
 def iocheck(instr, check, raise_error=0, convert=None):
     """
     Tests a input str for validity by calling the provided check function on it.
@@ -92,6 +88,7 @@ def read_file_line(filename, n):
 def read_data_from_file(filename, n=None, remove_blank=True, echo=False):
     """
     Read lines from a file given the filename.
+
     Parameters
     ----------
     n: int
@@ -158,6 +155,9 @@ def walklevel(dir_, depth=1):
             del dirs[:]
 
 
+
+
+#
 # class Singleton(object):
 #     # source
 #     # https://python-3-patterns-idioms-test.readthedocs.io/en/latest/Singleton.html
@@ -178,7 +178,9 @@ def walklevel(dir_, depth=1):
 #
 #     def __getattr__(self, name):
 #         return getattr(self.instance, name)
-# #
+
+
+#
 # Singleton/BorgSingleton.py
 # Alex Martelli's 'Borg'
 

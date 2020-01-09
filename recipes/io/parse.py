@@ -1,21 +1,26 @@
-
 # std libs
 import os
 import glob
 from functools import partial
 from collections import Callable
+import logging
 
 # relative libs
-from ..set import OrderedSet
-from .utils import warn, iocheck, read_data_from_file
+from ..containers.sets import OrderedSet
+from .utils import iocheck, read_data_from_file
 
+from recipes.introspection.utils import get_module_name
+
+# module level logger
+logger = logging.getLogger(get_module_name(__file__))
 
 
 def resolver(givenpath, input_):
     """Resolves relative paths etc. """
     # interpret the path which is attached to the input as relative to givenpath
     # 'filename' might be a directory/glob/filename of text list/actual filename
-    # returns the path in which data is to be read, as well as with the expression to be read
+    # returns the path in which data is to be read, as well as with the
+    # pression to be read
     # including the path
     path, filename = os.path.split(input_)
     path = os.path.realpath(os.path.join(givenpath, path))
@@ -145,7 +150,7 @@ def to_list(data, check=None, **kws):
                                path=givenpath,
                                exclude=exclude,
                                raise_error=raise_error)
-                               # check=check)
+                # check=check)
 
             else:
                 raise ValueError('include must be glob expression. received %s'
@@ -180,7 +185,7 @@ def to_list(data, check=None, **kws):
 
     # Convert
     if convert:
-        data = list(map(convert, data))     # converter(data)
+        data = list(map(convert, data))  # converter(data)
 
     # try:
     if abspath:
@@ -198,14 +203,13 @@ def to_list(data, check=None, **kws):
             badnames.append(nm)
         i += 1
         if i >= max_check and not check is trivial:
-            # warn
-            ('The input list is too long. '
-                 'Skipping remaining validity checks\n')
+            logger.warning('The input list is too long.  Skipping remaining '
+                           'validity checks\n')
             break
 
     # Sort
     if len(badnames):
-        return              #TODO: or raise???
+        return  # TODO: or raise???
 
     if sort:
         return sorted(data)
@@ -221,10 +225,8 @@ if __name__ == '__main__':
     # parseto_list()
     print('TODO: unit tests')
 
-
-
-#===============================================================================
-#io.parse.to_list??????
+# ===============================================================================
+# io.parse.to_list??????
 # class parse():
 #
 #     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -278,5 +280,4 @@ if __name__ == '__main__':
 #     def to_list(self, check=None, **kws):
 #         return parseto_list(data, check=None, **kws)
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
