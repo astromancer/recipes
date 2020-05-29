@@ -1,54 +1,222 @@
-import atexit
-import functools
-import logging
+"""
+Memoization classes
+"""
+
+from collections import OrderedDict
+import functools as ftl
 from pathlib import Path
+from pickle import PicklingError
+import warnings
 
-from recipes.io import load_pickle, save_pickle
+from ..io import load_pickle, save_pickle
+from ..logging import LoggingMixin
+# from ..interactive import exit_register
+
+from collections import Hashable
+from inspect import signature, _empty, _VAR_KEYWORD
 
 
-class to_file(object):  # TODO: use DecoratorBase here?
-    """Persistant memoizer that saves cache to file upon program termination"""
+def check_hashable_defaults(func):
+    sig = signature(func)
+    for name, p in sig.parameters.items():
+        if p.default is _empty:
+            continue
 
-    def __init__(self, filename):
-        filepath = Path(filename).expanduser()
-        filename = str(filepath)
+        if isinstance(p.default, Hashable):
+            continue
+
+        raise TypeError(
+            f'{func.__class__.__name__} {func.__name__!r} has default value '
+            f'for {p.kind} parameter {name} = {p.default} that is not hashable.'
+        )
+    return sig
+
+
+class LRUCache(OrderedDict):
+    # adapted from:
+    # https://www.geeksforgeeks.org/lru-cache-in-python-using-ordereddict/
+
+    def __init__(self, capacity):
+        # initialising capacity
+        self.capacity = int(capacity)
+        self._move = True
+
+    def __reduce__(self):
+        # ensure capacity gets set on unpickling
+        return self.__class__, (self.capacity, )
+
+    def get(self, key, default=None):
+        if key in self:
+            return self[key]
+        return default
+
+    def __getitem__(self, key):
+        # we return the value of the key that is queried in O(1) and return -1
+        # if we don't find the key in out dict / cache. Also move key to end to
+        # show that it was recently used.
+        item = super().__getitem__(key)
+        if self._move:
+            self.move_to_end(key)
+        return item
+
+    def __setitem__(self, key, value):
+        # first, add / update the key by conventional methods. Also move the key
+        # to the end to show that it was recently used. Check if length has
+        # exceeded capacity, if so remove first key (least recently used)
+        super().__setitem__(key, value)
+        self.move_to_end(key)
+        if len(self) > self.capacity:
+            # line below will call __getitem__, but fail on `move_to_end`
+            # unless we set `_move` to False. bit hackish
+            self._move = False
+            self.popitem(last=False)
+            self._move = True
+
+
+class PersistentRLUCache(LRUCache):
+    # TODO
+    pass
+
+
+class to_file(LoggingMixin):
+    """
+    Decorator for persistent function memoization that saves cache to file as a
+    pickle
+
+    Pros: cache can be viewed transparently as the `cache` attribute on the 
+          decorated function
+        : Function keyword support
+        : Raises when attempting to decorate a function with non-hashable 
+          default arguments
+        : When non-hashable arguments are passed to a decorated function, a
+          warning is emitted and the caching is merely skipped instead of 
+          raising a TypeError  
+    Cons: thread safety not tested ??
+
+    """
+
+    # TODO: some stats like ftl.lru_cache
+    # TODO: limit capacity in MB
+    # TODO: format json / pkl
+    # TODO: option to save only at exit??
+    # TODO: move this stuff to the PersistantRLUCache class
+    # TODO: default file location?
+    # TODO: optional ignore keywords
+
+    def __init__(self, filename, capacity=128):
+        """
+        Example:
+        --------
+        >>> @to_file('/tmp/test_cache5.pkl')
+            def foo(a, b=0, *c, **kws):
+                '''this my compute heavy function'''
+                return a * 7 + b
+                
+            foo(6)
+            print(foo.cache) # LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
+            foo([1], [0])    # UserWarning: Refusing memoization due to
+                             # unhashable argument passed to function 
+                             # 'foo': 'a' = [1]
+            print(foo.cache) # LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
+                             # cache unchanged
+            foo(6, hello='world')
+            print(foo.cache)  
+            # new cache item for keyword arguments
+            # LRUCache([((('a', 6), ('b', 0), ('c', ())), 42),
+                        ((('a', 6), ('b', 0), ('c', ()), ('hello', 'world')), 42)])
+            
+        """
+
+        filepath = Path(filename).expanduser().resolve()
+        self.filename = filename = str(filepath)
+        self.func = None
 
         if filepath.exists():
             # load existing cache
-            logging.info('Loading cache at %r', filename)
-            self._cache = load_pickle(filename)
-            logging.debug('Cache contains %d entries', len(self._cache))
+            self.logger.info('Loading cache at %r', filename)
+            self.cache = load_pickle(filename)
+            self.logger.debug('Cache contains %d entries. Capacity is %d',
+                              len(self.cache), self.cache.capacity)
         else:
-            # no existing cache. create.  this will only happen the first time the function executes
-            logging.info('Creating cache at %r', filename)
-            self._cache = {}
+            # no existing cache. create.  this will only happen the first time
+            # the function executes
+            self.logger.info('Creating cache at %r', filename)
+            self.cache = LRUCache(capacity)
 
-        self._save = False
-        atexit.register(self.save, filename, self._cache)
-        # FIXME: doesn't work in interactive session - do in thread?
-
-    def save(self, filename, cache):
-        if self._save:
-            logging.info('Saving cache at %r', filename)
-            save_pickle(filename, cache)
+        # exit_register(self.save, filename, self._cache)
 
     def __call__(self, func):
+        """
+        Decorator the function
+        """
+        # check for non-hashable defaults: it is generally impossible to
+        #  correctly memoize something that depends on non-hashable arguments
+        check_hashable_defaults(func)
+        self.func = func
+        self.sig = check_hashable_defaults(func)
 
-        # TODO: maybe emit warning if func takes keywords. also non-hashable defaults
-        # TODO: use functools.rlu_cache to limit cache size
+        # since functools.wraps does not work on methods, explicitly decalare
+        # decorated function here
+        @ftl.wraps(func)
+        def decorated(*args, **kws):
+            return self.memoizer(*args, **kws)
 
-        @functools.wraps(func)
-        def memoizer(*args):
-            # NOTE: DOES NOT SUPPORT KEYWORDS#, **kws):
-            # NOTE: it is generally impossible to correctly memoize something that depends on non-hashable arguments
-            # convert to string
-            key = str(args)  # + str(kws)     #isinstance(args, Hashable)
-            if key not in self._cache:
-                self._cache[key] = func(*args)
-                self._save = True
-            return self._cache[key]
+        # make a reference to the cache on the decorated function for convenience
+        decorated.cache = self.cache
+        # hack so we can access the inners of this class from the decorated
+        # function returned here
+        # `decorated.__self__.attr`.
+        decorated.__self__ = self
+        return decorated
 
-        return memoizer
+    def memoizer(self, *args, **kws):
+        """does the caching"""
+
+        key = self.get_key(args, kws)
+        for name, val in key:
+            if not isinstance(val, Hashable):
+                warnings.warn(
+                    'Refusing memoization due to unhashable argument passed to '
+                    f'{self.func.__class__.__name__} {self.func.__name__!r}: '
+                    f'{name!r} = {val!r}')
+
+                return self.func(*args, **kws)
+
+        if key in self.cache:
+            self.logger.debug('Loading result from cache for call to %s %r.',
+                              self.func.__class__.__name__, self.func.__name__)
+            answer = self.cache[key]
+        else:
+            answer = self.cache[key] = self.func(*args, **kws)
+            # TODO: save in a thread so we can return value immediately!
+            self.save()
+        return answer
+
+    def gen_key(self, args, kws):
+        """
+        Generate name, value pairs that will be used as a unique key 
+        for caching the return values.
+        """
+
+        bound = self.sig.bind(*args, **kws)
+        bound.apply_defaults()
+        for name, val in bound.arguments.items():
+            if self.sig.parameters[name].kind is not _VAR_KEYWORD:
+                yield name, val
+        yield from kws.items()
+
+    def get_key(self, args, kws):
+        """Create cache key from passed function parameters"""
+        return tuple(self.gen_key(args, kws))
+
+    def save(self):
+        # if self._save:
+        self.logger.debug('Saving cache at %r', self.filename)
+        try:
+            save_pickle(self.filename, self.cache)
+        except PicklingError:
+            warnings.warn('Could not save cache since some objects'
+                          'could not be pickled')
 
 
 def memoize(f):
@@ -67,42 +235,3 @@ def memoize(f):
 
     return memodict(f)
 
-# class memoize():
-#     """
-#     Decorator that caches a function's return value each time it is called.
-#     If called later with the same arguments, the cached value is returned
-#     (not re-evaluated).
-#     """
-#
-#     def __init__(self, func):
-#         self.func = func  # can also be a method?
-#         self.cache = {}
-#
-#     def __call__(self, *args, **kws):
-#
-#         # if not isinstance(args, collections.Hashable):
-#         ## uncacheable. a list, for instance.
-#         ## better to not cache than blow up.
-#         # return self.func(*args)
-#
-#         # arguments may not be hashable. Convert them to strings first.
-#         # NOTE: This will not work for objects that do not have unique string
-#         #  representations call to call
-#         key = str(args) + str(kws)
-#
-#         if key in self.cache:
-#             return self.cache[key]
-#         else:
-#             value = self.func(*args)
-#             self.cache[key] = value
-#             return value
-#
-#     def __repr__(self):
-#         """Return the function's docstring."""
-#         return self.func.__doc__
-#
-#     def __get__(self, obj, objtype):
-#         """Support object methods."""
-#         return functools.partial(self.__call__, obj)
-#
-#     to_file = to_file
