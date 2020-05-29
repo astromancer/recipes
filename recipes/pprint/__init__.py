@@ -1,2 +1,2 @@
-from .numbers import *
+from .nrs import *
 from .misc import method
