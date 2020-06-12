@@ -1,5 +1,5 @@
 """
-Host of useful miscellaneous classes and functions.
+Host of useful miscellaneous classes and functions
 """
 
 
@@ -12,12 +12,36 @@ from collections import Set, Mapping, deque
 
 # relative libs
 import numpy as np
+# import numbers
 
 from .interactive import is_interactive
 
 
-
 logger = logging.getLogger('recipes.misc')
+
+
+def duplicate_if_scalar(a, n=2, raises=True):
+    """
+    
+    Parameters
+    ----------
+    a : number or array-like
+
+    Returns
+    -------
+
+    """
+    # if isinstance(a, numbers.Number):
+    #     return [a] * n
+
+    if np.size(a) == 1:
+        # preserves duck type arrays
+        return np.asanyarray([a] * n).squeeze()
+
+    if (np.size(a) != n) and raises:
+        raise ValueError(f'Input should be of size 1 or {n}')
+
+    return a
 
 
 def get_terminal_size(fallback=(80, 24)):
@@ -105,21 +129,3 @@ class Unbuffered(object):
 
     def __getattr__(self, attr):
         return getattr(self.stream, attr)
-
-
-def duplicate_if_scalar(seq):
-    """
-
-    Parameters
-    ----------
-    seq : {number, array-like}
-
-    Returns
-    -------
-
-    """
-    if np.size(seq) == 1:
-        return np.ravel([seq, seq])
-    if np.size(seq) != 2:
-        raise ValueError('Input should be of size 1 or 2')
-    return seq
