@@ -95,7 +95,7 @@ from obstools.modelling.psf.models_lm import EllipticalGaussianPSF
 from obstools.modelling.psf.models_lm import CircularGaussianPSF  # repeated
 from obstools.phot import log
 from obstools.phot.proc import TaskExecutor
-from obstools.phot.tracking.core import SegmentationHelper, SlotModeTracker, \
+from obstools.phot.tracking.core import SegmentedImage, SlotModeTracker, \
     check_image_drift  # multiline
 
 from graphing.imagine import ImageDisplay

@@ -85,4 +85,4 @@ def test_caching(tmpdir):
     print(foo.cache)  
     # new cache item for keyword arguments
     # LRUCache([((('a', 6), ('b', 0), ('c', ())), 42),
-                ((('a', 6), ('b', 0), ('c', ()), ('hello', 'world')), 42)])
+                # ((('a', 6), ('b', 0), ('c', ()), ('hello', 'world')), 42)])
