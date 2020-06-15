@@ -15,15 +15,15 @@ from recipes.introspection.utils import get_module_name
 logger = logging.getLogger(get_module_name(__file__))
 
 
-def resolver(givenpath, input_):
+def resolver(given_path, input_):
     """Resolves relative paths etc. """
-    # interpret the path which is attached to the input as relative to givenpath
+    # interpret the path which is attached to the input as relative to given_path
     # 'filename' might be a directory/glob/filename of text list/actual filename
     # returns the path in which data is to be read, as well as with the
     # pression to be read
     # including the path
     path, filename = os.path.split(input_)
-    path = os.path.realpath(os.path.join(givenpath, path))
+    path = os.path.realpath(os.path.join(given_path, path))
     return path, os.path.join(path, filename)
 
 
@@ -56,6 +56,10 @@ def excluder(exclude, data, path):
         return list(OrderedSet(data) - OrderedSet(exclude))
     else:
         return data
+
+
+def null_check(_):
+    return True
 
 
 def to_list(data, check=None, **kws):
@@ -115,15 +119,14 @@ def to_list(data, check=None, **kws):
     if data is None:
         return  # Null object pattern
 
-    trivial = lambda x: True
-    check = check or trivial
+    check = check or null_check
     raise_error = kws.get('raise_error', 0)
-    max_check = kws.get('max_check', 100)
+    n_max_check = kws.get('n_max_check', 100)
     readlines = kws.get('readlines')
     include = kws.get('include', '*.fits')
     exclude = kws.get('exclude', '.*')  # hidden files ignored by default
-    givenpath = kws.get('path', '')
-    givenpath = str(givenpath)
+    given_path = kws.get('path', '')
+    given_path = str(given_path)
     abspath = kws.get('abspath', True)
     convert = kws.get('convert', None)
     sort = kws.get('sort', True)
@@ -136,7 +139,7 @@ def to_list(data, check=None, **kws):
 
     # Read
     if len(data) == 1:
-        path, toread = resolver(givenpath, data[0])
+        path, toread = resolver(given_path, data[0])
 
         # if input is directory
         if os.path.isdir(toread):
@@ -147,7 +150,7 @@ def to_list(data, check=None, **kws):
             if glob.has_magic(include):
                 return to_list(os.path.join(toread, include),
                                check,
-                               path=givenpath,
+                               path=given_path,
                                exclude=exclude,
                                raise_error=raise_error)
                 # check=check)
@@ -174,14 +177,14 @@ def to_list(data, check=None, **kws):
                     return
         else:  # single filename given
             data = [toread]
-            # path = givenpath or os.path.split( data[0] )[0]
+            # path = given_path or os.path.split( data[0] )[0]
     else:
-        _resolver = partial(resolver, givenpath)
+        _resolver = partial(resolver, given_path)
         paths, data = zip(*map(_resolver, data))
         path = paths[0]
 
     # Filter
-    data = excluder(exclude, data, givenpath)
+    data = excluder(exclude, data, given_path)
 
     # Convert
     if convert:
@@ -196,19 +199,19 @@ def to_list(data, check=None, **kws):
 
     # Check
     i = 0
-    badnames = []
+    bad_names = []
     while i < len(data):
         nm = data[i]
         if not iocheck(nm, check, raise_error):
-            badnames.append(nm)
+            bad_names.append(nm)
         i += 1
-        if i >= max_check and not check is trivial:
-            logger.warning('The input list is too long.  Skipping remaining '
-                           'validity checks\n')
+        if i >= n_max_check and check is not null_check:
+            logger.info('First %i files seem good.  Skipping remaining '
+                        'validity checks', n_max_check)
             break
 
     # Sort
-    if len(badnames):
+    if len(bad_names):
         return  # TODO: or raise???
 
     if sort:
@@ -264,16 +267,16 @@ if __name__ == '__main__':
 #                         return
 #             else:                                                           #single filename given
 #                 data = [toread]
-#                 #path = givenpath or os.path.split( data[0] )[0]
+#                 #path = given_path or os.path.split( data[0] )[0]
 #         else:
 #             paths, data = zip( *map(resolver, data) )
 #             path = paths[0]
 #
 #     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #     def resolver( thing ):
-#         #interpret the path which is attached to the input as relative to givenpath
+#         #interpret the path which is attached to the input as relative to given_path
 #         path, filename = os.path.split( thing )       #here 'filename' might be a directory/glob/filename of text list/actual filename
-#         path = os.path.realpath( os.path.join(givenpath, path) )
+#         path = os.path.realpath( os.path.join(given_path, path) )
 #         return path, os.path.join( path, filename )
 #
 #     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

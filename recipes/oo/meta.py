@@ -50,7 +50,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     class MethodFlaggerMeta(type):
         """Metaclass to collect methods flagged with decorator"""
 
-        def __new__(mcs, name, bases, namespace, **kw):
+        def __new__(mcs, name, bases, namespace, **kws):
             cls = super().__new__(mcs, name, bases, namespace)
 
             # emulate inheritance for the flagged methods
@@ -86,13 +86,13 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     def flagger(*args):
         """
         Decorator for flagging methods.  Methods decorated with this function
-        will have the %s attribute set as whatever arguments are passed.
+        will have the %r attribute set as whatever arguments are passed.
         The decorator will preserve docstrings etc., as it returns the original
         function.
         """
 
         # TODO: check if args hashable
-
+        
         def decorator(func):
             setattr(func, flag, args)
             return func
