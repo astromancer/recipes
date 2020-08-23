@@ -47,7 +47,7 @@ class Percentage(object):
         
         try:
             return self.frac * np.asanyarray(total, float)
-        except ValueError
+        except ValueError:
             raise TypeError('Not a valid number or numeric array') from None
 
 
@@ -144,7 +144,7 @@ def match_brackets(s, brackets='()', return_index=True, must_close=False):
 
 
 
-def rreplace(s, subs, repl):
+def rreplace(s, mapping):
     """
     Recursively replace all the characters / sub-strings in subs with the
     character / string in repl.
@@ -163,11 +163,8 @@ def rreplace(s, subs, repl):
 
     """
 
-    subs = list(subs)
-    while len(subs):
-        ch = subs.pop(0)
-        s = s.replace(ch, repl)
-
+    for old, new in dict(mapping).items():
+        s = s.replace(old, new)
     return s
 
 
