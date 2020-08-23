@@ -10,3 +10,9 @@ from .expose import expose
 # @expose.args
 # def foo():
 #     ...
+
+
+def raises(kind):
+    def _raises(msg):
+        raise kind(msg)
+    return _raises
