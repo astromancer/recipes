@@ -6,7 +6,8 @@ readable forms
 # This module designed for convenience and is *not* speed tested (yet)
 
 # std libs
-import math, re
+import math
+import re
 import pprint
 import numbers
 from collections import namedtuple
@@ -20,8 +21,9 @@ from recipes.array.misc import vectorize
 # note: unicode literals below python3 only!
 # see: https://docs.python.org/3/howto/unicode.html
 
-
 HMS = namedtuple('HMS', list('hms'))
+REGEX_HMS_PRECISION = re.compile(r'([hms])\.?(\d)?')
+
 
 # Unicode
 UNI_PWR = dict(enumerate('²³⁴⁵⁶⁷⁸⁹', 2))  # '¹²³⁴⁵⁶⁷⁸⁹'
@@ -37,7 +39,8 @@ UNI_HMS = u'ʰᵐˢ'
 # convert unicode to hex-16: '%x' % ord('⁻')
 
 # LaTeX
-LATEX_MULT = {'x': r'\times', '.': r'\cdot'}
+LATEX_MULT = {'x': r'\times',
+              '.': r'\cdot'}
 
 # The SI metric prefixes
 METRIC_PREFIXES = {-24: 'y',
@@ -167,7 +170,7 @@ def to_sexagesimal(t, base_unit='h', precision='s'):
     Convert time in seconds to tuple in base 60 units. Basic usage will
     result in a 3-tuple with floats for (hours, minutes, seconds).  If the
     time is desired in units of (minutes, seconds), pass `base_unit='m'`.
-    Using `base_unit='s'` will simply wrap the input number in a list.
+    Using `base_unit='s'` will simply wrap the input number in a tuple.
 
     Parameters
     ----------
@@ -179,56 +182,104 @@ def to_sexagesimal(t, base_unit='h', precision='s'):
     -------
     namedtuple
     """
-    assert base_unit in 'hms'
-    assert precision in 'hms'
-
-    v = 'smh'.index(base_unit)
-    w = 'smh'.index(precision)
-    assert v >= w
-
-    #
-    t = t / 60 ** w
-    q = []
-    for i in range(v - w):
-        t, r = divmod(t, 60)
-        q.append(r)
-    q.append(t)
-    return tuple(q[::-1])
+    return tuple(_to_sexa(t, base_unit, precision))[::-1]
 
     # m, s = divmod(t, 60)
     # h, m = divmod(m, 60)
     # return HMS(h, m, s)
 
 
-# def zeroth(x):
-#     return x[0]
+def _to_sexa(t, base_unit='h', precision='s'):
+    # generator that computes sexagesimal representation, but in reverse order
+    unit, p = resolve_precsion(precision)
 
-REGEX_HMS_PRECISION = re.compile('([hms])\.?(\d)?')
+    assert base_unit in 'hms'
+    assert unit in 'hms'
+    v = 'smh'.index(base_unit)
+    w = 'smh'.index(unit)
+    assert v >= w, 'Base unit must be greater that unit of precision'
+
+    # compute parts and round
+    t = t / 60 ** w
+    for _ in range(v - w):
+        t, r = divmod(t, 60)
+        if p is not None:
+            q, r = divmod(round(r, p), 60)
+            t += q
+            p = None  # only round tail unit
+        yield r
+    yield t
+
+
+def resolve_precsion(precision):
+    """
+    Resolve the unit and number of significant digits for a precision specifier
+    a sexagesimal number
+
+    Parameters
+    ----------
+    precision : int or str or None
+        if str, should start with one of 'h', 'm', or 's' and optionally end on 
+        a digit 0-9. 
+
+    Returns
+    -------
+    str, int
+        unit, significant digits
+
+    Raises
+    ------
+    ValueError
+        If invalid specifier
+    """
+    if isinstance(precision, int):
+        return 's', precision
+
+    if isinstance(precision, str):
+        mo = REGEX_HMS_PRECISION.fullmatch(precision)
+        if mo:
+            unit, precision = mo.groups()
+            precision = int(precision) if precision else None
+            return unit, precision
+
+    raise ValueError('Invalid precision specifier %r' % precision)
 
 
 def hms(t, precision=None, sep='hms', base_unit='h', short=False,
         unicode=False):
     """
-    Convert time in seconds to sexagesimal representation
+    Convert time in seconds to sexagesimal representation. This function can
+    abe used get the representation of an input time in base units of minutes or
+    hours (by specifying `base_unit`), and with unit precision of seconds or 
+    minutes, and numerical precision of any number 0-9.
+
 
     Parameters
     ----------
     t : float
         time in seconds
-    precision: int or str or None
-        maximum precision to use. Will be ignored if a shorter numerical
-        representation exists and short=True
+    precision: int or str
+        if str, should start with one of 'h', 'm', or 's' and optionally end on 
+        a digit 0-9. 
+        Eg: 'h1' will return the number as a string in units of hours with a
+        decimal precision of 1, while 's8' will return the number as an hms
+        string of with a decimal precision of 8.
+        If no digit is given, eg 's', no rounding will be done.
+
+        Note that providing precision as an int, while also specifying 
+        short=True does not gaurantee that the number will be given with all the
+        decimal digits filled since superfluous trailing 0s will be stripped.
     sep: str
         separator(s) to use for time representation
     base_unit: str {'h', 'm', 's'}
         The largest unit for the resulting representation. For example, if
         the result is desired in units of (minutes, seconds), use
-        `base_unit='m'`.
+        `base_unit='m'` and `precision='s'`.
     short: bool or None
         will strip unnecessary parts from the repr if True.
-        eg: '0h00m15.4s' becomes '15.4s'
+        eg: '0h00m15.4000s' becomes '15.4s'
     unicode: bool
-        Unicode superscripts
+        Use unicode superscripts ʰᵐˢ as separators
 
     Returns
     -------
@@ -246,35 +297,35 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False,
     '0h02m13.31211s'
     """
 
-    # TODO: unit tests!!!
+    assert len(sep) in (1, 3)
+    is_hms = (sep == 'hms')
+    short = is_hms if short is None else short
+    # short representation only meaningful if time expressed in hms units
 
-    if len(sep) == 1:
-        sep = (sep, sep, '')
+    # resolve separator
+    if unicode and is_hms:
+        sep = UNI_HMS
+    elif len(sep) == 1:
         base_unit = 'h'  #
 
-    if short is None:
-        # short representation only meaningful if time expressed in hms units
-        short = (sep == 'hms')
-
-    if unicode and (sep == 'hms'):
-        sep = UNI_HMS
-
     # resolve precision
-    hms_precision = 's'
-    if isinstance(precision, str):
-        mo = REGEX_HMS_PRECISION.fullmatch(precision)
-        if mo:
-            hms_precision, precision = mo.groups()
-            precision = int(precision or 0)
-        else:
-            raise ValueError('Invalid precision key %r' % precision)
+    
+    sexa = to_sexagesimal(t, base_unit, precision or 's')
+    m = len(sexa) - 1
+    if precision is None:
+        unit = 's'
+    else:
+        unit, precision = resolve_precsion(precision)
+    precision = [0] * m + [precision]
 
-    #
-    sexa = to_sexagesimal(t, base_unit, hms_precision)
-    precision = [0] * (len(sexa) - 1) + [precision]
+    # get separators
+    if len(sep) == 1:
+        sep = [sep] * m + ['']
+    elif len(sep) == 3:
+        sep = sep['hms'.index(base_unit):'hms'.index(unit) + 1]
 
     parts = []
-    for i, (n, p, s) in enumerate(zip(sexa, precision, sep)):
+    for n, p, s in zip(sexa, precision, sep):
         if short and not n:
             continue
         else:
@@ -283,26 +334,6 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False,
         parts.append(decimal(n, p, left_pad=(2, '0'),
                              unicode=unicode) + s)
     return ''.join(parts)
-
-    # stop = 2
-    # if short:
-    #     for i, x in enumerate(sexa[::-1]):
-    #         if x:
-    #             break
-    #     stop = 2 - i
-    #
-    # #
-    # tstr = ''
-    # for i, (n, p, s) in enumerate(zip(sexa, precision, sep)):
-    #     # if this is the first non-zero part, skip zfill
-    #     part = decimal(n, p,
-    #                    left_pad=(2 * bool(len(tstr)), '0'),
-    #                    unicode=unicode)
-    #     tstr += (part + s)
-    #     if i == stop:
-    #         break
-    #
-    # return tstr
 
 
 # alias
@@ -341,7 +372,7 @@ def eng(value, significant=None, base=10, unit=''):
     return '{:.{:d}f}{}'.format(size, significant, f' {prefix}{unit}')
 
 
-# TODO: docstring / API consistencey
+# TODO: docstring / API consistency
 def decimal(n, precision=None, significant=3, sign='-', compact=False,
             unicode=False, left_pad=0, right_pad=0, thousands=''):
     """
@@ -371,7 +402,7 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     compact : bool  # TODO: terse ??
         if True, redundant zeros and decimal point will be stripped.
     unicode:
-        # TODO: latex: \infty also spaces for thousands also ignore padding ???
+        # TODO: latex:\\infty also spaces for thousands also ignore padding ???
         prefer unicode minus '−' over '-'
         prefer unicode infinity '∞' over 'inf'
     # TODO: replace with    pad=(5, 7)
@@ -424,8 +455,8 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
         sign = '-+'[sign]
     if not isinstance(sign, str) or sign not in ' -+':
         raise ValueError(
-                f'Invalid sign {sign!r}. Use one of "+", "-", " ". Set '
-                f'`unicode=True` if you want a unicode minus.')
+            f'Invalid sign {sign!r}. Use one of "+", "-", " ". Set '
+            f'`unicode=True` if you want a unicode minus.')
     sign_fmt = sign
 
     # pad relative to decimal position
@@ -439,8 +470,10 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
         m = order_of_magnitude(n)
         if np.isinf(m):
             m = 0
+
+        # print('oom',m)
         if precision is None:
-            precision = int(significant) - m - 1
+            precision = int(significant) - min(m, 1) - 1
 
     precision = max(precision, 0)
     # TODO: precision < 0 do rounding
