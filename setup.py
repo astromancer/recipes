@@ -17,14 +17,15 @@ def link_install_cheat():
     src = here.parent.resolve()
 
     pkg_name = src.name
-    src = str(src)
-    dest = site.getsitepackages()[0]
+    src = str(src / src.name)
+    dest = site.getusersitepackages()
     dest = str(Path(dest) / pkg_name)
 
-    # print(src, dest)
-    ok = subprocess.call(['ln', '-s', src, dest])
+    print('linking', src, dest)
+    ok = subprocess.call(['ln', '-sf', src, dest])
     # ln -s path/to/repo/eeg `python3 -m site --user-site`/eeg
-    print('Installed', pkg_name, 'at', dest, 'via cheat')
+    if ok == 0:
+    	print('Installed', pkg_name, 'at', dest, 'via cheat')
     return ok
 
 happiness = link_install_cheat()
