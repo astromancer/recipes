@@ -7,15 +7,41 @@ Common patterns involving iterables
 import operator
 import functools
 import itertools as itt
-from collections import Iterable
+from collections import abc
 
 # third-party libs
 import more_itertools as mit
 
 
+# ---------------------------------- helpers --------------------------------- #
+def _echo(x):
+    return x
 
-# TODO: Wrapper class which Implements a .list method
 
+def not_none(x):
+    return x is not None
+
+
+# -------------------------------- decorators -------------------------------- #
+def negate(func):
+    def wrapped(obj):
+        return not func(obj)
+    return wrapped
+
+
+def on_nth(func, n):
+    def wrapped(obj):
+        return func(obj[n])
+
+
+def on_zeroth(func):
+    return on_nth(func, 0)
+
+
+def on_first(func):
+    return on_nth(func, 1)
+
+# ---------------------------------------------------------------------------- #
 def non_unique(itr):
     prev = next(itr)
     for item in itr:
@@ -33,7 +59,7 @@ def as_iter(obj, exclude=(str,), return_as=list):
     if exclude is None:
         exclude = ()
 
-    if isinstance(obj, exclude) or not isinstance(obj, Iterable):
+    if isinstance(obj, exclude) or not isinstance(obj, abc.Iterable):
         return return_as([obj])
     else:
         return obj
@@ -44,84 +70,9 @@ as_sequence = as_iter
 # as_sequence_unless_str
 
 
-def flatiter(items):
-    """generator that flattens an iterator with arbitrary nesting"""
-    for item in items:
-        # catches the infinite recurence resulting from character-string duality
-        if isinstance(item, Iterable) and not isinstance(item, (str, bytes)):
-            for i in flatiter(item):
-                yield i
-        else:
-            yield item
-
-
-# alias
-flatten = flatiter
-
-
-# def flatiter(items):
-#     """generator that flattens an iterator with arbitrary nesting"""
-#     for item in items:
-#         #catches the infinite recurence resulting from character-string duality
-#         if isinstance(item, (str, bytes)):
-#             yield item
-#         else:
-#             try:
-#                 for i in flatiter(item):
-#                     yield i
-#             except TypeError as err:
-#                 tb = traceback.format_exc()
-#                 # avoid obscuring legitimate TypeErrors by checking specifically or
-#                 if tb.endswith('object is not iterable\n'):
-#                     yield item
-#                 raise err
-
-
-# def flatiter(*items):          #raises RecursionError
-# """generator that flattens an iterator with arbitrary nesting"""
-# for item in items:
-##catches the infinite recurence resulting from character-string duality
-# if isinstance(item, (str, bytes)):
-# yield item
-# else:
-# try:
-# for i in flatiter(item):
-# yield i
-# except TypeError:
-# yield item
-
-# def flatiter(*items, maxdepth=None):
-# """
-# Generator that flattens an iterator with arbitrary nesting.
-# Optionally provide maximum depth to flatten to.
-# """
-# if maxdepth is None:
-# yield from _flatiter(items)
-# else:
-# def _flatit(item, depth):
-# if depth >= maxdepth:
-# yield item
-# elif isinstance(item, (str, bytes)):
-# yield item
-# else:
-# yield from _flatit(l, depth+1)
-
-# yield from _flatit(l, 0)
-
-
-def interleave(*its, **kw):
-    """interleaves two Iterables."""
-    return_as = kw.get('return_as', list)
-    if 'fill' in kw:
-        zipper = functools.partial(itt.zip_longest, fillvalue=kw['fill'])
-    else:
-        zipper = zip
-    return return_as([val for items in zipper(*its) for val in items])
-
-
-def iter_split(L, idx):
+def split(l, idx):
     """Split a list into sub-lists at the given indices"""
-    return map(L.__getitem__, itt.starmap(slice, mit.pairwise(idx)))
+    return map(l.__getitem__, itt.starmap(slice, mit.pairwise(idx)))
 
 
 def cyclic(obj, n=None):
@@ -162,41 +113,16 @@ def pad_none(iterable):
     return itt.chain(iterable, itt.repeat(None))
 
 
-def dot_product(vec1, vec2):
-    return sum(map(operator.mul, vec1, vec2))
+def chunker(itr, size):
+    return iter(map(tuple, itt.islice(iter(itr), size)), ())
 
 
-def chunker(it, size):
-    it = iter(it)
-    return iter(lambda: tuple(itt.islice(it, size)), ())
+def group_more(func=_echo, *its, **kws):
+    # avoid circular import
+    from recipes.containers.lists import cosort
 
-
-# def ichunker(it, size):
-# it = iter(it)
-# return iter(lambda: itt.islice(it, size), ())
-
-# _no_padding = object()
-# def chunk(it, size, padval=_no_padding):
-# if padval == _no_padding:
-# it = iter(it)
-# sentinel = ()
-# else:
-# it = chain(iter(it), repeat(padval))
-# sentinel = (padval,) * size
-# return iter(lambda: tuple(islice(it, size)), sentinel)
-
-
-# def groupeven(*its,  n, fillvalue=None):
-# args = [iter(iterable)] * n
-
-
-def group_more(func=None, *its, **kws):
-    from recipes.containers.lists import sorter
-    if not func:
-        func = lambda x: x
-    its = sorter(*its, key=func)
-    nfunc = lambda x: func(x[0])
-    zipper = itt.groupby(zip(*its), nfunc)
+    its = cosort(*its, key=func)
+    zipper = itt.groupby(zip(*its), on_zeroth(func))
     if kws.get('unzip', True):
         unzipper = ((key, zip(*groups)) for key, groups in zipper)
         return unzipper
@@ -208,7 +134,7 @@ def tee_more(*its, n=2):
     return itt.starmap(zip, tn)
 
 
-def partition_more(pred, *its):
+def copartition(pred, *its):
     """
     Partition an arbitrary number of iterables based on the truth value of a
     predicate evaluated on the first iterator.
@@ -216,50 +142,44 @@ def partition_more(pred, *its):
     partition(is_odd, range(10), range) --> (1 3 5 7 9), (0 2 4 6 8)
     """
     t1, t2 = tee_more(*its)
-    return filter_more(pred, *t2), filter_more_false(pred, *t1)
+    return cofilter(pred, *t2), cofilter_false(pred, *t1)
 
 
-def where_true(iterable, pred=bool):
+def where(iterable, pred=bool):
     """
     Return the indices of an iterable for which the callable ``pred'' evaluates
     as True
     """
-    func = lambda x: pred(x[1])
-    return nth_zip(0, *filter(func, enumerate(iterable)))
+    return nth_zip(0, *filter(on_first(pred), enumerate(iterable)))
 
 
 def where_false(iterable, pred=bool):
-    func = lambda x: not pred(x)
-    return where_true(iterable, func)
+    return where(iterable, negate(pred))
 
 
-def first_true_index(iterable, pred=None, default=None):
+def first(iterable, pred=bool, default=None):
+    return next(filter(pred, iterable), default)
+
+
+def first_true_index(iterable, pred=_echo, default=None):
     """
     Find the first index position of the iterable for the which the callable
-    pred returns True.
+    pred returns True
     """
-    if pred is None:
-        func = lambda x: x[1]
-    else:
-        func = lambda x: pred(x[1])
-    ii = next(filter(func, enumerate(iterable)), default)
-    # ii - either index-item pair or default
-    return ii[0] if ii else default
+
+    index, _ = first(enumerate(iterable), on_first(pred), (None, None))
+    return index or default
 
 
-def first_false_index(iterable, pred=None, default=None):
+def first_false_index(iterable, pred=_echo, default=None):
     """
     Find the first index position of the iterable for the which the
     callable pred returns False
     """
-    if pred is None:
-        func = lambda x: not x
-    else:
-        func = lambda x: not pred(x)
-    return first_true_index(iterable, func, default)
+    return first_true_index(iterable, negate(pred), default)
 
 
-def last_true_index(iterable, default=False, pred=None):
+def last_true_index(iterable, pred=bool, default=False):
     return -first_true_index(reversed(iterable), pred, default)
 
 
@@ -268,25 +188,23 @@ first_true_idx = first_true_index
 first_false_idx = first_false_index
 
 
-def filter_more(func, *its):
+def cofilter(func, *its):
     """
     Filter an arbitrary number of iterators based on the truth value of the
     first iterable (as evaluated by function func).
     """
-    if func is None:
-        func = lambda x: x
-    it00, it0 = itt.tee(
-            its[0])  # note this consumes the iterator in position 0!!
-    tf = list(map(func, it00))  # find the indices where func evaluates to true
-    its = (it0,) + its[1:]  # restore the original iterator sequence
+    func = func or bool
+    it00, it0 = itt.tee(its[0])
+    # note this consumes the iterator in position 0!!
+    # find the indices where func evaluates to true
+    tf = list(map(func, it00))
+    # restore the original iterator sequence
+    its = (it0,) + its[1:]
     return tuple(itt.compress(it, tf) for it in its)
 
 
-def filter_more_false(func, *its):
-    if func is None:
-        func = lambda x: x
-    nf = lambda i: not func(i)
-    return filter_more(nf, *its)
+def cofilter_false(func, *its):
+    return cofilter(negate(func or bool), *its)
 
 
 def itersubclasses(cls, _seen=None):
@@ -320,13 +238,16 @@ def itersubclasses(cls, _seen=None):
                         'new-style classes, not %.100r' % cls)
     if _seen is None:
         _seen = set()
+
     try:
         subs = cls.__subclasses__()
     except TypeError:  # fails only when cls is type
         subs = cls.__subclasses__(cls)
+
     for sub in subs:
         if sub not in _seen:
             _seen.add(sub)
             yield sub
+
             for sub in itersubclasses(sub, _seen):
                 yield sub
