@@ -6,48 +6,183 @@ import numpy as np
 from numpy.lib.stride_tricks import as_strided
 
 
-def fold(a, wsize, overlap=0, axis=0, **kw):
+def _checks(wsize, overlap, n, axis):
+    # checks
+    if n < wsize < 0:
+        raise ValueError(f'Window size ({wsize}) should be greater than 0 and '
+                         f'smaller than array size ({n}) along axis {axis}')
+    if wsize <= overlap < 0:
+        raise ValueError(f'Overlap ({overlap}) should be greater equal 0 and '
+                         f'smaller than window size ({wsize})')
+
+
+def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     """
-    segment an array at given wsize, overlap,
-    optionally applying a windowing function to each
-    segment.
+    Fold (window) an array along a given `axis` at given `size`, with successive
+    windows overlapping each previous by `overlap` elements.  This method
+    works on masked arrays as well and will fold the mask identically to the
+    data. By default the array is padded out with masked elements so that the
+    step size evenly divides the array along the given axis.
 
-    keywords are passed to np.pad used to fill up the array to the required length.  This
-    method works on multi-dimensional and masked array as well.
+    Parameters
+    ----------
+    a
+    wsize
+    overlap
+    axis
+    pad
+    kws
+        Keywords are passed to `np.pad` which pads up the array to the required
+        length.
 
-    keyword arguments are passed to np.pad to fill up the elements in the last window (default is
-    symmetric padding).
+    Returns
+    -------
 
-    NOTE: When overlap is nonzero, the array returned by this function will have multiple entries
-    **with the same memory location**.  Beware of this when doing inplace arithmetic operations.
-    e.g.
-    N, wsize, overlap = 100, 10, 5
-    q = fold(np.arange(N), wsize, overlap )
-    k = 0
-    q[0,overlap+k] *= 10
-    q[1,k] == q[0,overlap+k]  #is True
+    Notes
+    -----
+    When overlap is nonzero, the array returned by this function will have
+    multiple entries **with the same memory location**.  Beware of this when
+    doing inplace arithmetic operations on the returned array.
+    eg.:
+    >>> n, size, overlap = 100, 10, 5
+    >>> q = fold(np.arange(n), size, overlap)
+    >>> k = 0
+    >>> q[0, overlap + k] *= 10
+    >>> q[1, k] == q[0, overlap + k]  # is True
+
     """
-    a = np.asarray(a)
-    if a.size < wsize:
-        warnings.warn('Window size larger than data size')
-        return a[None]
+    a = np.asanyarray(a)
+    shape = a.shape
+    n = shape[axis]
 
-    a, n_seg = padder(a, wsize, overlap, **kw)
+    _checks(wsize, overlap, n, axis)
+
+    # short circuits
+    if (n == wsize) and (overlap == 0):
+        return a.reshape(np.insert(shape, axis, 1))
+
+    if n < wsize:
+        warnings.warn(
+                f'Window size larger than array size along dimension {axis}')
+        return a.reshape(np.insert(shape, axis, 1))
+
+    # pad out
+    if pad:
+        a, n_seg = padder(a, wsize, overlap, axis, **kws)
+    #
     sa = get_strided_array(a, wsize, overlap, axis)
 
     # deal with masked data
     if np.ma.isMA(a):
         mask = a.mask
         if mask is not False:
-            mask = get_strided_array(mask, wsize, overlap)
-        sa = np.ma.array(sa, mask=mask)
+            mask = get_strided_array(mask, wsize, overlap, axis)
+        sa = np.ma.array(sa.data, mask=mask)
 
     return sa
 
 
+def is_null(x):
+    return (x is None) or (x is False)
+
+
+def padder(a, wsize, overlap=0, axis=0, pad_mode='masked', **kws):
+    """ """
+    a = np.asanyarray(a)  # convert to (un-masked) array
+    n = a.shape[axis]
+
+    # checks
+    _checks(wsize, overlap, n, axis)
+
+    #
+    mask = a.mask if np.ma.is_masked(a) else None
+    step = wsize - overlap
+    n_seg, leftover = divmod(n, step)  #
+    if step == 1:
+        leftover = wsize - 1
+
+    if leftover:
+        # default is to mask the "out of array" values
+        # pad_mode = kws.pop('pad', 'mask')
+        if (pad_mode == 'masked') and is_null(mask):
+            mask = np.zeros(a.shape, bool)
+
+        # pad the array at the end with `pad_end` number of values
+        pad_end = wsize - leftover
+        pad_width = np.zeros((a.ndim, 2), int)  # initialise pad width indicator
+        pad_width[axis, -1] = pad_end
+        pad_width = list(map(tuple, pad_width))  # map to list of tuples
+
+        # pad (apodise) the input signal (and mask)
+        if pad_mode == 'masked':
+            a = np.pad(a, pad_width, 'constant', constant_values=0)
+            mask = np.pad(mask, pad_width, 'constant', constant_values=True)
+        else:
+            a = np.pad(a, pad_width, pad_mode, **kws)
+            if not is_null(mask):
+                mask = np.pad(mask, pad_width, pad_mode, **kws)
+
+    # convert back to masked array
+    if not is_null(mask):
+        a = np.ma.array(a, mask=mask)
+
+    return a, int(n_seg)
+
+
+def get_strided_array(a, size, overlap, axis=0):
+    """
+    Fold array `a` along axis `axis` with window size of `size`, each
+    consecutive segment overlapping previous by `overlap` elements.
+    Use array strides (byte-steps) for memory efficiency.  The new axis is
+    inserted in the position before `axis`.
+
+    Parameters
+    ----------
+    a
+    size
+    overlap
+    axis
+
+    Returns
+    -------
+
+    """
+    if axis < 0:
+        axis += a.ndim
+
+    step = size - overlap
+    # if padded:
+    # note line below relies on the array already being padded out
+    n_segs = (a.shape[axis] - overlap) // step  # number of segments
+    new_shape = np.insert(a.shape, axis + 1, size)
+    new_shape[axis] = n_segs
+    # new shape is (..., n_seg, size, ...)
+
+    # byte steps
+    new_strides = np.insert(a.strides, axis, step * a.strides[axis])
+    return as_strided(a, new_shape, new_strides)
+
+
+def gen(a, size, overlap=0, axis=0, **kw):
+    """
+    Generator version of fold.
+    """
+    a, n_seg = padder(a, size, overlap, **kw)
+    step = size - overlap
+    i = 0
+    while i < n_seg:
+        start = i * step
+        stop = start + size
+        ix = [slice(None)] * a.ndim
+        ix[axis] = slice(start, stop)
+        yield a[ix]
+        i += 1
+
+
 def rebin(x, binsize, t=None, e=None):
     """
-    Rebin time series data. Assumes data are evenly sampled in time (constant time steps).
+    Rebin time series data. Assumes data are evenly sampled in time (constant
+     time steps).
     """
     xrb = fold(x, binsize).mean(1)
     returns = (xrb,)
@@ -64,95 +199,18 @@ def rebin(x, binsize, t=None, e=None):
         return returns[0]
     return returns
 
-
-def gen(a, wsize, overlap=0, axis=0, **kw):
-    """
-    Generator version of fold.
-    """
-    a, n_seg = padder(a, wsize, overlap, **kw)
-    step = wsize - overlap
-    i = 0
-    while i < n_seg:
-        start = i * step
-        stop = start + wsize
-        ix = [slice(None)] * a.ndim
-        ix[axis] = slice(start, stop)
-        yield a[ix]
-        i += 1
-
-
-def padder(a, wsize, overlap=0, axis=0, **kw):
-    """ """
-    assert wsize > 0, 'wsize > 0'
-    assert overlap >= 0, 'overlap >= 0'
-    assert overlap < wsize, 'overlap < wsize'
-
-    mask = a.mask if np.ma.is_masked(a) else None
-    a = np.asarray(a)  # convert to (un-masked) array
-    N = a.shape[axis]
-    step = wsize - overlap
-    n_seg, leftover = divmod(N - overlap, step)
-
-    if leftover:
-        # default is to mask the "out of array" values
-        pad_mode = kw.pop('pad', 'mask')
-        if pad_mode == 'mask' and (mask is None or mask is False):
-            mask = np.zeros(a.shape, bool)
-
-        # pad the array at the end with `pad_end` number of values
-        pad_end = step - leftover
-        pad_width = np.zeros((a.ndim, 2), int)  # initialise pad width indicator
-        pad_width[axis, -1] = pad_end
-        pad_width = list(map(tuple, pad_width))  # map to list of tuples
-
-        # pad (apodise) the input signal (and mask)
-        if pad_mode == 'mask':
-            a = np.pad(a, pad_width, 'constant', constant_values=0)
-            mask = np.pad(mask, pad_width, 'constant', constant_values=True)
-        else:
-            a = np.pad(a, pad_width, pad_mode, **kw)
-            if mask not in (None, False):
-                mask = np.pad(mask, pad_width, pad_mode, **kw)
-
-    # convert back to masked array
-    if not mask is None:
-        a = np.ma.array(a, mask=mask)
-
-    return a, int(n_seg)
-
-
-def get_strided_array(a, size, overlap, axis=0):
-    """
-    Fold array `a` along `axis` with given `size` and `overlap`. Use strides
-    (byte-steps) for memory efficiency.
-    By default, insert the new axis in the position before `axis`.
-    """
-    if axis < 0:
-        axis += a.ndim
-    step = size - overlap
-    nsegs = (a.shape[axis] - overlap) // step  # number of segments
-
-    new_shape = np.insert(a.shape, axis + 1, size)
-    new_shape[axis] = nsegs
-
-    # byte steps
-    new_strides = np.insert(a.strides, axis, step * a.strides[axis])
-
-    return as_strided(a, new_shape, new_strides)
-
-
-def get_nocc(N, wsize, overlap):
-    """
-    Return an array of length N, with elements representing the number of
-    times that the index corresponding to that element would be repeated in
-    the strided array.
-    """
-    from recipes.containers.lists import count_repeats, sortmore
-
-    I = fold(np.arange(N), wsize, overlap).ravel()
-    if np.ma.is_masked(I):
-        I = I[~I.mask]
-
-    d = count_repeats(I)
-    ix, noc = sortmore(*zip(*d.items()))
-    return noc
+# def get_nocc(N, wsize, overlap):
+#     """
+#     Return an array of length N, with elements representing the number of
+#     times that the index corresponding to that element would be repeated in
+#     the strided array.
+#     """
+#     from recipes.containers.lists import count_repeats, sortmore
+#
+#     I = fold(np.arange(N), wsize, overlap).ravel()
+#     if np.ma.is_masked(I):
+#         I = I[~I.mask]
+#
+#     d = count_repeats(I)
+#     ix, noc = sortmore(*zip(*d.items()))
+#     return noc
