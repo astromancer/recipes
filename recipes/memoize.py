@@ -2,7 +2,7 @@
 Memoization classes
 """
 
-# TODO: rename caches
+# TODO: rename caches - make package?
 
 import types
 from collections import OrderedDict as odict  # , UserDict as udict
@@ -15,7 +15,7 @@ from .io import load_pickle, save_pickle
 from .logging import LoggingMixin
 # from ..interactive import exit_register
 
-from collections import Hashable
+from collections import abc
 from inspect import signature, _empty, _VAR_KEYWORD
 
 
@@ -25,7 +25,7 @@ def check_hashable_defaults(func):
         if p.default is _empty:
             continue
 
-        if isinstance(p.default, Hashable):
+        if isinstance(p.default, abc.Hashable):
             continue
 
         raise TypeError(
@@ -262,7 +262,7 @@ class Memoizer(LoggingMixin):
         if isinstance(func, type):
             # if the decorator is applied to a class, memoize the constructor so
            # the entire class gets cached!
-            
+
             class _Cached:
                 @self.__class__(*self._cache_args)
                 def __new__(cls, *args, **kws):
@@ -303,7 +303,7 @@ class Memoizer(LoggingMixin):
         answer = self.func(*args, **kws)
         key = get_key(self.sig, args, kws)
         for name, val in key:
-            if not isinstance(val, Hashable):
+            if not isinstance(val, abc.Hashable):
                 warnings.warn(
                     'Refusing memoization due to unhashable argument in '
                     f'{self.func.__class__.__name__} {self.func.__name__!r}: '
@@ -375,6 +375,7 @@ class to_file(Memoizer):
         self.sig = None
         self.cache = PersistantCache(filename, capacity, kind)
         self._cache_args = (filename, capacity, kind)
+
 
 # alias
 memoize = Memoizer
