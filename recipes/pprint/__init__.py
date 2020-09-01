@@ -1,2 +1,2 @@
 from .nrs import *
-from .misc import method
+from .misc import method, dicts

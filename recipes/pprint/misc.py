@@ -8,6 +8,11 @@ import functools
 
 # relative libs
 from ..introspection import get_class_that_defined_method
+from ..containers.dicts import pformat
+
+
+def dicts(dict_):
+    print(pformat(dict_))
 
 
 def seq_repr_trunc(seq, max_items=10, edge_items=1, sep=','):
