@@ -15,20 +15,64 @@ from warnings import formatwarning as original_formatwarning
 
 import itertools as itt
 import glob
+import json
 
 
-def load_pickle(filename):
-    with Path(filename).open('rb') as fp:
-        return pickle.load(fp)
+FORMATS = {'json': json,
+           'pkl': pickle}  # dill, sqlite
+MODES  = {pickle: 'b', json: ''}
 
 
-def save_pickle(filename, data):
+# def dumper(obj):
+#     if hasattr(obj, 'to_json'):
+#         return obj.to_json()
+#     return obj.__dict__
+
+# return dumps(some_big_object, default=dumper)
+
+def guess_format(filename):
+    # use filename to guess format
+    ext = Path(filename).suffixes[-1].lstrip('.')
+    formatter = FORMATS.get(ext, None)
+    if formatter is None:
+        raise ValueError(
+            'Could not guess file format from filename. Please provide the '
+            'expected format for deserialization of file: {filename!r}'
+        )
+    return formatter
+
+
+def deserialize(filename, formatter=None, **kws):
+    path = Path(filename)
+    formatter = formatter or guess_format(path)
+    with path.open(f'r{MODES[formatter]}') as fp:
+        return formatter.load(fp, **kws)
+
+
+def serialize(filename, data, formatter=None, **kws):
     path = Path(filename)
     if not path.parent.exists():
         path.parent.mkdir()
 
-    with path.open('wb') as fp:
-        pickle.dump(data, fp)
+    formatter = formatter or guess_format(path)
+    with path.open(f'w{MODES[formatter]}') as fp:
+        formatter.dump(data, fp, **kws)
+
+
+def load_pickle(filename, **kws):
+    return deserialize(filename, pickle, **kws)
+
+
+def save_pickle(filename, data, **kws):
+    serialize(filename, data, pickle, **kws)
+
+
+def load_json(filename, **kws):
+    return deserialize(filename, json, **kws)
+
+
+def save_json(filename, data, **kws):
+    serialize(filename, data, json, **kws)
 
 
 def iter_files(path, extensions='*', recurse=False):
