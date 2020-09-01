@@ -169,7 +169,9 @@ def first_true_index(iterable, pred=_echo, default=None):
     """
 
     index, _ = mit.first_true(enumerate(iterable), (None, None), on_first(pred))
-    return index or default
+    if index is None:
+        return default
+    return index
 
 
 def first_false_index(iterable, pred=_echo, default=None):
