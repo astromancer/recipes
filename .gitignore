@@ -12,3 +12,4 @@ __pycache__/ # at any depth
 test.py
 
 dev/
+.pylintrc
