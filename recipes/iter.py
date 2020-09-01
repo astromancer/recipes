@@ -42,6 +42,8 @@ def on_first(func):
     return on_nth(func, 1)
 
 # ---------------------------------------------------------------------------- #
+
+
 def non_unique(itr):
     prev = next(itr)
     for item in itr:
@@ -75,6 +77,11 @@ def split(l, idx):
     return map(l.__getitem__, itt.starmap(slice, mit.pairwise(idx)))
 
 
+# def cycle(iterable, n):
+#     """Returns the sequence elements n times"""
+#     return itt.chain.from_iterable(itt.repeat(tuple(iterable), n))
+
+
 def cyclic(obj, n=None):
     """
     Cyclic iterator. Will cycle (optionally only up to `n` items).  If ``obj``
@@ -82,12 +89,6 @@ def cyclic(obj, n=None):
     """
     cyc = itt.cycle(mit.always_iterable(obj))
     return itt.islice(cyc, n)
-
-
-#
-# def n_cycles(iterable, n):
-#     """Returns the sequence elements n times"""
-#     return itt.chain.from_iterable(itt.repeat(tuple(iterable), n))
 
 
 def nth_zip(n, *its):
@@ -157,8 +158,8 @@ def where_false(iterable, pred=bool):
     return where(iterable, negate(pred))
 
 
-def first(iterable, pred=bool, default=None):
-    return next(filter(pred, iterable), default)
+# def first(iterable, pred=bool, default=None):
+#     return next(filter(pred, iterable), default)
 
 
 def first_true_index(iterable, pred=_echo, default=None):
@@ -167,7 +168,7 @@ def first_true_index(iterable, pred=_echo, default=None):
     pred returns True
     """
 
-    index, _ = first(enumerate(iterable), on_first(pred), (None, None))
+    index, _ = mit.first_true(enumerate(iterable), (None, None), on_first(pred))
     return index or default
 
 
