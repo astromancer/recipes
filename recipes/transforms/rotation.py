@@ -4,6 +4,8 @@ import numpy as np
 # TODO: look for library that can represent rotation group else make one
 # https: // en.wikipedia.org / wiki / Rotation_group_SO(3)
 
+
+
 def rotate(xy, theta):
     # TODO: check shapes
     return rotation_matrix_2d(theta) @ xy
@@ -42,19 +44,14 @@ def rotation_matrix_3d(axis, theta):
     axis /= np.sqrt((axis * axis).sum())
 
     # 'Rodriguez parameters'
-    a = float(np.cos(theta / 2))
+    a = np.cos(theta / 2)
     b, c, d = -axis * np.sin(theta / 2)
 
     # Rotation matrix
-    aa = a * a
-    bb = b * b
-    cc = c * c
+    aa, ac, ad = a * (a, c, d)
+    bb, bc, bd = b * (b, c, d)
+    cc, cd = c * (c, d)
     dd = d * d
-    bc = b * c
-    ad = a * d
-    bd = b * d
-    ac = a * c
-    cd = c * d
     return  np.array([
         [aa + bb - cc - dd, 2 * (bc - ad),     2 * (bd + ac)],
         [2 * (bc + ad),     aa + cc - bb - dd, 2 * (cd - a * b)],

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 # local libs
 from recipes.oo import ClassProperty
-# from recipes.decor.memoize import memoize
+# from recipes.caches.memoize import memoize
 from recipes.decor.base import DecoratorBase
 
 # relative libs
