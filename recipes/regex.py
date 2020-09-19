@@ -1,6 +1,22 @@
 
 import re
 import pathlib
+from recipes.string import rreplace
+
+
+# translate unix brace expansion patterns to regex pattern
+UNIX_BRACE_TO_REGEX = str.maketrans(dict(zip('{},', '()|')))
+UNIX_GLOB_TO_REGEX = {'.': r'\.',
+                      '*': '.*',
+                      '?': '.'}
+
+
+def glob_to_regex(pattern):
+    # Translate unix glob expression to regex for emulating bash wrt item
+    # retrieval
+    return re.compile(
+        rreplace(pattern.translate(UNIX_BRACE_TO_REGEX), UNIX_GLOB_TO_REGEX)
+    )
 
 
 class Path(type(pathlib.Path())):  # HACK!
@@ -19,23 +35,12 @@ class Path(type(pathlib.Path())):  # HACK!
         return res
 
 
-# Function pcre_detidy to convert xmode regex string to non-xmode.
-# Rev: 20160225_1800
-
-def detidy_cb(m):
-    if m.group(2):
-        return m.group(2)
-    if m.group(3):
-        return m.group(3)
-    return ""
-
-
 def terse(retext):
     """
     Go from verbose format multiline regex to single line terse representation
-
     """
     # https://stackoverflow.com/a/35641837/1098683
+
     decomment = re.compile(
         r"""(?#!py/mx decomment Rev:20160225_1800)
         # Discard whitespace, comments and the escapes of escaped spaces and hashes.
@@ -67,11 +72,11 @@ def terse(retext):
     return re.sub(decomment, detidy_cb, retext)
 
 
-if __name__ == '__main__':
-    test_text = r"""
-            [0-9]            # 1 Number
-            [A-Z]            # 1 Uppercase Letter
-            [a-y]            # 1 lowercase, but not z
-            z                # gotta have z...
-            """
-    print(terse(test_text))
+def detidy_cb(m):
+    # Function pcre_detidy to convert xmode regex string to non-xmode.
+    # Rev: 20160225_1800
+    if m.group(2):
+        return m.group(2)
+    if m.group(3):
+        return m.group(3)
+    return ""
