@@ -31,6 +31,8 @@ UNI_NEG_PWR = '⁻'  # '\N{SUPERSCRIPT MINUS}'
 UNI_PM = '±'
 UNI_MULT = {'x': '×', '.': '·'}
 UNI_HMS = u'ʰᵐˢ'
+# UNI_INF = '∞'
+# '−'
 # '\N{MINUS SIGN}'              '−'     u'\u2212'
 # '\N{PLUS-MINUS SIGN}'         '±'
 # '\N{MULTIPLICATION SIGN}'     '×' 	u'\u00D7'
@@ -52,14 +54,14 @@ METRIC_PREFIXES = {-24: 'y',
                    -6: 'µ',
                    -3: 'm',
                    0: '',
-                   3: 'k',
-                   6: 'M',
-                   9: 'G',
-                   12: 'T',
-                   15: 'P',
-                   18: 'E',
-                   21: 'Z',
-                   24: 'Y'}
+                   +3: 'k',
+                   +6: 'M',
+                   +9: 'G',
+                   +12: 'T',
+                   +15: 'P',
+                   +18: 'E',
+                   +21: 'Z',
+                   +24: 'Y'}
 
 sequences = (list, tuple)
 
@@ -297,7 +299,9 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False,
     '0h02m13.31211s'
     """
 
-    assert len(sep) in (1, 3)
+    ls = len(sep)
+    assert ls in (0, 1, 3)
+    repeat_sep = (ls in (0, 1))
     is_hms = (sep == 'hms')
     short = is_hms if short is None else short
     # short representation only meaningful if time expressed in hms units
@@ -305,11 +309,10 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False,
     # resolve separator
     if unicode and is_hms:
         sep = UNI_HMS
-    elif len(sep) == 1:
+    elif repeat_sep:
         base_unit = 'h'  #
 
     # resolve precision
-    
     sexa = to_sexagesimal(t, base_unit, precision or 's')
     m = len(sexa) - 1
     if precision is None:
@@ -319,21 +322,19 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False,
     precision = [0] * m + [precision]
 
     # get separators
-    if len(sep) == 1:
+    if repeat_sep:
         sep = [sep] * m + ['']
-    elif len(sep) == 3:
+    else:
         sep = sep['hms'.index(base_unit):'hms'.index(unit) + 1]
 
-    parts = []
+    out = ''
     for n, p, s in zip(sexa, precision, sep):
         if short and not n:
             continue
-        else:
-            short = False
+        short = False  # only first number can be truncated
 
-        parts.append(decimal(n, p, left_pad=(2, '0'),
-                             unicode=unicode) + s)
-    return ''.join(parts)
+        out += pad(decimal(n, p, unicode=unicode), left=(2, '0')) + s
+    return out 
 
 
 # alias
@@ -373,12 +374,12 @@ def eng(value, significant=None, base=10, unit=''):
 
 
 # TODO: docstring / API consistency
-def decimal(n, precision=None, significant=3, sign='-', compact=False,
-            unicode=False, left_pad=0, right_pad=0, thousands=''):
+def decimal(n, precision=None, significant=3, sign='-', short=False,
+            unicode=False, thousands=''):
     """
     Decimal representation of float as str up to given number of significant
     digits (relative), or decimal precision (absolute). Support for
-    minimalist `compact` representations as well as optional left- and right
+    minimalist `short` representations as well as optional left- and right
     padding and unicode representation of infinity '∞' included.
 
     Parameters
@@ -399,28 +400,13 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     sign: str or bool
         True: always sign; False: only negative
         '+' or '-' or ' ' behaves like builtin format spec
-    compact : bool  # TODO: terse ??
+    short : bool  # TODO: short ??
         if True, redundant zeros and decimal point will be stripped.
     unicode:
         # TODO: latex:\\infty also spaces for thousands also ignore padding ???
         prefer unicode minus '−' over '-'
         prefer unicode infinity '∞' over 'inf'
-    # TODO: replace with    pad=(5, 7)
-                            pad=dict(l=5, r=7)
-                            pad=[(5, '0'), 7]
-                            pad='<5'
-    left_pad: int, tuple
-        width of the portion of the number preceding the decimal point.  If
-        number string is shorter than `left_pad`, whitespace will be pre-padded.
-        eg.:
-            '1.23301' ---> ' 1.23301' (with left_pad=2)
-        This option is useful when displaying numbers in a column and having
-        them all line up nicely with the decimal points.
-    right_pad: int
-        width of the portion of the number following the decimal point.
-        Trailing whitespace padding relative to decimal point.
-        eg.:
-            '1.233' ---> ' 1.233  ' (with right_pad=6)
+
     thousands: str
         thousands separator
 
@@ -459,13 +445,9 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
             f'`unicode=True` if you want a unicode minus.')
     sign_fmt = sign
 
-    # pad relative to decimal position
-    left_pad, left_pad_char = _check_pad(left_pad)
-    right_pad, right_pad_char = _check_pad(right_pad)
-
     # automatically decide on a precision value if not given
     m = None
-    if (precision is None) or (left_pad > 0) or (right_pad > 0):
+    if (precision is None):  # or (left_pad > 0) or (right_pad > 0):
         # order of magnitude and `significant` determines precision
         m = order_of_magnitude(n)
         if np.isinf(m):
@@ -483,26 +465,15 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     s = f'{n:{sign_fmt}{_1000fmt}.{precision}f}'.replace(',', thousands)
 
     if unicode:
-        s = s.replace('inf', '∞')
-
-    # pad with whitespace relative to decimal position. useful when displaying
-    # arrays of decimal numbers.
-    # Left pad used and we need to line up with decimal position of larger
-    # numbers.
-    if left_pad > 0:  # need this to know if m is in namespace!!!
-        if left_pad > min(m, 0):
-            # total display width
-            w = left_pad + precision + int(precision > 0)
-            #                        ⤷ +1 if number has decimal point
-            s = s.rjust(w, left_pad_char)
+        s = s.replace('inf', '\N{INFINITY}')
 
     # strip redundant zeros
-    n_stripped = 0
-    width = len(s)
-    if precision > 0 and compact:
+    # n_stripped = 0
+    # width = len(s)
+    if precision > 0 and short:
         # remove redundant zeros
         s = s.rstrip('0').rstrip('.')
-        n_stripped = width - len(s)
+        # n_stripped = width - len(s)
 
     # Right pad for when numbers are displayed to various precisions and the
     # should form a block. eg. nrs followed by a 1σ uncertainty, and we want to
@@ -511,38 +482,98 @@ def decimal(n, precision=None, significant=3, sign='-', compact=False,
     #   [-12   ± 1.2,
     #      1.1 ± 0.2 ]
 
-    if right_pad >= max(precision - n_stripped, 0):
-        # compute required width of formatted number string
-        m = m or order_of_magnitude(n)
-        w = sum((int(bool(sign) & (n < 0)),
-                 max(left_pad, m + 1),  # width lhs of '.'
-                 max(right_pad, precision),  # width rhs of '.'
-                 int(precision > 0)))  # '.' expected in formatted str?
+    # if right_pad >= max(precision - n_stripped, 0):
+    #     # compute required width of formatted number string
+    #     m = m or order_of_magnitude(n)
+    #     w = sum((int(bool(sign) & (n < 0)),
+    #              max(left_pad, m + 1),  # width lhs of '.'
+    #              max(right_pad, precision),  # width rhs of '.'
+    #              int(precision > 0)))  # '.' expected in formatted str?
 
-        s = s.ljust(w, right_pad_char)
+    #     s = s.ljust(w, right_pad_char)
 
     if unicode:
-        s = s.replace('-', '−')
+        s = s.replace('-', '\N{MINUS SIGN}')
     return s
 
 
+def pad(s, left=None, right=None):
+    # # TODO: replace with    pad=(5, 7)
+    #                         pad=dict(l=5, r=7)
+    #                         pad=[(5, '0'), 7]
+    #                         pad='<5'
+    # left_pad: int, tuple
+    #     width of the portion of the number preceding the decimal point.  If
+    #     number string is shorter than `left_pad`, whitespace will be pre-padded.
+    #     eg.:
+    #         '1.23301' ---> ' 1.23301' (with left_pad=2)
+    #     This option is useful when displaying numbers in a column and having
+    #     them all line up nicely with the decimal points.
+    # right_pad: int
+    #     width of the portion of the number following the decimal point.
+    #     Trailing whitespace padding relative to decimal point.
+    #     eg.:
+    #         '1.233' ---> ' 1.233  ' (with right_pad=6)
+
+    # pad relative to decimal position
+
+    # left = _check_pad(left)
+    # right = _check_pad(right)
+
+    # pad with whitespace relative to decimal position. useful when displaying
+    # arrays of decimal numbers.
+    # Left pad used and we need to line up with decimal position of larger
+    # numbers.
+    # if left_pad > 0:  # need this to know if m is in namespace!!!
+    #     if left_pad > min(m, 0):
+    #         # total display width
+    #         w = left_pad + precision + int(precision > 0)
+    #         #                        ⤷ +1 if number has decimal point
+    #         s = s.rjust(w, left_pad_char)
+
+    #     if isinstance(lr, numbers.Integral):
+    #         lr = (lr, ' ')  # pad space
+
+    pre, *post = s.partition('.')
+    post = ''.join(post)
+    return ''.join((pre.rjust(*_check_pad(left or len(pre))),
+                    post.ljust(*_check_pad(right or len(post)))))
+
+#     return ''.join((left_pad(pre, *left),
+#                     right_pad((post, *right)))
+
+# def left_pad(s, width, char=' '):
+#     return s.rjust(width or len(s), char)
+
+# def right_pad(s, width, char=' '):
+#     return s.ljust(width or len(s), char)
+
+
+def align_dot(data):
+    i, dot, dec = np.char.partition(np.array(data, 'U'), '.').T
+    tail = list(map(''.join, zip(dot, dec)))
+    w0 = max(map(len, i))
+    w1 = max(map(len, tail))
+    return list(map(''.join, zip(np.char.rjust(i, w0),
+                                 np.char.ljust(tail, w1))))
+
+
 def decimal_with_percentage(n, total, precision=None, significant=3, sign='-',
-                            compact=False, unicode=False, left_pad=0,
-                            right_pad=0, thousands='', brackets='()'):
+                            short=False, unicode=False, thousands='', brackets='()'):
     if isinstance(precision, sequences):
         p0, p1 = precision
     else:
         p0 = p1 = precision
 
-    d = decimal(n, p0, significant, sign, compact,
-                unicode, left_pad, right_pad, thousands)
+    d = decimal(n, p0, significant, sign, short, unicode, thousands)
     p = '{:.{}%}'.format(n / total, p1)
     return d + p.join(brackets)
 
 
 def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
-        compact=False, unicode=None, latex=None, engineering=False):
-    r"""
+        short=False, unicode=None, latex=None, eng=False):
+    # todo: format='latex' / unicode / engineering
+    """
     Scientific numeral representation strings in various formats.
     See:  https://en.wikipedia.org/wiki/Scientific_notation
 
@@ -560,20 +591,20 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
             The symbol used is decided based on the unicode and latex flags
             as per the following table:
                 unicode:    '×'         or      '·'
-                latex:      '\times'    or      '\cdot'
+                latex:      '\\times'    or      '\\cdot'
                 str:         'x'        or      '*'
         * using 'E' or 'e' will switch to E-notation style. eg.: 1.3e-12
         * Any other str may be passed in which case it will be used verbatim.
-    compact: bool
+    short: bool
         should redundant zeros after decimal point be stripped to yield a
-        more compact representation of the same number?
+        more short representation of the same number?
     unicode: bool
         prefer unicode minus symbol '−' over '-'
         prefer unicode infinity symbol  '∞' over 'inf'
         prefer unicode multiplication symbol '×' over 'x'
     latex:
         represent the number as a latex string:
-        eg:. '$1.04 \times 10^{-12}$'
+        eg:. '$1.04 \\times 10^{-12}$'
     engineering: bool
         Prefer representation where exponent is a multiple of 3. Essentially
         scientific notation with base 1000.
@@ -627,14 +658,14 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
             exp = '' if m == 1 else pwrFmt % m
 
     #
-    # if compact:
+    # if short:
     #     # short representation of number eg.: 10000  ---> 1e5  or 10⁵
     #     raise NotImplementedError
 
     # finally bring it all together
     v = n * (10 ** -m)  # coefficient / mantissa / significand as float
     # mantissa as str
-    mantis = decimal(v, None, significant, sign, compact, unicode)
+    mantis = decimal(v, None, significant, sign, short, unicode)
 
     # mantis = formatter(v)
 
@@ -650,7 +681,7 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
 
 
 def numeric(n, precision=3, significant=3, log_switch=5, sign='-', times='x',
-            compact=True, thousands='', unicode=None, latex=None,
+            short=True, thousands='', unicode=None, latex=None,
             engineering=False):
     """
 
@@ -663,11 +694,11 @@ def numeric(n, precision=3, significant=3, log_switch=5, sign='-', times='x',
         Controls switching between decimal/scientific notation. Scientific
         notation is triggered if `abs(math.log10(abs(n))) > switch`.
 
-    compact
-        TODO: If compact = True
+    short
+        TODO: If short = True
         Default is chosen in such a way that the representation of the number
-        is as compact as possible. eg: '1.01445 × 10²' can be more compactly
-        represented as '101.445'; 1000 can be more compactly represented as
+        is as short as possible. eg: '1.01445 × 10²' can be more shortly
+        represented as '101.445'; 1000 can be more shortly represented as
         10³ or 1K depending on your tastes or needs.
     times
     sign
@@ -695,7 +726,7 @@ def numeric(n, precision=3, significant=3, log_switch=5, sign='-', times='x',
     # n_ = abs(n)
     m = order_of_magnitude(n)  # might be -inf
 
-    # if compact:
+    # if short:
     #     formatter = partial(decimal, precision=precision)
     # else:
     #     formatter = ('{:.%if}' % precision).format
@@ -714,10 +745,10 @@ def numeric(n, precision=3, significant=3, log_switch=5, sign='-', times='x',
     # m = order_of_magnitude(n)
     if math.isinf(m) or abs(m) < log_switch:
         # handle case n == 0 and normal float formatting
-        return decimal(n, precision, None, sign, compact, unicode,
+        return decimal(n, precision, None, sign, short, unicode,
                        thousands=thousands)
 
-    return sci(n, significant, sign, times, compact, unicode, latex,
+    return sci(n, significant, sign, times, short, unicode, latex,
                engineering)
 
 
@@ -725,14 +756,14 @@ nr = numeric
 
 
 def numeric_array(n, precision=2, significant=3, log_switch=5, sign=' ',
-                  times='x', compact=False, unicode=None, latex=None,
+                  times='x', short=False, unicode=None, latex=None,
                   engineering=False, thousands=''):
     """Pretty numeric representations for arrays of scalars"""
     # note default args slightly different:
     #   sign ' ' instead of '-'  for alignment
     return vectorize(numeric)(n, precision=precision, significant=significant,
                               log_switch=log_switch, sign=sign, times=times,
-                              compact=compact, thousands=thousands,
+                              short=short, thousands=thousands,
                               unicode=unicode, latex=latex,
                               engineering=engineering)
 
@@ -778,7 +809,7 @@ def precision_rule_dpg(u):
 #     return -m + r  # precision
 
 
-def decimal_u(x, u, precision=None, compact=False,
+def decimal_u(x, u, precision=None, short=False,
               sign=False, unicode=True, latex=False):
     """
     Represent a number with associated standard deviation uncertainty as str.
@@ -789,7 +820,7 @@ def decimal_u(x, u, precision=None, compact=False,
     x
     u
     precision
-    compact
+    short
     sign
     unicode
     latex
@@ -802,8 +833,8 @@ def decimal_u(x, u, precision=None, compact=False,
         precision = precision_rule_dpg(u)
     precision = int(precision)  # type enforcement
 
-    xr = decimal(x, precision, 0, sign, compact)
-    ur = decimal(u, precision, 0, '', compact)
+    xr = decimal(x, precision, 0, sign, short)
+    ur = decimal(u, precision, 0, '', short)
 
     if unicode:
         return '%s ± %s' % (xr, ur)
@@ -820,7 +851,7 @@ def decimal_u(x, u, precision=None, compact=False,
 #         xr = np.ma.filled(xr, str(np.ma.masked))
 
 
-def uarray(x, u, significant=None, switch=5, compact=False, times='x',
+def uarray(x, u, significant=None, switch=5, short=False, times='x',
            sign='-', unicode=True, latex=False,
            engineering=False):
     """
@@ -830,8 +861,8 @@ def uarray(x, u, significant=None, switch=5, compact=False, times='x',
     x
     u
     precision
-    compact:
-        default False since compactly represented numbers in arrays will be
+    short:
+        default False since shortly represented numbers in arrays will be
         relatively mis-aligned.
     times
     sign
@@ -897,7 +928,7 @@ def uarray(x, u, significant=None, switch=5, compact=False, times='x',
 
         # option 1
         xr = vectorize(decimal_u)(x, u, precision=precision,
-                                  compact=compact, sign=sign,
+                                  short=short, sign=sign,
                                   unicode=unicode, latex=latex)
 
         return xr
@@ -911,13 +942,13 @@ def uarray(x, u, significant=None, switch=5, compact=False, times='x',
 
 
 def sci_array(n, significant=5, sign='-', times='x',  # x10='x' ?
-              compact=False, unicode=None, latex=None, engineering=False):
+              short=False, unicode=None, latex=None, engineering=False):
     """Scientific representation for arrays of scalars"""
     # masked data handled implicitly by vectorize
     # from recipes.array.misc import vectorize
 
     return vectorize(sci)(n, significant=significant, sign=sign,
-                          times=times, compact=compact, unicode=unicode,
+                          times=times, short=short, unicode=unicode,
                           latex=latex, engineering=engineering)
 
 
@@ -962,10 +993,10 @@ def matrix(a, precision=3):
 
 
 # def matrix(a, precision=2, significant=3, switch=5, sign=' ', times='x',
-#           compact=False, unicode=True, latex=False, engineering=False,
+#           short=False, unicode=True, latex=False, engineering=False,
 #           thousands=''):
 #     """"""
-#     q = numeric_array(a, precision, significant, switch, sign, times, compact,
+#     q = numeric_array(a, precision, significant, switch, sign, times, short,
 #                       unicode, latex, engineering, thousands)
 #
 #     return _matrix_repr(q)
@@ -998,7 +1029,7 @@ class PrettyPrinter(pprint.PrettyPrinter):
         # intercept float formatting
         if isinstance(obj, numbers.Real):
             return self._floatFormatFunc(obj, self.precision,
-                                         compact=self.minimalist)
+                                         short=self.minimalist)
 
         # for str, return the str instead of its repr
         if isinstance(obj, str):
