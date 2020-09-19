@@ -56,32 +56,31 @@ class Null(object):
     provided here.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *_, **__):
         """Ignore parameters."""
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *_, **__):
         """Ignore method calls."""
         return self
 
-    def __getattr__(self, name):
+    def __getattr__(self, _):
         """Ignore attribute requests."""
         return self
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, *_):
         """Ignore attribute setting."""
         return self
 
-    def __delattr__(self, name):
+    def __delattr__(self, _):
         """Ignore deleting attributes."""
         return self
-
-    def __repr__(self):
-        """Return a string representation."""
-        return "<Null>"
 
     def __str__(self):
         """Convert to a string and return it."""
         return self.__class__.__name__
+
+    def __bool__(self):
+        return False
 
 
 # singleton
