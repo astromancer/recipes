@@ -2,8 +2,10 @@
 
 if __name__ == '__main__':
     import sys
-    from recipes.introspection.imports import tidy
+    from recipes.introspect.imports import tidy
     import motley
+
+    # TODO: argparse options 
 
     filename = sys.argv[1]
     debug = False

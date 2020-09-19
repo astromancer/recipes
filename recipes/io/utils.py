@@ -17,11 +17,14 @@ import itertools as itt
 import glob
 import json
 
-
+from recipes.regex import glob_to_regex
+import re
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
 MODES  = {pickle: 'b', json: ''}
 
+
+BASH_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
 
 # def dumper(obj):
 #     if hasattr(obj, 'to_json'):
@@ -117,6 +120,35 @@ def iter_files(path, extensions='*', recurse=False):
     # iterate all files with given extensions
     itr = path.rglob if recurse else path.glob
     yield from itt.chain(*(itr(f'*.{ext.lstrip(".")}') for ext in extensions))
+
+
+def bash_expansion(pattern):
+    # handle special bash expansion syntax here  xx{12..15}.fits
+    mo = BASH_BRACES.match(pattern)
+    if mo:
+        folder = Path(pattern).parent
+        head, middle, tail = mo.groups()
+        if '..' in middle:
+            items = range(*map(int, middle.split('..')))
+        else:
+            items = middle.split(',')
+        
+        for x in items:
+            yield f'{head}{x}{tail}'
+
+
+# def bash_expansion_filter(pattern):
+#     # handle special bash expansion syntax here  xx{12..15}.fits
+#     mo = REGEX_BASH_RANGE.match(pattern)
+#     if mo:
+#         # special numeric sequence pattern.  Make it a glob expression.
+#         head, start, stop, tail = mo.groups()
+#         r = range(int(start), int(stop))
+#         key = f'{head}{{{",".join(map(str, r))}}}{tail}'
+#         #
+#         regex = glob_to_regex(key)
+#         folder = Path(pattern).parent
+#         yield from filter(regex.match, map(str, folder.iterdir()))
 
 
 def iter_ext(files, extensions='*'):

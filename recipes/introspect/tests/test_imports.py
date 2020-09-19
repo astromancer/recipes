@@ -1,6 +1,6 @@
 import ast
 import textwrap
-from recipes.introspection.imports import ImportCapture, tidy_source
+from recipes.introspect.imports import ImportCapture, tidy_source
 
 
 def test_detect_decorator():

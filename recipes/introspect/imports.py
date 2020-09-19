@@ -27,10 +27,11 @@ MODULE_GROUP_NAMES = ['std', 'third-party', 'local', 'relative']
 
 # list of local module names
 # TODO: this in separate file
-LOCAL_MODULES = ['obstools', 'graphical', 'pySHOC', 'recipes', 'tsa', 'mCV',
+LOCAL_MODULES = ['obstools', 'graphical', 'pyshoc', 'recipes', 'tsa', 'mCV',
                  'motley', 'salticam']
 
-
+# FIXME: unscoped imports do not get added to top!!!
+# FIXME: too many blank lines after module docstring
 # FIXME: this weird gotcha:
 # import logging
 # import logging.config # THIS WILL GET REMOVED!
@@ -124,11 +125,11 @@ def get_module_names(node, split=True, depth=None):
         if len(names) == 1:
             names = names[0]
         else:
-            TypeError(f'Encountered `import {", ".join(names)}`.' +
-                      'Please split single line, multi-module import '
-                      'statements first.  This can be done by using '
-                      '`ImportCapture(split=True).visit(ast.parse(source_code)`'
-                      )
+            TypeError(
+                f'Encountered `import {", ".join(names)}`.' +
+                'Please split single line, multi-module import '
+                'statements first.  This can be done by using '
+                '`ImportCapture(split=True).visit(ast.parse(source_code))`')
     else:
         raise TypeError('Invalid Node type %r' % node)
 
@@ -312,10 +313,10 @@ def make_tree(statements, aesthetic=True, alphabetic=False, ):
 
 
 def get_tree(source, up_to_line=math.inf, filter_unused=True,
-             alphabetic=False, aesthetic=True, preserve_scope=True):
+             alphabetic=False, aesthetic=True, unscope=False):
     # Capture import nodes
     split_multi_module = True
-    net = ImportCapture(up_to_line, not preserve_scope, split_multi_module,
+    net = ImportCapture(up_to_line, unscope, split_multi_module,
                         filter_unused)
     importsTree = net.visit(ast.parse(source))
 
@@ -324,18 +325,18 @@ def get_tree(source, up_to_line=math.inf, filter_unused=True,
 
 
 def get_tree_file(filename, up_to_line=math.inf, filter_unused=True,
-                  alphabetic=False, aesthetic=True, preserve_scope=True):
+                  alphabetic=False, aesthetic=True, unscope=False):
     filename = str(filename)
     with open(filename) as fp:
         source = fp.read()
 
     root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
-                              aesthetic, preserve_scope)
+                              aesthetic, unscope)
     return root
 
 
 def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
-         aesthetic=True, preserve_scope=True, keep_multiline=True,
+         aesthetic=True, unscope=False, keep_multiline=True,
          headers=None, write_to=None, dry_run=False, report=False):
     """
     Tidy up import statements that might lie scattered throughout hastily
@@ -353,9 +354,9 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     alphabetic: bool
         sort alphabetically
     aesthetic: bool
-        sort aesthetically. The sorting rules are as follow:
-        # TODO
-    preserve_scope: bool
+        sort aesthetically. The sorting rules are as follow: # TODO
+
+    unscope: bool 
         Whether or not to move the import statements that are in a local scope
     headers: bool or None
         whether to print comment labels eg 'third-party libs' above different
@@ -396,7 +397,7 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
         stream = open(write_to, 'w')
 
     _tidy(source, stream, up_to_line, filter_unused, alphabetic, aesthetic,
-          preserve_scope, keep_multiline, headers, report)
+          unscope, keep_multiline, headers, report)
 
     s = None
     if dry_run:
@@ -414,21 +415,21 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
 
 
 def tidy_source(source, up_to_line=math.inf, filter_unused=True,
-                alphabetic=False, aesthetic=True, preserve_scope=True,
+                alphabetic=False, aesthetic=True, unscope=False,
                 keep_multiline=True, headers=None, report=False):
     #
     with io.StringIO() as output_stream:
         _tidy(source, output_stream, up_to_line, filter_unused, alphabetic,
-              aesthetic, preserve_scope, keep_multiline, headers, report)
+              aesthetic, unscope, keep_multiline, headers, report)
         return output_stream.getvalue()
 
 
 def _tidy(source, output_stream, up_to_line=math.inf, filter_unused=True,
-          alphabetic=False, aesthetic=True, preserve_scope=True,
+          alphabetic=False, aesthetic=True, unscope=False,
           keep_multiline=True, headers=None, report=False):
     #
     root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
-                              aesthetic, preserve_scope)
+                              aesthetic, unscope)
     # at this point the import statements should be grouped and sorted
     # correctly in new tree
     if report:
@@ -716,7 +717,8 @@ class ImportCapture(ast.NodeTransformer):
             if self.split and len(node.names) > 1:
                 new_nodes = []
                 for i, alias in enumerate(node.names):
-                    new_node = ast.Import([ast.alias(alias.name, alias.asname)])
+                    new_node = ast.Import(
+                        [ast.alias(alias.name, alias.asname)])
                     new_nodes.append(new_node)
 
                 for _ in self._current_names:
