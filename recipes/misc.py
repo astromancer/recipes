@@ -8,7 +8,7 @@ import sys
 import shutil
 import logging
 from numbers import Number
-from collections import Set, Mapping, deque
+from collections import abc, deque
 
 # relative libs
 import numpy as np
@@ -66,7 +66,7 @@ def get_terminal_size(fallback=(80, 24)):
         with config_file.open() as fp:
             raw = fp.read()
             for j, s in enumerate(('width', 'height')):
-                mo = re.search('c.ConsoleWidget.console_%s = (\d+)' % s, raw)
+                mo = re.search(rf'c.ConsoleWidget.console_{s} = (\d+)', raw)
                 if mo:
                     w_h = int(mo.group(1))
                 else:
@@ -98,10 +98,10 @@ def getsize(obj_0):
         if isinstance(obj, zero_depth_bases):
             pass  # bypass remaining control flow and return
 
-        elif isinstance(obj, (tuple, list, Set, deque)):
+        elif isinstance(obj, (tuple, list, abc.Set, deque)):
             size += sum(inner(i) for i in obj)
 
-        elif isinstance(obj, Mapping) or hasattr(obj, 'items'):
+        elif isinstance(obj, abc.Mapping) or hasattr(obj, 'items'):
             size += sum(inner(k) + inner(v) for k, v in obj.items())
 
         # Check for custom object instances - may subclass above too
