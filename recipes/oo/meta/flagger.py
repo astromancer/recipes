@@ -1,9 +1,9 @@
 """
-Tricks with metaclasses
+Flag and collect methods in your classes
 """
 
 
-def flaggerFactory(flag='_flagged', collection='_flagged'):
+def factory(flag='_flagged', collection='_flagged'):
     """
     Factory for creating class-decorator pair for method flagging and collection
 
@@ -24,7 +24,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     Examples
     --------
     >>> # implicit alias declaration
-    ... AliasManager, alias = flaggerFactory(collection='_aliases')
+    ... AliasManager, alias = factory(collection='_aliases')
     ...
     ... class Child(AliasManager):
     ...     def __init__(self):
@@ -50,8 +50,8 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     class MethodFlaggerMeta(type):
         """Metaclass to collect methods flagged with decorator"""
 
-        def __new__(mcs, name, bases, namespace, **kws):
-            cls = super().__new__(mcs, name, bases, namespace)
+        def __new__(cls, name, bases, namespace, **kws):
+            cls = super().__new__(cls, name, bases, namespace)
 
             # emulate inheritance for the flagged methods
             coll = {}
@@ -64,6 +64,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
             # NOTE: will only work for hashable args passed to flagger
             # set the collection attribute as a class variable
             setattr(cls, collection, coll)
+
             return cls
 
     # **************************************************************************
@@ -72,7 +73,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
         Mixin that collects the flagged methods in a dict and assigns it to the
         %s attribute.
         """
-
+        # FIXME: can do this in MethodFlaggerMeta.__call__
         def __init__(self, *args, **kw):
             # bind the flagged methods to the instance
             # logging.debug('Collected these functions: %s', getattr(self, collection))
@@ -104,7 +105,7 @@ def flaggerFactory(flag='_flagged', collection='_flagged'):
     return FlaggedMixin, flagger
 
 
-def altflaggerFactory(flag='_flagged', collection='_flagged'):
+def altFactory(flag='_flagged', collection='_flagged'):
     """
     Factory for creating class-decorator pair for method flagging and collection.
     This implementation avoids using a metaclass (in some cases this plays better
@@ -114,7 +115,7 @@ def altflaggerFactory(flag='_flagged', collection='_flagged'):
 
     Examples
     --------
-    AliasManager, alias = altflaggerFactory(collection='aliases')
+    AliasManager, alias = altFactory(collection='aliases')
     class Foo( AliasManager ):
         def __init__(self):
             super().__init__()
@@ -141,7 +142,7 @@ def altflaggerFactory(flag='_flagged', collection='_flagged'):
         """
 
         def __init__(self, *args, **kw):
-            # collect the flagged methods via introspection
+            # collect the flagged methods via introspect
             _collection = {}
             for name in dir(self):
                 method = getattr(self, name)

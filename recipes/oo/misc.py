@@ -18,6 +18,55 @@ class Singleton(object):
         return getattr(self.instance, name)
 
 
+#
+# Singleton/BorgSingleton.py
+# Alex Martelli's 'Borg'
+
+# class Borg:
+#     _shared_state = {}
+#
+#     def __init__(self):
+#         self.__dict__ = self._shared_state
+#
+#
+# class Singleton(Borg):
+#     def __init__(self, arg):
+#         Borg.__init__(self)
+#         self.val = arg
+#
+#     def __str__(self):
+#         return self.val
+
+
+class SelfAwareness(type):
+    """SelfAware type class"""
+    def __call__(cls, instance=None, *args, **kws):
+        # this is here to handle initializing the object from an already
+        # existing instance of the class
+        if isinstance(instance, cls):
+            return instance
+
+        return super().__call__(instance, *args, **kws)
+
+
+
+class SelfAware(metaclass=SelfAwareness):
+    """"
+    A class which is aware of members of its own class. When initializing with
+    an already existing instance, `__init__` is skipped and the original object
+    is returned
+
+    Examples
+    --------
+    >>> class A(SelfAware): 
+            def __init__(self, a): 
+                self.a = a 
+
+    >>> a = A(1)
+    >>> a is A(A(A(a)))  # True
+    """
+
+
 class ClassProperty(property):
     """
     Allows properties to be accessed from class or instance
@@ -49,39 +98,9 @@ class ClassProperty(property):
     >>> foo.name = 'Yo'
     >>> print((foo.name, Foo.name)) # ('Yo', 'Yo')
     >>> Foo.name = 'zzz'
-    >>> print(foo.name, Foo.name) # ('?', '?')
+    >>> print(foo.name, Foo.name) # ('zzz', 'zzz')
 
     """
 
     def __get__(self, cls, owner):
         return self.fget.__get__(None, owner)()
-
-
-class SelfAware(object):  # SelfAware
-    """
-    Implements a new instance from existing instance usage pattern
-
-    Example:
-        A = SelfAware
-        A(A(A(1)))
-    """
-    _skip_init = False
-
-    def __new__(cls, *args):
-        if isinstance(args[0], cls):
-            instance = args[0]
-            instance._skip_init = True
-            return instance
-        else:
-            return super().__new__(cls)
-
-    def __init__(self, a):
-        if self._skip_init:
-            return
-        else:
-            self.a = a
-
-
-if __name__ == '__main__':
-    A = SelfAware
-    A(A(A(1)))
