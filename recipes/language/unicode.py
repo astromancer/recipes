@@ -1,12 +1,21 @@
-# TODO: class for these : unicode.super.j # 'ʲ'
+# TODO: class for these : unicode.subscript('i=1') # 'ᵢ₌₀'
 
 # SUB_SYMBOLS = '₊ 	₋ 	₌ 	₍ 	₎ 	⁻'
-SUP_NRS = list('⁰¹²³⁴⁵⁶⁷⁸⁹')
-SUB_NRS = list('₀₁₂₃₄₅₆₇₈₉')
+SUP_NRS = '⁰¹²³⁴⁵⁶⁷⁸⁹'  # list(
+SUB_NRS = '₀₁₂₃₄₅₆₇₈₉'  # list(
+
+
+# t = str.maketrans(''.join(map(chr, range(48, 58))), ''.join(SUP_NRS))
+
+class UnicodeTranslate(object):
+    def __init__(self, charset):
+        self.__dict__.update(**charset)
+
 
 SUB_LATIN = dict(a='ₐ',
                  e='ₑ',
                  h='ₕ',
+                 j='ⱼ',
                  k='ₖ',
                  l='ₗ',
                  m='ₘ',
@@ -18,7 +27,8 @@ SUB_LATIN = dict(a='ₐ',
                  t='ₜ',
                  u='ᵤ',
                  v='ᵥ',
-                 x='ₓ')
+                 x='ₓ'),
+                #  y='ᵧ') # this is a gamma!
 
 SUP_LATIN = dict(a='ᵃ',
                  b='ᵇ',
@@ -45,3 +55,5 @@ SUP_LATIN = dict(a='ᵃ',
                  x='ˣ',
                  y='ʸ',
                  z='ᶻ')
+
+super = UnicodeTranslate(dict(zip(map(chr, range(48, 58)), SUP_NRS)))
