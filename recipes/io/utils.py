@@ -19,9 +19,12 @@ import json
 
 from recipes.regex import glob_to_regex
 import re
+import numpy as np
+
+
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
-MODES  = {pickle: 'b', json: ''}
+MODES = {pickle: 'b', json: ''}
 
 
 BASH_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
@@ -32,6 +35,7 @@ BASH_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
 #     return obj.__dict__
 
 # return dumps(some_big_object, default=dumper)
+
 
 def guess_format(filename):
     # use filename to guess format
@@ -129,13 +133,64 @@ def bash_expansion(pattern):
         folder = Path(pattern).parent
         head, middle, tail = mo.groups()
         if '..' in middle:
-            items = range(*map(int, middle.split('..')))
+            start, stop = map(int, middle.split('..'))
+            items = range(start, stop + 1)
+            # bash expansion is inclusive of both numbers in brackets
         else:
             items = middle.split(',')
-        
+
         for x in items:
             yield f'{head}{x}{tail}'
 
+
+def bash_contraction(items):
+    if len(items) == 1:
+        return items[0]
+
+    fenced = []
+    items = np.array(items)
+    try:
+        nrs = items.astype(int)
+    except ValueError as err:
+        fenced = items
+    else:
+        splidx = np.where(np.diff(nrs) != 1)[0] + 1
+        indices = np.split(np.arange(len(nrs)), splidx)
+        nrs = np.split(nrs, splidx)
+        for i, seq in enumerate(nrs):
+            if len(seq) == 1:
+                fenced.extend(items[indices[i]])
+            else:
+                fenced.append(brace_range(items[0], seq))
+
+    return brace_list(fenced)
+
+
+def common_start(items):
+    common = ''
+    for letters in zip(*items):
+        if len(set(letters)) > 1:
+            break
+        common += letters[0]
+    return common
+
+
+def brace_range(stem, seq):
+    zfill = len(str(seq[-1]))
+    pre = stem[:-zfill]
+    sep = ',' if len(seq) == 2 else '..'
+    s = sep.join(np.char.zfill(seq[[0, -1]].astype(str), zfill))
+    return f'{pre}{{{s}}}'
+
+
+def brace_list(items):
+    if len(items) == 1:
+        return items[0]
+
+    pre = common_start(items)
+    i0 = len(pre)
+    s = ','.join(sorted(item[i0:] for item in items))
+    return f'{pre}{{{s}}}'
 
 # def bash_expansion_filter(pattern):
 #     # handle special bash expansion syntax here  xx{12..15}.fits
