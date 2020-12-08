@@ -29,7 +29,7 @@ def _make_key(master_key, funcs):
     return sort_key
 
 
-def sortmore(*lists, **kws):
+def cosort(*lists, **kws):
     """
     Extended co-sorting of lists. Sort any number of lists simultaneously
     according to:
@@ -125,8 +125,8 @@ def sortmore(*lists, **kws):
     return tuple(map(list, zip(*res)))
 
 
-def cosort(*lists, key=None, order=1):
-    return sortmore(*lists, key=key, order=order)
+def sortmore(*lists, key=None, order=1):
+    return cosort(*lists, key=key, order=order)
 
 
 def sort_by_index(*its, index=None):

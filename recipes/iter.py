@@ -121,7 +121,7 @@ def chunker(itr, size):
 
 def group_more(func=_echo, *its, **kws):
     # avoid circular import
-    from recipes.containers.lists import cosort
+    from recipes.lists import cosort
 
     its = cosort(*its, key=func)
     zipper = itt.groupby(zip(*its), on_zeroth(func))

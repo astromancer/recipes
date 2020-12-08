@@ -6,13 +6,13 @@ from collections import Callable
 import logging
 
 # relative libs
-from ..containers.sets import OrderedSet
-from .utils import iocheck, read_data_from_file
+from ..sets import OrderedSet
+from .utils import iocheck, read_lines
 
-from recipes.introspection.utils import get_module_name
+from recipes.logging import get_module_logger
 
 # module level logger
-logger = logging.getLogger(get_module_name(__file__))
+logger = get_module_logger()
 
 
 def resolver(given_path, input_):
@@ -167,7 +167,7 @@ def to_list(data, check=None, **kws):
         #  actual data
         elif os.path.split(toread)[-1].startswith('@'):
             try:
-                data = read_data_from_file(toread, readlines)
+                data = read_lines(toread, readlines)
             except IOError:
                 msg = 'Invalid filename list: %s' % data[0]
                 if raise_error:
@@ -256,7 +256,7 @@ if __name__ == '__main__':
 #             #if input is a str not matching include expression. i.e not intended single as single file
 #             elif not data[0].endswith( include ):                         #if the input is a text list with filenames
 #                 try:
-#                     data = read_data_from_file( toread, readlines )
+#                     data = read_lines( toread, readlines )
 #
 #                 except IOError:
 #                     msg = 'Invalid filename list: %s' %data[0]

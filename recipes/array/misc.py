@@ -6,7 +6,7 @@ Common algorithms involving arrays
 import numpy as np
 
 # local libs
-from recipes.containers.lists import flatten, where_duplicate
+from recipes.lists import flatten, where_duplicate
 
 
 # from IPython import embed
@@ -51,10 +51,13 @@ def is_broadcastable(shp1, shp2):
 
 
 def row_view(a):
+    a = np.ascontiguousarray(a)
+    
     if a.ndim != 2:
         a = np.atleast_2d(a)
-    a = np.ascontiguousarray(a)
-    # cast each row as a void type with same size as row--> this will be the element to uniquely identify
+    
+    # cast each row as a void type with same size as row --> this will be the 
+    # element to uniquely identify
     dt = np.dtype((np.void, a.dtype.itemsize * a.shape[1]))
     return a.view(np.dtype(dt))
 
