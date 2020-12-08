@@ -32,6 +32,7 @@ def negate(func):
 def on_nth(func, n):
     def wrapped(obj):
         return func(obj[n])
+    return wrapped
 
 
 def on_zeroth(func):
