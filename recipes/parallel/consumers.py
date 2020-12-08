@@ -155,7 +155,7 @@ class ConsumerBase(mp.Process, LoggingMixin):
     def shutdown(self):
         '''shutdown procedure'''
         self.logger.info('%s received sentinel. Exiting.' % self.name)
-        #self.logger.debug('SHIT: %s' %  self.outq.qsize())
+        #self.logger.debug('SH*T: %s' %  self.outq.qsize())
         self.inq.task_done()
 
 
@@ -173,7 +173,7 @@ class ConsumerBase(mp.Process, LoggingMixin):
             #if args is None:
                 ## Poison pill means shutdown
                 #self.logger.info('%s received sentinel. Exiting.' % self.name)
-                ##self.logger.debug('SHIT: %s' %  self.outq.qsize())
+                ##self.logger.debug('SH*T: %s' %  self.outq.qsize())
                 #self.inq.task_done()
 
                 #self.exit.set()

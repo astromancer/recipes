@@ -7,7 +7,7 @@ import os
 import functools
 
 # relative libs
-from ..introspection import get_class_that_defined_method
+from ..introspect import get_class_that_defined_method
 from ..containers.dicts import pformat
 
 

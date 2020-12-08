@@ -3,13 +3,15 @@ A collection of awesome decorators
 """
 
 # from .path import path
-from .expose import expose
+# from .expose import expose
 
 # these imports enable the following usage pattern:
 # from decor import expose
 # @expose.args
 # def foo():
 #     ...
+
+# TODO: REALLY NEED A DECORATOR that can flag all methods in a class
 
 
 def raises(kind):

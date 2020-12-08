@@ -218,7 +218,7 @@ class ProcessPool(LoggingMixin):
 
             self.logger.info('Killing spree complete')
 
-        #the queue may not be empty because of passive (fucked up) workers
+        #the queue may not be empty because of passive workers
         #(or some other reason!!??)
         while True:
             leftover = []
@@ -229,7 +229,7 @@ class ProcessPool(LoggingMixin):
                 logging.debug('Queue is empty!')
                 break
         if len(leftover):
-            self.logger.warning('The following shit was left in the queue: %s'
+            self.logger.warning('The following was left in the queue: %s'
                            % str(leftover))
 
         # All the processes in the pool are now stopped

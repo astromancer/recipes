@@ -16,6 +16,8 @@ def _checks(wsize, overlap, n, axis):
                          f'smaller than window size ({wsize})')
 
 
+# FIXME: does not always pad out to the correct length!
+
 def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     """
     Fold (window) an array along a given `axis` at given `size`, with successive
@@ -48,7 +50,8 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     >>> q = fold(np.arange(n), size, overlap)
     >>> k = 0
     >>> q[0, overlap + k] *= 10
-    >>> q[1, k] == q[0, overlap + k]  # is True
+    >>> q[1, k] == q[0, overlap + k]
+    True
 
     """
     a = np.asanyarray(a)
@@ -205,7 +208,7 @@ def rebin(x, binsize, t=None, e=None):
 #     times that the index corresponding to that element would be repeated in
 #     the strided array.
 #     """
-#     from recipes.containers.lists import count_repeats, sortmore
+#     from recipes.lists import count_repeats, sortmore
 #
 #     I = fold(np.arange(N), wsize, overlap).ravel()
 #     if np.ma.is_masked(I):
