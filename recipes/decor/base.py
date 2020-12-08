@@ -24,6 +24,80 @@ class DecoratorBase(object):
         return self.func(*args, **kws)
 
 
+class Decorator:
+    """
+    Decorator class with optional arguments. Can be pickle, unlike function based decorators / factory.
+
+    There are two distinct use cases
+    1) No explicit arguments provided to decorator.
+    eg.:
+
+    >>> @decorator
+    ... def foo():
+    ...    return 'did something'
+
+    In this case the wrapper will be built upon construction in `__new__`
+
+    2) Explicit arguments and/or keywords provided to decorator.
+    eg.:
+
+    >>> @decorator('hello', foo='bar')
+    ... def baz(*args, **kws):
+    ...    ...
+
+    In this case the wrapper will be built upon first call to function
+
+    NOTE: You cannot use this class like:
+    @decorator(some_callable)
+
+    """
+    func = None
+
+    def __init__(self, *args, **kws):
+        """
+        Inherited classes can implement stuff here, for example do something
+        with the `args` and `kws`
+        """
+
+        if len(args) == 1 and callable(args[0]):
+            # No arguments provided to decorator.
+            # No initialization necessary
+            super().__init__()
+            self.wrap(args[0])
+        else:
+            # Explicit arguments and/or keywords provided to decorator.
+            super().__init__(*args, **kws)
+
+    def __call__(self, *args, **kws):
+
+        if self.func is None:
+            # The wrapped function has not yet been created - arguments passed
+            # to decorator constructor
+            self.wrap(args[0])  # make the wrapped function
+            return self  # 
+
+        # The wrapped function has already been created
+        return self.wrapper(*args, **kws)  # call the wrapped function
+
+    def wrapper(self, *args, **kws):
+        return self.func(*args, **kws)
+
+    def wrap(self, func):
+        """Null wrapper. To be implemented by subclass"""
+        
+        # for decorated methods: make wrapped function MethodType to avoid
+        # errors downstream
+        # if inclass(func):
+        #     # FIXME: binds to the wrong class!! 
+        #       at build time this function is still unbound!
+        #     func = types.MethodType(func, self)
+
+        # update __call__ method to look like func
+        functools.update_wrapper(self, func)
+        self.func = func
+        
+
+
 # class ArgDecor():
 #     def __init__(self, *args, **kws):
 #         """
@@ -61,7 +135,7 @@ class DecoratorBase(object):
 #         return func
 
 
-class OptionalArgumentsDecorator(object):
+class OptionalArgumentsDecorator:
     """
     Decorator class with optional arguments. Can be pickle, unlike function based decorators / factory.
 
@@ -128,7 +202,7 @@ class OptionalArgumentsDecorator(object):
             # The wrapped function has not yet been created - arguments passed to decorator constructor
             logging.debug(
                 'not wrapped yet. creating wrapper. args: %s; kws: %s' % (
-                args, kws))
+                    args, kws))
             func = args[0]
             return self.make_wrapper(func)  # return the wrapped function
 
@@ -152,38 +226,4 @@ class OptionalArgumentsDecorator(object):
         return func
 
 
-if __name__ == '__main__':
-    # logging.basicConfig(level=logging.DEBUG)
 
-    class Foo():
-        @OptionalArgumentsDecorator
-        def method1(self):
-            print('method1')
-
-        @OptionalArgumentsDecorator()
-        def method2(self):
-            print('method2')
-
-        @OptionalArgumentsDecorator(hello='world')
-        def method3(self):
-            print('method3')
-
-
-    @OptionalArgumentsDecorator
-    def foo1():
-        print('foo1')
-
-
-    @OptionalArgumentsDecorator()
-    def foo2():
-        print('foo2')
-
-
-    # test
-    foo = Foo()
-    foo.method1()
-    foo.method2()
-    foo.method3()
-
-    foo1()
-    foo2()
