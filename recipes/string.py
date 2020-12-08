@@ -1,4 +1,8 @@
 import re
+import numbers
+
+import numpy as np
+
 
 class Percentage(object):
 
@@ -40,17 +44,15 @@ class Percentage(object):
         ----------
         total : number, array-like
             Any number
-            
+
         """
-        if isinstance(total, (number, np.ndarray)):
+        if isinstance(total, (numbers.Real, np.ndarray)):
             return self.frac * total
-        
+
         try:
             return self.frac * np.asanyarray(total, float)
         except ValueError:
             raise TypeError('Not a valid number or numeric array') from None
-
-
 
 
 def remove_brackets(line, brackets='()'):
@@ -142,6 +144,15 @@ def match_brackets(s, brackets='()', return_index=True, must_close=False):
     if return_index:
         return None, (None, None)
 
+
+def iter_brackets(s, brackets='()', return_index=True):
+    while True:
+        sub, (i, j) = match_brackets(s, brackets)
+        if j:
+            yield s[i+1:j], (i, j)
+            s = s[j+1:]
+        else:
+            break
 
 
 def rreplace(s, mapping):
