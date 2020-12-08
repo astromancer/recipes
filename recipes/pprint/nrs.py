@@ -17,6 +17,7 @@ import numpy as np
 
 # local libs
 from recipes.array.misc import vectorize
+from recipes.string import rreplace
 
 # note: unicode literals below python3 only!
 # see: https://docs.python.org/3/howto/unicode.html
@@ -71,6 +72,35 @@ sequences = (list, tuple)
 # Regex matchers for decimal and scientific notation
 # SCI_SRE = re.compile('[+-]?\d\.?\d?e[+-]?(\d\d)', re.ASCII)
 # DECIMAL_SRE = re.compile('[+-]?\d+\.(0*)[1-9][\d]?', re.ASCII)
+
+
+# Docstring helpers
+PRECISION = """\
+        The unit and/or numerical precision for the conversion, by default 's'.
+        If str, should start with one of 'h', 'm', or 's' and optionally end on 
+        a digit 0-9. Eg: 'h1' will return the number as a string in units of
+        hours with a decimal precision of 1, while 's8' will return the number
+        as an sexagesimal (hms) string of with a decimal precision of 8. If no 
+        digit is given, eg. 's', no rounding will be done.
+        """
+BASE_UNIT = """\
+        The unit of the leftmost number in the tuple, by default 'h' If the time
+        is desired in units of (minutes, seconds), for example, use
+        `base_unit='m'` and `precision='s'`. Using `base_unit='s'` will simply
+        wrap the input number in a tuple.
+        """
+
+
+def make_doc(func):
+    """docstring helper"""
+    doc = func.__doc__
+    func.__doc__ = rreplace(doc, {'{PRECISION}': PRECISION,
+                                  '{BASE_UNIT}': BASE_UNIT})
+    return func
+
+
+def _echo(x):
+    return x
 
 
 def signum(n):
@@ -167,22 +197,28 @@ def _check_pad(pad):
     return pad, char
 
 
+@make_doc
 def to_sexagesimal(t, base_unit='h', precision='s'):
     """
     Convert time in seconds to tuple in base 60 units. Basic usage will
-    result in a 3-tuple with floats for (hours, minutes, seconds).  If the
-    time is desired in units of (minutes, seconds), pass `base_unit='m'`.
-    Using `base_unit='s'` will simply wrap the input number in a tuple.
+    result in a 3-tuple with floats for (hours, minutes, seconds). 
+
+    For negative input numbers, all elements in the returned tuple will be 
+    negative.
 
     Parameters
     ----------
-    t: float
+    t : float
         time in seconds
-    base_unit
+    base_unit : str, optional
+        {BASE_UNIT}
+    precision : str or int, optional
+        {PRECISION}
 
     Returns
     -------
-    namedtuple
+    tuple
+        Sexagesimal representation of the number
     """
     return tuple(_to_sexa(t, base_unit, precision))[::-1]
 
@@ -202,17 +238,19 @@ def _to_sexa(t, base_unit='h', precision='s'):
     assert v >= w, 'Base unit must be greater that unit of precision'
 
     # compute parts and round
-    t = t / 60 ** w
+    s = [1, -1][t < 0]
+    t = abs(t) / 60 ** w
     for _ in range(v - w):
         t, r = divmod(t, 60)
         if p is not None:
             q, r = divmod(round(r, p), 60)
             t += q
             p = None  # only round tail unit
-        yield r
-    yield t
+        yield s * r
+    yield s * t
 
 
+@make_doc
 def resolve_precsion(precision):
     """
     Resolve the unit and number of significant digits for a precision specifier
@@ -221,8 +259,7 @@ def resolve_precsion(precision):
     Parameters
     ----------
     precision : int or str or None
-        if str, should start with one of 'h', 'm', or 's' and optionally end on 
-        a digit 0-9. 
+        {PRECISION}
 
     Returns
     -------
@@ -247,8 +284,8 @@ def resolve_precsion(precision):
     raise ValueError('Invalid precision specifier %r' % precision)
 
 
-def hms(t, precision=None, sep='hms', base_unit='h', short=False,
-        unicode=False):
+@make_doc
+def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False):
     """
     Convert time in seconds to sexagesimal representation. This function can
     abe used get the representation of an input time in base units of minutes or
@@ -261,22 +298,15 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False,
     t : float
         time in seconds
     precision: int or str
-        if str, should start with one of 'h', 'm', or 's' and optionally end on 
-        a digit 0-9. 
-        Eg: 'h1' will return the number as a string in units of hours with a
-        decimal precision of 1, while 's8' will return the number as an hms
-        string of with a decimal precision of 8.
-        If no digit is given, eg 's', no rounding will be done.
+        {PRECSION}
 
-        Note that providing precision as an int, while also specifying 
+        Note that providing precision as an int, while also specifying
         short=True does not gaurantee that the number will be given with all the
         decimal digits filled since superfluous trailing 0s will be stripped.
     sep: str
         separator(s) to use for time representation
     base_unit: str {'h', 'm', 's'}
-        The largest unit for the resulting representation. For example, if
-        the result is desired in units of (minutes, seconds), use
-        `base_unit='m'` and `precision='s'`.
+        {BASE_UNIT}
     short: bool or None
         will strip unnecessary parts from the repr if True.
         eg: '0h00m15.4000s' becomes '15.4s'
@@ -328,13 +358,15 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False,
         sep = sep['hms'.index(base_unit):'hms'.index(unit) + 1]
 
     out = ''
-    for n, p, s in zip(sexa, precision, sep):
+    fun = _echo
+    for i, (n, p, s) in enumerate(zip(sexa, precision, sep)):
         if short and not n:
             continue
         short = False  # only first number can be truncated
 
-        out += pad(decimal(n, p, unicode=unicode), left=(2, '0')) + s
-    return out 
+        out += pad(decimal(fun(n), p, unicode=unicode), left=(2, '0')) + s
+        fun = abs
+    return out
 
 
 # alias
