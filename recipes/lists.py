@@ -11,7 +11,7 @@ import more_itertools as mit
 
 # relative libs
 from .dicts import DefaultOrderedDict
-from ..iter import nth_zip
+from .iter import nth_zip
 
 
 def _echo(_):

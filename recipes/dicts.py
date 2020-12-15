@@ -8,7 +8,7 @@ import types
 import re
 import numbers
 from collections import abc, UserDict, OrderedDict
-from ..string import match_brackets
+from .string import match_brackets
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,

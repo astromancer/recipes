@@ -8,7 +8,7 @@ import functools
 
 # relative libs
 from ..introspect import get_class_that_defined_method
-from ..containers.dicts import pformat
+from ..dicts import pformat
 
 
 def dicts(dict_):
