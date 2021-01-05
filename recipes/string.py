@@ -55,12 +55,6 @@ class Percentage(object):
             raise TypeError('Not a valid number or numeric array') from None
 
 
-def remove_brackets(line, brackets='()'):
-    # TODO
-    pattern = r'\s*\([\w\s]+\)'
-    return re.sub(pattern, '', line)
-
-
 # Brackets('[]').match('hello(world)')
 
 def match_brackets(s, brackets='()', return_index=True, must_close=False):
@@ -72,7 +66,7 @@ def match_brackets(s, brackets='()', return_index=True, must_close=False):
     multiple closed bracket pairs.
 
     If there are nested bracket inside `s`, only the outermost pair will be
-    matched. 
+    matched.
 
     If `s` does not contain the opening bracket, None is always returned
 
@@ -97,7 +91,7 @@ def match_brackets(s, brackets='()', return_index=True, must_close=False):
     -------
     >>> s = 'def sample(args=(), **kws):'
     >>> r, (i, j) = match_brackets(s)
-    >>> r 
+    >>> r
     'args=(), **kws'
     >>> i, j
     (10, 25)
@@ -144,39 +138,101 @@ def match_brackets(s, brackets='()', return_index=True, must_close=False):
     if return_index:
         return None, (None, None)
 
+    return None
+
 
 def iter_brackets(s, brackets='()', return_index=True):
+    """
+    [summary]
+
+    Parameters
+    ----------
+    s : [type]
+        [description]
+    brackets : str, optional
+        [description], by default '()'
+    return_index : bool, optional
+        [description], by default True
+
+    Yields
+    -------
+    [type]
+        [description]
+    """
     while True:
-        sub, (i, j) = match_brackets(s, brackets)
+        sub, (i, j) = match_brackets(s, brackets, return_index=True)
         if j:
-            yield s[i+1:j], (i, j)
+            if return_index:
+                yield s[i+1:j], (i, j)
+            else:
+                yield s[i+1:j]
             s = s[j+1:]
         else:
             break
 
 
-def rreplace(s, mapping):
+def unbracket(s, brackets='{}'):
     """
-    Recursively replace all the characters / sub-strings in subs with the
-    character / string in repl.
+    [summary]
 
     Parameters
     ----------
-    s :     characters / sub-strings to replace
-        if str               - replace all characters in string with repl
-        if sequence of str   - replace each string with repl
-
-    subs
-    repl
+    s : [type]
+        [description]
+    brackets : str, optional
+        [description], by default '{}'
 
     Returns
     -------
+    [type]
+        [description]
+    """
+    un, (i, j) = match_brackets(s, brackets, must_close=True)
+    if i == 0 and j == len(s) - 1:
+        return unbracket(un)
+
+    return s
+
+
+def replace(string, mapping):
+    """
+    Replace all the sub-strings in `s` with the strings in `mapping`.
+    Replacements are done simultaneously (as opposed to recursively).     
+
+    Parameters
+    ----------
+    s : str
+        string on which mapping will take place
+    mapping: dict
+        sub-strings to replace
+
+    Examples
+    --------
+    >>> replace('hello world', dict(hell='lo', wo='', r='ro', d='l'))
+    'loo roll'
+    >>> replace('option(A, B)', {'B': 'A', 'A': 'B'})
+    'option(B, A)'
+
+    Returns
+    -------
+    s: str
 
     """
 
+    unique = set(mapping)
+    ok = unique - set(mapping.values())
+    trouble = unique - ok
+    fix = {key: str(id(key)) for key in trouble}
+    inv = {val: mapping[key] for key, val in fix.items()}
+    good = {key: mapping[key] for key in ok}
+    return  _rreplace(_rreplace(_rreplace(string, good), fix), inv)
+   
+
+def _rreplace(string, mapping):
+    """blind recursive replace"""
     for old, new in dict(mapping).items():
-        s = s.replace(old, new)
-    return s
+        string = string.replace(old, new)
+    return string
 
 
 # import numpy as np

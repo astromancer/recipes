@@ -17,7 +17,7 @@ import numpy as np
 
 # local libs
 from recipes.array.misc import vectorize
-from recipes.string import rreplace
+from recipes.string import replace
 
 # note: unicode literals below python3 only!
 # see: https://docs.python.org/3/howto/unicode.html
@@ -94,7 +94,7 @@ BASE_UNIT = """\
 def make_doc(func):
     """docstring helper"""
     doc = func.__doc__
-    func.__doc__ = rreplace(doc, {'{PRECISION}': PRECISION,
+    func.__doc__ = replace(doc, {'{PRECISION}': PRECISION,
                                   '{BASE_UNIT}': BASE_UNIT})
     return func
 
