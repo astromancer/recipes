@@ -146,9 +146,9 @@ def where(l, item, default=None):
     ----------
     l : list
         The list to search
-    item :
+    item : object
         Item to be searched for
-    default : 
+    default : object
         The default return value in case `item` is not found, by default None
 
     Returns

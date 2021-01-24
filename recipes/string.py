@@ -60,7 +60,7 @@ class Percentage(object):
 def match_brackets(s, brackets='()', return_index=True, must_close=False):
     """
     Find a matching pair of closed brackets in the string `s` and return the
-    encolsed string as well as, optionally, the indices or the bracket pair.
+    encolsed string as well as, optionally, the indices of the bracket pair.
 
     Will return only the first closed pair if the input string `s` contains
     multiple closed bracket pairs.
