@@ -6,17 +6,17 @@ import numpy as np
 
 class Percentage(object):
 
-    regex = re.compile(r'([\d., ])%')
+    regex = re.compile(r'([\d.,]+)\s*%')
 
     def __init__(self, s):
         """
         Convert a percentage string like '3.23494%' to a floating point number
-        and retrieve the actual number (of a total) that it represents
+        and retrieve the actual number (percentage of a total) that it
+        represents
 
         Parameters
         ----------
-        s : str
-            The string representing the percentage, eg: '3%', '12.0001 %'
+        s : str The string representing the percentage, eg: '3%', '12.0001 %'
 
         Examples
         --------
@@ -25,15 +25,20 @@ class Percentage(object):
 
         Raises
         ------
-        ValueError
-            [description]
+        ValueError [description]
         """
         mo = self.regex.search(s)
         if mo:
             self.frac = float(mo.group(1)) / 100
         else:
             raise ValueError(
-                f'Could not interpret string {s!r} as a percentage')
+                f'Could not find a percentage value in the string {s!r}')
+
+    def __repr__(self):
+        return f'Percentage({self.frac:.2%})'
+
+    def __str__(self):
+        return f'{self.frac:.2%}'
 
     def of(self, total):
         """
@@ -55,9 +60,7 @@ class Percentage(object):
             raise TypeError('Not a valid number or numeric array') from None
 
 
-# Brackets('[]').match('hello(world)')
-
-def match_brackets(s, brackets='()', return_index=True, must_close=False):
+def match_brackets(string, brackets='()', return_index=True, must_close=False):
     """
     Find a matching pair of closed brackets in the string `s` and return the
     encolsed string as well as, optionally, the indices of the bracket pair.
@@ -65,36 +68,37 @@ def match_brackets(s, brackets='()', return_index=True, must_close=False):
     Will return only the first closed pair if the input string `s` contains
     multiple closed bracket pairs.
 
-    If there are nested bracket inside `s`, only the outermost pair will be
+    If there are nested bracket inside `string`, only the outermost pair will be
     matched.
 
-    If `s` does not contain the opening bracket, None is always returned
+    If `string` does not contain the opening bracket, None is always returned
 
-    If `s` does not contain a closing bracket the return value will be
+    If `string` does not contain a closing bracket the return value will be
     `None`, unless `must_close` has been set in which case a ValueError is
     raised.
 
     Parameters
     ----------
-    s: str
+    string: str
         The string to parse
     brackets: str, tuple, list
         Characters for opening and closing bracket, by default '()'. Must have
         length of 2
     return_index: bool
         return the indices where the brackets where found
-    must_close: bool
-        Controls behaviour on unmatched bracket pairs. If True a ValueError will
-        be raised, if False will return `None`
+    must_close: int
+        Controls behaviour on unmatched bracket pairs. If 1 or True a ValueError
+        will be raised, if 0 or False `None` will be returned even if there is
+        an opening bracket.  If -1, partial matches are allowed and the partial
+        string beginning one character after the opening bracket will be
+        returned. In this case, if `return_index` is True, the index of the
+        closing brace position will take the value None.
 
     Example
     -------
     >>> s = 'def sample(args=(), **kws):'
     >>> r, (i, j) = match_brackets(s)
-    >>> r
-    'args=(), **kws'
-    >>> i, j
-    (10, 25)
+    ('args=(), **kws' , (10, 25))
     >>> r == s[i+1:j]
     True
 
@@ -103,11 +107,11 @@ def match_brackets(s, brackets='()', return_index=True, must_close=False):
     match: str or None
         The enclosed str
     index: tuple or None
-        (i, j) indices of the actual brackets that were matched
+        (start, end) indices of the actual brackets that were matched
 
     Raises
     ------
-        ValueError if `must_close` is True and there is no matched closing bracket
+    ValueError if `must_close` is True and there is no matched closing bracket
 
     """
 
@@ -116,38 +120,45 @@ def match_brackets(s, brackets='()', return_index=True, must_close=False):
         null_result = (None, (None, None))
 
     left, right = brackets
-    if (left in s):
-        if right not in s:
-            if must_close:
-                raise ValueError(f'No closing bracket {right}')
-            return null_result
+    if left not in string:
+        return null_result
 
-        # 'hello(world)()'
-        pre, match = s.split(left, 1)
-        # 'hello', 'world)()'
-        open_ = 1  # current number of open brackets
-        for i, m in enumerate(match):
-            if m in brackets:
-                open_ += (1, -1)[m == right]
-            if not open_:
-                if return_index:
-                    p = len(pre)
-                    return match[:i], (p, p + i + 1)
-                return match[:i]
+    # if right not in string:
+    #     return null_result
 
-    if return_index:
-        return None, (None, None)
+    # 'hello(world)()'
+    pre, match = string.split(left, 1)
+    # 'hello', 'world)()'
+    open_ = 1  # current number of open brackets
+    for i, m in enumerate(match):
+        if m in brackets:
+            open_ += (1, -1)[m == right]
+        if not open_:
+            if return_index:
+                p = len(pre)
+                return match[:i], (p, p + i + 1)
+            return match[:i]
 
-    return None
+    # land here if (outer) bracket unclosed
+    if must_close == 1:
+        raise ValueError(f'No closing bracket {right}')
+
+    if must_close == -1:
+        i = string.index(left)
+        if return_index:
+            return string[i + 1:], (i, None)
+        return string[i + 1:]
+
+    return null_result
 
 
-def iter_brackets(s, brackets='()', return_index=True):
+def iter_brackets(string, brackets='()', return_index=True, must_close=False):
     """
-    [summary]
+    Iterate through consecutive (non-nested) closed bracket pairs.
 
     Parameters
     ----------
-    s : [type]
+    string : [type]
         [description]
     brackets : str, optional
         [description], by default '()'
@@ -159,39 +170,52 @@ def iter_brackets(s, brackets='()', return_index=True):
     [type]
         [description]
     """
+    if return_index:
+        def yields(sub, i, j):
+            return sub, (i, j)
+    else:
+        def yields(sub, i, j):
+            return sub
+
     while True:
-        sub, (i, j) = match_brackets(s, brackets, return_index=True)
-        if j:
-            if return_index:
-                yield s[i+1:j], (i, j)
-            else:
-                yield s[i+1:j]
-            s = s[j+1:]
+        sub, (i, j) = match_brackets(string, brackets, True, must_close)
+        if sub:
+            yield yields(sub, i, j)
+            string = string[j+1:]
         else:
             break
 
 
-def unbracket(s, brackets='{}'):
+def unbracket(string, brackets='{}'):
     """
-    [summary]
+    Removes arbitrary number of enclosing brackets from string.
+    Roughly equivalent to 
+    >>> string.lstrip(brackets[0]).rstrip(brackets[1])
+    except that only the brackets that are matching pairs will be removed.
+
 
     Parameters
     ----------
-    s : [type]
-        [description]
+    s : str
+        string to be stripped of brackets
     brackets : str, optional
-        [description], by default '{}'
+        string of length 2 with opening and closing bracket pair,
+        by default '{}'
+
+    Example
+    -------
+    >>> unbracket('{{{{hello world}}}}')
+    'hello world'
 
     Returns
     -------
-    [type]
-        [description]
+    string
+        The string with all enclosing brackets removed
     """
-    un, (i, j) = match_brackets(s, brackets, must_close=True)
-    if i == 0 and j == len(s) - 1:
-        return unbracket(un)
-
-    return s
+    inside, (i, j) = match_brackets(string, brackets, must_close=True)
+    if (i == 0) and (j == len(string) - 1):
+        return unbracket(inside)
+    return string
 
 
 def replace(string, mapping):
@@ -225,8 +249,8 @@ def replace(string, mapping):
     fix = {key: str(id(key)) for key in trouble}
     inv = {val: mapping[key] for key, val in fix.items()}
     good = {key: mapping[key] for key in ok}
-    return  _rreplace(_rreplace(_rreplace(string, good), fix), inv)
-   
+    return _rreplace(_rreplace(_rreplace(string, good), fix), inv)
+
 
 def _rreplace(string, mapping):
     """blind recursive replace"""
@@ -243,8 +267,22 @@ def _rreplace(string, mapping):
 #         return s.join(wrappers)
 
 
-def strip_non_ascii(s):
-    return ''.join((x for x in s if ord(x) < 128))
+def strip_non_ascii(string):
+    """
+    Remove all non-ascii characters from a string.
+    
+    Parameters
+    ----------
+    string : str
+        Text to be operated on
+
+    Returns
+    -------
+    str
+        Copy of original text with all non-ascii characters removed
+    """
+    return ''.join((x for x in string if ord(x) < 128))
+
 
 
 # def centre(self, width, fill=' ' ):
