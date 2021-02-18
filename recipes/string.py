@@ -4,6 +4,10 @@ import numbers
 import numpy as np
 
 
+# regexes
+REGEX_SPACE = re.compile(r'\s+')
+
+
 class Percentage(object):
 
     regex = re.compile(r'([\d.,]+)\s*%')
@@ -220,8 +224,8 @@ def unbracket(string, brackets='{}'):
 
 def replace(string, mapping):
     """
-    Replace all the sub-strings in `s` with the strings in `mapping`.
-    Replacements are done simultaneously (as opposed to recursively).     
+    Replace all the sub-strings in `string` with the strings in `mapping`.
+    Replacements are done simultaneously (as opposed to recursively).
 
     Parameters
     ----------
@@ -259,18 +263,28 @@ def _rreplace(string, mapping):
     return string
 
 
-# import numpy as np
-# def wrap(s, wrappers):
-#     if isinstance(wrappers, str):
-#         return wrappers + s + wrappers
-#     elif np.iterable(wrappers):
-#         return s.join(wrappers)
+def remove_suffix(string, suffix):
+    # str.removesuffix python 3.9:
+    if string.endswith(suffix):
+        return string[:-len(suffix)]
+    return string
+
+
+def replace_suffix(string, old_suffix, new_suffix):
+    if string.endswith(old_suffix):
+        return string[:-len(old_suffix)] + new_suffix
+    return string
+
+
+def surround(string, wrappers):
+    left, right = wrappers
+    return left + string + right
 
 
 def strip_non_ascii(string):
     """
     Remove all non-ascii characters from a string.
-    
+
     Parameters
     ----------
     string : str
@@ -283,6 +297,47 @@ def strip_non_ascii(string):
     """
     return ''.join((x for x in string if ord(x) < 128))
 
+
+def strike(text):
+    """
+    Produce strikethrough text using unicode modifiers
+
+    Parameters
+    ----------
+    text : str
+        Text to be struck trough
+
+    Example
+    -------
+    >>> strike('hello world')
+    '̶h̶e̶l̶l̶o̶ ̶w̶o̶r̶l̶d'
+
+    Returns
+    -------
+    str
+        strikethrough text
+    """
+    return '\u0336'.join(text) + '\u0336'
+    # return ''.join(t+chr(822) for t in text)
+
+
+def monospaced(text):
+    """
+    Convert all contiguous whitespace into single space and strip leading and
+    trailing spaces.
+
+    Parameters
+    ----------
+    text : str
+        Text to be re-spaced
+
+    Returns
+    -------
+    str
+        Copy of input string with all contiguous white space replaced with
+        single space " ".
+    """
+    return REGEX_SPACE.sub(' ', text).strip()
 
 
 # def centre(self, width, fill=' ' ):
