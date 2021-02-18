@@ -1,6 +1,8 @@
+import pathlib
+
 
 import re
-import pathlib
+
 from recipes.string import replace
 
 
@@ -10,39 +12,10 @@ UNIX_GLOB_TO_REGEX = {'.': r'\.',
                       '*': '.*',
                       '?': '.'}
 
-
-def glob_to_regex(pattern):
-    # Translate unix glob expression to regex for emulating bash wrt item
-    # retrieval
-    return re.compile(
-        replace(pattern.translate(UNIX_BRACE_TO_REGEX), UNIX_GLOB_TO_REGEX)
-    )
-
-
-class Path(type(pathlib.Path())):  # HACK!
-    def reglob(self, exp):
-        """
-        glob.glob() style searching with regex
-
-        :param exp: Regex expression for filename
-        """
-        m = re.compile(exp)
-
-        names = map(lambda p: p.name, self.iterdir())
-        res = filter(m.match, names)
-        res = map(lambda p: self / p, res)
-
-        return res
-
-
-def terse(retext):
-    """
-    Go from verbose format multiline regex to single line terse representation
-    """
-    # https://stackoverflow.com/a/35641837/1098683
-
-    decomment = re.compile(
-        r"""(?#!py/mx decomment Rev:20160225_1800)
+# translate verbose mode regex to plain mode regex
+RGX_VERBOSE_FLAG = re.compile(r'\(\?x\)()|(\(\?[aiLmsu]*)x([aiLmsu]*\))')
+RGX_TERSE = re.compile(  # FIXME: does not compile with regex!
+    r"""(?#!py/mx decomment Rev:20160225_1800)
         # Discard whitespace, comments and the escapes of escaped spaces and hashes.
           ( (?: \s+                  # Either g1of3 $1: Stuff to discard (3 types). Either ws,
             | \#.*                   # or comments,
@@ -69,7 +42,60 @@ def terse(retext):
           )                          # End $2: Stuff to keep.
         | \\([# ])                   # Or g3of3 $6: Escaped-[hash|space], discard the escape.
         """, re.VERBOSE | re.MULTILINE)
-    return re.sub(decomment, detidy_cb, retext)
+
+
+def glob_to_regex(pattern):
+    # Translate unix glob expression to regex for emulating bash wrt item
+    # retrieval
+    return re.compile(
+        replace(pattern.translate(UNIX_BRACE_TO_REGEX), UNIX_GLOB_TO_REGEX)
+    )
+
+
+class Path(type(pathlib.Path())):
+    """Monkey patch path object to add filename regex search feature"""
+
+    def reglob(self, exp):
+        """
+        glob.glob() style searching with regex
+
+        :param exp: Regex expression for filename
+        """
+        m = re.compile(exp)
+
+        names = map(lambda p: p.name, self.iterdir())
+        res = filter(m.match, names)
+        res = map(lambda p: self / p, res)
+
+        return res
+
+
+def terse(pattern):
+    """
+    Go from verbose format multiline regex to single line terse representation
+    """
+    # https://stackoverflow.com/a/35641837/1098683
+
+    if isinstance(pattern, str):
+        compiler = str
+    elif isinstance(pattern, re.Pattern):
+        pattern = pattern.pattern
+        compiler = re.compile
+    else:
+        err = TypeError(f'Invalid pattern object of class {type(pattern)}.')
+        try:
+            import regex
+        except ModuleNotFoundError:
+            raise err from None
+        else:
+            if isinstance(pattern, regex.regex.Pattern):
+                pattern = pattern.pattern
+                compiler = regex.compile
+            else:
+                raise err from None
+
+    return compiler(RGX_VERBOSE_FLAG.sub(r'\1\2\3',
+                                         RGX_TERSE.sub(detidy_cb, pattern)))
 
 
 def detidy_cb(m):
