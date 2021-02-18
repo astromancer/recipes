@@ -3,13 +3,14 @@ Recipes involving dictionaries
 """
 
 # std libs
+import itertools as itt
 import warnings
 import types
 import re
 import numbers
 from collections import abc, UserDict, OrderedDict
 from .string import match_brackets
-
+from pathlib import Path
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
 # attr=True, ordered=True)
@@ -18,8 +19,8 @@ def invert(d):
     return dict(zip(d.values(), d.keys()))
 
 
-def pformat(dict_, name='', converter=str, brackets='{}', sep=':',
-            post_sep_space=0, item_sep=','):
+def pformat(dict_, name='', key_repr=str, val_repr=str, sep=':', item_sep=',',
+             brackets='{}'):
     """
     pformat (nested) dict types
 
@@ -30,7 +31,7 @@ def pformat(dict_, name='', converter=str, brackets='{}', sep=':',
     name
     brackets
     sep
-    post_sep_space
+
     item_sep
     converter
 
@@ -53,57 +54,65 @@ def pformat(dict_, name='', converter=str, brackets='{}', sep=':',
                    x     : {triple: nested}}}
 
     """
-    s = _pformat(dict_, converter, brackets, sep, post_sep_space, item_sep)
-    indent = ' ' * (len(name) + 1)
-    s = s.replace('\n', '\n' + indent)
-    return '%s(%s)' % (name, s)
-
-
-def _pformat(dict_, converter=str, brackets='{}', sep=':', post_sep_space=0,
-             item_sep=','):
-    assert isinstance(dict_, abc.MutableMapping), 'Object is not a dict'
-
     if brackets in ('', None):
         brackets = [''] * 2
 
     assert len(brackets) == 2, 'Invalid brackets: %r' % brackets
 
-    s = brackets[0]
-    bs = len(brackets[0])
-    last = len(dict_) - 1
-    # make sure we line up the values
-    # note that keys may not be str, so first convert
-    keys = tuple(map(str, dict_.keys()))
-    if len(keys) == 0:
+    string = _pformat(dict_, key_repr, val_repr, sep, item_sep, brackets)
+    string = string.replace('\n', '\n' + ' ' * (len(name) + 1))
+    if name:
+        return '%s(%s)' % (name, string)
+    return string
+
+
+def _pformat(dict_, key_repr=str, val_repr=str, sep=':', item_sep=',',
+             brackets='{}'):
+    assert isinstance(dict_, abc.MutableMapping), 'Object is not a dict'
+
+    if len(dict_) == 0:
         # empty dict
         return brackets
 
-    w = max(map(len, keys)) + post_sep_space
-    for i, (k, v) in enumerate(zip(keys, dict_.values())):
-        if i == 0:
-            indent = 0
+    string = brackets[0]
+    bracket_size = len(brackets[0])
+    # make sure we line up the values
+    # note that keys may not be str, so first convert
+    keys = tuple(map(key_repr, dict_.keys()))
+    width = max(map(len, keys))  # + post_sep_space
+    indents = itt.chain([0], itt.repeat(bracket_size))
+    separators = itt.chain(itt.repeat(item_sep + '\n', len(dict_) - 1),
+                           [brackets[1]])
+    for pre, key, val, post in zip(indents, keys, dict_.values(), separators):
+        string += f'{" ": <{pre}}{key: <{width}s}{sep}'
+        if isinstance(val, dict):
+            part = _pformat(val, key_repr, val_repr, sep, item_sep, brackets)
         else:
-            indent = bs
-
-        space = indent * ' '
-        s += '{}{: <{}s}{} '.format(space, k, w, sep)
-        ws = ' ' * (w + bs + 2)
-        if isinstance(v, dict):
-            ds = _pformat(v, converter, brackets, sep,
-                          post_sep_space, item_sep)
-        else:
-            ds = converter(v)
+            part = val_repr(val)
 
         # objects with multi-line representations need to be indented
-        ds = ds.replace('\n', '\n' + ws)
-        s += ds
-        # closing bracket
-        s += ['%s\n' % item_sep, brackets[1]][i == last]
+        string += part.replace('\n', '\n' + ' ' * (width + bracket_size + 2))
+        # item sep / closing bracket
+        string += post
 
-    return s
+    return string
 
 
-class Pprinter(object):
+def dump(dict_, filename, **kws):
+    """
+    Write dict to file in human readable form
+
+    Parameters
+    ----------
+    dict_ : [type]
+        [description]
+    filename : [type]
+        [description]
+    """
+    Path(filename).write_text(pformat(dict_, **kws))
+
+
+class Pprinter:
     """Mixin class that pretty prints dictionary content"""
 
     def __str__(self):
@@ -113,7 +122,7 @@ class Pprinter(object):
         return pformat(self, self.__class__.__name__)
 
 
-class Invertible(object):
+class Invertible:
     """
     Mixin class for invertible mappings
     """
@@ -174,7 +183,7 @@ class OrderedAttrDict(OrderedDict):
         return cls(super(cls, self).copy())
 
 
-class Indexable(object):
+class Indexable:
     """
     Mixin class that enables dict item access through integer keys like list
 
@@ -241,7 +250,7 @@ class ListLike(Indexable, OrderedDict, Pprinter):
         self[self._auto_name()] = self._convert_item(item)
 
 
-# class Indexable(object):
+# class Indexable:
 #     """Item access through integer keys like list"""
 #
 #     def __missing__(self, key):
@@ -421,12 +430,12 @@ class Many2OneMap(TransDict):
         resolved = self._translated.get(key, key)
         if resolved in self:
             return resolved
-        
-        # resolve by looping through mappings    
+
+        # resolve by looping through mappings
         for resolved in self._loop_mappings(key):
             if resolved in self:
                 return resolved
-        
+
     def __contains__(self, key):
         if super().__contains__(key):
             return True  # no translation needed
@@ -495,7 +504,7 @@ def SENTINEL():
     pass
 
 
-class TerseKws(object):
+class TerseKws:
     """
     Class to assist many-to-one keyword mappings
     """
@@ -513,7 +522,8 @@ class TerseKws(object):
         self.pattern = pattern
         sub = pattern
         while 1:
-            s, (i0, i1) = match_brackets(sub, '[]', return_index=True)
+            s, (i0, i1) = match_brackets(sub, '[]', return_index=True,
+                                         must_close=True)
             # print(s, i0, i1)
             if s is None:
                 regex += sub
@@ -541,7 +551,7 @@ class TerseKws(object):
         return f'{self.__class__.__name__}({self.pattern} --> {self.answer})'
 
 
-class KeywordResolver(object):
+class KeywordResolver:
     """Helper class for resolving terse keywords"""
 
     # TODO: as a decorator!!
