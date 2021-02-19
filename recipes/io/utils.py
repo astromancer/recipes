@@ -1,5 +1,7 @@
 # std libs
 import os
+from recipes.io.bash import brace_expand_iter
+from recipes.string import match_brackets
 import sys
 import pickle
 import warnings
@@ -26,8 +28,6 @@ FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
 MODES = {pickle: 'b', json: ''}
 
-
-BASH_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
 
 # def dumper(obj):
 #     if hasattr(obj, 'to_json'):
@@ -85,16 +85,28 @@ def save_json(filename, data, **kws):
 def iter_files(path, extensions='*', recurse=False):
     """
     Generator that yields all files in a directory tree with given file
-    extension(s), optionally recursing down the directory tree
+    extension(s), optionally recursing down the directory tree. Brace expansion
+    syntax from bash is supported, allowing multiple directory trees to be
+    traversed with a single statement.
 
     Parameters
     ----------
     path : str or Path
         Location of the root folder. Can also be a glob pattern of
         filenames to load eg: '/path/SHA_20200715.000[1-5].fits'
+        Pattern can also contain brace expansion patterns
+        '/path/SHA_202007{15..18}.000[1-5].fits' in which case all valid
+        directories in the range will be traversed.
     extensions : str or tuple or list
         The filename extensions to consider. All files with any of these
-        extensions will be included
+        extensions will be included. The same functionality as is provided by
+        this parameter can be acheived by including the list of file extensions
+        in the expansion pattern. eg: '/path/*.{png,jpg}' will get all png and
+        jpg files from path directory.
+
+    Examples
+    -------- 
+    >>> iter_files
 
     Yields
     -------
@@ -107,103 +119,32 @@ def iter_files(path, extensions='*', recurse=False):
         If the given path is not a directory
     """
 
-    # if isinstance(path, str):
-    # check if this is a wildcard
     path = str(path)
+
+    # handle brace expansion first
+    special = bool(match_brackets(path, '{}', False, must_close=True))
+    if special:
+        for path in brace_expand_iter(path):
+            yield from iter_files(path, extensions, recurse)
+        return
+
+    # handle glob patterns
     if glob.has_magic(path):
-        yield from glob.iglob(path, recursive=recurse)
+        yield from map(Path, glob.iglob(path, recursive=recurse))
         return
 
     path = Path(path)
     if not path.is_dir():
         raise ValueError(f"'{path!s}' is not a directory or a glob pattern")
 
+    # iterate all files with given extensions
     if isinstance(extensions, str):
         extensions = (extensions, )
 
-    # iterate all files with given extensions
-    itr = path.rglob if recurse else path.glob
-    yield from itt.chain(*(itr(f'*.{ext.lstrip(".")}') for ext in extensions))
-
-
-def bash_expansion(pattern):
-    # handle special bash expansion syntax here  xx{12..15}.fits
-    mo = BASH_BRACES.match(pattern)
-    if mo:
-        folder = Path(pattern).parent
-        head, middle, tail = mo.groups()
-        if '..' in middle:
-            start, stop = map(int, middle.split('..'))
-            items = range(start, stop + 1)
-            # bash expansion is inclusive of both numbers in brackets
-        else:
-            items = middle.split(',')
-
-        for x in items:
-            yield f'{head}{x}{tail}'
-
-
-def bash_contraction(items):
-    if len(items) == 1:
-        return items[0]
-
-    fenced = []
-    items = np.array(items)
-    try:
-        nrs = items.astype(int)
-    except ValueError as err:
-        fenced = items
-    else:
-        splidx = np.where(np.diff(nrs) != 1)[0] + 1
-        indices = np.split(np.arange(len(nrs)), splidx)
-        nrs = np.split(nrs, splidx)
-        for i, seq in enumerate(nrs):
-            if len(seq) == 1:
-                fenced.extend(items[indices[i]])
-            else:
-                fenced.append(brace_range(items[0], seq))
-
-    return brace_list(fenced)
-
-
-def common_start(items):
-    common = ''
-    for letters in zip(*items):
-        if len(set(letters)) > 1:
-            break
-        common += letters[0]
-    return common
-
-
-def brace_range(stem, seq):
-    zfill = len(str(seq[-1]))
-    pre = stem[:-zfill]
-    sep = ',' if len(seq) == 2 else '..'
-    s = sep.join(np.char.zfill(seq[[0, -1]].astype(str), zfill))
-    return f'{pre}{{{s}}}'
-
-
-def brace_list(items):
-    if len(items) == 1:
-        return items[0]
-
-    pre = common_start(items)
-    i0 = len(pre)
-    s = ','.join(sorted(item[i0:] for item in items))
-    return f'{pre}{{{s}}}'
-
-# def bash_expansion_filter(pattern):
-#     # handle special bash expansion syntax here  xx{12..15}.fits
-#     mo = REGEX_BASH_RANGE.match(pattern)
-#     if mo:
-#         # special numeric sequence pattern.  Make it a glob expression.
-#         head, start, stop, tail = mo.groups()
-#         r = range(int(start), int(stop))
-#         key = f'{head}{{{",".join(map(str, r))}}}{tail}'
-#         #
-#         regex = glob_to_regex(key)
-#         folder = Path(pattern).parent
-#         yield from filter(regex.match, map(str, folder.iterdir()))
+    yield from iter_files(
+        f'{path!s}.{{{",".join((ext.lstrip(".") for ext in extensions))}}}',
+        recurse
+    )
 
 
 def iter_ext(files, extensions='*'):
@@ -259,9 +200,9 @@ def iter_lines(filename, *section, strip=os.linesep):
             yield s.strip(strip)
 
 
-def read_lines(filename, *section, strip=os.linesep, filterer=None, echo=0):
+def read_lines(filename, *section, strip=os.linesep, filterer=None, echo=False):
     """
-    Read lines from a file given the filename.
+    Read a subset of lines from a given file.
 
     Parameters
     ----------
@@ -271,19 +212,19 @@ def read_lines(filename, *section, strip=os.linesep, filterer=None, echo=0):
         The [start], stop, [step] lines
     strip : str, optional
         characters to strip from lines, by default system specific newline
-    echo : int, optional
-        The number of lines from the file to flush to stdout, by default False
+    echo : bool, optional
+        Whether to print a summary of the read content to stdout,
+        by default False
 
     Returns
     -------
-    [type]
-        [description]
+    list of str
+        Lines from the file
     """
     # Read file content
     content = iter_lines(filename, *section, strip=strip)
     if filterer is not False:
         content = filter(filterer, content)
-
     content = list(content)
 
     # Optionally print the content
@@ -305,7 +246,7 @@ def show_lines(filename, lines):
         if n > echo + ndot:
             msg += ('\n'.join(lines[-ndot:]))
     else:
-        msg = 'File %r is empty!'
+        msg = f'File {filename!r} is empty!'
     return msg
 
 
