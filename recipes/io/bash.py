@@ -5,13 +5,10 @@ from collections import defaultdict
 from pathlib import Path
 import re
 
-import numpy as np
-# todo can you eliminate this dependency?
 from recipes.lists import split_where
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
-RGX_INT = re.compile(r'([^\d]*)(\d+)([^\d]*)')
 
 
 def brace_expand_iter(pattern):
@@ -75,12 +72,20 @@ def brace_contract(items):
         # we have a number sequence! Split sequence into contiguous parts
         fenced = []
         enum = iter(nrs)
-        # split where pointwise difference greater than 1
+        # split where pointwise difference greater than 1. second argument in
+        # api call below is ignored
         parts = split_where(nrs, '', 1, lambda x, _: x - next(enum) > 1)
         for seq in parts:
             fenced.append(_contract(seq))
 
-    return f'{head}{{{",".join(fenced)}}}{tail}'
+    # todo: could recurse here ?
+    # if len(fenced) > 1:
+    #     brace_contract(fenced)
+
+    # combine results
+    brace = '{}' if len(fenced) > 1 else ('', '')
+    middle = ",".join(fenced).join(brace)
+    return f'{head}{middle}{tail}'
 
 
 def _contract(seq):
@@ -89,7 +94,7 @@ def _contract(seq):
     if n == 1:
         return seq[0]
 
-    # zfill first, embrace: eg: {09..12} or {1,2}
+    # zfill first, embrace: eg: {09..12} or {foo,bar}
     first, *_, last = seq
     sep = ',' if n == 2 else '..'
     return f'{{{first:>0{len(str(last))}}{sep}{last}}}'
