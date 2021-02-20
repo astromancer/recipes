@@ -17,6 +17,11 @@ import pytest
 # def hdu_type(filename):
 #     return _BaseHDU.readfrom(filename).__class__
 
+def to_tuple(obj):
+    if isinstance(obj, tuple):
+       return obj
+    return obj,
+
 def echo(*args, **kws):
     return args, tuple(kws.items())
 
@@ -51,6 +56,11 @@ mock = Mock()
 # )
 
 
+# @expected(patterns)
+# def test_brace_expand(pattern, result):
+#     assert bash.brace_expand(pattern) == result
+
+
 class expected:
     """
     Examples
@@ -71,108 +81,150 @@ class expected:
         self.kws = kws
 
     def __call__(self, func):
+
         return Expect(func)(self.items, *self.args, **self.kws)
 
 
 class Expect:
     """
-    Testing helper for checking expected return values for functions. Allows
-    one to build simple paramertized tests of complex function without needing
-    to explicitly type an exhaustive combination of exact function parameters
-    (of which there may be many)
+    Testing helper for checking expected return values for functions/ methods.
+    Allows one to build simple paramertized tests of complex function without
+    needing to explicitly type an exhaustive combination of exact function
+    parameters (of which there may be many)
 
     For example, to test that the function `hms` returns the expected
     values, do the following:
-    >>> ex = Expect(hms)
-    >>> test_hms = ex.expects(
-            {ex.hms(1e4):  '02h46m40.0s',
-             ex.hms(1.333121112e2, 5): '00h02m13.31211s',
-             ex.hms(1.333121112e2, 5, ':'):  '00:02:13.31211',
-             ex.hms(1.333121112e2, 5, short=False): '00h02m13.31211s',
-             ex.hms(1.333121112e2, 'm0', short=False, unicode=True): '00ʰ02ᵐ',
-             ex.hms(119.95, 's0'): '00h02m00s',
-             ex.hms(1000, 'm0', sep=':'): '00:17',
-            }
-        )
+    >>> from recipes.testing import Expect, mock
+    >>> test_hms = Expect(hms)(
+    ...     {mock.hms(1e4):                             '02h46m40.0s',
+    ...      mock.hms(1.333121112e2, 5):                '00h02m13.31211s',
+    ...      mock.hms(1.333121112e2, 5, ':'):           '00:02:13.31211',
+    ...      mock.hms(1.333121112e2, 5, short=False):   '00h02m13.31211s',
+    ...      mock.hms(1.333121112e2, 'm0',  
+    ...               short=False, unicode=True):       '00ʰ02ᵐ',
+    ...      mock.hms(119.95, 's0'):                    '00h02m00s',
+    ...      mock.hms(1000, 'm0', sep=':'):             '00:17',
+    ...      }
+    ... )
 
-    This will automatically construct a test: 'test_dicimal' which has the same
-    signature as the function `decimal`. The sequence of input output pairs
-    passed to the `expects` method is used to parametrize the test, so that
-    pytest will include all cases in your test run. Assigning the output of the
-    `expects` method above to a variable name starting with 'test_' is important
-    for pytest test discovery to work correctly.
+    This will automatically construct a test function: 'test_dicimal' which has
+    the same signature as the function `decimal`, with a single parameter
+    `results` added. The sequence of input output pairs passed to the `expects`
+    method is used to parametrize the test, so that pytest will include all
+    cases in your test run. Assigning the output of the `expects` method above
+    to a variable name starting with 'test_' is important for pytest test
+    discovery to work correctly.
     """
 
-    def __init__(self, func):
+    def __init__(self, func, test_name=None):
+        #
         self.func = func
-        self.sig = inspect.signature(func)
         # crude test for whether this function is defined in a class scope
         self.is_method = (func.__name__ != func.__qualname__)
-        self.test_name, self.test_code = self.make_test(func)
-        setattr(self, func.__name__, self.echo)
+        # get test signature
+        self.sig = inspect.signature(self.func)
 
-    def echo(self, *args, **kws):
-        return args, tuple(kws.items())
+        # mock
+        setattr(self, func.__name__, echo)
+
+        # optional name
+        self.test_name = test_name or f'test_{func.__name__}'
+        self.test_code = None
+
+    def __call__(self, items, *args, **kws):
+        return self.expects(items, *args, **kws)
+
+    def expects(self, items, *args, **kws):
+        """
+        Main worker method to create the test if necessary and parameterize it
+
+        Parameters
+        ----------
+        items : [type]
+            [description]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        if isinstance(items, dict):
+            items = items.items()
+
+        # create the test
+        test = self.make_test()
+
+        # parse the arguments
+        if self.func.__name__.startswith('test_'):
+            # already have the test function defined
+            argspecs = self.get_args(items)
+        else:
+            # test created test function signature has 1 extra parameter
+            argspecs, answers = zip(*items)
+            argspecs = self.get_args(argspecs)
+            argspecs['result'] = answers
+
+        names = list(argspecs.keys())
+        values = zip(*argspecs.values())
+        return pytest.mark.parametrize(names, values, *args, **kws)(test)
 
     def bind(self, *args, **kws):
         ba = self.sig.bind(*args, **kws)
         ba.apply_defaults()
         return ba
 
-    def __call__(self, items, *args, **kws):
-        return self.expects(items, *args, **kws)
-
-    def expects(self, items, *args, **kws):
-
-        if isinstance(items, dict):
-            items = items.items()
-
-        # parse the arguments
-        names, values = self.get_names_values(items)
-
-        # create the test
-        locals_ = {}
-        exec(self.test_code, None, locals_)
-        #test = eval(self.test_name)
-        test = locals_[self.test_name]
-        return pytest.mark.parametrize(names, values, *args, **kws)(test)
-
-    def get_names_values(self, items):
+    def get_args(self, items):
+        # loop through the input argument list (items) and create the full
+        # parameter spec for the function by binding each call pattern
+        # to the function signature. Return a dict keyed on parameter names
+        # containing lists of parameter values for each call.
         values = defaultdict(list)
-        expected = []
-        for spec, answer in items:
-            expected.append(answer)
-
+        for spec in items:
             if not isinstance(spec, WrapArgs):
-                # simple construction without use of mock function
-                spec = WrapArgs(spec)
+                # simple construction without use of mock function. No keyword
+                # values in arg spec
+                spec = WrapArgs(*to_tuple(spec))
 
+            # call signature emulation via mock handled here
             args, kws = spec
             args = (None,) * self.is_method + args
-            ba = self.bind(*args, **dict(kws))
+            args = self.bind(*args, **dict(kws))
 
-            for name, val in tuple(ba.arguments.items())[self.is_method:]:
+            for name, val in tuple(args.arguments.items())[self.is_method:]:
                 values[name].append(val)
 
-        names = tuple(values.keys()) + ('output', )
-        values = tuple(zip(*values.values(), expected))
-        return names, values
+        return values
 
-    def make_test(self, func, gflag=True):
+    def make_test(self):
+
+        if self.func.__name__.startswith('test_'):
+            # already have the test function defined
+            return self.func
+
+        # create the test
+        self.test_code = self.get_test_code()
+
+        locals_ = {}
+        exec(self.test_code, None, locals_)
+        return locals_[self.test_name]
+
+    def get_test_code(self):
+        name = self.func.__name__
+        test_name = self.test_name or f'test_{name}'
+
+        # sig = inspect.signature(func)
         args = ", ".join(self.sig.parameters.keys())
-        name = func.__name__
-        test_name = f'test_{name}'
 
         # explicitly import the function to be tested at the runtime location
         # gloabal statement ensures the test function is in the global namespace
         # at runtime
         code = textwrap.dedent(
             f'''
-            from {func.__module__} import {name}
+            from {self.func.__module__} import {name}
 
             global {name}
-            def {test_name}({args}, output):
-                assert {name}({args}) == output
+            def {test_name}({args}, result):
+                assert {name}({args}) == result
 
             ''')
 
@@ -183,4 +235,4 @@ class Expect:
         # print('running {test_name}')
         # print('{name} in globals?', '{name}' in globals())
         # print('{name} in locals?', '{name}' in locals())
-        return test_name, code
+        return code
