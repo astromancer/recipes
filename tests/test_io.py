@@ -5,7 +5,7 @@ from pathlib import Path
 from recipes.io import bash
 
 
-from recipes.testing import Expect, expected
+from recipes.testing import Expect, mock, expected
 
 # @pytest.fixture(scope="session")
 # def tempfiles(tmp_path_factory):
@@ -20,9 +20,8 @@ from recipes.testing import Expect, expected
 
 
 @pytest.fixture(scope="session")
-def file_with_content(tmp_path_factory):
+def filename(tmp_path_factory):
     """Generate a bunch of empty files for testing"""
-    folder = tmp_path_factory.getbasetemp()
     filename = tmp_path_factory.getbasetemp() / 'testfile.txt'
     with filename.open('w') as fp:
         for i in range(10):
@@ -53,21 +52,18 @@ patterns = {
 
 }
 
+inverted_patterns = list(zip(patterns.values(), patterns.keys()))
 
+# tests
+# ---------------------------------------------------------------------------- #
 test_brace_expand = Expect(bash.brace_expand)(patterns)
 
-# @expected(patterns)
-# def test_brace_expand(pattern, result):
-#     assert bash.brace_expand(pattern) == result
-
-
-@pytest.mark.parametrize(
-    'pattern, result',
+test_brace_contract = Expect(bash.brace_contract)(
+    inverted_patterns +
     [(range(10), '{0..9}')]
-    + list(zip(patterns.values(), patterns.keys()))
 )
-def test_brace_contraction(pattern, result):
-    assert bash.brace_contract(pattern) == result
+# pytest.mark.skip(test_brace_expand, test_brace_contract)
+
 
 # ('test*[78].fits',
 #     ['testfile0007.fits', 'testfile0008.fits',
@@ -78,9 +74,32 @@ def test_brace_contraction(pattern, result):
 #     ['testfile0007.fits', 'testfile0008.fits']),
 
 
-def srange(n):
-    return list(map(str, range(5)))
+def srange(*section):
+    return list(map(str, range(*section)))
 
 
-def test_iter_lines(file_with_content):
-    assert list(iter_lines(file_with_content, 5)) == srange(5)
+def brange(*section):
+    return list(map(str.encode, srange(*section)))
+
+def bnrange(*section):
+    return [b + b'\n' for b in brange(*section)]
+
+test_iter_lines = Expect(iter_lines)(
+    {mock.iter_lines(filename, 5):                      srange(5),
+     mock.iter_lines(filename, 5, 10):                  srange(5, 10),
+     mock.iter_lines(filename, 3, mode='rb'):           brange(3),
+     mock.iter_lines(filename, 3, mode='rb', strip=''): bnrange(3)},
+    transform=list
+)
+
+# @pytest.mark.parametrize(
+#     'section, mode, strip, result',
+#     [((5, ),  'r', None,  srange(5)),
+#      ((3, 8), 'r', None,  srange(3, 8)),
+#       ((3,),  'rb', None, brange(3)),
+#       ((3,),  'rb', '',   bnrange(3)) ]
+#
+# )
+# def test_iter_lines(filename, section, mode, strip, result):
+#     print(filename)
+#     assert list(iter_lines(filename, *section, mode=mode, strip=strip)) == result
