@@ -3,6 +3,54 @@ Some object oriented code patterns.
 """
 
 
+def iter_subclasses(cls, _seen=None):
+    """
+    Generator over all subclasses of a given class, in depth first order.
+
+    >>> list(iter_subclasses(int)) == [bool]
+    True
+
+    >>> class A(object): pass
+    >>> class B(A): pass
+    >>> class C(A): pass
+    >>> class D(B,C): pass
+    >>> class E(D): pass
+    >>>
+    >>> list(iter_subclasses(A))
+    [__main__.B, __main__.D, __main__.E, __main__.C]
+
+    >>> # get ALL (new-style) classes currently defined
+    >>> [cls.__name__ for cls in iter_subclasses(object)] #doctest: +ELLIPSIS
+    ['type', ...'tuple', ...]
+    """
+
+    # recipe from:
+    # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
+
+    if not isinstance(cls, type):
+        raise TypeError('iter_subclasses must be called with '
+                        'new-style classes, not %.100r' % cls)
+    if _seen is None:
+        _seen = set()
+
+    try:
+        subs = cls.__subclasses__()
+    except TypeError:  # fails only when cls is type
+        subs = cls.__subclasses__(cls)
+
+    for sub in subs:
+        if sub not in _seen:
+            _seen.add(sub)
+            yield sub
+
+            for sub in iter_subclasses(sub, _seen):
+                yield sub
+
+
+def list_subclasses(cls):
+    return list(iter_subclasses(cls))
+
+
 class Singleton(object):
     class __Singleton:
         def __str__(self):
@@ -47,7 +95,6 @@ class SelfAwareness(type):
             return instance
 
         return super().__call__(instance, *args, **kws)
-
 
 
 class SelfAware(metaclass=SelfAwareness):

@@ -1,3 +1,4 @@
+import os
 import re
 import numbers
 
@@ -338,6 +339,71 @@ def monospaced(text):
         single space " ".
     """
     return REGEX_SPACE.sub(' ', text).strip()
+
+
+# TODO:
+# def decomment(string, mark='#', keep=()):
+
+#     re.compile(rf'((?![\\]).){mark}([^\n]*)', re.S)
+
+
+def banner(text, swoosh='=', width=80, title=None, align='^'):
+    """
+
+    Parameters
+    ----------
+    text
+    swoosh
+    width
+    title
+    align
+
+    Returns
+    -------
+
+    """
+
+    swoosh = swoosh * width
+    if title is None:
+        pre = swoosh
+    else:
+        pre = overlay(' ', swoosh, align)
+
+    banner = os.linesep.join((pre, text, swoosh, ''))
+    return banner
+
+
+def overlay(text, background='', alignment='^', width=None):
+    """overlay text on background using given alignment."""
+
+    # TODO: verbose alignment name conversions. see motley.table.get_alignment
+
+    if not (background or width):  # nothing to align on
+        return text
+
+    if not background:
+        background = ' ' * width  # align on clear background
+    elif not width:
+        width = len(background)
+
+    if len(background) < len(text):  # pointless alignment
+        return text
+
+    # do alignment
+    if alignment == '<':  # left aligned
+        overlaid = text + background[len(text):]
+    elif alignment == '>':  # right aligned
+        overlaid = background[:-len(text)] + text
+    elif alignment == '^':  # center aligned
+        div, mod = divmod(len(text), 2)
+        pl, ph = div, div + mod
+        # start and end indeces of the text in the center of the background
+        idx = width // 2 - pl, width // 2 + ph
+        # center text on background
+        overlaid = background[:idx[0]] + text + background[idx[1]:]
+    else:
+        raise ValueError('Alignment character %r not understood' % alignment)
+    return overlaid
 
 
 # def centre(self, width, fill=' ' ):
