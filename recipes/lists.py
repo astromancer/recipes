@@ -18,6 +18,7 @@ from .iter import nth_zip
 class NULL:
     "Null singleton"
 
+
 def _echo(_):
     return _
 
@@ -133,7 +134,6 @@ def cosort(*lists, **kws):
 #     return cosort(*lists, key=key, order=order)
 
 
-
 def lists(mapping):
     """create a sequence of lists from a mapping / iterator /generator"""
     return list(map(list, mapping))
@@ -147,9 +147,7 @@ def sort_by_index(*its, indices=None):
                  for it, ix in zip(its, itt.repeat(indices)))
 
 
-
-
-def where(l, item, start=0, default=NULL, test=None):
+def where(l, item, start=0, test=None):
     """
     A multi-indexer for lists. Return index positions of all occurances of
     `item` in a list `l`.  If a test function is given, return all indices at
@@ -163,9 +161,6 @@ def where(l, item, start=0, default=NULL, test=None):
         item to be found
     start : int, optional
         optional starting index for the search, by default 0
-    default : object, optional
-        The default to return if `item` was not found in the input list, by
-        default None
     test : callable, optional
         Function used to identify the item. Calling sequence of this function is
         `test(x, item)`, where `x` is an item from the input list. The function
@@ -187,24 +182,24 @@ def where(l, item, start=0, default=NULL, test=None):
     list of int or `default`
         The index positions where test evaluates true
     """
-    if default is NULL:
-        default = []
-    return list(_where(l, item, start, test)) or default
+    return list(_where(l, item, start, test))
 
 
 def _where(l, item, start=0, test=None):
-    i = 0
-    # l = l[start:]
-    while i < len(l) - start:
+    i = start
+    n = len(l)
+    while i < n:
         try:
-            yield index(l, item, i, test=test)
+            i = index(l, item, i, test=test)
+            yield i
         except ValueError:
             # done
             return
         else:
             i += 1  # start next search one on
 
-def index(l, item, start=0, default=None, test=None):
+
+def index(l, item, start=0, test=None, default=NULL):
     """
     Find the index position of `item` in list `l`, or if a test function is
     provided, the first index position for which the test evaluates as true. If
@@ -212,6 +207,9 @@ def index(l, item, start=0, default=None, test=None):
     default value. 
 
     {params}
+    default : object, optional
+        The default to return if `item` was not found in the input list, by
+        default None
 
     Returns
     -------
@@ -219,6 +217,9 @@ def index(l, item, start=0, default=None, test=None):
         The index position where the first occurance of `item` is found, or
         where `test` evaluates true
     """
+    if not isinstance(l, list):
+        l = list(l)
+
     if test is None:
         # test = item.__eq__
         return l.index(item, start)
@@ -226,12 +227,20 @@ def index(l, item, start=0, default=None, test=None):
     for i, x in enumerate(l[start:], start):
         if test(x, item):
             return i
+    
+    # behave like standard list indexing by default
+    #  -> only if default parameter was explicitly given do we return that
+    #   instead of raising a ValueError
+    if default is NULL:
+        raise ValueError(f'{item} is not in list')
 
     return default
 
 
 index.__doc__ = index.__doc__.format(
-    params='\n\t'.join([''] + NumpyDocString(where.__doc__)._str_param_list('Parameters')))
+    params='\n\t'.expandtabs().join(
+        [''] + NumpyDocString(where.__doc__)._str_param_list('Parameters')
+    ))
 
 
 def flatten(l):
@@ -251,15 +260,23 @@ def flatten(l):
     return list(mit.collapse(l))
 
 
-
 def split(l, idx):
     """Split a list into sublists at the given indices"""
-    return list(map(l.__getitem__, itt.starmap(slice, mit.pairwise(idx))))
+    if len(idx) == 0:
+        return [l]
+    
+    if idx[0] != 0:
+        idx = [0] + idx
+
+    if idx[-1] != len(l):
+        idx += [len(l)]
+
+    return [l[sec] for sec in map(slice, idx, idx[1:])]
 
 
-def item_split(l, item, test=None):
+def split_where(l, item, start=0, test=None):
     """
-    Split a list into sublists at the indices of the given item.
+    Split a list into sublists at the positions of positive test evaluation.
     """
     # idx = where(l, item, indexer)
 
@@ -269,7 +286,7 @@ def item_split(l, item, test=None):
     # if withlast:
     #     idx += [len(l) - 1]
 
-    return split(l, where(l, item, test))
+    return split(l, where(l, item, start, test))
 
 
 def re_find(l, pattern):
@@ -285,6 +302,15 @@ def re_find(l, pattern):
 def missing_integers(l):
     """Find the gaps in a sequence of integers"""
     return sorted(set(range(min(l), max(l) + 1)) - set(l))
+
+
+# alias
+missing_ints = missing_integers
+
+
+# def increment_excedes(nrs, threshold):
+#     enum = iter(nrs)
+#     return where(nrs, '', 1, lambda x, _: x - next(enum) > threshold)
 
 
 def unique(l):
