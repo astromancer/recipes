@@ -2,31 +2,25 @@
 import os
 from recipes.io.bash import brace_expand_iter
 from recipes.string import match_brackets
-import sys
+from recipes.docstring import clone_doc
+
 import pickle
-import warnings
-import traceback
+
 import itertools as itt
 from pathlib import Path
 import mmap
 # local libs
-from recipes.pprint.misc import overlay
-from recipes.interactive import is_interactive
-
-from warnings import formatwarning as original_formatwarning
+# from recipes.string import overlay
+# from recipes.interactive import is_interactive
 
 import itertools as itt
 import glob
 import json
 
-from recipes.regex import glob_to_regex
-import re
-import numpy as np
-
 
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
-MODES = {pickle: 'b', json: ''}
+FILEMODES = {pickle: 'b', json: ''}
 
 
 # def dumper(obj):
@@ -52,17 +46,30 @@ def guess_format(filename):
 def deserialize(filename, formatter=None, **kws):
     path = Path(filename)
     formatter = formatter or guess_format(path)
-    with path.open(f'r{MODES[formatter]}') as fp:
+    with path.open(f'r{FILEMODES[formatter]}') as fp:
         return formatter.load(fp, **kws)
 
 
 def serialize(filename, data, formatter=None, **kws):
+    """
+    Data serialization wrapper that outputs to either json or native pickle
+    formats
+
+    Parameters
+    ----------
+    filename : str, Path
+        [description]
+    data : object
+        [description]
+    formatter : [type], optional
+        [description], by default None
+    """
     path = Path(filename)
     if not path.parent.exists():
         path.parent.mkdir()
 
     formatter = formatter or guess_format(path)
-    with path.open(f'w{MODES[formatter]}') as fp:
+    with path.open(f'w{FILEMODES[formatter]}') as fp:
         formatter.dump(data, fp, **kws)
 
 
@@ -172,12 +179,12 @@ def iter_ext(files, extensions='*'):
             yield from file.parent.glob(f'{file.stem}.{ext.lstrip(".")}')
 
 
-def iter_lines(filename, *section, strip=os.linesep):
-    """
+def iter_lines(filename, *section, mode='r', strip=None):
+    r"""
     File line iterator for text files. Optionally return only a section of the
-    file. Trailing newline character are stripped by default
+    file. Trailing newline character are stripped by default.
 
-    Two function signatures are accepted:
+    Two basic function signatures are accepted:
         iter_lines(filename, stop)
         iter_lines(filename, start, stop[, step])
 
@@ -187,31 +194,50 @@ def iter_lines(filename, *section, strip=os.linesep):
         File system location of the file to read
     *section
         The [start], stop, [step] lines 
+    mode : str
+        Mode used for opening files, by default r
     strip : str, optional
-        characters to strip from lines, by default system specific newline
+        characters to strip from lines. The default value depends on the `mode` 
+        parameter. For text mode ('r', 'rt'), strip '\n', for binary mode ('b'),
+        strip system specific newlines. Note that python automatically 
+        translates system specific newlines in the file to '\n', for files
+        opened in text mode. 
+
+    Examples
+    --------
+    >>> 
 
     Yields
     -------
     str
         lines from the file
     """
-    with open(str(filename), 'r') as fp:
-        for s in itt.islice(fp, *(section or None, )):
+
+    # note python automatically translate system newlines to '\n' for files
+    # opened in text mode, but not in binary mode:
+    #   https://stackoverflow.com/a/38075790/1098683
+    if strip is None:
+        strip = os.linesep
+    if 'b' in mode and isinstance(strip, str):
+        strip = strip.encode()
+
+    with open(str(filename), mode) as fp:
+        for s in itt.islice(fp, *(section or (None, ))):
             yield s.strip(strip)
 
 
-def read_lines(filename, *section, strip=os.linesep, filterer=None, echo=False):
+@clone_doc(iter_lines)
+def read_lines(filename, *section, strip=None, filtered=None, echo=False):
     """
     Read a subset of lines from a given file.
 
-    Parameters
-    ----------
-    filename : str, Path
-        File system location of the file to read
-    *section
-        The [start], stop, [step] lines
-    strip : str, optional
-        characters to strip from lines, by default system specific newline
+    {Extended Summary}
+
+    {Parameters}
+    filtered : callable or None, optional
+        A function that will be used to filter out unwnated lines. Filtering 
+        occurs after stripping unwanted characters. The default behaviour (filtered=None)
+        removed all blank lines from the results.
     echo : bool, optional
         Whether to print a summary of the read content to stdout,
         by default False
@@ -223,27 +249,30 @@ def read_lines(filename, *section, strip=os.linesep, filterer=None, echo=False):
     """
     # Read file content
     content = iter_lines(filename, *section, strip=strip)
-    if filterer is not False:
-        content = filter(filterer, content)
+    if filtered is not False:
+        content = filter(filtered, content)
     content = list(content)
 
     # Optionally print the content
     if echo:
-        print(show_lines(filename, content))
+        print(_show_lines(filename, content))
     return content
 
 
-def show_lines(filename, lines):
-    n = len(lines)
-    if n:
-        msg = f'Read file {filename!r} containing:'
-        echo = min(echo, n)
-        msg += (f'{os.linesep}\t'.join([''] + lines[:echo]))
-        ndot = 3  # Number of ellipsis dots
+def _show_lines(filename, lines, n=10, dots='.\n' * 3):
+    """Create message for `read_lines`"""
+
+    n_lines = len(lines)
+    n = min(n, n_lines)
+    if n_lines and n:
+        msg = (f'Read file {filename!r} containing:'
+               f'\n\t'.join([''] + lines[:n]))
+        # Number of ellipsis dots (one per line)
+        ndot = dots.count
         # TODO: tell nr omitted lines
-        if n > echo:
+        if n_lines > n:
             msg += ('.\n' * ndot)
-        if n > echo + ndot:
+        if n_lines > n + ndot:
             msg += ('\n'.join(lines[-ndot:]))
     else:
         msg = f'File {filename!r} is empty!'
@@ -269,20 +298,20 @@ def count_lines(filename):
         return count
 
 
-def iocheck(instr, check, raise_error=0, convert=None):
+def iocheck(instr, check, bork=0, convert=None):
     """
     Tests a input str for validity by calling the provided check function on it.
-    Returns None if an error was found or raises ValueError if raise_error is set.
+    Returns None if an error was found or raises ValueError if bork is set.
     Returns the original list if input is valid.
     """
     if not check(instr):
         msg = 'Invalid input!! %r \nPlease try again: ' % instr
-        if raise_error == 1:
+        if bork == 1:
             raise ValueError(msg)
-        elif raise_error == 0:
+        elif bork == 0:
             print(msg)
             return
-        elif raise_error == -1:
+        elif bork == -1:
             return
     else:
         if convert:
@@ -305,203 +334,3 @@ def walk_level(dir_, depth=1):
         num_sep_here = root.count(os.path.sep)
         if num_sep + depth <= num_sep_here:
             del dirs[:]
-
-
-# TODO: move to io.trace ??
-class MessageWrapper(object):
-
-    def __init__(self, wrapped, title=None, width=80, char='='):
-        self.active = True
-
-        if isinstance(wrapped, MessageWrapper):
-            # avoid wrapping multiple times !!!
-            self.wrapped = wrapped.wrapped
-        else:
-            self.wrapped = wrapped
-
-        # get the class name and pad with single whitespace on each side
-        title = self.get_title(title)
-        self.width = int(width)
-        self.pre = os.linesep + overlay(title, char * self.width, '^')
-        self.post = (char * self.width)
-
-    def __call__(self, *args, **kws):
-        return self._wrap_message(self.wrapped(*args, **kws))
-
-    def get_title(self, title):
-        if title is None:
-            title = self.__class__.__name__
-        return title.join('  ')
-
-    def _wrap_message(self, msg):
-        if self.active:
-            # make banner
-            return os.linesep.join((self.pre,
-                                    msg,
-                                    self.post))
-
-        return msg
-
-    def on(self):
-        self.active = True
-
-    def off(self):
-        self.active = False
-
-
-class TracebackWrapper(MessageWrapper):
-    """
-    Base class for printing and modifying stack traceback
-    """
-    trim_ipython_stack = True
-
-    def __init__(self, title='Traceback', width=80, char='-'):
-        super().__init__(self._format_stack, title, width, char)
-
-    def _format_stack(self):
-        stack = traceback.format_stack()
-        # if we are in IPython, we do't actually want to print the entire
-        # stack containing all the IPython code execution boilerplate noise,
-        # so we filter all that crap here
-        new_stack = stack
-        if is_interactive():  # and self.trim_ipython_stack:
-            trigger = "exec(compiler(f.read(), fname, 'exec'), glob, loc)"
-            for i, s in enumerate(stack):
-                if trigger in s:
-                    new_stack = ['< %i lines omitted >\n' % i] + stack[i:]
-                    break
-
-            # should now be at the position where the real traceback starts
-
-            # when code execution is does via a magic, there is even more
-            # IPython lines in the stack. Remove
-            # trigger = 'exec(code_obj, self.user_global_ns, self.user_ns)'
-
-            # when we have an embeded terminal
-            triggers = 'terminal/embed.py', 'TracebackWrapper'
-            done = False
-            for i, s in enumerate(new_stack):
-                for j, trigger in enumerate(triggers):
-                    if trigger in s:
-                        new_stack = new_stack[:i]
-                        new_stack.append(
-                            '< %i lines omitted >\n' % (len(stack) - i))
-                        done = True
-                        break
-                if done:
-                    break
-
-            # i += 1
-            # # noinspection PyRedundantParentheses
-            # if (len(stack) - i):
-            #     msg += '\n< %i lines omitted >\n' % (len(stack) - i)
-
-        # last few lines in the stack are those that wrap the warning
-        # message, so we filter those
-        # for s in stack:
-
-        # for s in stack[i:]:
-        #     if '_showwarnmsg' in s:
-        #         # last few lines in the stack are those that wrap the warning
-        #         # message, so we filter those
-        #         break
-        #
-        #     msg += s
-        return ''.join(new_stack)
-
-
-class TracePrints(MessageWrapper):
-    # TODO: as context wrapper : see contextlib.redirect_stdout
-    """
-    Class that can be used to find print statements in unknown source code
-
-    Examples
-    --------
-    >>> sys.stdout = TracePrints()
-    >>> print("I am here")
-    """
-
-    def __init__(self, title=None, width=80, char='='):
-        super().__init__(lambda s: s, title, width, char)
-        self.format_stack = TracebackWrapper()
-        self.stdout = sys.stdout
-
-    def _wrap_message(self, msg):
-        return super()._wrap_message(
-            os.linesep.join((msg, self.format_stack())))
-
-    def write(self, s):
-        # print() statements usually involve two calls to stdout.write
-        # first to write the content, second to write a newline if we are
-        # writing newline, skip the banner
-        if (not self.active) or (s == os.linesep):
-            self.stdout.write(s)
-        else:
-            self.stdout.write(self(s))
-
-    def flush(self):
-        self.stdout.flush()
-
-
-class WarningTraceback(MessageWrapper):
-    """
-    Class that help to track down warning statements in unknowns source code
-    """
-
-    # if warnings.formatwarning is self._formatwarning
-
-    def __init__(self, title=None, width=80, char='='):
-        """
-        Activate full traceback for warnings
-
-        Parameters
-        ----------
-
-        Examples
-        --------
-        >>> wtb = WarningTraceback()
-        >>> warnings.warn('Dinosaurs!')
-        # TODO: generate this output dynamically ???
-
-        ------------------------------- WarningTraceback -------------------------------
-        /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:5: UserWarning: Dinosaurs!
-          File "/usr/lib/python3.5/runpy.py", line 193, in _run_module_as_main
-            "__main__", mod_spec)
-        ... <some lines omitted for brevity>
-          File "/usr/lib/python3.5/warnings.py", line 18, in showwarning
-            file.write(formatwarning(message, category, filename, lineno, line))
-        --------------------------------------------------------------------------------
-
-        >>> wtb.off()
-        >>> warnings.warn('Dinosaurs!')
-        /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:1: UserWarning: Dinosaurs!
-          Entry point for launching an IPython kernel.
-        """
-
-        super().__init__(warnings.formatwarning, title, width, char)
-        self.format_stack = TracebackWrapper()
-        self.on()
-
-    def _wrap_message(self, msg):
-        return super()._wrap_message(
-            os.linesep.join((msg, self.format_stack())))
-
-    def on(self):
-        self.active = True
-        warnings.formatwarning = self
-
-    def off(self):
-        self.active = False
-        warnings.formatwarning = original_formatwarning
-
-
-if __name__ == '__main__':
-    sys.stdout = TracePrints()
-    print('Hello World!')
-    # restore
-    sys.stdout = sys.stdout.stdout
-
-    wtb = WarningTraceback()
-    warnings.warn('Dinosaurs!!')
-    # restore
-    wtb.off()
