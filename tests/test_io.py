@@ -30,6 +30,8 @@ def filename(tmp_path_factory):
 
 
 patterns = {
+    'test7.test': ['test7.test'],
+    'test{7}.test': ['test7.test'],
     'test*{7,8}.test':  ['test*7.test', 'test*8.test'],
 
     '*00{10..21}.*':    ['*0010.*', '*0011.*',
@@ -39,17 +41,27 @@ patterns = {
                          '*0018.*', '*0019.*',
                          '*0020.*', '*0021.*'],
 
-    '/home/work/recipes/recipes/{__init__,dicts,interactive,iter}.py':
-        ['/home/work/recipes/recipes/__init__.py',
-         '/home/work/recipes/recipes/dicts.py',
-         '/home/work/recipes/recipes/interactive.py',
-         '/home/work/recipes/recipes/iter.py'],
+    '/root/{__init__,dicts,interactive,iter}.py':
+        ['/root/__init__.py',
+         '/root/dicts.py',
+         '/root/interactive.py',
+         '/root/iter.py'],
 
-    '/home/work/recipes/recipes/{logg,str,test}ing.py':
-        ['/home/work/recipes/recipes/logging.py',
-         '/home/work/recipes/recipes/string.py',
-         '/home/work/recipes/recipes/testing.py']
+    '/root/{logg,str,test}ing.py':
+        ['/root/logging.py',
+         '/root/string.py',
+         '/root/testing.py'],
 
+    'root/{ch{{1,2},{4..6}},main{1,2},{1,2}test}/*.png':
+        ['root/ch1/*.png',
+         'root/ch2/*.png',
+         'root/ch4/*.png',
+         'root/ch5/*.png',
+         'root/ch6/*.png',
+         'root/main1/*.png',
+         'root/main2/*.png',
+         'root/1test/*.png',
+         'root/2test/*.png']
 }
 
 inverted_patterns = list(zip(patterns.values(), patterns.keys()))
@@ -81,8 +93,10 @@ def srange(*section):
 def brange(*section):
     return list(map(str.encode, srange(*section)))
 
+
 def bnrange(*section):
     return [b + b'\n' for b in brange(*section)]
+
 
 test_iter_lines = Expect(iter_lines)(
     {mock.iter_lines(filename, 5):                      srange(5),
@@ -103,3 +117,12 @@ test_iter_lines = Expect(iter_lines)(
 # def test_iter_lines(filename, section, mode, strip, result):
 #     print(filename)
 #     assert list(iter_lines(filename, *section, mode=mode, strip=strip)) == result
+
+
+# TODO: test iter_files!!!!!!!
+# iter_files('/root/{main,ch*}', 'tex') # with expansion
+# iter_files('/root/', 'tex', True) #  recursive walk 
+# l = set(map(str, iter_files('/home/hannes/Desktop/PhD/thesis/build/', 'tex', True)))
+# g = set(glob.glob('/home/hannes/Desktop/PhD/thesis/build/**/*.tex',
+# recursive=True))
+# g.symmetric_difference(l)

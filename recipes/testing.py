@@ -214,10 +214,8 @@ class Expect:
         names = argspecs.keys()
         values = zip(*argspecs.values())
         *values, names = cofilter(negate(isfixture), *values, names)
-        names, values = list(names), lists(values)
-        print(names, values)
-        # from IPython import embed
-        # embed(header="Embedded interpreter at 'testing.py':187")
+        # names, values = list(names), lists(values)
+        # logger.debug(f'{names=}, {values}')
         return pytest.mark.parametrize(list(names), lists(values),
                                        *args, **kws)(test)
 
@@ -300,7 +298,7 @@ class Expect:
         # TODO: the code above obfuscates the pytest error diagnostics. can you
         # find a way to still get diagnostic messages??
 
-        print(code)
+        # logger.debug(f'code:\n{code}')
         # print('running {test_name}')
         # print('{name} in globals?', '{name}' in globals())
         # print('{name} in locals?', '{name}' in locals())
