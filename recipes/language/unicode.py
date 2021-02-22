@@ -1,16 +1,13 @@
 # TODO: class for these : unicode.subscript('i=1') # 'ᵢ₌₀'
 
-# SUB_SYMBOLS = '₊ 	₋ 	₌ 	₍ 	₎ 	⁻'
-SUP_NRS = '⁰¹²³⁴⁵⁶⁷⁸⁹'  # list(
-SUB_NRS = '₀₁₂₃₄₅₆₇₈₉'  # list(
-
-
-# t = str.maketrans(''.join(map(chr, range(48, 58))), ''.join(SUP_NRS))
-
-class UnicodeTranslate(object):
-    def __init__(self, charset):
-        self.__dict__.update(**charset)
-
+# SUB_SYMBOLS = '₊
+# ₋
+# ₌
+# ₍
+# ₎
+# ⁻'
+SUP_NRS = dict(zip(map(str, range(10)), '⁰¹²³⁴⁵⁶⁷⁸⁹'))
+SUB_NRS = dict(zip(map(str, range(10)), '₀₁₂₃₄₅₆₇₈₉'))
 
 SUB_LATIN = dict(a='ₐ',
                  e='ₑ',
@@ -27,8 +24,8 @@ SUB_LATIN = dict(a='ₐ',
                  t='ₜ',
                  u='ᵤ',
                  v='ᵥ',
-                 x='ₓ'),
-                #  y='ᵧ') # this is a gamma!
+                 x='ₓ')
+#  y='ᵧ') # this is a gamma!
 
 SUP_LATIN = dict(a='ᵃ',
                  b='ᵇ',
@@ -56,4 +53,41 @@ SUP_LATIN = dict(a='ᵃ',
                  y='ʸ',
                  z='ᶻ')
 
-super = UnicodeTranslate(dict(zip(map(chr, range(48, 58)), SUP_NRS)))
+SUP_LATIN_UPPER = {
+    'A': 'ᴬ',
+    'B': 'ᴮ',
+    # 'C': '',
+    'D': 'ᴰ',
+    'E': 'ᴱ',
+    # 'F': '',
+    'G': 'ᴳ',
+    'H': 'ᴴ',
+    'I': 'ᴵ',
+    'J': 'ᴶ',
+    'K': 'ᴷ',
+    'L': 'ᴸ',
+    'M': 'ᴹ',
+    'N': 'ᴺ',
+    'O': 'ᴼ',
+    'P': 'ᴾ',
+    # 'Q': '',
+    'R': 'ᴿ',
+    # 'S': '',
+    'T': 'ᵀ',
+    'U': 'ᵁ',
+    'V': 'ⱽ',
+    'W': 'ᵂ',
+}
+
+
+class ScriptTranslate(object):
+    def __init__(self, chars, nrs):
+        self.__dict__.update(**chars)
+        self.__nrs = tuple(nrs)
+
+    def __getitem__(self, key):
+        return self.__nrs[key]
+
+
+super = ScriptTranslate(SUP_LATIN, dict(zip(range(10), SUP_NRS)))
+sub = ScriptTranslate(SUB_LATIN, dict(zip(range(10), SUB_NRS)))
