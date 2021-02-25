@@ -16,6 +16,8 @@ import mmap
 import itertools as itt
 import glob
 import json
+import shutil
+import tempfile
 
 
 FORMATS = {'json': json,
@@ -53,7 +55,7 @@ def deserialize(filename, formatter=None, **kws):
 def serialize(filename, data, formatter=None, **kws):
     """
     Data serialization wrapper that outputs to either json or native pickle
-    formats
+    formats.
 
     Parameters
     ----------
@@ -61,8 +63,9 @@ def serialize(filename, data, formatter=None, **kws):
         [description]
     data : object
         [description]
-    formatter : [type], optional
-        [description], by default None
+    formatter : module {json, pickle}, optional
+        If formatter argument is not explicitly provided (default), it is chosen
+        based on the extension of the input filename.
     """
     path = Path(filename)
     if not path.parent.exists():
@@ -103,7 +106,7 @@ def iter_files(path, extensions='*', recurse=False):
         filenames to load eg: '/path/SHA_20200715.000[1-5].fits'
         Pattern can also contain brace expansion patterns
         '/path/SHA_202007{15..18}.000[1-5].fits' in which case all valid
-        directories in the range will be traversed.
+        files and directories in the range will be traversed.
     extensions : str or tuple or list
         The filename extensions to consider. All files with any of these
         extensions will be included. The same functionality as is provided by
@@ -112,8 +115,8 @@ def iter_files(path, extensions='*', recurse=False):
         jpg files from path directory.
 
     Examples
-    -------- 
-    >>> iter_files
+    --------
+    >>> iter_files()
 
     Yields
     -------
@@ -130,28 +133,30 @@ def iter_files(path, extensions='*', recurse=False):
 
     # handle brace expansion first
     special = bool(match_brackets(path, '{}', False, must_close=True))
-    if special:
-        for path in brace_expand_iter(path):
+    wildcard = glob.has_magic(path)  # handle glob patterns
+    if special | wildcard:
+        itr = (brace_expand_iter(path) if special else
+               glob.iglob(path, recursive=recurse))
+        for path in itr:
             yield from iter_files(path, extensions, recurse)
         return
 
-    # handle glob patterns
-    if glob.has_magic(path):
-        yield from map(Path, glob.iglob(path, recursive=recurse))
+    path = Path(path)
+    if path.is_dir():
+        # iterate all files with given extensions
+        if isinstance(extensions, str):
+            extensions = (extensions, )
+
+        extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
+        yield from iter_files(
+            f'{path!s}/{"**/" * recurse}*.{extensions}', recurse=recurse)
         return
 
-    path = Path(path)
-    if not path.is_dir():
+    if not path.exists():
         raise ValueError(f"'{path!s}' is not a directory or a glob pattern")
 
-    # iterate all files with given extensions
-    if isinstance(extensions, str):
-        extensions = (extensions, )
-
-    yield from iter_files(
-        f'{path!s}.{{{",".join((ext.lstrip(".") for ext in extensions))}}}',
-        recurse
-    )
+    # break the recurrence
+    yield path
 
 
 def iter_ext(files, extensions='*'):
@@ -268,7 +273,7 @@ def _show_lines(filename, lines, n=10, dots='.\n' * 3):
         msg = (f'Read file {filename!r} containing:'
                f'\n\t'.join([''] + lines[:n]))
         # Number of ellipsis dots (one per line)
-        ndot = dots.count
+        ndot = dots.count('\n')
         # TODO: tell nr omitted lines
         if n_lines > n:
             msg += ('.\n' * ndot)
@@ -334,3 +339,47 @@ def walk_level(dir_, depth=1):
         num_sep_here = root.count(os.path.sep)
         if num_sep + depth <= num_sep_here:
             del dirs[:]
+
+
+def safe_write(filename, lines, mode='w', exception_hook=None):
+    """
+    [summary]
+
+    [extended_summary]
+
+    Parameters
+    ----------
+    filename : [type]
+        [description]
+    lines : [type]
+        [description]
+    mode : str, optional
+        [description], by default 'w'
+    exception_hook : [type], optional
+        [description], by default None
+
+    Raises
+    ------
+    exception_hook
+        [description]
+    """
+    # backup and restore on error!
+    path = Path(filename).resolve()
+    backup_needed = path.exists()
+    if backup_needed:
+        tmpid, tmp = tempfile.mkstemp(prefix='backup.', suffix=f'.{path.name}')
+        shutil.copy(str(path), tmp)
+
+    # write formatted entries
+    with path.open(mode) as fp:
+        for i, line in enumerate(lines):
+            try:
+                fp.write(line)
+            except Exception as err:
+                if backup_needed:
+                    fp.close()
+                    os.close(tmpid)
+                    shutil.copy(tmp, filename)
+                if exception_hook:
+                    raise exception_hook(err, filename, line, i) from err
+                raise
