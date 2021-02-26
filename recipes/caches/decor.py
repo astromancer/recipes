@@ -17,7 +17,6 @@ from collections import abc
 from inspect import signature, _empty, _VAR_KEYWORD
 
 
-
 def check_hashable_defaults(func):
     sig = signature(func)
     for name, p in sig.parameters.items():
@@ -48,17 +47,12 @@ def generate_key(sig, args, kws):
     yield from kws.items()
 
 
-def get_key(sig, args, kws):
-    """Create cache key from passed function parameters"""
-    return tuple(generate_key(sig, args, kws))
-
-
-
-class Memoizer(LoggingMixin):
+class Cached(LoggingMixin):  # Cached
     """
     Decorator for memoization on callable objects
 
-    Pros: Function keyword support
+    Features:
+        : keyword support
         : cache contents can be viewed transparently as the `cache` attribute on
           the decorated function
         : Raises when attempting to decorate a function with non-hashable
@@ -67,18 +61,17 @@ class Memoizer(LoggingMixin):
           warning is emitted and the caching is merely skipped instead of
           raising a TypeError
         : When used to decorate a class, the `__new__` constructor is
-          automatically  decorated so that instances of the class get memoized. 
+          automatically  decorated so that instances of the class get memoized.
 
-    Cons: probably not thread safe. not yet tested
+    TODOs: 
+        probably not thread safe. not yet tested
+        some stats like ftl.lru_cache
+        limit capacity in MB
+        format json / pkl
+        optional ignore keywords
+        more cache types
 
     """
-
-    # TODO: some stats like ftl.lru_cache
-    # TODO: limit capacity in MB
-    # TODO: format json / pkl
-    # TODO: optional ignore keywords
-    # TODO: more cache types
-
 
     def __init__(self, filename=None, capacity=128, kind='lru'):
         """
@@ -98,7 +91,7 @@ class Memoizer(LoggingMixin):
             to function 'foo': 'a' = [1]
 
         >>> print(foo.cache)
-            LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)]) 
+            LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
             # cache unchanged
 
         >>> foo(6, hello='world')
@@ -111,7 +104,7 @@ class Memoizer(LoggingMixin):
         self.sig = None
         self._init_args = (filename, capacity, kind)
         self.cache = Cache(capacity, filename, kind=kind)
-        
+
 
     def __call__(self, func):
         """
@@ -120,9 +113,9 @@ class Memoizer(LoggingMixin):
 
         # check func
         if isinstance(func, type):
-            # if the decorator is applied to a class, monkey patch the 
+            # if the decorator is applied to a class, monkey patch the
             # constructor so the entire class gets cached!
-            
+
             # name = f'Cached{func.__name__}'
             # eval(f'global {name}')
 
@@ -166,10 +159,14 @@ class Memoizer(LoggingMixin):
         decorated.__self__ = self
         return decorated
 
+    def get_key(self, *args, **kws):
+        """Create cache key from passed function parameters"""
+        return tuple(generate_key(self.sig, args, kws))
+
     def memoize(self, *args, **kws):
         """caches the result of the function call"""
 
-        key = get_key(self.sig, args, kws)
+        key = self.get_key(*args, **kws)
         for name, val in key:
             if not isinstance(val, abc.Hashable):
                 warnings.warn(
@@ -203,7 +200,7 @@ class Memoizer(LoggingMixin):
         return answer
 
 
-class to_file(Memoizer):
+class to_file(Cached):
     """
     Decorator for persistent function memoization that saves cache to file as a
     pickle
@@ -211,8 +208,8 @@ class to_file(Memoizer):
 
     def __init__(self, filename, capacity=128, kind='lru'):
         # this here simply to make `filename` a required arg
-        Memoizer.__init__(self, filename, capacity, kind)
+        Cached.__init__(self, filename, capacity, kind)
 
 
-# alias
-memoize = Memoizer
+# aliases
+memoize = cached = Cached
