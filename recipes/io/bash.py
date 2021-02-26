@@ -1,62 +1,116 @@
 """
 Emulate bash brace expansion
 """
+import itertools as itt
 from collections import defaultdict
 from pathlib import Path
 import re
+from recipes.string import iter_brackets, unbracket
 
 from recipes.lists import split_where
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
+RGX_BASH_RANGE = re.compile(r'(\d+)[.]{2}(\d+)')
 
 
-def brace_expand_iter(pattern):
-    # handle special bash expansion syntax here  xx{12..15}.fits
-    mo = RGX_CURLY_BRACES.match(pattern)
-    if mo:
-        folder = Path(pattern).parent
-        head, middle, tail = mo.groups()
-        if '..' in middle:
-            start, stop = map(int, middle.split('..'))
-            items = range(start, stop + 1)
-            # bash expansion is inclusive of both numbers in brackets
+# def brace_expand_iter(pattern):
+#     # handle special bash expansion syntax here  xx{12..15}.fits
+#     mo = RGX_CURLY_BRACES.match(pattern)
+#     if mo:
+#         # folder = Path(pattern).parent
+#         head, middle, tail = mo.groups()
+#         if '..' in middle:
+#             start, stop = map(int, middle.split('..'))
+#             items = range(start, stop + 1)
+#             # bash expansion is inclusive of both numbers in brackets
+#         else:
+
+#             # items = middle.split(',')
+#             # items = itt.chain.from_iterable(
+#             #     map(brace_expand_iter, middle.split(',')))
+
+#         for x in items:
+#             # recurse here
+#             # yield from brace_expand_iter(f'{head}{x}{tail}')
+#             yield f'{head}{x}{tail}'
+#     else:
+#         yield pattern
+
+def unclosed(string, open, close):
+    return string.count(open) - string.count(close)
+
+
+def splitter(string, brackets='{}', delimeter=','):
+    # conditional splitter. split on delimeter only if its not enclosed by
+    # brackets. need this for nested brace expansion a la bash
+    merged = []
+    part = None
+    for part in string.split(delimeter):
+        if unclosed(part, *brackets):
+            merged.append(part)
+            trial = delimeter.join(merged)
+            if not unclosed(trial, *brackets):
+                yield trial
+                merged = []
         else:
-            items = middle.split(',')
+            yield part
 
-        for x in items:
-            yield f'{head}{x}{tail}'
+
+def brace_expand_iter(pattern, level=0):
+    
+    # FIXME:
+    # ch{{1,2},{4..6}},main{1,2},{1,2}test
+    # detect bad patterns like the one above and refuse
+    
+    # handle special bash expansion syntax here  xx{12..15}.fits
+    inside = None
+    for inside, (i, j) in iter_brackets(pattern, '{}'):
+        head, tail = pattern[:i], pattern[j + 1:]
+        # print(f'{inside=}', f'{tail=}')
+        for part in _expander(inside, head, tail):
+            yield from brace_expand_iter(part, level=level+1)
+
+    if inside is None:
+        yield pattern
+
+
+def _expander(item, head='', tail=''):
+    rng = RGX_BASH_RANGE.fullmatch(item)
+    if rng:
+        # bash expansion syntax implies an inclusive number interval
+        items = range(int(rng[1]), int(rng[2]) + 1)    
+    else:
+        items = splitter(item)
+
+    for x in items:
+        yield f'{head}{x}{tail}'
 
 
 def brace_expand(pattern):
+    # >>> brace_expand('root/{search,these}/*.tex')
+    # ['root/search/*.tex', 'root/these/*.tex']
+    # >>> brace_expand('/**/*.{png,jpg}')
+    # ['/**/*.png', '/**/*.jpg']
+
     return list(brace_expand_iter(pattern))
 
 
 def brace_contract(items):
-    """
-    Inverse operation of bash brace expansion
-
-    Parameters
-    ----------
-    items : [type]
-        [description]
-
-    Example
-    -------
-
-
-    Returns
-    -------
-    [type]
-        [description]
-    """
-
+    # special cases
+    if isinstance(items, str):
+        items = [items]
+        
+    if len(items) == 1:
+        # simply remove single items enclosed in brackets. NOTE this behaviour
+        # is different from what bash does: it simply uses the name containing
+        # {x} elements verbatim
+        return unbracket(items[0], '{}', condition=lambda x: ',' not in x)
+        
     # ensure list of strings
     items = sorted(map(str, items))
 
-    if len(items) == 1:
-        return items[0]
-
+    # find prefixes / suffixes
     head = shared_prefix(items)
     tail = shared_suffix(items)
     i0 = len(head)
