@@ -8,8 +8,10 @@ import warnings
 from pathlib import Path
 from ..logging import LoggingMixin
 import json
-import re
+# import re
 
+# TOOD: serializing the Cache class is error prone and hard to maintain. 
+# Better to simply serialize the dict and init the cache from that??
 
 # TODO: sqlite, yaml, dill
 
@@ -32,6 +34,7 @@ class CacheEncoder(json.JSONEncoder):
             return super().encode(
                 {obj.__class__.__name__: obj.__dict__,
                  'items': list(obj.items())})
+            # note json does not support tuples, so hashability is lost here
         return super().encode(obj)
 
 
@@ -41,10 +44,14 @@ def cache_decoder(mapping):
         name = next(iter(mapping.keys()))
         kls = Cache.types_by_name().get(name)
         if kls:
-            # avoid infinite recursion
+            # avoid infinite recursion by removing the filename parameter
             filename = mapping[name].pop('filename')
             obj = Cache(**mapping[name])
-            obj.update(mapping['items'])
+            # since json convert all tuples to list, we have to remap
+            # to tuples
+            for key, val in mapping['items']:
+                obj[tuple(map(tuple, key))] = val
+
             obj.filename = filename
             return obj
     return mapping
@@ -63,8 +70,8 @@ SAVE_KWS = {json: {'cls': CacheEncoder}}
 class CacheMeta(type):
     """
     Constructor for Cache types.  Allows the implementation details of various
-    item replacement policies to be developed handled independently and decided
-    at runtime based on user input.
+    item replacement policies to be developed and handled independently and
+    allocated at runtime based on user input.
     """
     def factory(cls, kind):
         # choose the cache type
@@ -97,24 +104,22 @@ class CacheMeta(type):
             [description]
         """
 
-        # implement the class factory before `__new__` is calles on the class
+        # implement the class factory before `__new__` is called on the class
         # print('inside meta call', cls)
         kls = cls.factory(kind)
         # print('meta got', kls)
         # print('args', args)
-        # print(__name__, f'{capacity=:}; {filename=:}')
+        # logger.debug(__name__, f'{capacity=}; {filename=}')
 
         if filename:
             filepath = Path(filename).expanduser().resolve()
-            filename = str(filepath)
             if filepath.exists():
                 # unpickle the cache and return it
-                return kls.load(filename)
+                return kls.load(str(filepath))
 
         # if we get here, the cache is either in RAM, or requested on disk but
         # non-existent (new cache)
-        cache = type.__call__(kls, capacity)
-        cache.filename = filename
+        cache = type.__call__(kls, capacity, filename)  # .
         return cache
 
 
@@ -124,6 +129,46 @@ class Cache(LoggingMixin, metaclass=CacheMeta):
     """
     types = {}
 
+    def __init__(self, capacity, filename=None):
+        self.capacity = int(capacity)
+        self.filename = str(filename) if filename else None
+        # self.logger.debug(self.__name__, f'{capacity=}; {filename=}')
+        # TODO: maybe check that it's a valid system path
+        # super().__init__()
+
+    @property
+    def path(self):
+        if self.filename:
+            return Path(self.filename)
+
+    # def from_dict(self, mapping):
+    #     # the initializer obove overwrites the normal dict init, but we still
+    #     # want to be able to init from mappings when deserializing
+    #     super().__init__(**mapping)
+
+    def __init_subclass__(cls):
+        # add the subclass to the types dict
+        cls.types[cls.__name__.replace('Cache', '').lower()] = cls
+
+    def __reduce__(self):
+        # custom unpickling
+        attrs = dict(filename=self.filename)
+        return self.__class__, (self.capacity,), attrs, None, iter(self.items())
+
+    def __str__(self):
+        name = self.__class__.__name__
+        add_info = f'size={self.capacity}'
+        if self.filename:
+            add_info += f' file={Path(self.filename).stem}'
+        return super().__str__().replace(name, f'{name}[{add_info}]')
+
+    def __setitem__(self, key, val):
+        super().__setitem__(key,  val)
+        # TODO: save in a thread so we can return value immediately!
+        if self.filename:
+            self.save()
+        return val
+
     @classmethod
     # @ftl.cached_property
     def types_by_name(cls):
@@ -132,7 +177,7 @@ class Cache(LoggingMixin, metaclass=CacheMeta):
     @classmethod
     def load(cls, filename, **kws):
         """
-        Load a picked cache from disk
+        Load a picked cache from disc
 
         Parameters
         ----------
@@ -159,89 +204,66 @@ class Cache(LoggingMixin, metaclass=CacheMeta):
         fmt = guess_format(filename)
         cache = deserialize(filename, fmt, **{**kws,  **LOAD_KWS.get(fmt, {})})
         cache.filename = filename
-        
+
         # Check if serialized object is correct type
         if not isinstance(cache, cls):
             raise TypeError(
                 f'Expected {cls.__name__!r} type object at '
-                f'location {filepath!r}. Found {type(cache)!r} instead.')
+                f'location {filename!r}. Found {type(cache)!r} instead.')
 
         # print info
         cls.logger.debug('Cache contains %d entries. Capacity is %d.',
                          len(cache), cache.capacity)
         return cache
 
-    def save(self, **kws):
+    def save(self, filename=None, **kws):
+        """save the cache in chosen format"""
         # TODO: option to save only at exit??
-        """save the cache as a pickle"""
-        if not self.filename:
-            return
+        filename = filename or self.filename
+        if filename is None:
+            raise ValueError('Please provide a filename.')
 
-        self.logger.debug('Saving cache: %r', self.filename)
-        fmt = guess_format(self.filename)
+        self.logger.debug('Saving cache: %r', filename)
+        fmt = guess_format(filename)
+
         if fmt is json:
             self.to_json()
         else:
-            # print(fmt)
-            # try:
             # TODO: might be slow for large caches - do in thread?
             # more optimal save methods might also exist for specific policies!
-            serialize(self.filename, self, fmt,
-                        **{**kws, **SAVE_KWS.get(fmt, {})})
+            serialize(filename, self, fmt,
+                      **{**kws, **SAVE_KWS.get(fmt, {})})
         #
-        self.logger.debug('Saved: %r', self.filename)
-        
+        self.logger.debug('Saved: %r', filename)
+
         # except PicklingError as err:
         #     warnings.warn(
         #         'Could not save cache since some objects could not be '
         #         f'serialized: {err!s}')
-            
 
-    def to_json(self, **kws):
+    def to_json(self, filename=None, **kws):
         # NOTE: dump doesn't work unless you re-write a whole stack of
         # complicated code in JSONEncoder.iterencode. This is a hack which
         # avoids all that...
-        Path(self.filename).write_bytes(
+        filename = filename or self.filename
+        if filename is None:
+            raise ValueError('Please provide a filename.')
+
+        Path(filename).write_bytes(
             json.dumps(self, **{**kws, **SAVE_KWS[json]}).encode()
         )
 
-    def from_json(self, **kws):
-        return deserialize(self.filename, json,
-                           **{**kws, **LOAD_KWS[json]})
+    # classmethod??
+    # def from_json(self, **kws):
+    #     return deserialize(self.filename, json,
+    #                        **{**kws, **LOAD_KWS[json]})
 
-    def __init__(self, capacity, filename=None):
-        self.capacity = int(capacity)
-        self.filename = filename
-        # TODO: maybe check that it's a valid system path
-        # super().__init__()
+# TODO
+# class CallerCache:
+#     connects the cache with the function so we can more easily add cache items
+#     manually
+#     def __init__(self, func):
 
-    # def from_dict(self, mapping):
-    #     # the initializer obove overwrites the normal dict init, but we still
-    #     # want to be able to init from mappings when deserializing
-    #     super().__init__(**mapping)
-
-    def __init_subclass__(cls):
-        cls.types[cls.__name__.replace('Cache', '').lower()] = cls
-
-    def __reduce__(self):
-        # custom unpickling
-        attrs = dict(filename=self.filename)
-        return self.__class__, (self.capacity,), attrs, None, iter(self.items())
-
-    def __str__(self):
-        name = self.__class__.__name__
-        add_info = f'size={self.capacity}'
-        if self.filename:
-            add_info += f' file={Path(self.filename).stem}'
-        return super().__str__().replace(name, f'{name}[{add_info}]')
-
-    def __setitem__(self, key, val):
-        super().__setitem__(key,  val)
-        # TODO: save in a thread so we can return value immediately!
-        self.save()
-        return val
-
-    # def __instancecheck__(self, obj):
 
 
 class LRUCache(Cache, odict):
@@ -256,10 +278,10 @@ class LRUCache(Cache, odict):
 
     """
 
-    def __init__(self, capacity):
+    def __init__(self, capacity, filename=None):
         # initialising capacity
         # print('LRU.__init__')
-        self.capacity = int(capacity)
+        Cache.__init__(self, capacity, filename)
         self._move = True
 
     def get(self, key, default=None):
