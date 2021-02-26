@@ -12,6 +12,8 @@ from collections import abc
 # third-party libs
 import more_itertools as mit
 
+from .functionals import negate
+
 
 # ---------------------------------- helpers --------------------------------- #
 def _echo(x):
@@ -23,10 +25,10 @@ def not_none(x):
 
 
 # -------------------------------- decorators -------------------------------- #
-def negate(func):
-    def wrapped(obj):
-        return not func(obj)
-    return wrapped
+# def negate(func):
+#     def wrapped(obj):
+#         return not func(obj)
+#     return wrapped
 
 
 def on_nth(func, n):
@@ -76,11 +78,6 @@ as_sequence = as_iter
 def split(l, idx):
     """Split a list into sub-lists at the given indices"""
     return map(l.__getitem__, itt.starmap(slice, mit.pairwise(idx)))
-
-
-# def cycle(iterable, n):
-#     """Returns the sequence elements n times"""
-#     return itt.chain.from_iterable(itt.repeat(tuple(iterable), n))
 
 
 def cyclic(obj, n=None):
