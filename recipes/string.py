@@ -1,3 +1,5 @@
+import inspect
+import math
 import os
 import re
 import numbers
@@ -64,6 +66,31 @@ class Percentage(object):
         except ValueError:
             raise TypeError('Not a valid number or numeric array') from None
 
+# brace - the python bracket ace
+# from brace import
+
+# Braces(string).iter / .tokenize / .parse / match / strip / split
+# ( )
+# Parentheses
+# or
+# round brackets
+
+
+# { }
+# Braces
+# or
+# curly brackets
+
+# [ ]
+# Brackets
+# or
+# square brackets
+
+#
+# ⟨ ⟩
+# Chevrons
+# or
+# angle brackets
 
 def match_brackets(string, brackets='()', return_index=True, must_close=False):
     """
@@ -71,7 +98,8 @@ def match_brackets(string, brackets='()', return_index=True, must_close=False):
     encolsed string as well as, optionally, the indices of the bracket pair.
 
     Will return only the first closed pair if the input string `s` contains
-    multiple closed bracket pairs.
+    multiple closed bracket pairs. To iterate over bracket pairs, use
+    `iter_brackets`
 
     If there are nested bracket inside `string`, only the outermost pair will be
     matched.
@@ -157,7 +185,44 @@ def match_brackets(string, brackets='()', return_index=True, must_close=False):
     return null_result
 
 
-def iter_brackets(string, brackets='()', return_index=True, must_close=False):
+def always_true(_):
+    return True
+
+# TODO: nested bracket iterator
+
+
+class contained:
+    def __init__(self, item):
+        self.item = item
+
+    def within(self, container):
+        return self.item in container
+
+
+def outermost(string, brackets, indices, nr):
+    i, j = indices
+    return remove_affix(string, *brackets) == string[i+1:j]
+
+
+def get_test(condition):
+    # function wrapper to support multiple call signatures for user defined
+    # condition test
+    npar = len(inspect.signature(condition).parameters)
+    if npar == 4:
+        return condition
+
+    elif npar == 1:
+        def test(string, brackets, indices, nr):
+            i, j = indices
+            return condition(string[i+1:j])
+    else:
+        raise ValueError('Condition test function has incorrect signature')
+
+    return test
+
+
+def iter_brackets(string, brackets='()', return_index=True, must_close=False,
+                  condition=always_true):
     """
     Iterate through consecutive (non-nested) closed bracket pairs.
 
@@ -176,28 +241,100 @@ def iter_brackets(string, brackets='()', return_index=True, must_close=False):
         [description]
     """
     if return_index:
-        def yields(sub, i, j):
-            return sub, (i, j)
+        def yields(inside, i, j):
+            return inside, (start + i, start + j)
     else:
-        def yields(sub, i, j):
-            return sub
+        def yields(inside, i, j):
+            return inside
 
+    # get condition test call signature
+    test = get_test(condition)
+
+    start = 0
+    nr = 0
     while True:
-        sub, (i, j) = match_brackets(string, brackets, True, must_close)
-        if sub:
-            yield yields(sub, i, j)
-            string = string[j+1:]
-        else:
+        inside, (i, j) = match_brackets(string, brackets, True, must_close)
+        if inside is None:
             break
 
+        # condition
+        if test(string, brackets, (i, j), nr):
+            yield yields(inside, i, j)
 
-def unbracket(string, brackets='{}'):
+        # increment
+        nr += 1
+        start = j + 1
+        string = string[start:]
+
+
+# def _iter(string, brackets='()', return_index=True, must_close=False,
+#                   condition=always_true, depth=math.inf, level=0):
+#     """
+#     Iterate through consecutive (non-nested) closed bracket pairs.
+
+#     Parameters
+#     ----------
+#     string : [type]
+#         [description]
+#     brackets : str, optional
+#         [description], by default '()'
+#     return_index : bool, optional
+#         [description], by default True
+
+#     Yields
+#     -------
+#     [type]
+#         [description]
+#     """
+#     if return_index:
+#         def yields(inside, i, j):
+#             return inside, (start + i, start + j)
+#     else:
+#         def yields(inside, i, j):
+#             return inside
+
+#     start = 0
+#     while True:
+#         inside, (i, j) = match_brackets(string, brackets, True, must_close)
+#         if inside is None:
+#             break
+
+#         if condition(inside):
+#           # THIS WILL UNPACK FROM THE INNERMOST OUTWARDS
+#            yield from _iter(inside, )
+
+#         start = j + 1
+#         string = string[start:]
+
+
+# def _iter_deep(string, brackets, return_index=True, must_close=False,
+#                    condition=always_true, depth=math.inf, level=0):
+#     # return if too deep
+#     if level > depth:
+#         return string
+
+#     # inside, (i, j) = match_brackets(string, brackets, must_close=False)
+#     # if inside is None or not condition(inside):
+#     #     return string
+
+#     tail = string[i:]
+#     ran = False
+#     for inside, (i, j) in iter_brackets(tail, brackets, return_index, must_close,
+#                                         condition, level, level):
+#         # THIS WILL UNPACK FROM THE INNERMOST OUTWARDS
+#         yield from iter_brackets(inside, brackets, return_index, must_close,
+#                                   condition, depth, level+1)
+#         ran = True
+
+#     if not ran:
+#         yield inside
+
+
+
+def unbracket(string, brackets='()', depth=math.inf, condition=always_true):
     """
-    Removes arbitrary number of enclosing brackets from string.
-    Roughly equivalent to 
-    >>> string.lstrip(brackets[0]).rstrip(brackets[1])
-    except that only the brackets that are matching pairs will be removed.
-
+    Removes arbitrary number of closed bracket pairs from a string up to
+    requested depth.
 
     Parameters
     ----------
@@ -217,16 +354,89 @@ def unbracket(string, brackets='{}'):
     string
         The string with all enclosing brackets removed
     """
-    inside, (i, j) = match_brackets(string, brackets, must_close=True)
-    if (i == 0) and (j == len(string) - 1):
-        return unbracket(inside)
-    return string
+
+    return _unbracket(string, brackets, get_test(condition), depth)
+
+
+def _unbracket(string, brackets, test=always_true, depth=math.inf, level=0, nr=0):
+    # return if too deep
+    if level >= depth:
+        return string
+
+    inside, (i, j) = match_brackets(string, brackets)
+
+    if (inside is None) or not test(string, brackets, (i, j), nr):
+        return string
+
+    # testing on sequence number for every element is probably less efficient
+    # than slicing the iterator below. Can think of a good way of
+    # implementing that? is there even use cases?
+
+    out = string[:i]
+    tail = string[i:]
+    nr = -1
+    itr = iter_brackets(tail, brackets, must_close=True, condition=test)
+    for nr, (inside, (i, j)) in enumerate(itr):
+        out += _unbracket(inside, brackets, test, depth, level+1, nr)
+
+    # did the loop run?
+    if nr == -1:
+        out += inside
+
+    return out + tail[j + 1:]
+
+
+# #
+#     itr = iter_brackets(string, brackets, condition=test)
+#     try:
+#         inside, (i, j) = next(itr)
+#     except StopIteration:
+#         return string
+#     else:
+#         out = string[:i]
+#         tail = string[j + 1:]
+#         nr = -1
+#         for nr, (inside, _) in enumerate(itr):
+#             out += _unbracket(inside, brackets, test, depth, level + 1, nr)
+
+#         # did the loop run?
+#         if nr > -1: # yes
+#             return out + tail
+
+#         # no? recurse on whatever is inside the brackets
+#         return out + _unbracket(inside, brackets, test, depth, level + 1, nr) + tail
+
+
+# # # alternatively
+#     inside, (i, j) = match_brackets(string, brackets, must_close=False)
+#     if inside is None or not test(inside, (i, j), nr):
+#         return string
+
+#     # testing on sequence number for every element is probably less efficient
+#     # than slicing the iterator below. Can think of a good way of
+#     # implementing that? is there even use cases?
+#     # if condition is outermost:
+
+#     out = string[:i]
+#     tail = string[i:]
+#     ran = False
+#     itr = iter_brackets(tail, brackets, must_close=True, condition=test)
+#     for nr, (inside, (i, j)) in enumerate(itr):
+#         out += _unbracket(inside, brackets, test, depth, level+1, nr)
+#         ran = True
+
+#     if not ran:
+#         out += inside
+
+#     return out + tail[j + 1:]
 
 
 def replace(string, mapping):
     """
     Replace all the sub-strings in `string` with the strings in `mapping`.
-    Replacements are done simultaneously (as opposed to recursively).
+
+    Replacements are done simultaneously (as opposed to recursively) ,so that
+    character permutations work as expected. See Examples.
 
     Parameters
     ----------
@@ -237,10 +447,22 @@ def replace(string, mapping):
 
     Examples
     --------
+    # basic
+    >>> replace('hello world', {'h':'m', 'o ':'ow '})
+    'mellow world'
+    >>> replace('hello world', dict(h ='m', o='ow', rld=''))
+    'mellow wow'
+    >>> replace('hello world', {'h':'m', 'o ':'ow ', 'l':''})
+    'meow word'
     >>> replace('hello world', dict(hell='lo', wo='', r='ro', d='l'))
     'loo roll'
+    # character permutations
     >>> replace('option(A, B)', {'B': 'A', 'A': 'B'})
     'option(B, A)'
+    >>> replace('AABBCC', {'A':'B', 'B':'C', 'C':'c'}) 
+    'BBCCcc'
+    >>> replace('hello world', dict(h ='m', o='ow', rld='', w='v'))
+    'mellow vow'
 
     Returns
     -------
@@ -248,13 +470,34 @@ def replace(string, mapping):
 
     """
 
-    unique = set(mapping)
-    ok = unique - set(mapping.values())
-    trouble = unique - ok
-    fix = {key: str(id(key)) for key in trouble}
-    inv = {val: mapping[key] for key, val in fix.items()}
-    good = {key: mapping[key] for key in ok}
-    return _rreplace(_rreplace(_rreplace(string, good), fix), inv)
+    dest = ''.join(mapping.values())
+    good = mapping.copy()
+    tmp = {}
+    for key in mapping.keys():
+        if key in dest:
+            tmp[key] = str(id(key))
+            good.pop(key)
+
+    inv = {val: mapping[key] for key, val in tmp.items()}
+    return _rreplace(_rreplace(_rreplace(string, tmp), good), inv)
+
+    # FIXME:
+    #
+    # replace(r"""\begin{equation}[Binary vector potential]
+    # \label{eq:bin_pot_vec}
+    # Ψ\qty(\vb{r}) = - \frac{GM_1}{\abs{\vb{r - r_1}}}
+    #                 - \frac{GM_2}{\abs{\vb{r - r_2}}}
+    #                 - ½{\qty(\vb{ω} \x \vb{r})}^2
+    # \end{equation}""",
+    #  {'_p': 'ₚ', 'eq:bin_pot_vec': 'eq:bin_pot_vec'} )
+
+    # unique = set(mapping)
+    # ok = unique - set(mapping.values())
+    # trouble = unique - ok
+    # tmp = {key: str(id(key)) for key in trouble}
+    # inv = {val: mapping[key] for key, val in tmp.items()}
+    # good = {key: mapping[key] for key in ok}
+    # return _rreplace(_rreplace(_rreplace(string, tmp), good), inv)
 
 
 def _rreplace(string, mapping):
@@ -263,18 +506,39 @@ def _rreplace(string, mapping):
         string = string.replace(old, new)
     return string
 
+# def remove_affix(string, prefix, suffix):
+    # if prefix
+
+
+def remove_affix(string, prefix='', suffix=''):
+    for i, affix in enumerate((prefix, suffix)):
+        string = _replace_affix(string, affix, '', i)
+    return string
+
+
+def _replace_affix(string, affix, new, i):
+    if affix and (string.startswith, string.endswith)[i](affix):
+        w = (1, -1)[i]
+        return ''.join((new, string[slice(*(w * len(affix), None)[::w])])[::w])
+    return string
+
+
+def remove_prefix(string, prefix):
+    # str.removeprefix python 3.9:
+    return remove_affix(string, prefix)
+
 
 def remove_suffix(string, suffix):
     # str.removesuffix python 3.9:
-    if string.endswith(suffix):
-        return string[:-len(suffix)]
-    return string
+    return remove_affix(string, '', suffix)
+
+
+def replace_prefix(string, old_prefix, new_prefix):
+    return _replace_affix(string, old_suffix, new_suffix, 0)
 
 
 def replace_suffix(string, old_suffix, new_suffix):
-    if string.endswith(old_suffix):
-        return string[:-len(old_suffix)] + new_suffix
-    return string
+    return _replace_affix(string, old_suffix, new_suffix, 1)
 
 
 def surround(string, wrappers):
