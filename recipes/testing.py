@@ -1,7 +1,9 @@
 
 """
-Tools to help building unit tests
+Tools to help building parametrized unit tests
 
+Example
+-------
 To generate a bunch of tests with various call signatures of the function
 `iter_lines`, use
 >>> from recipes.testing import Expect, mock
@@ -38,6 +40,15 @@ from recipes.pprint import caller
 import pytest
 
 from recipes.iter import cofilter, negate
+from recipes.logging import get_module_logger
+
+import logging
+
+# module level logger
+logging.basicConfig()
+logger = get_module_logger()
+logger.setLevel(logging.DEBUG)
+
 
 # FIXME: get this to work inside a class!!
 
@@ -78,13 +89,16 @@ class WrapArgs:
     def __iter__(self):
         return iter((self.args, self.kws))
 
+    def __str__(self) -> str:
+        return str((self.args, dict(zip(*self.kws))))
+
 
 class Mock:
     def __getattr__(self, _):
         return WrapArgs
 
     def __call__(self, *args, **kws):
-        return
+        return WrapArgs(*args, **kws)
 
 
 mock = Mock()
@@ -106,6 +120,15 @@ mock = Mock()
 # @expected(patterns)
 # def test_brace_expand(pattern, result):
 #     assert bash.brace_expand(pattern) == result
+
+class Throws:
+    def __init__(self, kind=Exception):
+        self.kind = kind
+
+# @pytest.mark.parametrize('s', ['(', 'also_open((((((', '((())'])
+# def test_brackets_must_close_raises(s):
+#     with pytest.raises(ValueError):
+#         match_brackets(s, must_close=True)
 
 
 class expected:
@@ -163,19 +186,25 @@ class Expect:
     discovery to work correctly.
     """
 
-    def __init__(self, func, test_name=None):
+    result_name = 'expected'
+    
+    def __init__(self, func, **kws):
         #
         self.func = func
+        self.kws = kws
+        name = func.__name__
+        # whether it's intended to be a test already
+        self.is_test = name.startswith('test_')
         # crude test for whether this function is defined in a class scope
-        self.is_method = (func.__name__ != func.__qualname__)
-        # get test signature
+        self.is_method = (name != func.__qualname__)
+        # get func signature
         self.sig = inspect.signature(self.func)
 
         # mock
-        setattr(self, func.__name__, get_hashable_args)
+        setattr(self, name, get_hashable_args)
 
         # optional name
-        self.test_name = test_name or f'test_{func.__name__}'
+        self.test_name = f'test_{name}'
         self.test_code = None
 
     def __call__(self, items, *args, **kws):
@@ -198,18 +227,19 @@ class Expect:
         if isinstance(items, dict):
             items = items.items()
 
-        # create the test
-        test = self.make_test(transform)
-
-        # parse the arguments
-        if self.func.__name__.startswith('test_'):
+        # create test / parse the arguments
+        if self.is_test:
             # already have the test function defined
+            test = self.func
             argspecs = self.get_args(items)
         else:
-            # test created test function signature has 1 extra parameter
+            # create the test
+            test = self.make_test(transform)
+            # TODO Tester(self.func, transform)
+            # created test function signature has 1 extra parameter
             argspecs, answers = zip(*items)
             argspecs = self.get_args(argspecs)
-            argspecs['result'] = answers
+            argspecs[self.result_name] = answers
 
         names = argspecs.keys()
         values = zip(*argspecs.values())
@@ -229,32 +259,32 @@ class Expect:
         # parameter spec for the function by binding each call pattern
         # to the function signature. Return a dict keyed on parameter names
         # containing lists of parameter values for each call.
+
         values = defaultdict(list)
         for spec in items:
+            # call signature emulation via mock handled here
+            if self.is_test:
+                spec, result = spec
+
             if not isinstance(spec, WrapArgs):
                 # simple construction without use of mock function. No keyword
                 # values in arg spec
                 spec = WrapArgs(*to_tuple(spec))
 
-            # call signature emulation via mock handled here
             args, kws = spec
+            if self.is_test:
+                args += (result, )
             args = (None,) * self.is_method + args
             args = self.bind(*args, **dict(kws))
-
             for name, val in tuple(args.arguments.items())[self.is_method:]:
                 values[name].append(val)
-        # from IPython import embed
-        # embed(header="Embedded interpreter at 'testing.py':212")
+
         return values
 
     def make_test(self, transform=echo):
 
-        if self.func.__name__.startswith('test_'):
-            # already have the test function defined
-            return self.func
-
         # create the test
-        self.test_code = self.get_test_code(transform)
+        self.test_code = self.get_test_code(transform.__name__)
 
         locals_ = {}
         exec(self.test_code, None, locals_)
@@ -264,6 +294,11 @@ class Expect:
         name = self.func.__name__
         test_name = self.test_name or f'test_{name}'
 
+        # signature for test function itself. Just string all the parameter
+        # names together
+        
+        args = ', '.join([*self.sig.parameters.keys(), *[self.result_name]])
+
         # construct the signature for the function call inside the test. We have
         # to use 'param=param' syntax for the keyword only arguments. Using
         # pprint.caller.signature will ensure the variadic-positional and
@@ -271,16 +306,17 @@ class Expect:
         # parameters are formated like 'param=param', and that the pep570
         # markers are excluded in order to emulate a function call syntax
         KWO = inspect.Parameter.KEYWORD_ONLY
-        sig = inspect.Signature(
-            [par.replace(default=par.empty if par.kind != KWO else name)
-             for name, par in self.sig.parameters.items()])
-        call_sig = caller.signature(
-            sig, value_formatter=str, pep570_marks=False)
 
-        # signature for test function itself. Just string all the parameter
-        # names together
-        result_name = 'result'
-        args = ', '.join(list(self.sig.parameters.keys()) + [result_name])
+        sig = inspect.Signature(
+            [par.replace(default=(name if par.kind == KWO else
+                                  self.kws.get(name, par.empty)))
+             for name, par in self.sig.parameters.items()]
+        )
+        # sig.bind_partial(**self.kws)
+
+        call_sign = caller.signature(sig, value_formatter=str,
+                                         pep570_marks=False)
+        
 
         # explicitly import the function to be tested at the runtime location
         # gloabal statement ensures the test function is in the global namespace
@@ -291,15 +327,40 @@ class Expect:
 
             global {name}
             def {test_name}({args}):
-                assert {transform.__name__}({name}{call_sig}) == {result_name}
-
+                if isinstance(expected, Throws):
+                    with pytest.raises(expected.error):
+                        return {transform}({name}{call_sign})
+                      
+                assert {transform}({name}{call_sign}) == {self.result_name}
             ''')
+
+        # if
 
         # TODO: the code above obfuscates the pytest error diagnostics. can you
         # find a way to still get diagnostic messages??
 
-        # logger.debug(f'code:\n{code}')
+        logger.debug(f'code:\n{code}')
         # print('running {test_name}')
         # print('{name} in globals?', '{name}' in globals())
         # print('{name} in locals?', '{name}' in locals())
         return code
+
+class Tester():
+    result_name = 'expected'
+    
+    def __init__(self, fun, transform):
+        self.fun = fun
+        self.transform = transform
+    
+    def test(self, answer, args, kws):
+    
+        if isinstance(expected, Throws):
+            with pytest.raises(expected.error):
+                return self.transform(fun(*args, **kws))
+                    
+        assert self.fun(*args, **kws) == answer
+        
+
+# class ExpectFailure:
+#     def __init__(self, error):
+#         self._TestCaseNonHashableDefaults
