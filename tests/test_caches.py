@@ -59,33 +59,6 @@ def get_tmp_filename(ext='pkl'):
 def cache(request):
     return request.param
 
-# -------------------------------- Test Cases -------------------------------- #
-
-# some template classes / functions for testing exceptions on non-hashable
-# default arguments
-
-
-class _TestCaseNonHashableDefaults():
-    def foo(self, a, b=[1], *c, **kws):
-        pass
-
-    @classmethod
-    def bar(cls, a, b=[1], *c,  **kws):
-        pass
-
-
-def _test_func_non_hash(a, b=[1], *c, **kws):
-    pass
-
-
-@to_file(get_tmp_filename())
-def _test_func0(a=1):
-    pass
-
-
-@to_file(get_tmp_filename())
-def _test_func1(a, b=0, *c, **kws):
-    return a * 7 + b
 
 # these test classes have to be globally scoped in order to be picklable
 
@@ -150,8 +123,38 @@ class TestPersistence():
         clone = Cache(2, filename)
         assert clone[1] == 1
 
+# -------------------------------- Test Cases -------------------------------- #
 
-class TestMomoizeDecorator():
+# some template classes / functions for testing exceptions on non-hashable
+# default arguments
+
+
+class _TestCaseNonHashableDefaults():
+    def foo(self, a, b=[1], *c, **kws):
+        pass
+
+    @classmethod
+    def bar(cls, a, b=[1], *c,  **kws):
+        pass
+
+
+def _test_func_non_hash(a, b=[1], *c, **kws):
+    pass
+
+
+@to_file(get_tmp_filename())
+def _test_func0(a=1):
+    pass
+
+
+@to_file(get_tmp_filename())
+def _test_func1(a, b=0, *c, **kws):
+    return a * 7 + b
+
+# ---------------------------------------------------------------------------- #
+
+
+class TestCachedDecorator():
 
     @pytest.mark.parametrize(
         'func',
@@ -183,7 +186,8 @@ class TestMomoizeDecorator():
     def test_caching(self):
 
         _test_func1(6)
-        assert _test_func1.cache == {(('a', 6), ('b', 0), ('c', ())): 42}
+        current = (6, 0, (), ())
+        assert _test_func1.cache == {current: 42}
 
         with pytest.warns(UserWarning):
             _test_func1([1], [0])
@@ -191,13 +195,13 @@ class TestMomoizeDecorator():
             # passed to function '_test_func1': 'a' = [1]
 
         # cache unchanged
-        assert _test_func1.cache == {(('a', 6), ('b', 0), ('c', ())): 42}
+        assert _test_func1.cache == {current: 42}
 
         _test_func1(6, hello='world')
         # new cache item for keyword arguments
         assert _test_func1.cache == {
-            (('a', 6), ('b', 0), ('c', ())): 42,
-            (('a', 6), ('b', 0), ('c', ()), ('hello', 'world')): 42
+            current: 42,
+            (6, 0, (), (('hello', 'world'),)): 42
         }
 
     def test_new(self):

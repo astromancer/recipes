@@ -1,10 +1,10 @@
-import functools as ftl
+# import functools as ftl
 from collections import OrderedDict as odict
 
 # from .caches import Cache
 from ..io import serialize, deserialize, guess_format
-from pickle import PicklingError
-import warnings
+# from pickle import PicklingError
+# import warnings
 from pathlib import Path
 from ..logging import LoggingMixin
 import json
@@ -17,6 +17,11 @@ import json
 
 # ------------------------------- json helpers ------------------------------- #
 
+def lists_to_tuples(item):
+    if isinstance(item, list):
+        # recurse
+        return tuple(map(lists_to_tuples, item))
+    return item
 
 class CacheEncoder(json.JSONEncoder):
     """
@@ -33,7 +38,7 @@ class CacheEncoder(json.JSONEncoder):
             # print('SAVE!', obj)
             return super().encode(
                 {obj.__class__.__name__: obj.__dict__,
-                 'items': list(obj.items())})
+                 'items': list(obj.items())}) # FIXME: dict!!
             # note json does not support tuples, so hashability is lost here
         return super().encode(obj)
 
@@ -49,8 +54,11 @@ def cache_decoder(mapping):
             obj = Cache(**mapping[name])
             # since json convert all tuples to list, we have to remap
             # to tuples
+            # obj.update(mapping['cached'])
             for key, val in mapping['items']:
-                obj[tuple(map(tuple, key))] = val
+                # json converts tuples to lists, so we have to back convert
+                # so we can hash
+                obj[lists_to_tuples(key)] = val
 
             obj.filename = filename
             return obj
