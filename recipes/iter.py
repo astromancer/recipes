@@ -4,8 +4,6 @@ Common patterns involving iterables
 
 
 # std libs
-import operator
-import functools
 import itertools as itt
 from collections import abc
 

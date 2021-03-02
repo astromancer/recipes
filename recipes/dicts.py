@@ -66,7 +66,7 @@ def pformat(dict_, name='', key_repr=str, val_repr=str, sep=':', item_sep=',',
     return string
 
 
-def _pformat(dict_, key_repr=str, val_repr=str, sep=':', item_sep=',',
+def _pformat(dict_, key_repr=str, val_repr=str, sep=': ', item_sep=',',
              brackets='{}'):
     assert isinstance(dict_, abc.MutableMapping), 'Object is not a dict'
 

@@ -1,8 +1,7 @@
 import inspect
 from types import FrameType
 from typing import cast
-import sys
-import builtins
+
 
 # from importlib.machinery import all_suffixes
 # SUFFIXES = all_suffixes()
@@ -56,7 +55,9 @@ def get_module_name(obj=None, depth=None):
     if name == '__main__':
         from pathlib import Path
 
-        # if mod has no '__file__' attribute, we are in an interactive session
+        # if mod has no '__file__' attribute, we are either
+        # i)  running file as a script
+        # ii) in an interactive session
         if not hasattr(mod, '__file__'):
             if depth is None:
                 return ''

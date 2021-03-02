@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from .oo import ClassProperty
 from .decor.base import DecoratorBase
 from .introspect.utils import get_caller_frame, get_module_name
-# from recipes.caches.memoize import memoize
+# from recipes.caches import cached
 
 # relative libs
 

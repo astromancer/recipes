@@ -208,12 +208,12 @@ def rebin(x, binsize, t=None, e=None):
 #     times that the index corresponding to that element would be repeated in
 #     the strided array.
 #     """
-#     from recipes.lists import count_repeats, sortmore
+#     from recipes.lists import count_repeats, cosort
 #
 #     I = fold(np.arange(N), wsize, overlap).ravel()
 #     if np.ma.is_masked(I):
 #         I = I[~I.mask]
 #
 #     d = count_repeats(I)
-#     ix, noc = sortmore(*zip(*d.items()))
+#     ix, noc = cosort(*zip(*d.items()))
 #     return noc

@@ -6,6 +6,9 @@ Miscellaneous decorators
 # TODO add usage patterns to all these classes!!!
 
 
+import functools
+
+
 class singleton:
     # adapted from:
     # https://python-3-patterns-idioms-test.readthedocs.io/en/latest/Singleton.html
@@ -71,21 +74,7 @@ def decorator_with_keywords(func=None, **dkws):
     return _decorate
 
 
-# ====================================================================================================
-# def foo(a, b, c, d, e):
-# print('foo(a={}, b={}, c={}, d={}, e={})'.format(a, b, c, d, e))
 
-# def partial_at(func, index, value):
-# @functools.wraps(func)
-# def result(*rest, **kwargs):
-# args = []
-# args.extend(rest[:index])
-# args.append(value)
-# args.extend(rest[index:])
-# return func(*args, **kwargs)
-# return result
-
-# if __name__ == '__main__':
 # bar = partial_at(foo, 2, 'C')
 # bar('A', 'B', 'D', 'E')
 # Prints: foo(a=A, b=B, c=C, d=D, e=E)
@@ -115,55 +104,7 @@ def starwrap(func):
     return wrapper
 
 
-# PyQt
 
-
-# ====================================================================================================
-# memoize
-# def memoize(obj):
-# cache = obj.cache = {}
-
-# @functools.wraps(obj)
-# def memoizer(*args, **kwargs):
-# key = str(args) + str(kwargs)
-# if key not in cache:
-# cache[key] = obj(*args, **kwargs)
-# return cache[key]
-# return memoizer
-
-
-import functools
-
-
-# ====================================================================================================
-def cache_last_return(obj):
-    # cache = obj.cache = None
-
-    @functools.wraps(obj)
-    def wrapper(*args, **kwargs):
-        # print( obj )
-        wrapper.cache = obj(*args, **kwargs)
-        return wrapper.cache
-
-    return wrapper
-
-
-# ====================================================================================================
-def cache_returns(obj):
-    cache = obj.cache = []
-
-    # def actualDecorator(func):
-    @functools.wraps(obj)
-    def wrapper(*args, **kwargs):
-        # print( obj )
-
-        wrapper.cache.append(obj(*args, **kwargs))
-        return wrapper.cache[-1]
-
-    return wrapper
-
-
-# ====================================================================================================
 def upon_first_call(do_first):
     def actualDecorator(func):
         def wrapper(self, *args, **kwargs):

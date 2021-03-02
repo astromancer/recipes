@@ -15,7 +15,7 @@ VAR_MARKS = {VAR: '*', VKW: '**'}
 _empty = inspect.Parameter.empty
 
 
-def par_fmt(par, val_formatter=repr):
+def parameter(par, val_formatter=repr):
     kind = par.kind
     formatted = par._name
 
@@ -83,7 +83,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
                     if par.default == par.empty}
 
         # format individual paramter value pairs
-        pars, kinds = zip(*((par_fmt(p, value_formatter), p.kind)
+        pars, kinds = zip(*((parameter(p, value_formatter), p.kind)
                             for p in pars.values()))
         pars = list(pars)
 

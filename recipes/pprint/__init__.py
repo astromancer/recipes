@@ -1,2 +1,4 @@
 from .nrs import *
-from .misc import method, dicts
+from .misc import dicts
+# from .caller import method
+from . import caller
