@@ -1,3 +1,4 @@
+import textwrap as txw
 import inspect
 import math
 import os
@@ -330,7 +331,6 @@ def iter_brackets(string, brackets='()', return_index=True, must_close=False,
 #         yield inside
 
 
-
 def unbracket(string, brackets='()', depth=math.inf, condition=always_true):
     """
     Removes arbitrary number of closed bracket pairs from a string up to
@@ -363,8 +363,13 @@ def _unbracket(string, brackets, test=always_true, depth=math.inf, level=0, nr=0
     if level >= depth:
         return string
 
-    inside, (i, j) = match_brackets(string, brackets)
+    # TODO:
+    # itr = iter_brackets(tail, brackets, must_close=True, condition=test)
+    # found = next(itr, None)
+    # if found is None:
+    #   return string
 
+    inside, (i, j) = match_brackets(string, brackets)
     if (inside is None) or not test(string, brackets, (i, j), nr):
         return string
 
@@ -430,12 +435,16 @@ def _unbracket(string, brackets, test=always_true, depth=math.inf, level=0, nr=0
 
 #     return out + tail[j + 1:]
 
+# def to_fstring(string):
+    #"'%s(xy=(%g, %g), ' % (self.__class__.__name__, *self.center)"
+    # ---> 'self.__class__.__name__ + '(xy=(%g, %g), ' % self.center'
 
-def replace(string, mapping):
+
+def substitute(string, mapping):  # sub / substitute
     """
     Replace all the sub-strings in `string` with the strings in `mapping`.
 
-    Replacements are done simultaneously (as opposed to recursively) ,so that
+    Replacements are done simultaneously (as opposed to recursively), so that
     character permutations work as expected. See Examples.
 
     Parameters
@@ -500,14 +509,31 @@ def replace(string, mapping):
     # return _rreplace(_rreplace(_rreplace(string, tmp), good), inv)
 
 
+
 def _rreplace(string, mapping):
     """blind recursive replace"""
     for old, new in dict(mapping).items():
         string = string.replace(old, new)
     return string
 
-# def remove_affix(string, prefix, suffix):
-    # if prefix
+
+def title(string, ignore=()):
+    """
+    Title case string with optional ignore patterns.
+
+    Parameters
+    ----------
+    string : str
+        sttring to convert to titlecase
+    ignore : tuple of str
+        These elements of the string will not be title cased
+    """
+    if isinstance(ignore, str):
+        ignore = [ignore]
+        
+    ignore = [*map(str.strip, ignore)]
+    subs = {s.title(): s for s in ignore}
+    replace
 
 
 def remove_affix(string, prefix='', suffix=''):
@@ -608,7 +634,7 @@ def monospaced(text):
 # TODO:
 # def decomment(string, mark='#', keep=()):
 
-#     re.compile(rf'((?![\\]).){mark}([^\n]*)', re.S)
+#     re.compile(rf'(?s)((?![\\]).){mark}([^\n]*)')
 
 
 def banner(text, swoosh='=', width=80, title=None, align='^'):

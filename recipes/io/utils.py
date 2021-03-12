@@ -1,4 +1,5 @@
 # std libs
+from recipes.string import replace
 import os
 from recipes.io.bash import brace_expand_iter
 from recipes.string import match_brackets
@@ -383,3 +384,15 @@ def safe_write(filename, lines, mode='w', exception_hook=None):
                 if exception_hook:
                     raise exception_hook(err, filename, line, i) from err
                 raise
+
+
+def write_replace(filename, replacements):
+    if not replacements:
+        # nothing to do
+        return 
+    
+    with open(filename, 'r+') as fp:
+        text = fp.read()
+        fp.seek(0)
+        fp.write(replace(text, replacements))
+        fp.truncate()
