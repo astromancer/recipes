@@ -3,6 +3,7 @@ Recipes involving lists
 """
 
 # std libs
+from collections import defaultdict
 from numpydoc.docscrape import NumpyDocString
 import re
 import itertools as itt
@@ -13,6 +14,7 @@ import more_itertools as mit
 # relative libs
 from .dicts import DefaultOrderedDict
 from .iter import nth_zip
+from operator import eq
 
 
 class NULL:
@@ -139,15 +141,15 @@ def lists(mapping):
     return list(map(list, mapping))
 
 
-def sort_by_index(*its, indices=None):
-    """Use index array to sort items in multiple sequences"""
-    if indices is None:
-        return its
-    return tuple(list(map(it.__getitem__, ix))
-                 for it, ix in zip(its, itt.repeat(indices)))
+# def sort_by_index(*its, indices=None):
+#     """Use index array to sort items in multiple sequences"""
+#     if indices is None:
+#         return its
+#     return tuple(list(map(it.__getitem__, ix))
+#                  for it, ix in zip(its, itt.repeat(indices)))
 
 
-def where(l, item, start=0, test=None):
+def where(l, item, start=0, test=eq):
     """
     A multi-indexer for lists. Return index positions of all occurances of
     `item` in a list `l`.  If a test function is given, return all indices at
@@ -182,10 +184,11 @@ def where(l, item, start=0, test=None):
     list of int or `default`
         The index positions where test evaluates true
     """
+    test = test or eq
     return list(_where(l, item, start, test))
 
 
-def _where(l, item, start=0, test=None):
+def _where(l, item, start=0, test=eq):
     i = start
     n = len(l)
     while i < n:
@@ -199,7 +202,8 @@ def _where(l, item, start=0, test=None):
             i += 1  # start next search one on
 
 
-def index(l, item, start=0, test=None, default=NULL):
+def index(l, item, start=0, test=eq, default=NULL):
+    # TODO: something like this but for strings, etc to live in op
     """
     Find the index position of `item` in list `l`, or if a test function is
     provided, the first index position for which the test evaluates as true. If
@@ -220,14 +224,11 @@ def index(l, item, start=0, test=None, default=NULL):
     if not isinstance(l, list):
         l = list(l)
 
-    if test is None:
-        # test = item.__eq__
-        return l.index(item, start)
-
+    test = test or eq
     for i, x in enumerate(l[start:], start):
         if test(x, item):
             return i
-    
+
     # behave like standard list indexing by default
     #  -> only if default parameter was explicitly given do we return that
     #   instead of raising a ValueError
@@ -264,7 +265,7 @@ def split(l, idx):
     """Split a list into sublists at the given indices"""
     if len(idx) == 0:
         return [l]
-    
+
     if idx[0] != 0:
         idx = [0] + idx
 
@@ -312,13 +313,14 @@ missing_ints = missing_integers
 #     enum = iter(nrs)
 #     return where(nrs, '', 1, lambda x, _: x - next(enum) > threshold)
 
-
-def unique(l):
-    """Return dict of unique (item, indices) pairs for sequence."""
-    t = DefaultOrderedDict(list)
+def partition(l, predicate):
+    parts = defaultdict(list)
+    indices = defaultdict(list)
     for i, item in enumerate(l):
-        t[item].append(i)
-    return t
+        box = predicate(item)
+        parts[box].append(item)
+        indices[box].append(i)
+    return parts, indices
 
 
 def tally(l):
@@ -326,6 +328,14 @@ def tally(l):
     t = DefaultOrderedDict(int)
     for item in l:
         t[item] += 1
+    return t
+
+
+def unique(l):
+    """Return dict of unique (item, indices) pairs for sequence."""
+    t = DefaultOrderedDict(list)
+    for i, item in enumerate(l):
+        t[item].append(i)
     return t
 
 
