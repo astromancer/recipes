@@ -1,6 +1,8 @@
+
 """
-A collection of awesome decorators
+A collection of some awesome functional decorators used accross recipes
 """
+
 
 # from .path import path
 # from .expose import expose
@@ -14,7 +16,4 @@ A collection of awesome decorators
 # TODO: REALLY NEED A DECORATOR that can flag all methods in a class
 
 
-def raises(kind):
-    def _raises(msg):
-        raise kind(msg)
-    return _raises
+from ..functionals import *
