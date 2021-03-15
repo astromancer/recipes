@@ -440,7 +440,7 @@ def _unbracket(string, brackets, test=always_true, depth=math.inf, level=0, nr=0
     # ---> 'self.__class__.__name__ + '(xy=(%g, %g), ' % self.center'
 
 
-def substitute(string, mapping):  # sub / substitute
+def sub(string, mapping):  # sub / substitute
     """
     Replace all the sub-strings in `string` with the strings in `mapping`.
 
@@ -457,20 +457,20 @@ def substitute(string, mapping):  # sub / substitute
     Examples
     --------
     # basic
-    >>> replace('hello world', {'h':'m', 'o ':'ow '})
+    >>> sub('hello world', {'h':'m', 'o ':'ow '})
     'mellow world'
-    >>> replace('hello world', dict(h ='m', o='ow', rld=''))
+    >>> sub('hello world', dict(h ='m', o='ow', rld=''))
     'mellow wow'
-    >>> replace('hello world', {'h':'m', 'o ':'ow ', 'l':''})
+    >>> sub('hello world', {'h':'m', 'o ':'ow ', 'l':''})
     'meow word'
-    >>> replace('hello world', dict(hell='lo', wo='', r='ro', d='l'))
+    >>> sub('hello world', dict(hell='lo', wo='', r='ro', d='l'))
     'loo roll'
     # character permutations
-    >>> replace('option(A, B)', {'B': 'A', 'A': 'B'})
+    >>> sub('option(A, B)', {'B': 'A', 'A': 'B'})
     'option(B, A)'
-    >>> replace('AABBCC', {'A':'B', 'B':'C', 'C':'c'}) 
+    >>> sub('AABBCC', {'A':'B', 'B':'C', 'C':'c'}) 
     'BBCCcc'
-    >>> replace('hello world', dict(h ='m', o='ow', rld='', w='v'))
+    >>> sub('hello world', dict(h ='m', o='ow', rld='', w='v'))
     'mellow vow'
 
     Returns
@@ -508,6 +508,8 @@ def substitute(string, mapping):  # sub / substitute
     # good = {key: mapping[key] for key in ok}
     # return _rreplace(_rreplace(_rreplace(string, tmp), good), inv)
 
+# alias
+substitute = sub 
 
 
 def _rreplace(string, mapping):
@@ -532,8 +534,9 @@ def title(string, ignore=()):
         ignore = [ignore]
         
     ignore = [*map(str.strip, ignore)]
-    subs = {s.title(): s for s in ignore}
-    replace
+    subs = {f'{s.title()} ': f'{s} ' for s in ignore}
+    return sub(string.title(), subs)
+    
 
 
 def remove_affix(string, prefix='', suffix=''):

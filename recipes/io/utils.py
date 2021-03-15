@@ -1,5 +1,5 @@
 # std libs
-from recipes.string import replace
+from recipes.string import sub
 import os
 from recipes.io.bash import brace_expand_iter
 from recipes.string import match_brackets
@@ -394,5 +394,5 @@ def write_replace(filename, replacements):
     with open(filename, 'r+') as fp:
         text = fp.read()
         fp.seek(0)
-        fp.write(replace(text, replacements))
+        fp.write(sub(text, replacements))
         fp.truncate()
