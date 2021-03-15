@@ -6,7 +6,7 @@ import re
 from recipes.lists import index
 import warnings
 from numpydoc.docscrape import NumpyDocString
-from recipes.string import replace
+from recipes.string import sub
 
 
 TAB = ' ' * 4
@@ -107,7 +107,7 @@ class clone_doc:
             warnings.warn(f'{name}[{key}] has no attribute {attr}.')
 
         if replacements:
-            func.__doc__ = replace(doc, replacements)
+            func.__doc__ = sub(doc, replacements)
         else:
             warnings.warn(
                 f'{self.__class__.__name__} did not make any substitutions in '

@@ -3,7 +3,7 @@ import pathlib
 
 import re
 
-from recipes.string import replace
+from recipes.string import sub
 
 
 # translate unix brace expansion patterns to regex pattern
@@ -48,7 +48,7 @@ def glob_to_regex(pattern):
     # Translate unix glob expression to regex for emulating bash wrt item
     # retrieval
     return re.compile(
-        replace(pattern.translate(UNIX_BRACE_TO_REGEX), UNIX_GLOB_TO_REGEX)
+        sub(pattern.translate(UNIX_BRACE_TO_REGEX), UNIX_GLOB_TO_REGEX)
     )
 
 

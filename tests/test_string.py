@@ -1,25 +1,25 @@
 from recipes.testing import Expect, Throws, mock, expected
-from recipes.string import match_brackets, Percentage, replace, unbracket, outermost,  contained
-from recipes.functionals import negate
+from recipes.string import Percentage, sub
 import pytest
 
 
-test_replace = Expect(replace)(
+
+test_sub = Expect(sub)(
     # basic
-    {mock.replace('hello world', {'h': 'm', 'o ': 'ow '}):
+    {mock.sub('hello world', {'h': 'm', 'o ': 'ow '}):
      'mellow world',
-     mock.replace('hello world', dict(h='m', o='ow', rld='')):
+     mock.sub('hello world', dict(h='m', o='ow', rld='')):
      'mellow wow',
-     mock.replace('hello world', {'h': 'm', 'o ': 'ow ', 'l': ''}):
+     mock.sub('hello world', {'h': 'm', 'o ': 'ow ', 'l': ''}):
      'meow word',
-     mock.replace('hello world', dict(hell='lo', wo='', r='ro', d='l')):
+     mock.sub('hello world', dict(hell='lo', wo='', r='ro', d='l')):
      'loo roll',
      # character permutations
-     mock.replace('option(A, B)', {'B': 'A', 'A': 'B'}):
+     mock.sub('option(A, B)', {'B': 'A', 'A': 'B'}):
      'option(B, A)',
-     mock.replace('AABBCC', {'A': 'B', 'B': 'C', 'C': 'c'}):
+     mock.sub('AABBCC', {'A': 'B', 'B': 'C', 'C': 'c'}):
      'BBCCcc',
-     mock.replace('hello world', dict(h='m', o='ow', rld='', w='v')):
+     mock.sub('hello world', dict(h='m', o='ow', rld='', w='v')):
      'mellow vow'
      }
 )
