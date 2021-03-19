@@ -2,7 +2,7 @@
 from recipes.string import sub
 import os
 from recipes.io.bash import brace_expand_iter
-from recipes.string import match_brackets
+from recipes.string.brackets import braces
 from recipes.docstring import clone_doc
 
 import pickle
@@ -133,7 +133,7 @@ def iter_files(path, extensions='*', recurse=False):
     path = str(path)
 
     # handle brace expansion first
-    special = bool(match_brackets(path, '{}', False, must_close=True))
+    special = bool(braces.match(path, '{}', False, must_close=True))
     wildcard = glob.has_magic(path)  # handle glob patterns
     if special | wildcard:
         itr = (brace_expand_iter(path) if special else
