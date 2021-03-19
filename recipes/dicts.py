@@ -9,7 +9,7 @@ import types
 import re
 import numbers
 from collections import abc, UserDict, OrderedDict
-from .string import match_brackets
+from .string import brackets
 from pathlib import Path
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
@@ -522,7 +522,7 @@ class TerseKws:
         self.pattern = pattern
         sub = pattern
         while 1:
-            s, (i0, i1) = match_brackets(sub, '[]', return_index=True,
+            s, (i0, i1) = brackets.square.match(sub, return_index=True,
                                          must_close=True)
             # print(s, i0, i1)
             if s is None:

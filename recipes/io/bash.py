@@ -5,8 +5,8 @@ import itertools as itt
 from collections import defaultdict
 from pathlib import Path
 import re
-from recipes.string import iter_brackets, unbracket
 
+from recipes.string.brackets import braces
 from recipes.lists import split_where
 
 
@@ -65,7 +65,7 @@ def brace_expand_iter(pattern, level=0):
     
     # handle special bash expansion syntax here  xx{12..15}.fits
     inside = None
-    for inside, (i, j) in iter_brackets(pattern, '{}'):
+    for inside, (i, j) in braces.iter(pattern):
         head, tail = pattern[:i], pattern[j + 1:]
         # print(f'{inside=}', f'{tail=}')
         for part in _expander(inside, head, tail):
@@ -105,7 +105,7 @@ def brace_contract(items):
         # simply remove single items enclosed in brackets. NOTE this behaviour
         # is different from what bash does: it simply uses the name containing
         # {x} elements verbatim
-        return unbracket(items[0], '{}', condition=lambda x: ',' not in x)
+        return braces.remove(items[0], condition=lambda x: ',' not in x)
         
     # ensure list of strings
     items = sorted(map(str, items))
