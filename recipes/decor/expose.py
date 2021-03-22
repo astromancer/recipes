@@ -26,8 +26,8 @@ class show(Decorator):
     values optional arguments specify stuff to print before and after, as well 
     as specific pretty printing options to `show_func`.
 
-    Example
-    -------
+    Examples
+    --------
 
     >>> from recipes.decor import expose
     >>> @expose.show()
@@ -35,8 +35,7 @@ class show(Decorator):
     ...     return a
     ...
     ... foo('aaa', 42, id, gr=8, bar=...)
-
-    prints:
+    
     foo(a       = aaa,
         b       = 42,
         c       = <built-in function id>,
@@ -52,7 +51,7 @@ class show(Decorator):
 
     def wrapper(self, *args, **kws):
         print(self.pre)
-        print(pp.caller.function(self.func, args, kws, **self.options))
+        print(pp.caller(self.func, args, kws, **self.options))
 
         result = self.func(*args, **kws)
 

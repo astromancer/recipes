@@ -1,24 +1,34 @@
-# from recipes.decor.tests import test_cases as tcx
-# pylint: disable-all
 
+from pytest_cases import fixture, parametrize, get_all_cases
+import re
+# from pytest_steps import test_steps
 import more_itertools as mit
 from collections import defaultdict
 from inspect import Parameter
-import sys
-from recipes.introspect.imports import tidy
-from recipes.decor.expose import show_func, get_module_name
+
+from recipes import pprint as pp
+from recipes.string import replace_suffix
+from recipes.logging import get_module_logger
 import inspect
-import types
+import logging
+
 
 import itertools as itt
-import functools as ftl
 import textwrap as txw
 import random
 
-random.seed(123)
-# import ast
+import pytest
 
-# __all__ = []
+# ensure repeatability
+random.seed(123)
+
+# module level logger
+logging.basicConfig()
+logger = get_module_logger()
+logger.setLevel(logging.INFO)
+
+
+PKIND = POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 
 # pylint: disable-all
 # Make a bunch of function definitions for testing
@@ -29,19 +39,6 @@ random.seed(123)
 # '*args', '*'
 # 'd=3'
 # '**kws'
-
-
-# def IGNORE(): pass
-
-
-# def ignore(o):
-#     return o is IGNORE
-
-# def is_empty(o):
-#     return o is Parameter.empty
-
-
-PKIND = POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 
 
 # TODO: generate function from choices from below
@@ -68,10 +65,6 @@ def gen_random_string(n):
 
 def has_default(par):
     return par.default is not par.empty
-
-
-# def can_omit(par):
-#     return is_var(par) or has_default(par)
 
 
 def is_required(par):
@@ -103,19 +96,40 @@ def has_var(params):
     return _has(params, is_var)
 
 
-class FunctionGenerator:
-    """Generate python functions for all variety of allowed signatures"""
+class FunctionFactory:
+    """Generate python functions for all variety of allowed signatures."""
 
     def __init__(self, arg_name_pool, default_pool):
         self.name_pool = arg_name_pool
         self.default_pool = itt.cycle(default_pool)
 
     def __call__(self, n_par_kind, name_base='f', class_name_base=None):
+        """
+        Generate functions with signature based on *n_par_kind*. Successively
+        yields fuctions having between 0 and n parameters of each kind, where n
+        is an integer given in *n_par_kind* for that kind of parameter.
+
+        Parameters
+        ----------
+        n_par_kind : dict
+            Maximum number of parameters of each kind for function arg spec. 
+            Kind is the integer code is `inspect._ParameterKind`.
+        name_base : str, optional
+            Stem for names given to functions, by default 'f'. A sequence number
+            is appended to each successive function.
+        class_name_base : str, optional
+            Name of the class in which the function will be defined.  If None,
+            the default, a function is created. If given, a method is created
+            in the class with this name. 
+
+        Yields
+        -------
+        function or method
+        """
 
         i = 0
-        functions = []
         for nargs in itt.product(*(range(n + 1) for n in n_par_kind.values())):
-            for params in rfg.gen_params(nargs):
+            for params in self.gen_params(nargs):
                 i += 1
 
                 if class_name_base:
@@ -126,14 +140,25 @@ class FunctionGenerator:
                     name = f'{name_base}{i}'
 
                 # create func
-                functions.append(
-                    rfg.make(name, params, class_name)
-                )
+                yield self.make(name, params, class_name)
 
-        return functions
+        logger.info(
+            f'Created {i} functions with unique signature')
 
     def gen_params(self, nkind):
+        """
+        Generate parameters for the function signature.
 
+        Parameters
+        ----------
+        nkind : dict
+            Maximum of parameters of each kind.
+
+        Yields
+        -------
+        list
+            List of `inspect.Parameter`s for function
+        """
         name_pool = itt.cycle(self.name_pool)
         name_generators = {POS: name_pool,
                            PKW: name_pool,
@@ -170,6 +195,7 @@ class FunctionGenerator:
             yield list(mit.flatten(params))
 
     def toggle_defaults(self, params):
+        """Toggle defaults on / off for function parameters *params*"""
         # copy
         # params = params[:]
 
@@ -184,13 +210,12 @@ class FunctionGenerator:
             return
 
         # new parameter with default
-        par = Parameter(last.name, last.kind, default=next(self.default_pool))
-
         for params in self.toggle_defaults(params[:-1]):
-            yield params + [par]
+            yield params + [last.replace(default=next(self.default_pool))]
 
-    def get_code(self, name, params, class_name=None):
-
+    @staticmethod
+    def get_code(name, params, class_name=None):
+        """function source code factory"""
         if class_name:
             params = [Parameter('self', POS)] + params
 
@@ -207,23 +232,24 @@ class FunctionGenerator:
         return s
 
     def make(self, name, params, class_name=None):
+        """function factory"""
         locals_ = {}
-        exec(rfg.get_code(name, params, class_name), None, locals_)
+        exec(self.get_code(name, params, class_name), None, locals_)
         if class_name:
             return getattr(locals_['obj'], name)
         return locals_[name]
 
 
 class ArgValGen:
-    """Generate random parameters for function with any signature"""
+    """Generate random parameter values for function with any signature"""
 
     # TODO: could be a class that takes the function as input.
     # TODO: use annotations to generate randoms by type
 
-    def __init__(self, arg_pool, kws_pool, var_pool):
+    def __init__(self, arg_pool, var_pool, kws_pool):
         self.arg_pool = itt.cycle(arg_pool)
-        self.var_pool = var_pool
-        self.kws_pool = kws_pool
+        self.var_pool = itt.cycle(var_pool)
+        self.kws_pool = itt.cycle(kws_pool)
 
     def __call__(self, fun):
 
@@ -285,50 +311,45 @@ class ArgValGen:
             kws[par.name] = next(self.arg_pool)
 
         elif par.kind == VKW:
-            kws.update(self.kws_pool)
+            kws.update(next(self.kws_pool))
 
 
-def test_show_func(fun, *spec, **kws):
-    # print('Signature')
-    print('show_func:', kws)
-    print(show_func(fun, *spec, **kws))
-
-    # print('\n', )
-    # for spec in get_random_args(fun):
-    #     print(*spec, '\n')
-    #     print(
-    #         show_func(fun, *spec)
-    #     )
+# ---------------------------------------------------------------------------- #
+# Helper class
+class FuncHelper:
+    def __init__(self, fun):
+        self.fun = fun
+        self.sig = str(inspect.signature(fun))
 
 
-
-def test_expose_decor():
-    @expose.args
-    def foo(a, b=1, *args, c=2, **kws):
-        pass
-
-    foo(88, 12, 11, c=4, y=1)
-
-
-# ----------------------------- Create Functions ----------------------------- #
-
-# choose arg types:
-rfg = FunctionGenerator('abc', range(5))
-functions = rfg({POS: 1,
-                 PKW: 1,
-                 VAR: 1,
-                 KWO: 1,
-                 VKW: 1})
-
-print(f'Created {len(functions)} functions with unique signature')
+# ---------------------------------------------------------------------------- #
+# Create Functions
+SPEC = {POS: 1,
+        PKW: 1,
+        VAR: 1,
+        KWO: 1,
+        VKW: 1}
 
 
-# ------------------------- Generate Random Arguments ------------------------ #
+factory = FunctionFactory('abc', range(5))(SPEC)
+helpers = [*map(FuncHelper, factory)]
 
 avg = ArgValGen(arg_pool=[1, 2, 3, 4, 5],
-                kws_pool=dict(λ='r', x='v'),
-                var_pool=gen_random_string(3))
+                var_pool=gen_random_string(3),
+                kws_pool=[{'λ': 'r'}, {'x': 'v'}])
 
+
+# @fixture(scope='session')
+# @parametrize(fun=factory)
+# def fun(fun):
+#     return FuncHelper(fun)
+
+
+# ---------------------------------------------------------------------------- #
+
+
+# def test_test(fun):
+#     pass
 
 # def inner(a, b, c):
 #     pass
@@ -338,21 +359,67 @@ avg = ArgValGen(arg_pool=[1, 2, 3, 4, 5],
 # p1, p0
 
 
-extra = []  # [id, float, callable, tidy]
-for i, fun in enumerate((functions + extra)):  #
-    print('Signature')
-    print(show_func(fun))
-    print('--------')
+REGEX_PARAMS = re.compile(r'((?P<name>\w+)(?:=(?P<default>.+?))?),')
+#
 
-    for spec in avg(fun):
-        print('\nArgspec:', *spec)
 
-        test_show_func(fun, *spec, show_defaults=False)
+@parametrize(fun=helpers, idgen='{fun.fun.__name__}')
+def test_caller_basic(fun):
+    # check if we are faithfully reproducing the signature
+    # builtin signature rep prints trailing PEP570 / marker which is meaningless
+    try:
+        sig = replace_suffix(fun.sig, ', /)', ')')
+        assert pp.caller(fun.fun).endswith(sig)
+    except Exception as err:
+        from IPython import embed
+        import textwrap, traceback
+        embed(header=textwrap.dedent(
+                f"""\
+                Caught the following {type(err).__name__}:
+                %s
+                Exception will be re-raised upon exiting this embedded interpreter.
+                """) % traceback.format_exc())
+        raise
+        
 
-        if has_defaults(inspect.signature(fun).parameters):
-            test_show_func(fun, *spec, show_defaults=True)
 
-    print('=' * 80)
+@parametrize(
+    'fun, spec',
+    ((fun, spec) for fun in helpers for spec in avg(fun.fun)),
+    idgen='{fun.fun.__name__}{spec}'
+)
+def test_caller_defaults(fun, spec):
+    # check if defaults are represented / dropped
+    args, kws = spec
+    d = pp.caller(fun.fun, args, kws, show_defaults=True)
+    xd = r = pp.caller(fun.fun, args, kws, show_defaults=False)
+    for i, arg in enumerate(REGEX_PARAMS.finditer(fun.sig)):
+        if arg['default']:
+            if (len(args) > i and args[i]) or (arg['name'] in kws):
+                # value specified
+                pass
+            else:
+                par_val = arg[1]
+                assert par_val in d
+                assert par_val not in xd
+
+
+# extra = []  # [id, float, callable, tidy]
+# for i, fun in enumerate((functions + extra)):  #
+#     # check if we are faithfully reproducing the signature
+#     # print('Signature')
+#     # print(pp.caller(fun))
+#     # print('--------')
+
+#     for spec in avg(fun):
+#         # print('\nArgspec:', *spec)
+
+#         test_pprint_caller(fun, *spec, show_defaults=False)
+
+#         if has_defaults(inspect.signature(fun).parameters):
+#             test_pprint_caller(fun, *spec, show_defaults=True)
+
+#     print('=' * 80)
 
     #     break
     # # test_show_func(fun)
@@ -369,23 +436,3 @@ for i, fun in enumerate((functions + extra)):  #
 
     # if i == 4:
     #     break
-
-
-def test_expose_decor():
-    @expose.args
-    def foo(a, b=1, *args, c=2, **kws):
-        pass
-
-    foo(88, 12, 11, c=4, y=1)
-
-
-#     # print(i)
-#     # print(sig)
-#     # print(ba)
-#     ba.apply_defaults()
-#     # print(ba)
-#     print(f'{ba!s}'.replace('<BoundArguments ', fun.__qualname__).rstrip('>'))
-#     # print('*'*88)
-
-# from IPython import embed
-# embed(header="Embedded interpreter at 'test_expose.py':32")
