@@ -1,5 +1,14 @@
+from recipes.io import write_replace
+import operator as op
 import re
 import textwrap as txw
+from recipes.io import read_line
+import logging
+
+# module logger
+logging.basicConfig()
+logger = logging.getLogger(__file__)
+logger.setLevel(logging.INFO)
 
 
 RGX_PYSTRING = re.compile(r'''(?xs)
@@ -15,7 +24,7 @@ RGX_PYSTRING = re.compile(r'''(?xs)
     ''')
 
 
-def rewrap(string, width=80, expandtabs=True):
+def rewrap(filename, string, line_nr, width=80, expandtabs=True):
     # rewrap python strings
     itr = RGX_PYSTRING.finditer(string)
     match = next(itr, None)
@@ -30,19 +39,18 @@ def rewrap(string, width=80, expandtabs=True):
         # every line will start with the str opening marks eg: rf'
         width -= (len(opening) + len(closing))
 
-    s = match['content']
-    indents = [match['indent']]
+    # Get indent for line from file. We have to make the first line break
+    # earlier so we can use the result as a drop-in replacement
+    line = read_line(filename, line_nr)
+    indent = ' ' * line.index(string.split('\n', 1)[0])
+    indents = [indent, indent]
+
+    # unwrap selection
     expand = (str, str.expandtabs)[expandtabs]
-    for match in itr:
-        s += match['content']
-        indents.append(expand(match['indent']))
+    get = op.itemgetter('content')
+    s = expand(''.join(get(match), *map(get, itr)))
 
-    # infer initial indent from subsequent indents. We have to make the first
-    # line break earlier so we can use the result as a drop-in replacement
-    if not indents[0]:
-        indents[0] = indents[1]
-
-    # add opeing / closing quotes
+    # add opening / closing quotes
     indents[0] += opening
     s += closing
 
@@ -55,4 +63,9 @@ def rewrap(string, width=80, expandtabs=True):
     if not tripple:
         lines = map(''.join, zip(lines, [*(closing * (len(lines) - 1)), '']))
 
-    return ''.join(lines).lstrip()
+    new = '\n'.join(lines).lstrip()
+    if string != new:
+        write_replace(filename, {string: new})
+        logger.info('rewrapped!')
+    else:
+        logger.info('No rewrap required')
