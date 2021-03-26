@@ -137,8 +137,9 @@ def sub(string, mapping):  # sub / substitute
     # good = {key: mapping[key] for key in ok}
     # return _rreplace(_rreplace(_rreplace(string, tmp), good), inv)
 
+
 # alias
-substitute = sub 
+substitute = sub
 
 
 def _rreplace(string, mapping):
@@ -161,11 +162,10 @@ def title(string, ignore=()):
     """
     if isinstance(ignore, str):
         ignore = [ignore]
-        
+
     ignore = [*map(str.strip, ignore)]
     subs = {f'{s.title()} ': f'{s} ' for s in ignore}
     return sub(string.title(), subs)
-    
 
 
 def remove_affix(string, prefix='', suffix=''):
@@ -199,6 +199,26 @@ def replace_suffix(string, old_suffix, new_suffix):
     return _replace_affix(string, old_suffix, new_suffix, 1)
 
 
+def shared_prefix(strings):
+    common = ''
+    for letters in zip(*strings):
+        if len(set(letters)) > 1:
+            break
+        common += letters[0]
+    return common
+
+
+def shared_suffix(strings):
+    return shared_prefix(map(reversed, strings))[::-1]
+
+
+def shared_affix(strings):
+    prefix = shared_prefix(strings)
+    i0 = len(prefix)
+    suffix = shared_suffix([item[:i0] for item in strings])
+    return prefix, suffix
+
+
 def surround(string, wrappers):
     left, right = wrappers
     return left + string + right
@@ -230,8 +250,8 @@ def strike(text):
     text : str
         Text to be struck trough
 
-    Example
-    -------
+    Examples
+    --------
     >>> strike('hello world')
     '̶h̶e̶l̶l̶o̶ ̶w̶o̶r̶l̶d'
 
