@@ -1,9 +1,10 @@
 # std libs
+from contextlib import contextmanager
 from recipes.string import sub
 import os
 from recipes.io.bash import brace_expand_iter
 from recipes.string.brackets import braces
-from recipes.docstring import clone_doc
+import docsplice as doc
 
 import pickle
 
@@ -133,7 +134,7 @@ def iter_files(path, extensions='*', recurse=False):
     path = str(path)
 
     # handle brace expansion first
-    special = bool(braces.match(path, '{}', False, must_close=True))
+    special = bool(braces.match(path, False, must_close=True))
     wildcard = glob.has_magic(path)  # handle glob patterns
     if special | wildcard:
         itr = (brace_expand_iter(path) if special else
@@ -232,8 +233,9 @@ def iter_lines(filename, *section, mode='r', strip=None):
             yield s.strip(strip)
 
 
-@clone_doc(iter_lines)
-def read_lines(filename, *section, strip=None, filtered=None, echo=False):
+@doc.splice(iter_lines)
+def read_lines(filename, *section, mode='r', strip=None, filtered=None,
+               echo=False):
     """
     Read a subset of lines from a given file.
 
@@ -254,7 +256,7 @@ def read_lines(filename, *section, strip=None, filtered=None, echo=False):
         Lines from the file
     """
     # Read file content
-    content = iter_lines(filename, *section, strip=strip)
+    content = iter_lines(filename, *section, mode=mode, strip=strip)
     if filtered is not False:
         content = filter(filtered, content)
     content = list(content)
@@ -263,6 +265,11 @@ def read_lines(filename, *section, strip=None, filtered=None, echo=False):
     if echo:
         print(_show_lines(filename, content))
     return content
+
+
+def read_line(filename, nr, mode='r', strip=None):
+    return next(iter_lines(filename, nr, nr + 1,
+                           mode=mode, strip=strip))
 
 
 def _show_lines(filename, lines, n=10, dots='.\n' * 3):
@@ -342,56 +349,95 @@ def walk_level(dir_, depth=1):
             del dirs[:]
 
 
-def safe_write(filename, lines, mode='w', exception_hook=None):
+@contextmanager
+def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
     """
-    [summary]
+    Context manager for doing file operations under backup. This will backup
+    your file before any read / writes are attempted. If something goes terribly
+    wrong during the attempted operation, the original content will be restored.
 
-    [extended_summary]
 
     Parameters
     ----------
-    filename : [type]
-        [description]
-    lines : [type]
-        [description]
+    filename : str or Path
+        The file to be edited.
     mode : str, optional
-        [description], by default 'w'
-    exception_hook : [type], optional
-        [description], by default None
+        File mode for opening, by default 'w'.
+    backupfile : str or Path, optional
+        Location of the backup file, by default None. The default location will
+        is the temporary file created by `tempfile.mkstemp`, using the prefix
+        "backup." and suffix being the original `filename`.
+    exception_hook : callable, optional
+        Hook to run on the event of an exception if you wish to modify the 
+        error message. The default, None, will leave the exception unaltered.
+
+    Examples
+    --------
+    >>> Path('foo.txt').write_text('Important stuff')
+    >>> with safe_write('foo.txt') as fp:
+    ...     fp.write('Some additional text')
+    ...     raise Exception('Oops! Something went wrong while writing to the file!')
+    ... Path('foo.txt').read_text()
+    'Important stuff' # original content was restored
 
     Raises
     ------
-    exception_hook
-        [description]
+    Exception
+        The type and message of exceptions raised by this context manager are 
+        determined by the optional `exception_hook` function.
     """
+    # write formatted entries
     # backup and restore on error!
     path = Path(filename).resolve()
     backup_needed = path.exists()
     if backup_needed:
-        tmpid, tmp = tempfile.mkstemp(prefix='backup.', suffix=f'.{path.name}')
-        shutil.copy(str(path), tmp)
+        if backupfile is None:
+            bid, backupfile = tempfile.mkstemp(prefix='backup.',
+                                               suffix=f'.{path.name}')
+        else:
+            backupfile = Path(backupfile)
+
+        # create the backup
+        shutil.copy(str(path), backupfile)
 
     # write formatted entries
     with path.open(mode) as fp:
-        for i, line in enumerate(lines):
-            try:
+        try:
+            yield fp
+        except Exception as err:
+            if backup_needed:
+                fp.close()
+                os.close(bid)
+                shutil.copy(backupfile, filename)
+            if exception_hook:
+                raise exception_hook(err, filename) from err
+            raise
+
+
+@doc.splice(backed_up, 'summary', omit='Parameters[backupfile]',
+            replace={'operation': 'write',
+                     'read / ': ''})
+def safe_write(filename, lines, mode='w', exception_hook=None):
+    """
+    {Parameters}
+    lines : list
+        Lines of content to write to file.
+    """
+    with backed_up(filename, mode, exception_hook=exception_hook) as fp:
+        # write lines
+        try:
+            for i, line in enumerate(lines):
                 fp.write(line)
-            except Exception as err:
-                if backup_needed:
-                    fp.close()
-                    os.close(tmpid)
-                    shutil.copy(tmp, filename)
-                if exception_hook:
-                    raise exception_hook(err, filename, line, i) from err
-                raise
+        except Exception as err:
+            raise exception_hook(err, filename, line, i) from err
 
 
 def write_replace(filename, replacements):
     if not replacements:
         # nothing to do
-        return 
-    
-    with open(filename, 'r+') as fp:
+        return
+
+    with backed_up(filename, 'r+') as fp:
         text = fp.read()
         fp.seek(0)
         fp.write(sub(text, replacements))
