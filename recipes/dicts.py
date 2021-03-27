@@ -15,12 +15,13 @@ from pathlib import Path
 # TODO: a factory function which takes requested props, eg: indexable=True,
 # attr=True, ordered=True)
 
+
 def invert(d):
     return dict(zip(d.values(), d.keys()))
 
 
 def pformat(dict_, name='', key_repr=str, val_repr=str, sep=':', item_sep=',',
-             brackets='{}'):
+            brackets='{}'):
     """
     pformat (nested) dict types
 
@@ -183,7 +184,12 @@ class AVDict(dict, AutoVivify):
     pass
 
 
-AutoViv = AutoVivify = AutoVivification
+# class Node(defaultdict):
+#     def __init__(self, factory, *args, **kws):
+
+
+# class Tree(defaultdict, AutoVivify):
+#     _factory = (defaultdict.default_factory, )
 
 
 # TODO: factory methods to get class based on what you want: attribute
@@ -305,9 +311,11 @@ class AttrReadItem(dict):
      methods, eg. 'keys', will not be accessible through attribute lookup.
 
     >>> x = AttrReadItem(hello=0, world=2)
-    >>> x.hello, x.world # (0, 2)
+    >>> x.hello, x.world
+    (0, 2)
     >>> x['keys'] = None
-    >>> x.keys  # <function AttrReadItem.keys>
+    >>> x.keys
+    <function AttrReadItem.keys>
     """
 
     # TODO: raise when trying to set attributes??
@@ -418,7 +426,7 @@ class TransDict(UserDict):
                 self._translated[key] = one
 
 
-class Many2OneMap(TransDict):
+class ManyToOneMap(TransDict):
     """
     Expands on TransDict by adding equivalence mapping functions for keywords
     """
@@ -491,6 +499,7 @@ class IndexableOrderedDict(OrderedDict):
 
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
+    # Note: dict order is gauranteed since pyhton 3.7
     def __init__(self, default_factory=None, *a, **kw):
         if (default_factory is not None and not callable(default_factory)):
             raise TypeError('first argument must be callable')
@@ -557,7 +566,7 @@ class TerseKws:
         sub = pattern
         while 1:
             s, (i0, i1) = brackets.square.match(sub, return_index=True,
-                                         must_close=True)
+                                                must_close=True)
             # print(s, i0, i1)
             if s is None:
                 regex += sub

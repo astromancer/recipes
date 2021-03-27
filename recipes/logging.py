@@ -53,8 +53,8 @@ class LoggingMixin(object):
     instance of python's build in `logging.Logger`.  Allows for easy
     customization of loggers on a class by class level.
 
-    Example
-    -------
+    Examples
+    --------
     # in sample.py
     >>> class Sample(LoggingMixin):
             def __init__(self):
