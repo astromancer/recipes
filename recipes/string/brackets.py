@@ -1,7 +1,7 @@
 import inspect
 import math
 from . import remove_affix
-from ..docstring import clone_doc
+import docsplice as doc
 
 __all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
 # Braces(string).iter / .tokenize / .parse / match / strip / split
@@ -311,28 +311,27 @@ square = hard = Brackets('[]')
 chevrons = angles = Brackets('<>')
 
 #
-__insert = {'Parameters[pair] as brackets': Brackets}
+insert = {'Parameters[pair] as brackets': Brackets}
 
-
-@clone_doc(Brackets.match, insert=__insert)
+@doc.splice(Brackets.match, insert)
 def match(string, brackets, return_index=True, must_close=False):
     return Brackets(brackets).match(string, return_index, must_close)
 
 
-# @clone_doc(Brackets.iter, insert={'Parameters': Brackets})
-# def iterate(string, brackets, return_index=True, must_close=False,
-#             condition=always_true):
-#     return Brackets(brackets).iter(string, return_index, must_close, condition)
+@doc.splice(Brackets.iter, insert)
+def iterate(string, brackets, return_index=True, must_close=False,
+            condition=always_true):
+    return Brackets(brackets).iter(string, return_index, must_close, condition)
 
 
-# @clone_doc(Brackets.remove, insert={'Parameters': Brackets})
-# def remove(string, brackets, depth=math.inf, condition=always_true):
-#     return Brackets(brackets).remove(string, depth, condition)
+@doc.splice(Brackets.remove, insert)
+def remove(string, brackets, depth=math.inf, condition=always_true):
+    return Brackets(brackets).remove(string, depth, condition)
 
 
-# @clone_doc(Brackets.strip, insert={'Parameters': Brackets})
-# def strip(string, brackets):
-#     return Brackets(brackets).strip(string)
+@doc.splice(Brackets.strip, insert)
+def strip(string, brackets):
+    return Brackets(brackets).strip(string)
 
 
 # def _iter(string, brackets='()', return_index=True, must_close=False,

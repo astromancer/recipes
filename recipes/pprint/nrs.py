@@ -17,7 +17,7 @@ import numpy as np
 
 # local libs
 from recipes.array.misc import vectorize
-from recipes.docstring import clone_doc
+import docsplice as doc
 
 # note: unicode literals below python3 only!
 # see: https://docs.python.org/3/howto/unicode.html
@@ -220,7 +220,7 @@ def _to_sexa(t, base_unit='h', precision='s'):
     assert v >= w, 'Base unit must be greater that unit of precision'
 
     # compute parts and round
-    s = [1, -1][t < 0]
+    s = [1, -1][int(t < 0)]
     t = abs(t) / 60 ** w
     for _ in range(v - w):
         t, r = divmod(t, 60)
@@ -232,7 +232,7 @@ def _to_sexa(t, base_unit='h', precision='s'):
     yield s * t
 
 
-@clone_doc(to_sexagesimal)
+@doc.splice(to_sexagesimal)
 def resolve_precision(precision):
     """
     Resolve the unit and number of significant digits for a precision specifier
@@ -266,7 +266,7 @@ def resolve_precision(precision):
     raise ValueError('Invalid precision specifier %r' % precision)
 
 
-@clone_doc(to_sexagesimal)
+@doc.splice(to_sexagesimal)
 def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False):
     """
     Convert time in seconds to sexagesimal representation. 
