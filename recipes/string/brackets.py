@@ -103,14 +103,17 @@ class Brackets:
 
         Examples
         --------
-        >>> s = 'def sample(args=(), **kws):' r, (i, j) =
-        >>> Brackets('()').match(s) ('args=(), **kws' , (10, 25)) r == s[i+1:j]
-        >>> True
+        >>> s = 'def sample(args=(), **kws):'
+        >>> r, (i, j) = Brackets('()').match(s)
+        ('args=(), **kws' , (10, 25)) 
+        >>> r == s[i+1:j]
+        True
 
         Returns
         -------
-        match : str or None The enclosed str index: tuple or None (start, end)
-            indices of the actual brackets that were matched
+        match : str or None 
+            The enclosed str index: tuple or None (start, end) indices of the
+            actual brackets that were matched
 
         Raises
         ------
@@ -203,15 +206,15 @@ class Brackets:
 
     def enclose(self, string):
         return string.join(self.brackets)
-    
-    @clone_doc(match)
+
     def encloses(self, string):
         """
         Conditional test for fully enclosed string.
 
         Parameters
         ----------
-        {Parameters[string]}
+        string : str
+            String to check
 
         Examples
         --------
@@ -231,8 +234,8 @@ class Brackets:
             string to be stripped of brackets.
 
 
-        Example
-        -------
+        Examples
+        --------
         >>> unbracket('{{{{hello world}}}}')
         'hello world'
 
@@ -249,32 +252,24 @@ class Brackets:
         if level >= depth:
             return string
 
-        # TODO:
-        # itr = iter_brackets(tail, brackets, must_close=True, condition=test)
-        # found = next(itr, None)
-        # if found is None:
-        #   return string
-
-        inside, (i, j) = self.match(string)
-        if (inside is None) or not test(string, self.brackets, (i, j), nr):
-            return string
-
         # testing on sequence number for every element is probably less efficient
         # than slicing the iterator below. Can think of a good way of
         # implementing that? is there even use cases?
 
-        out = string[:i]
-        tail = string[i:]
+        out = ''
         nr = -1
-        itr = self.iter(tail, must_close=True, condition=test)
+        pre = 0
+        itr = self.iter(string, condition=test)
         for nr, (inside, (i, j)) in enumerate(itr):
+            out += string[pre:i]
             out += self._remove(inside, test, depth, level+1, nr)
+            pre = j + 1
 
         # did the loop run?
         if nr == -1:
-            out += inside
+            return string
 
-        return out + tail[j + 1:]
+        return out + string[j + 1:]
 
     def strip(self, string):
         """
@@ -305,6 +300,7 @@ def get_test(condition):
     return test
 
 
+# predifined bracket types
 braces = curly = Brackets('{}')
 parentheses = parens = round = Brackets('()')
 square = hard = Brackets('[]')
@@ -312,6 +308,7 @@ chevrons = angles = Brackets('<>')
 
 #
 insert = {'Parameters[pair] as brackets': Brackets}
+
 
 @doc.splice(Brackets.match, insert)
 def match(string, brackets, return_index=True, must_close=False):
