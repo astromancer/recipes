@@ -8,7 +8,7 @@ import warnings
 import types
 import re
 import numbers
-from collections import abc, UserDict, OrderedDict
+from collections import abc, UserDict, OrderedDict, defaultdict
 from .string import brackets
 from pathlib import Path
 
@@ -137,16 +137,50 @@ class Invertible:
             return self.__class__.__bases__[1](zip(self.values(), self.keys()))
 
 
-class InvertibleDict(Invertible, dict):
-    pass
+# class InvertibleDict(Invertible, dict):
+#     pass
+
+class DefaultDict(defaultdict):
+    """
+    Default dict that allows default factories which take the key as an 
+    argument.
+    """
+
+    factory_takes_key = False
+    default_factory = None
+
+    def __init__(self, factory=None, *args, **kws):
+        # have to do explicit init since class attribute alone doesn't seem to 
+        # work for specifying default_factory
+        super().__init__(factory or self.default_factory, *args, **kws)
+    
+    def __missing__(self, key):
+        if self.default_factory is None:
+            return super().__missing__(key)
+
+        new = self[key] = self.default_factory(*[key][:int(self.factory_takes_key)])
+        return new
 
 
-class AutoVivification(dict):
-    """Implement auto-vivification feature for dict."""
+class AutoVivify:
+    """Mixin that implements auto-vivification for dictionary types."""
+    _av = True
+    # _factory = ()
+
+    @classmethod
+    def autovivify(cls, b):
+        """Turn auto-vivification on / off"""
+        cls._av = bool(b)
 
     def __missing__(self, key):
-        value = self[key] = type(self)()
-        return value
+        if self._av:
+            value = self[key] = type(self)()  # *self._factory
+            return value
+        return super().__missing__(key)
+
+
+class AVDict(dict, AutoVivify):
+    pass
 
 
 AutoViv = AutoVivify = AutoVivification
