@@ -14,6 +14,7 @@ import more_itertools as mit
 # relative libs
 from .dicts import DefaultOrderedDict
 from .iter import nth_zip
+import docsplice as doc
 from operator import eq
 
 
@@ -202,6 +203,7 @@ def _where(l, item, start=0, test=eq):
             i += 1  # start next search one on
 
 
+@doc.splice(where)
 def index(l, item, start=0, test=eq, default=NULL):
     # TODO: something like this but for strings, etc to live in op
     """
@@ -210,7 +212,7 @@ def index(l, item, start=0, test=eq, default=NULL):
     the item is not found, or no items test positive, return the provided
     default value. 
 
-    {params}
+    {Parameters}
     default : object, optional
         The default to return if `item` was not found in the input list, by
         default None
@@ -236,12 +238,6 @@ def index(l, item, start=0, test=eq, default=NULL):
         raise ValueError(f'{item} is not in list')
 
     return default
-
-
-index.__doc__ = index.__doc__.format(
-    params='\n\t'.expandtabs().join(
-        [''] + NumpyDocString(where.__doc__)._str_param_list('Parameters')
-    ))
 
 
 def flatten(l):
