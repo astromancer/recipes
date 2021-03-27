@@ -199,15 +199,15 @@ def iter_lines(filename, *section, mode='r', strip=None):
     filename : str, Path
         File system location of the file to read
     *section
-        The [start], stop, [step] lines 
+        The [start], stop, [step] lines
     mode : str
         Mode used for opening files, by default r
     strip : str, optional
         characters to strip from lines. The default value depends on the `mode` 
         parameter. For text mode ('r', 'rt'), strip '\n', for binary mode ('b'),
-        strip system specific newlines. Note that python automatically 
+        strip system specific newlines. Note that python automatically
         translates system specific newlines in the file to '\n', for files
-        opened in text mode. 
+        opened in text mode.
 
     Examples
     --------
@@ -241,9 +241,9 @@ def read_lines(filename, *section, strip=None, filtered=None, echo=False):
 
     {Parameters}
     filtered : callable or None, optional
-        A function that will be used to filter out unwnated lines. Filtering 
-        occurs after stripping unwanted characters. The default behaviour (filtered=None)
-        removed all blank lines from the results.
+        A function that will be used to filter out unwnated lines. Filtering
+        occurs after stripping unwanted characters. The default behaviour
+        (filtered=None) removed all blank lines from the results.
     echo : bool, optional
         Whether to print a summary of the read content to stdout,
         by default False
