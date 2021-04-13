@@ -1,13 +1,13 @@
-from recipes.io import write_replace
-import operator as op
 import re
 import textwrap as txw
-from recipes.io import read_line
 import logging
 
+from recipes.io import iter_lines, write_replace
+from recipes.logging import get_module_logger
+
 # module logger
+logger = get_module_logger()
 logging.basicConfig()
-logger = logging.getLogger(__file__)
 logger.setLevel(logging.INFO)
 
 
@@ -23,49 +23,88 @@ RGX_PYSTRING = re.compile(r'''(?xs)
     \4                              # closing quote
     ''')
 
+RGX_TRAILSPACE = re.compile(r'\s+\n')
 
-def rewrap(filename, string, line_nr, width=80, expandtabs=True):
+
+def strip_trailing_space(filename, string, ignored_):
+    write_replace(filename, {string: RGX_TRAILSPACE.sub('\n', string)})
+
+
+def get_strings(filename, selection, line_nr):
+    # get string part of selection
+    startline = line_nr - selection.count('\n')
+    # endline = max(line_nr, startline + 1)
+    # match = start = None
+    for line in iter_lines(filename, startline, None, strip=False):
+        # print(line)
+        match = RGX_PYSTRING.search(line)
+        if match:
+            yield line, match
+        else:
+            break
+
+    #     if match and start is None:
+    #         start = match.start()
+    #     if not match:
+    #         break
+    #     #string += line
+    #     unwrapped += match['content']
+    # return unwrapped
+
+
+def rewrap(filename, selection, line_nr, width=80, expandtabs=True):
     # rewrap python strings
-    itr = RGX_PYSTRING.finditer(string)
-    match = next(itr, None)
+    itr = get_strings(filename, selection, line_nr)
+    line, match = next(itr, (None, None))
     if not match:
-        "doesn't look like a string"
-        return string
+        logger.info("No string in selected text")
+        return
 
+    # get quotation characters
     opening = match['opening']
     closing = match['quote']
     tripple = (len(match['quote']) == 3)
     if not tripple:
-        # every line will start with the str opening marks eg: rf'
+        # every line will start with the str opening marks eg: rf"
         width -= (len(opening) + len(closing))
+
+    # unwrap selection
+    start = match.start('opening')
+    unwrapped = match['content']
+    raw = line[start:]
+    for line, match in itr:
+        raw += line
+        unwrapped += match['content']
+    
+    # strip trailing newlines so we don't munge the newline in the file
+    raw = raw.rstrip()
+    logger.info('Wrapping string:\n\t%r', raw)
 
     # Get indent for line from file. We have to make the first line break
     # earlier so we can use the result as a drop-in replacement
-    line = read_line(filename, line_nr)
-    indent = ' ' * line.index(string.split('\n', 1)[0])
+    indent = ' ' * start  # line.index(string.split('\n', 1)[0])
     indents = [indent, indent]
-
-    # unwrap selection
-    expand = (str, str.expandtabs)[expandtabs]
-    get = op.itemgetter('content')
-    s = expand(''.join(get(match), *map(get, itr)))
 
     # add opening / closing quotes
     indents[0] += opening
-    s += closing
-
+    unwrapped += closing
+    # add indent space for quotes
     if not tripple:
         indents[1] += opening
 
+    # hard wrap
     lines = txw.TextWrapper(width, *indents[:2], expandtabs,
                             replace_whitespace=False,
-                            drop_whitespace=False).wrap(s)
+                            drop_whitespace=False).wrap(unwrapped)
+    # add quote marks
     if not tripple:
         lines = map(''.join, zip(lines, [*(closing * (len(lines) - 1)), '']))
 
     new = '\n'.join(lines).lstrip()
-    if string != new:
-        write_replace(filename, {string: new})
+
+    if raw != new:
+        # TODO: do you need to rewrite entire file for single line changes?
+        write_replace(filename, {raw: new})
         logger.info('rewrapped!')
     else:
         logger.info('No rewrap required')
