@@ -9,3 +9,11 @@ def raises(kind):
     def _raises(msg):
         raise kind(msg)
     return _raises
+
+
+def echo(_):
+    return _
+
+
+def echo0(key, *_):
+    return key
