@@ -67,7 +67,7 @@ class Percentage(object):
             raise TypeError('Not a valid number or numeric array') from None
 
 
-def sub(string, mapping):  # sub / substitute
+def sub(string, mapping={}, **kws):  # sub / substitute
     """
     Replace all the sub-strings in `string` with the strings in `mapping`.
 
@@ -83,21 +83,22 @@ def sub(string, mapping):  # sub / substitute
 
     Examples
     --------
-    # basic
+    # basic substitution (recursive replacement)
     >>> sub('hello world', {'h':'m', 'o ':'ow '})
     'mellow world'
-    >>> sub('hello world', dict(h ='m', o='ow', rld=''))
+    >>> sub('hello world', h ='m', o='ow', rld='')
     'mellow wow'
     >>> sub('hello world', {'h':'m', 'o ':'ow ', 'l':''})
     'meow word'
-    >>> sub('hello world', dict(hell='lo', wo='', r='ro', d='l'))
+    >>> sub('hello world', hell='lo', wo='', r='ro', d='l')
     'loo roll'
+
     # character permutations
-    >>> sub('option(A, B)', {'B': 'A', 'A': 'B'})
+    >>> sub('option(A, B)', A='B', B'='A')
     'option(B, A)'
-    >>> sub('AABBCC', {'A':'B', 'B':'C', 'C':'c'}) 
+    >>> sub('AABBCC', A='B', B='C', C='c')
     'BBCCcc'
-    >>> sub('hello world', dict(h ='m', o='ow', rld='', w='v'))
+    >>> sub('hello world', h='m', o='ow', rld='', w='v')
     'mellow vow'
 
     Returns
@@ -105,10 +106,15 @@ def sub(string, mapping):  # sub / substitute
     s: str
 
     """
+    mapping = {**mapping, **kws}
     if not mapping:
         return string
+    
+    if len(mapping) == 1:
+        # simple replace
+        return string.replace(*next(iter(mapping.items())))
 
-    dest = ''.join(mapping.values())
+    dest = ''.join(mapping.values())  # FIXME: better problem detection!!!
     good = mapping.copy()
     tmp = {}
     for key in mapping.keys():
