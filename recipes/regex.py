@@ -43,6 +43,16 @@ RGX_TERSE = re.compile(  # FIXME: does not compile with regex!
         | \\([# ])                   # Or g3of3 $6: Escaped-[hash|space], discard the escape.
         """, re.VERBOSE | re.MULTILINE)
 
+RGX_NAMED_GROUP = re.compile(r'\((\?P<\w+>)')
+
+
+def unname(pattern):
+    """
+    Remove name references from groups
+    (?P<name>)
+    """
+    return RGX_NAMED_GROUP.sub(r'(', pattern)
+
 
 def glob_to_regex(pattern):
     # Translate unix glob expression to regex for emulating bash wrt item
