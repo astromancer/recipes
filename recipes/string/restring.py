@@ -2,8 +2,11 @@ import re
 import textwrap as txw
 import logging
 
+from flynt.transform.transform import transform_chunk as fstring_transform
+
 from recipes.io import iter_lines, write_replace
 from recipes.logging import get_module_logger
+# from recipes
 
 # module logger
 logger = get_module_logger()
@@ -22,12 +25,29 @@ RGX_PYSTRING = re.compile(r'''(?xs)
     (?P<content>.*?)                # string contents
     \4                              # closing quote
     ''')
+RGX_PRINTF_STR = re.compile(r'''(?x)
+    %
+    (?:\(\w+\))?          # mapping key (name)
+    [#0\-+ ]{0,2}         # conversion flags
+    \d*                   # min field width
+    \.?(?:\d*|\*?)      # precision
+    [diouxXeEfFgGcrsa%] # conversion type.
+    ''')
 
 RGX_TRAILSPACE = re.compile(r'\s+\n')
 
 
 def strip_trailing_space(filename, string, ignored_):
     write_replace(filename, {string: RGX_TRAILSPACE.sub('\n', string)})
+
+
+# def convert_fstring(filename, selection, line_nr):
+#     raw, unwrapped, opening, quote, indents = \
+#         get_string_context(filename, selection, line_nr)
+
+#     # get mod part
+    
+
 
 
 def get_strings(filename, selection, line_nr):
@@ -52,8 +72,8 @@ def get_strings(filename, selection, line_nr):
     # return unwrapped
 
 
-def rewrap(filename, selection, line_nr, width=80, expandtabs=True):
-    # rewrap python strings
+def get_string_context(filename, selection, line_nr):
+
     itr = get_strings(filename, selection, line_nr)
     line, match = next(itr, (None, None))
     if not match:
@@ -62,11 +82,7 @@ def rewrap(filename, selection, line_nr, width=80, expandtabs=True):
 
     # get quotation characters
     opening = match['opening']
-    closing = match['quote']
-    tripple = (len(match['quote']) == 3)
-    if not tripple:
-        # every line will start with the str opening marks eg: rf"
-        width -= (len(opening) + len(closing))
+    quote = match['quote']
 
     # unwrap selection
     start = match.start('opening')
@@ -75,9 +91,9 @@ def rewrap(filename, selection, line_nr, width=80, expandtabs=True):
     for line, match in itr:
         raw += line
         unwrapped += match['content']
-    
-    # strip trailing newlines so we don't munge the newline in the file
-    raw = raw.rstrip()
+
+    # strip trailing characters so we don't munging trailing content in the file
+    raw = raw[:(match.end() - len(line))]
     logger.info('Wrapping string:\n\t%r', raw)
 
     # Get indent for line from file. We have to make the first line break
@@ -87,9 +103,30 @@ def rewrap(filename, selection, line_nr, width=80, expandtabs=True):
 
     # add opening / closing quotes
     indents[0] += opening
-    unwrapped += closing
+    unwrapped += quote
+
     # add indent space for quotes
+    # tripple =
+    if (len(quote) != 3):
+        # every line will start with the str opening marks eg: rf"
+        indents[1] += opening
+
+    return raw, unwrapped, opening, quote, indents
+
+def _wrap(unwrapped, opening, quote, indents, width=80, expandtabs=True):
+    
+    nquote = len(quote)
+    tripple = (nquote == 3)
     if not tripple:
+        # every line will start with the str opening marks eg: rf"
+        width -= (len(opening) + nquote)
+
+    # add indent space for quotes
+    nquote = len(quote)
+    tripple = (nquote == 3)
+    if not tripple:
+        # every line will start with the str opening marks eg: rf"
+        width -= (len(opening) + nquote)
         indents[1] += opening
 
     # hard wrap
@@ -98,9 +135,17 @@ def rewrap(filename, selection, line_nr, width=80, expandtabs=True):
                             drop_whitespace=False).wrap(unwrapped)
     # add quote marks
     if not tripple:
-        lines = map(''.join, zip(lines, [*(closing * (len(lines) - 1)), '']))
+        lines = map(''.join, zip(lines, [*(quote * (len(lines) - 1)), '']))
 
-    new = '\n'.join(lines).lstrip()
+    return '\n'.join(lines).lstrip()
+
+def rewrap(filename, selection, line_nr, width=80, expandtabs=True):
+    # rewrap python strings
+
+    raw, unwrapped, opening, quote, indents = \
+        get_string_context(filename, selection, line_nr)
+
+    new = _wrap(unwrapped, opening, quote, indents, width, expandtabs)
 
     if raw != new:
         # TODO: do you need to rewrite entire file for single line changes?
