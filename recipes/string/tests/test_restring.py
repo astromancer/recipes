@@ -1,4 +1,5 @@
-from recipes.string.restring import RGX_PYSTRING, RGX_PRINTF_STR
+from recipes.string.restring import (RGX_PYSTRING, RGX_PRINTF_STR,
+                                     convert_fstring)
 
 import pytest
 
@@ -100,4 +101,5 @@ import pytest
 def test_find_printf(s):
     RGX_PRINTF_STR.search(s)
     
-    
+def test_refactor():
+    convert_fstring('refactor_examples_pre.py', 8)
