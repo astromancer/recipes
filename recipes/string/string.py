@@ -109,7 +109,7 @@ def sub(string, mapping={}, **kws):  # sub / substitute
     mapping = {**mapping, **kws}
     if not mapping:
         return string
-    
+
     if len(mapping) == 1:
         # simple replace
         return string.replace(*next(iter(mapping.items())))
@@ -172,6 +172,14 @@ def title(string, ignore=()):
     ignore = [*map(str.strip, ignore)]
     subs = {f'{s.title()} ': f'{s} ' for s in ignore}
     return sub(string.title(), subs)
+
+
+def prepend(string, prefix):
+    return prefix + string
+
+
+def append(string, suffix):
+    return string + suffix
 
 
 def remove_affix(string, prefix='', suffix=''):
