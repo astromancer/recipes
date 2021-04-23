@@ -7,7 +7,7 @@ import logging
 from flynt.transform.transform import transform_chunk as fstring_transform
 
 from recipes.io import iter_lines, write_replace
-from recipes.string.string import prepend, append
+from recipes.op import prepend, append
 from recipes.logging import get_module_logger
 # from recipes
 
@@ -25,37 +25,41 @@ RGX_PYSTRING = re.compile(
         (?P<content>.*?)                # string contents
         \3                              # closing quote
     ''')
-RGX_PRINTF_STR = re.compile(
-    r'''(?x)
-        %
-        (?:\(\w+\))?          # mapping key (name)
-        [#0\-+ ]{0,2}         # conversion flags
-        \d*                   # min field width
-        \.?(?:\d*|\*?)      # precision
-        [diouxXeEfFgGcrsa%] # conversion type.
-        ''')
+# RGX_PRINTF_STR = re.compile(
+#     r'''(?x)
+#         %
+#         (?:\(\w+\))?          # mapping key (name)
+#         [#0\-+ ]{0,2}         # conversion flags
+#         \d*                   # min field width
+#         \.?(?:\d*|\*?)      # precision
+#         [diouxXeEfFgGcrsa%] # conversion type.
+#         ''')
 
 RGX_TRAILSPACE = re.compile(r'\s+\n')
 
 
-def get_strings(block):
-    for line in block.splitlines(keepends=True):
-        # print(line)
+def get_strings(lines):
+    first = True
+    for line in lines:
         match = RGX_PYSTRING.search(line)
         if match:
             yield line, match
-        else:
+            first = False
+        elif not first:
             break
 
 
 class String:
     @classmethod
     def parse(cls, block):
-        itr = get_strings(block)
+        itr = get_strings(block.splitlines(keepends=True))
+        return cls.from_matches(itr)
+
+    @classmethod
+    def from_matches(cls, itr):
         line, match = next(itr, (None, None))
         if not match:
-            logger.info("No string in selected text")
-            return
+            raise ValueError("No string in selected text")
 
         # get quotation characters
         marks = match['marks']
@@ -105,27 +109,63 @@ class String:
             logger.info('No rewrap required')
 
 
-def get_code_block(filename, line_nr, pre=10, post=10):
-    # n = count_lines(filename)
+def _read_around(filename, line_nr, pre=10, post=10):
     lines = list(iter_lines(filename,
                             max(line_nr - pre, 0),
                             line_nr + post + 1,
                             strip=''))
     split = min(pre, line_nr)
-    head, (original, *tail) = lines[:split], lines[split:]
-    #
-    for aggregate, lines in (append, tail), (prepend, head[::-1]):
-        block = first_parsable_block([original, *lines], aggregate)
-        if block:
-            return block
+    return lines[:split], lines[split:]
+
+
+def get_string_block(filename, line_nr, pre=10, post=10):
+    head, tail = _read_around(filename, line_nr, pre, post)
+    yield from reversed(list(get_strings(head[::-1])))
+    yield from get_strings(tail)
+
+
+def always_true(_):
+    return True
+
+
+def get_code_block(filename, line_nr, pre=10, post=10, condition=always_true):
+
+    # n = count_lines(filename)
+    head, tail = _read_around(filename, line_nr, pre, post)
+    strings0 = list(get_strings(head[::-1]))[::-1]
+    strings1 = list(get_strings(tail))
+    lines, string_matches = zip(*(*strings0, *strings1))
+    lines = list(lines)
+    if not lines:
+        raise ValueError(f'Could not find any strings in {filename} at line {line_nr}')
+    
+    pre = head[:-len(strings0)]
+    post = tail[len(strings1):]
+    return *find_block(pre, lines, post, condition), string_matches
+
+
+def find_block(pre, lines, post, condition=always_true):
+    """
+    Try find a parsable code block by prepending / appending lines until it
+    compiles as an ast
+    """
+    npre, npost = len(pre), len(post)
+    for i, j in sorted(itt.product(range(npre), range(npost)), key=sum):
+        block = pre[(npre - i):] + lines + post[:j]
+        try:
+            tree = ast.parse(txw.dedent(''.join(block)))
+            if condition(tree):
+                return i, j, block
+        except SyntaxError:
+            pass
 
     raise ValueError('Could not get logical code block')
 
 
-def first_parsable_block(lines, join_lines):
-    block = ''
+def _first_parsable_block(lines, join, initial=''):
+    block = initial
     for line in lines:
-        block = join_lines(block, line)
+        block = join(block, line)
         try:
             ast.parse(txw.dedent(block))
             return block
@@ -166,49 +206,70 @@ def wrap(string, width=80, marks='', quote="'", indents=('', ''), expandtabs=Tru
 
 def rewrap(filename, line_nr, width=80, expandtabs=True):
     # rewrap python strings
-    block = get_code_block(filename, line_nr)
-    String.parse(block).wrap_in_file(filename, width, expandtabs)
+    # block = get_code_block(filename, line_nr)
+    matches = get_string_block(filename, line_nr)
+    String.from_matches(matches).wrap_in_file(filename, width, expandtabs)
 
 
-def strip_trailing_space(filename, string, ignored_):
-    write_replace(filename, {string: RGX_TRAILSPACE.sub('\n', string)})
+def strip_trailing_space(filename, ignored_=()):
+    with open(filename, 'r+') as fp:
+        line = fp.readline()
+        mo = RGX_TRAILSPACE.search(line)
+        if mo:
+            fp.write(RGX_TRAILSPACE.sub('\n', line))
+
+    # write_replace(filename, {string: RGX_TRAILSPACE.sub('\n', string)})
 
 
-class GetModArg(ast.NodeVisitor):
+class GetMod(ast.NodeVisitor):
     def __init__(self):
         super().__init__()
-        self.rhs = None
+        self.mod = None
 
     def visit_BinOp(self, node):
-        self.rhs = node.right
+        if isinstance(node.op, ast.Mod):
+            self.mod = node
 
 
-def convert_fstring(filename, line_nr, quote=None, width=80, expandtabs=True):
+def get_mod(tree):
+    v = GetMod()
+    v.visit(tree)
+    return v.mod
 
-    block = get_code_block(filename, line_nr)
-    s = String.parse(block)
+
+def _convert_fstring(block, string=None, quote=None, width=80, expandtabs=True):
+    if not isinstance(string, String):
+        string = String.parse(block)
 
     # get mod part
     block = txw.dedent(block)
     tree = ast.parse(block)
-    v = GetModArg()
-    v.visit(tree)
+    mod = get_mod(tree)
     # if v.rhs is None:
     #     raise ValueError('not found')
-    quote = quote or s.quote
-    modstring = ast.get_source_segment(block, v.rhs)
-    new, changed = fstring_transform(f'{s.unwrapped!r} % {modstring}', quote)
+    original = ast.get_source_segment(block, mod)  # python >=3.8
+    modstring = ast.get_source_segment(block, mod.right)
+
+    # return f'{string.unwrapped!r} % {modstring}'
+    
+    quote = quote or string.quote
+    # FIXME: this function is frekkin useless!
+    new, changed = fstring_transform(
+        f'{string.unwrapped!r} % {modstring}', quote)
     new = String.parse(new)
-    new.indents = s.indents
+    new.indents = string.indents
 
-    # from IPython import embed
-    # embed(header="Embedded interpreter at 'restring.py':215")
+    return original, new.wrap(width, expandtabs), changed
 
+
+def convert_fstring(filename, line_nr, quote=None, width=80, expandtabs=True):
+
+    i, j, block, strings = get_code_block(filename, line_nr)
+    s = String.from_matches(zip(block[i:-j or None], strings))
+
+    block = ''.join(block)
+    origin, new, changed = _convert_fstring(block, s, quote, width, expandtabs)
     if changed:
-        write_replace(
-            filename,
-            {s.raw + re.search(fr'\s*%\s*{modstring}', block)[0]:
-             new.wrap()}
-        )
+        write_replace(filename, {origin: new})
     else:
         logger.info('String not converted.')
