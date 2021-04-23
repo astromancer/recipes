@@ -3,10 +3,13 @@ Some drop-in replacements for the cool builtin operator classes, but with added
 support for default values 
 """
 
+# pylint: disable=redefined-builtin
+
+
 import warnings
 from recipes.decor import raises
 import docsplice as doc
-from operator import attrgetter
+
 import builtins
 
 
@@ -43,6 +46,14 @@ def all(itr, test=bool):
     return builtins.all(map(test, itr))
 
 
+def prepend(obj, prefix):
+    return prefix + obj
+
+
+def append(obj, suffix):
+    return obj + suffix
+
+
 class itemgetter:
     """
     Itemgetter
@@ -64,6 +75,7 @@ class itemgetter:
         return unpack(self.iter(obj))
 
     def get_default(self, key):
+        # # pylint: disable=method-hidden
         return self.defaults.get(key, self.default)
 
     def iter(self, obj):
