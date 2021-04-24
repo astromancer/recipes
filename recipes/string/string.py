@@ -174,14 +174,6 @@ def title(string, ignore=()):
     return sub(string.title(), subs)
 
 
-def prepend(string, prefix):
-    return prefix + string
-
-
-def append(string, suffix):
-    return string + suffix
-
-
 def remove_affix(string, prefix='', suffix=''):
     for i, affix in enumerate((prefix, suffix)):
         string = _replace_affix(string, affix, '', i)
