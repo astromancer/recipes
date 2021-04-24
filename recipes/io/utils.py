@@ -187,7 +187,7 @@ def iter_ext(files, extensions='*'):
 
 
 def iter_lines(filename, *section, mode='r', strip=None):
-    r"""
+    """
     File line iterator for text files. Optionally return only a section of the
     file. Trailing newline character are stripped by default.
 
@@ -200,19 +200,20 @@ def iter_lines(filename, *section, mode='r', strip=None):
     filename : str, Path
         File system location of the file to read
     *section
-        The [start], stop, [step] lines
+        The [start], stop, [step] lines.
     mode : str
         Mode used for opening files, by default r
     strip : str, optional
-        characters to strip from lines. The default value depends on the `mode` 
-        parameter. For text mode ('r', 'rt'), strip '\n', for binary mode ('b'),
-        strip system specific newlines. Note that python automatically
-        translates system specific newlines in the file to '\n', for files
-        opened in text mode.
+        Characters to strip from lines. The default value depends on the `mode`
+        parameter. For text mode ('r', 'rt'), strip '\\n', for binary mode
+        ('b'), strip system specific newlines. Note that python automatically
+        translates system specific newlines in the file to '\\n', for files
+        opened in text mode. Use `strip=''` or `strip=False` to leave lines
+        unmodified.
 
     Examples
     --------
-    >>> 
+    >>>
 
     Yields
     -------
@@ -368,22 +369,22 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
         is the temporary file created by `tempfile.mkstemp`, using the prefix
         "backup." and suffix being the original `filename`.
     exception_hook : callable, optional
-        Hook to run on the event of an exception if you wish to modify the 
+        Hook to run on the event of an exception if you wish to modify the
         error message. The default, None, will leave the exception unaltered.
 
     Examples
     --------
     >>> Path('foo.txt').write_text('Important stuff')
-    >>> with safe_write('foo.txt') as fp:
+    ... with safe_write('foo.txt') as fp:
     ...     fp.write('Some additional text')
-    ...     raise Exception('Oops! Something went wrong while writing to the file!')
+    ...     raise Exception('Catastrophy!')
     ... Path('foo.txt').read_text()
-    'Important stuff' # original content was restored
+    'Important stuff' # original content was restored. Catastrophy averted!
 
     Raises
     ------
     Exception
-        The type and message of exceptions raised by this context manager are 
+        The type and message of exceptions raised by this context manager are
         determined by the optional `exception_hook` function.
     """
     # write formatted entries

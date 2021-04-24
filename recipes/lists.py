@@ -1,5 +1,5 @@
 """
-Recipes involving lists
+Recipes involving lists.
 """
 
 # std libs
