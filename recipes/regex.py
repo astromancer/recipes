@@ -98,14 +98,14 @@ def terse(pattern):
         except ModuleNotFoundError:
             raise err from None
         else:
-            if isinstance(pattern, regex.regex.Pattern):
-                pattern = pattern.pattern
-                compiler = regex.compile
-            else:
+            if not isinstance(pattern, regex.regex.Pattern):
                 raise err from None
 
-    return compiler(RGX_VERBOSE_FLAG.sub(r'\1\2\3',
-                                         RGX_TERSE.sub(detidy_cb, pattern)))
+            pattern = pattern.pattern
+            compiler = regex.compile
+
+    terse_ = RGX_VERBOSE_FLAG.sub(r'\1\2\3', RGX_TERSE.sub(detidy_cb, pattern))
+    return compiler(terse_)
 
 
 def detidy_cb(m):
@@ -116,3 +116,13 @@ def detidy_cb(m):
     if m.group(3):
         return m.group(3)
     return ""
+
+
+def match_all(l, pattern):
+    matches = {}
+    matcher = re.compile(pattern)
+    for i, string in enumerate(l):
+        m = matcher.match(string)
+        if m:
+            matches[i] = m.group()
+    return matches
