@@ -273,16 +273,16 @@ class Expect:
                 spec, result = spec
 
             if not isinstance(spec, WrapArgs):
-                # simple construction without use of mock function. No keyword
-                # values in arg spec
+                # simple construction without use of mock function. 
+                # ==> No keyword values in arg spec
                 spec = WrapArgs(*to_tuple(spec))
 
             args, kws = spec
             if self.is_test:
                 args += (result, )
-            args = (None,) * self.is_method + args
+            
             args = self.bind(*args, **dict(kws))
-            for name, val in tuple(args.arguments.items())[self.is_method:]:
+            for name, val in tuple(args.arguments.items()):
                 values[name].append(val)
 
         return values
