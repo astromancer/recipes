@@ -1,7 +1,9 @@
+import numbers
 import inspect
 import math
 from . import remove_affix
 import docsplice as doc
+import itertools as itt
 
 __all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
 # Braces(string).iter / .tokenize / .parse / match / strip / split
@@ -31,10 +33,19 @@ __all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
 def always_true(_):
     return True
 
-# TODO: nested bracket iterator
 
+class Yielder:
+    """Helper class for iterating and optionally yielding indices"""
 
-class contained:
+    def __init__(self, start=0):
+        self.start = int(start)
+
+    def yields(self, inside, i, j):
+        return inside
+
+    def with_index(self, inside, i, j):
+        return inside, (self.start + i, self.start + j)
+
     def __init__(self, item):
         self.item = item
 
@@ -178,12 +189,8 @@ class Brackets:
         indices : (int, int)
             Index positions of opening and closing bracket pairs.
         """
-        if return_index:
-            def yields(inside, i, j):
-                return inside, (start + i, start + j)
-        else:
-            def yields(inside, i, j):
-                return inside
+        yielder = Yielder()
+        yields = yielder.with_index if return_index else yielder.yields
 
         # get condition test call signature
         test = get_test(condition)
@@ -203,6 +210,41 @@ class Brackets:
             nr += 1
             start = j + 1
             string = string[start:]
+            yielder.start = start
+
+    def iter_nested(self, string, return_index=True, condition=always_true,
+                    depth=..., inside_out=True, level=0, pos=0):
+
+        if isinstance(depth, numbers.Integral):
+            right_depth = (depth == level)
+        elif depth is ...:
+            right_depth = True
+        else:
+            raise ValueError('Depth should be an integer or an Ellipsis ...')
+
+        yielder = Yielder()
+        yields = yielder.with_index if return_index else yielder.yields
+
+        iters = []
+        # start = pos
+        for inside, (i, j) in self.iter(string, True, True, condition):
+            # print(f'{inside=} {pos=} {i=} {j=}')
+            itr = self.iter_nested(inside, return_index, condition, depth,
+                                   inside_out, level + 1, pos + i + 1)
+            if inside_out:
+                # unpack from inside out
+                yield from itr
+            else:
+                iters.append(itr)
+
+            if right_depth:
+                yielder.start = pos
+                yield yields(inside, i, j)
+                pos = j + 1
+
+        # print('chaining', iters)
+        yield from itt.chain(*iters)
+        # print('DONE', level)
 
     def enclose(self, string):
         return string.join(self.brackets)
