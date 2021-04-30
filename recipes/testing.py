@@ -238,8 +238,7 @@ class Expect:
             argspecs = self.get_args(items)
         else:
             # create the test
-            test = self.make_test_alt(transform)
-            # test = Tester(self.func, transform).test_foo
+            test = self.make_test(transform)
             # created test function signature has 1 extra parameter
             argspecs, answers = zip(*items)
             argspecs = self.get_args(argspecs)
@@ -273,32 +272,32 @@ class Expect:
                 spec, result = spec
 
             if not isinstance(spec, WrapArgs):
-                # simple construction without use of mock function. 
+                # simple construction without use of mock function.
                 # ==> No keyword values in arg spec
                 spec = WrapArgs(*to_tuple(spec))
 
             args, kws = spec
             if self.is_test:
                 args += (result, )
-            
+
             args = self.bind(*args, **dict(kws))
             for name, val in tuple(args.arguments.items()):
                 values[name].append(val)
 
         return values
 
-    def make_test_alt(self, transform=echo):
+    def make_test(self, transform=echo):
 
         def test(*args, expected, **kws):
             if isinstance(expected, Throws):
                 with pytest.raises(expected.error):
-                    return transform(self.func(*args, **kws))
-
-            answer = transform(self.func(*args, **kws))
-            # NOTE: explicitly assigning answer here so that pytest
-            # introspection of locals in this scope works when producing the
-            # failure report
-            assert answer == expected
+                    self.func(*args, **kws)
+            else:
+                answer = transform(self.func(*args, **kws))
+                # NOTE: explicitly assigning answer here so that pytest
+                # introspection of locals in this scope works when producing the
+                # failure report
+                assert answer == expected
 
         # Override signature
         params = [par.replace(default=(name if par.kind == KWO else
@@ -311,88 +310,8 @@ class Expect:
             [*params[:i], Parameter(self.result_name, KWO), *params[i:]]
         )
 
-        # Signature(
-        #     [*self.sig.parameters.values(), Parameter(self.result_name, KWO)]
-        # )
-
         return test
 
-    def make_test(self, transform=echo):
-        # create the test
-        self.test_code = self.get_test_code(transform.__name__)
-
-        locals_ = {}
-        exec(self.test_code, None, locals_)
-        return locals_[self.test_name]
-
-    def get_test_code(self, transform):
-        name = self.func.__name__
-        test_name = self.test_name or f'test_{name}'
-
-        # signature for test function itself. Just string all the parameter
-        # names together
-
-        args = ', '.join([*self.sig.parameters.keys(), self.result_name])
-
-        # construct the signature for the function call inside the test. We have
-        # to use 'param=param' syntax for the keyword only arguments. Using
-        # pprint.callers.signature will ensure the variadic-positional and
-        # -keyword arguments get their stars, that the keyword-only
-        # parameters are formated like 'param=param', and that the pep570
-        # markers are excluded in order to emulate a function call syntax
-
-        sig = Signature(
-            [par.replace(default=(name if par.kind == KWO else
-                                  self.kws.get(name, par.empty)))
-             for name, par in self.sig.parameters.items()]
-        )
-        # sig.bind_partial(**self.kws)
-
-        call_sign = pp.callers.signature(sig, value_formatter=str,
-                                         pep570_marks=False)
-
-        # explicitly import the function to be tested at the runtime location
-        # gloabal statement ensures the test function is in the global namespace
-        # at runtime
-        code = textwrap.dedent(
-            f'''
-            from {self.func.__module__} import {name}
-
-            global {name}
-            def {test_name}({args}):
-                if isinstance(expected, Throws):
-                    with pytest.raises(expected.error):
-                        return {transform}({name}{call_sign})
-                      
-                assert {transform}({name}{call_sign}) == {self.result_name}
-            ''')
-
-        # if
-
-        # TODO: the code above obfuscates the pytest error diagnostics. can you
-        # find a way to still get diagnostic messages??
-
-        logger.debug(f'code:\n{code}')
-        # print('running {test_name}')
-        # print('{name} in globals?', '{name}' in globals())
-        # print('{name} in locals?', '{name}' in locals())
-        return code
-
-class Tester():
-    result_name = 'expected'
-    
-    def __init__(self, fun, transform):
-        self.fun = fun
-        self.transform = transform
-    
-    def test(self, answer, args, kws):
-    
-        if isinstance(expected, Throws):
-            with pytest.raises(expected.error):
-                return self.transform(fun(*args, **kws))
-                    
-        assert self.fun(*args, **kws) == answer
-        
 
 # class ExpectFailure:
 #     def __init__(self, error):
