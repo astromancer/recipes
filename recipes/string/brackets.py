@@ -324,6 +324,12 @@ class Brackets:
         """
         self.remove(string, condition=outermost)
 
+    def depth(self, string, depth=0):
+        deepest = depth
+        for sub in self.iter(string, False, True):
+            deepest = max(deepest, self.depth(sub, depth + 1))
+        return deepest
+
 
 def get_test(condition):
     # function wrapper to support multiple call signatures for user defined

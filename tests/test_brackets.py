@@ -88,6 +88,12 @@ test_unbracket = Expect(remove)(
                  condition=outermost):               '(hello) world',
      mock.remove('{{Bai}, Yu and {Liu}, JiFeng}', '{}'):
          'Bai, Yu and Liu, JiFeng'
-     }
-)
-pytest.mark.skip(test_unbracket)
+
+
+test_depth = Expect(braces.depth)({
+    '{}':                                   1,
+    '':                                     0,
+    '{{{{{}}}}}':                           5,
+    '{{{{{99dmckkcmmm/ {}}}}}}':            6,
+    '{{{{{99dmckkcmmm/ {}{}}}}}{}}':        6
+})
