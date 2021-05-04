@@ -1,4 +1,7 @@
 
+def always_true(_):
+    return True
+
 def negate(func):
     def wrapped(obj):
         return not func(obj)
@@ -15,5 +18,6 @@ def echo(_):
     return _
 
 
-def echo0(key, *_):
+def echo0(key, *ignored_):
     return key
+

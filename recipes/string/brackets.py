@@ -4,6 +4,7 @@ import math
 from . import remove_affix
 import docsplice as doc
 import itertools as itt
+from ..functionals import always_true, echo0
 
 __all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
 # Braces(string).iter / .tokenize / .parse / match / strip / split
@@ -56,6 +57,24 @@ class Yielder:
 def outermost(string, brackets, indices, nr):
     i, j = indices
     return remove_affix(string, *brackets) == string[i+1:j]
+
+
+class Yielder:
+    """Helper class for iterating and optionally yielding indices"""
+
+    def __init__(self, return_index):
+        self.yields = self._with_index if return_index else echo0
+
+    def __call__(self, inside, i, j, start):
+        return self.yields(inside, i, j, start)
+
+    # @staticmethod
+    # def _without_index(inside, *ignored_):
+    #     return inside
+
+    @staticmethod
+    def _with_index(inside, i, j, start):
+        return inside, (start + i, start + j)
 
 
 class Brackets:
@@ -194,23 +213,24 @@ class Brackets:
 
         # get condition test call signature
         test = get_test(condition)
+        # get yield function
+        yields = Yielder(return_index)
 
-        start = 0
         nr = 0
+        start = 0
         while True:
-            inside, (i, j) = self.match(string, True, must_close)
+            inside, (i, j) = self.match(string[start:], True, must_close)
+            # print(f'{string=}, {inside=}, {start=}, {i=}, {j=}')
             if inside is None:
                 break
 
             # condition
             if test(string, self.brackets, (i, j), nr):
-                yield yields(inside, i, j)
+                yield yields(inside, i, j, start)
 
             # increment
             nr += 1
-            start = j + 1
-            string = string[start:]
-            yielder.start = start
+            start += (j + 1)
 
     def iter_nested(self, string, return_index=True, condition=always_true,
                     depth=..., inside_out=True, level=0, pos=0):
@@ -222,13 +242,11 @@ class Brackets:
         else:
             raise ValueError('Depth should be an integer or an Ellipsis ...')
 
-        yielder = Yielder()
-        yields = yielder.with_index if return_index else yielder.yields
+        yields = Yielder(return_index)
 
         iters = []
-        # start = pos
+        # start = 0
         for inside, (i, j) in self.iter(string, True, True, condition):
-            # print(f'{inside=} {pos=} {i=} {j=}')
             itr = self.iter_nested(inside, return_index, condition, depth,
                                    inside_out, level + 1, pos + i + 1)
             if inside_out:
@@ -238,10 +256,11 @@ class Brackets:
                 iters.append(itr)
 
             if right_depth:
-                yielder.start = pos
-                yield yields(inside, i, j)
-                pos = j + 1
-
+                # print(f'!!{inside!r} {pos=} {i=} {j=}')
+                # print(f'!!{string[i+1:j]!r}')
+                # print(string[i+1:j] == inside)
+                yield yields(inside, i, j, pos)
+            
         # print('chaining', iters)
         yield from itt.chain(*iters)
         # print('DONE', level)
