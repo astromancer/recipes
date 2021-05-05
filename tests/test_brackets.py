@@ -69,6 +69,33 @@ test_unbracket = Expect(remove)({
     mock.remove('{{Bai}, Yu and {Liu}, JiFeng}', '{}'):
     'Bai, Yu and Liu, JiFeng'
 })
+# pytest.mark.skip(test_unbracket)
+
+# test splitter
+test_split = Expect(braces.split2)(
+    {'':                    [('', '')],
+     '...':                 [('...', '')],
+     '{}':                  [('', '{}')],
+     'x{}':                 [('x', '{}')],
+     'x{}x':                [('x', '{}'), ('x', '')],
+     '{}{}{}{}':            [('', '{}'), ('', '{}'), ('', '{}'), ('', '{}')],
+     'ch{1,2,{4..6}}...{,},xxx':
+        [('ch', '{1,2,{4..6}}'), ('...', '{,}'), (',xxx', '')],
+
+     },
+    transform=list)
+
+test_xsplit = Expect(xsplit)(
+    {'':                    [''],
+     '...':                 ['...'],
+     '{4..6}':              ['{4..6}'],
+     '{{4,6}}':             ['{{4,6}}'],
+     '{}{}{}{}':            ['{}{}{}{}'],
+     'a,b':                 ['a', 'b'],
+     'ch{1,2,{4..6}}...{}': ['ch{1,2,{4..6}}...{}'],
+     'a,b,c{d,e{f,g}}':     ['a', 'b', 'c{d,e{f,g}}']
+     },
+    transform=list)
 
 
 test_depth = Expect(braces.depth)({

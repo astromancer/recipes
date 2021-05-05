@@ -338,6 +338,38 @@ class Brackets:
         """
         self.remove(string, condition=outermost)
 
+    def split(self, string):
+
+        if not string:
+            yield [string]
+            return
+
+        itr = self.iter(string)
+        start = 0
+        for _, (i, j) in itr:
+            if i != start:
+                yield string[start:i]
+            # if i != j + 1:
+            yield string[i:j+1]
+            start = j + 1
+
+        if start != len(string):
+            yield string[start:]
+
+    def split2(self, string):
+
+        start = 0
+        j = -1
+        for _, (i, j) in self.iter(string):
+            yield string[start:i], string[i:j+1]
+            start = j + 1
+
+        if start == 0:
+            yield (string, '')
+
+        elif j + 1 != len(string):
+            yield (string[j + 1:], '')
+
     def depth(self, string, depth=0):
         deepest = depth
         for sub in self.iter(string, False, True):
@@ -391,3 +423,23 @@ def remove(string, brackets, depth=math.inf, condition=always_true):
 def strip(string, brackets):
     return Brackets(brackets).strip(string)
 
+
+def xsplit(string, brackets='{}', delimeter=','):
+    # conditional splitter. split on delimeter only if its not enclosed by
+    # brackets. need this for nested brace expansion a la bash
+    # Brackets
+
+    itr = Brackets(brackets).split2(string)
+
+    collected = _xsplit_worker(*next(itr), delimeter)
+    for pre, enclosed in itr:
+        first, *parts = _xsplit_worker(pre, enclosed, delimeter)
+        collected[-1] += first
+        collected.extend(parts)
+    return collected
+
+
+def _xsplit_worker(pre, enclosed, delimeter):
+    parts = pre.split(delimeter)
+    parts[-1] += enclosed
+    return parts
