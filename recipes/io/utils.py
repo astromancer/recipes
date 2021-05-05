@@ -2,7 +2,7 @@
 from contextlib import contextmanager
 from recipes.string import sub
 import os
-from recipes.io.bash import brace_expand_iter
+from recipes.bash import brace_expand_iter
 from recipes.string.brackets import braces
 import docsplice as doc
 
