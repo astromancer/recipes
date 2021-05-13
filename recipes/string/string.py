@@ -205,23 +205,28 @@ def replace_suffix(string, old_suffix, new_suffix):
     return _replace_affix(string, old_suffix, new_suffix, 1)
 
 
-def shared_prefix(strings):
+def shared_prefix(strings, stops=''):
     common = ''
     for letters in zip(*strings):
         if len(set(letters)) > 1:
             break
-        common += letters[0]
+
+        letter = letters[0]
+        if letter in stops:
+            break
+
+        common += letter
     return common
 
 
-def shared_suffix(strings):
-    return shared_prefix(map(reversed, strings))[::-1]
+def shared_suffix(strings, stops=''):
+    return shared_prefix(map(reversed, strings), stops)[::-1]
 
 
-def shared_affix(strings):
-    prefix = shared_prefix(strings)
+def shared_affix(strings, pre_stops='', post_stops=''):
+    prefix = shared_prefix(strings, pre_stops)
     i0 = len(prefix)
-    suffix = shared_suffix([item[:i0] for item in strings])
+    suffix = shared_suffix([item[i0:] for item in strings], post_stops)
     return prefix, suffix
 
 
