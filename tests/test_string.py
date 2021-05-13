@@ -1,5 +1,7 @@
 from recipes.testing import Expect, Throws, mock, expected
-from recipes.string import Percentage, sub
+from recipes.string import Percentage, sub, title
+from recipes.string.brackets import match, remove, outermost, contained
+from recipes.functionals import negate
 import pytest
 
 
@@ -25,6 +27,16 @@ test_sub = Expect(sub)(
 )
 
 
+test_replace = Expect(title)(
+    # basic
+    {mock.title('hello world'):             'Hello World',
+     mock.title('hello world', 'world'):    'Hello world',
+     mock.title('internal in inside', 'in'):   'Internal in Inside',
+     mock.title('words for the win', ('for', 'the')): 'Words for the Win'
+     }
+)
+
+
 # @pytest.mark.skip()
 @expected(
     {mock('hello(world)', '()'):                 'world',
@@ -32,14 +44,14 @@ test_sub = Expect(sub)(
      mock('nested((([inside]))]]])))', '[]'):    'inside',
      mock('<s>', '<>'):                          's',
      mock('((())', '()'):                        None})
-def test_match_brackets(s, brackets, result):
-    r, (i, j) = match_brackets(s, brackets)
+def test_match_brackets(s, pair, result):
+    r, (i, j) = match(s, pair)
     assert r == result
     if r:
         assert r == s[i+1:j]
 
 
-test_brackets_must_close = Expect(match_brackets)(
+test_brackets_must_close = Expect(match)(
     {mock('foo{bla', '{}'):                     ('bla', (3, None)),
      mock('open(((((('):                        ('(((((', (4, None)),
      mock('((())'):                             ('(())', (1, None)),
@@ -88,7 +100,7 @@ test_brackets_must_close = Expect(match_brackets)(
 #         match_brackets(s, must_close=True)
 
 
-test_unbracket = Expect(unbracket)(
+test_unbracket = Expect(remove)(
     {mock.unbracket(''):                                '',
      mock.unbracket('()'):                              '',
      mock.unbracket('test()'):                          'test',
