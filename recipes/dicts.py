@@ -9,31 +9,31 @@ import types
 import re
 import numbers
 from collections import abc, UserDict, OrderedDict, defaultdict
-from .string import brackets
+from .string import indent, brackets as bkt
 from pathlib import Path
+from collections.abc import Hashable
+
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
 # attr=True, ordered=True)
+# TODO: factory methods to get class based on what you want: attribute
+# lookup, indexability,
 
 
-def invert(d):
-    return dict(zip(d.values(), d.keys()))
-
-
-def pformat(dict_, name='', key_repr=str, val_repr=str, sep=':', item_sep=',',
+def pformat(mapping, name='', lhs=str, equals=': ', rhs=str, sep=',',
             brackets='{}'):
     """
     pformat (nested) dict types
 
     Parameters
     ----------
-    dict_: dict
+    mapping: dict
         Mapping to convert to str
     name
     brackets
-    sep
+    equals
 
-    item_sep
+    sep
     converter
 
     Returns
@@ -42,75 +42,97 @@ def pformat(dict_, name='', key_repr=str, val_repr=str, sep=':', item_sep=',',
 
     Examples
     --------
-        >>> pformat(dict(x='hello',
+    >>> pformat(dict(x='hello',
                         longkey='w',
                         foo=dict(nested=1,
-                                 what='?',
-                                 x=dict(triple='nested'))))
+                                what='?',
+                                x=dict(triple='nested'))))
 
-        {x      : hello,
-         longkey: w,
-         foo    : {nested: 1,
-                   what  : ?,
-                   x     : {triple: nested}}}
+    {x      : hello,
+     longkey: w,
+     foo    : {nested: 1,
+               what  : '?',
+               x     : {triple: nested}}}
 
     """
     if brackets in ('', None):
         brackets = [''] * 2
 
-    assert len(brackets) == 2, 'Invalid brackets: %r' % brackets
+    if len(brackets) != 2:
+        raise ValueError(
+            f'Brackets should be a pair of strings, not {brackets!r}')
 
-    string = _pformat(dict_, key_repr, val_repr, sep, item_sep, brackets)
-    string = string.replace('\n', '\n' + ' ' * (len(name) + 1))
+    string = _pformat(mapping, lhs, equals, rhs, sep, brackets)
+    string = indent(string, len(name)) # f'{" ": <{pre}}
     if name:
-        return '%s(%s)' % (name, string)
+        return f'{name}{string}'
     return string
 
 
-def _pformat(dict_, key_repr=str, val_repr=str, sep=': ', item_sep=',',
-             brackets='{}'):
-    assert isinstance(dict_, abc.MutableMapping), 'Object is not a dict'
+def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}'):
 
-    if len(dict_) == 0:
+    # if isinstance(mapping, dict): # abc.MutableMapping
+    #     raise TypeError(f'Object of type: {type(mapping)} is not a '
+    #                     f'MutableMapping')
+
+    if len(mapping) == 0:
         # empty dict
         return brackets
 
-    string = brackets[0]
-    bracket_size = len(brackets[0])
+    string, close = brackets
+    bracket_size = len(string)
     # make sure we line up the values
     # note that keys may not be str, so first convert
-    keys = tuple(map(key_repr, dict_.keys()))
+    keys = tuple(map(lhs, mapping.keys()))
     width = max(map(len, keys))  # + post_sep_space
     indents = itt.chain([0], itt.repeat(bracket_size))
-    separators = itt.chain(itt.repeat(item_sep + '\n', len(dict_) - 1),
-                           [brackets[1]])
-    for pre, key, val, post in zip(indents, keys, dict_.values(), separators):
-        string += f'{" ": <{pre}}{key: <{width}s}{sep}'
-        if isinstance(val, dict):
-            part = _pformat(val, key_repr, val_repr, sep, item_sep, brackets)
+    separators = itt.chain(
+        itt.repeat(sep + '\n', len(mapping) - 1),
+        [close]
+    )
+    for pre, key, val, post in zip(indents, keys, mapping.values(), separators):
+        string += f'{"": <{pre}}{key: <{width}s}{equals}'
+        if isinstance(val, dict):  # abc.MutableMapping
+            part = _pformat(val, lhs, equals, rhs, sep, brackets)
         else:
-            part = val_repr(val)
+            part = rhs(val)
 
         # objects with multi-line representations need to be indented
-        string += part.replace('\n', '\n' + ' ' * (width + bracket_size + 2))
+        string += indent(part, width + bracket_size + 1)
         # item sep / closing bracket
         string += post
 
     return string
 
 
-def dump(dict_, filename, **kws):
+def dump(mapping, filename, **kws):
     """
     Write dict to file in human readable form
 
     Parameters
     ----------
-    dict_ : [type]
+    mapping : [type]
         [description]
     filename : [type]
         [description]
     """
-    Path(filename).write_text(pformat(dict_, **kws))
+    Path(filename).write_text(pformat(mapping, **kws))
+
+
+def invert(d, convertion={list: tuple}):
+    inverted = type(d)()
+    for key, val in d.items():
+        kls = type(val)
+        if kls in convertion:
+            val = convertion[kls](val)
+
+        if not isinstance(val, Hashable):
+            raise ValueError(
+                f'Cannot invert dictionary with non-hashable item: {val} of type {type(val)}. You may wish to pass a convertion mapping to this function to aid invertion of dicts containing non-hashable items.')
+
+        inverted[val] = key
+    return inverted
+
 
 
 class Pprinter:
@@ -151,15 +173,17 @@ class DefaultDict(defaultdict):
     default_factory = None
 
     def __init__(self, factory=None, *args, **kws):
-        # have to do explicit init since class attribute alone doesn't seem to 
+        # have to do explicit init since class attribute alone doesn't seem to
         # work for specifying default_factory
         super().__init__(factory or self.default_factory, *args, **kws)
-    
+
     def __missing__(self, key):
         if self.default_factory is None:
             return super().__missing__(key)
 
-        new = self[key] = self.default_factory(*[key][:int(self.factory_takes_key)])
+        new = self[key] = self.default_factory(
+            *[key][:int(self.factory_takes_key)]
+        )
         return new
 
 
@@ -192,17 +216,15 @@ class AVDict(dict, AutoVivify):
 #     _factory = (defaultdict.default_factory, )
 
 
-# TODO: factory methods to get class based on what you want: attribute
-# lookup, indexability,
 
 class AttrDict(dict):
     """dict with key access through attribute lookup"""
 
     def __init__(self, *args, **kwargs):
-        super(AttrDict, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.__dict__ = self
         # pros: IDE autocomplete works on keys
-        # caveats: inheritance: have to init this superclass first??
+        # cons: inheritance: have to init this superclass before all others
 
     def copy(self):
         """Ensure instance of same class is returned"""
@@ -549,7 +571,7 @@ def SENTINEL():
 
 class TerseKws:
     """
-    Class to assist many-to-one keyword mappings
+    Class to assist many-to-one keard mappings
     """
 
     def __init__(self, pattern, answer=None):
@@ -565,8 +587,8 @@ class TerseKws:
         self.pattern = pattern
         sub = pattern
         while 1:
-            s, (i0, i1) = brackets.square.match(sub, return_index=True,
-                                                must_close=True)
+            s, (i0, i1) = bkt.square.match(sub, return_index=True,
+                                           must_close=True)
             # print(s, i0, i1)
             if s is None:
                 regex += sub
