@@ -1,7 +1,6 @@
-from recipes.testing import Expect, Throws, mock, expected
+from recipes.testing import Expect, Throws, mock, expected, ECHO
 from recipes.string import Percentage, sub, title
 import pytest
-
 
 
 test_sub = Expect(sub)(
@@ -20,12 +19,23 @@ test_sub = Expect(sub)(
      mock.sub('AABBCC', {'A': 'B', 'B': 'C', 'C': 'c'}):
      'BBCCcc',
      mock.sub('hello world', dict(h='m', o='ow', rld='', w='v')):
-     'mellow vow'
+     'mellow vow',
+
+     mock.sub('dark-SHOC2-8x8-1MHz 2.5 EM: 30', {' ': '-', "'": '', ': ': ''}):
+         'dark-SHOC2-8x8-1MHz-2.5-EM30',
+
+     mock.sub(r"""\
+     \begin{equation}[Binary vector potential]
+        \label{eq:bin_pot_vec}
+        Ψ\qty(\vb{r}) = - \frac{GM_1}{\abs{\vb{r - r_1}}}
+        \end{equation}""",
+              {'_p': 'ₚ', 'eq:bin_pot_vec': 'eq:bin_pot_vec'}): 
+     ECHO
      }
 )
 
 
-test_replace = Expect(title)(
+test_title = Expect(title)(
     # basic
     {mock.title('hello world'):             'Hello World',
      mock.title('hello world', 'world'):    'Hello world',
@@ -50,9 +60,12 @@ test_replace = Expect(title)(
 #  ['ch{{1,2},{4..6}}', 'main{1,2}', '{1,2}test']]
 
 
-@ pytest.mark.parametrize('s, e', [('20%', 2469),
-                                   ('100.01%', 12346.2345),
-                                   ('12.0001 %', 1481.412345)])
+@pytest.mark.parametrize(
+    's, e',
+    [('20%', 2469),
+     ('100.01%', 12346.2345),
+     ('12.0001 %', 1481.412345)]
+)
 def test_percentage(s, e):
     assert Percentage(s).of(12345.) == e
 

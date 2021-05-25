@@ -1,10 +1,10 @@
-import textwrap as txw
 
 import os
 import re
 import numbers
 
 import numpy as np
+
 
 
 # regexes
@@ -114,34 +114,24 @@ def sub(string, mapping={}, **kws):  # sub / substitute
         # simple replace
         return string.replace(*next(iter(mapping.items())))
 
-    dest = ''.join(mapping.values())  # FIXME: better problem detection!!!
-    good = mapping.copy()
+    from recipes import cosort
+    from recipes import op
+
+    # check if any keys are contained within another key. If this is true,
+    # we have to substitute the latter before the former
+    keys = set(mapping)
+    okeys, ovals = cosort(*zip(*mapping.items()),
+                          key=lambda x: op.any(keys - {x}, op.contained(x).within))
+    good = dict(zip(okeys, ovals))
     tmp = {}
-    for key in mapping.keys():
-        if key in dest:
+    for key in okeys:
+        # if any values have the key in them, need to remap them etmporarily
+        if op.any(ovals, op.contained(key).within):
             tmp[key] = str(id(key))
             good.pop(key)
 
     inv = {val: mapping[key] for key, val in tmp.items()}
     return _rreplace(_rreplace(_rreplace(string, tmp), good), inv)
-
-    # FIXME:
-    #
-    # replace(r"""\begin{equation}[Binary vector potential]
-    # \label{eq:bin_pot_vec}
-    # Ψ\qty(\vb{r}) = - \frac{GM_1}{\abs{\vb{r - r_1}}}
-    #                 - \frac{GM_2}{\abs{\vb{r - r_2}}}
-    #                 - ½{\qty(\vb{ω} \x \vb{r})}^2
-    # \end{equation}""",
-    #  {'_p': 'ₚ', 'eq:bin_pot_vec': 'eq:bin_pot_vec'} )
-
-    # unique = set(mapping)
-    # ok = unique - set(mapping.values())
-    # trouble = unique - ok
-    # tmp = {key: str(id(key)) for key in trouble}
-    # inv = {val: mapping[key] for key, val in tmp.items()}
-    # good = {key: mapping[key] for key in ok}
-    # return _rreplace(_rreplace(_rreplace(string, tmp), good), inv)
 
 
 # alias
@@ -233,6 +223,10 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 def surround(string, wrappers):
     left, right = wrappers
     return left + string + right
+
+
+def indent(string, width):
+    return string.replace('\n', '\n' + ' ' * width)
 
 
 def strip_non_ascii(string):

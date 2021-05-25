@@ -5,46 +5,11 @@ from . import remove_affix
 import docsplice as doc
 import itertools as itt
 from ..functionals import always_true, echo0
+from ..op import contained
 
 __all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
-# Braces(string).iter / .tokenize / .parse / match / strip / split
-# ( )
-# Parentheses
-# or
-# round brackets
 
-
-# { }
-# Braces
-# or
-# curly brackets
-
-# [ ]
-# Brackets
-# or
-# square brackets
-
-#
-# ⟨ ⟩
-# Chevrons
-# or
-# angle brackets
-
-
-class contained:  # pylint: disable=invalid-name
-    """
-    Helper class for condition testing substring containment in strings
-
-    Example
-    >>> [*map(contained('*').within, ['', '**', '..'])]
-    [False, True, False]
-    """
-
-    def __init__(self, item):
-        self.item = item
-
-    def within(self, container):
-        return self.item in container
+# Braces(string) # TODO / .tokenize / .parse
 
 
 def outermost(string, brackets, indices, _ignored):
@@ -255,7 +220,7 @@ class Brackets:
                 # print(f'!!{string[i+1:j]!r}')
                 # print(string[i+1:j] == inside)
                 yield yields(inside, i, j, pos)
-            
+
         # print('chaining', iters)
         yield from itt.chain(*iters)
         # print('DONE', level)

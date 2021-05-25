@@ -11,7 +11,7 @@ from recipes.decor import raises
 import docsplice as doc
 
 import builtins
-from operator import eq
+from operator import *
 
 
 class NULL:
@@ -141,3 +141,19 @@ def index(obj, item, start=0, test=eq, default=NULL):
         raise ValueError(f'{item} is not in {type(obj)}')
 
     return default
+
+
+class contained:  # pylint: disable=invalid-name
+    """
+    Helper class for condition testing presence of items in sequences
+
+    Example
+    >>> [*map(contained('*').within, ['', '**', '..'])]
+    [False, True, False]
+    """
+
+    def __init__(self, item):
+        self.item = item
+
+    def within(self, container):
+        return self.item in container
