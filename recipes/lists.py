@@ -5,6 +5,7 @@ Recipes involving lists.
 # std libs
 from collections import defaultdict
 import re
+import numbers
 import itertools as itt
 
 # third-party libs
@@ -173,7 +174,7 @@ def _where(l, item, start=0, test=op.eq):
     n = len(l)
     while i < n:
         try:
-            i = op.index(l, item, i, test=test)
+            i = op.index(l, item, i, test)
             yield i
         except ValueError:
             # done
@@ -201,16 +202,22 @@ def flatten(l):
 
 def split(l, idx):
     """Split a list into sublists at the given indices"""
-    if len(idx) == 0:
-        return [l]
+    return list(_split_iter(l, idx))
 
-    if idx[0] != 0:
-        idx = [0] + idx
 
-    if idx[-1] != len(l):
-        idx += [len(l)]
+def _split_iter(l, idx):
+    if isinstance(idx, numbers.Integral):
+        idx = [idx]
 
-    return [l[sec] for sec in map(slice, idx, idx[1:])]
+    idx = iter(sorted(idx))
+    
+    i, j = 0, None
+    for j in idx:
+        yield l[i:j]
+        i = j
+
+    if j is not None:
+        yield l[j:]
 
 
 def split_where(l, item, start=0, test=None):
