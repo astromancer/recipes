@@ -1,11 +1,11 @@
 """
-Recipes involving lists
+Recipes involving lists.
 """
 
 # std libs
 from collections import defaultdict
-from numpydoc.docscrape import NumpyDocString
 import re
+import numbers
 import itertools as itt
 
 # third-party libs
@@ -15,11 +15,7 @@ import more_itertools as mit
 from .dicts import DefaultOrderedDict
 from .iter import nth_zip
 import docsplice as doc
-from operator import eq
-
-
-class NULL:
-    "Null singleton"
+from . import op
 
 
 def _echo(_):
@@ -97,7 +93,7 @@ def cosort(*lists, **kws):
         raise ValueError('Cannot co-sort raggedly shaped lists')
 
     list0 = list(lists[0])
-    if len(list0) == 0:  # all lists are zero length
+    if not list0:  # all lists are zero length
         return lists
 
     master_key = kws.pop('master_key', None)
@@ -133,10 +129,6 @@ def cosort(*lists, **kws):
     return tuple(map(list, zip(*res)))
 
 
-# def sortmore(*lists, key=None, order=1):
-#     return cosort(*lists, key=key, order=order)
-
-
 def lists(mapping):
     """create a sequence of lists from a mapping / iterator /generator"""
     return list(map(list, mapping))
@@ -150,26 +142,14 @@ def lists(mapping):
 #                  for it, ix in zip(its, itt.repeat(indices)))
 
 
-def where(l, item, start=0, test=eq):
+@doc.splice(op.index, omit='Parameters[default]')
+def where(l, item, start=0, test=op.eq):
     """
     A multi-indexer for lists. Return index positions of all occurances of
     `item` in a list `l`.  If a test function is given, return all indices at
     which the test evaluates true.
 
-    Parameters
-    ----------
-    l : list
-        The list of items to be searched
-    item : object
-        item to be found
-    start : int, optional
-        optional starting index for the search, by default 0
-    test : callable, optional
-        Function used to identify the item. Calling sequence of this function is
-        `test(x, item)`, where `x` is an item from the input list. The function
-        should return boolean value to indicate whether the position of that
-        item is to be returned in the index list. The default is None, which
-        tests each item for equality with input `item`.
+    {Parameters}
 
     Examples
     --------
@@ -185,59 +165,22 @@ def where(l, item, start=0, test=eq):
     list of int or `default`
         The index positions where test evaluates true
     """
-    test = test or eq
+    test = test or op.eq
     return list(_where(l, item, start, test))
 
 
-def _where(l, item, start=0, test=eq):
+def _where(l, item, start=0, test=op.eq):
     i = start
     n = len(l)
     while i < n:
         try:
-            i = index(l, item, i, test=test)
+            i = op.index(l, item, i, test)
             yield i
         except ValueError:
             # done
             return
         else:
             i += 1  # start next search one on
-
-
-@doc.splice(where)
-def index(l, item, start=0, test=eq, default=NULL):
-    # TODO: something like this but for strings, etc to live in op
-    """
-    Find the index position of `item` in list `l`, or if a test function is
-    provided, the first index position for which the test evaluates as true. If
-    the item is not found, or no items test positive, return the provided
-    default value. 
-
-    {Parameters}
-    default : object, optional
-        The default to return if `item` was not found in the input list, by
-        default None
-
-    Returns
-    -------
-    int
-        The index position where the first occurance of `item` is found, or
-        where `test` evaluates true
-    """
-    if not isinstance(l, list):
-        l = list(l)
-
-    test = test or eq
-    for i, x in enumerate(l[start:], start):
-        if test(x, item):
-            return i
-
-    # behave like standard list indexing by default
-    #  -> only if default parameter was explicitly given do we return that
-    #   instead of raising a ValueError
-    if default is NULL:
-        raise ValueError(f'{item} is not in list')
-
-    return default
 
 
 def flatten(l):
@@ -259,16 +202,22 @@ def flatten(l):
 
 def split(l, idx):
     """Split a list into sublists at the given indices"""
-    if len(idx) == 0:
-        return [l]
+    return list(_split_iter(l, idx))
 
-    if idx[0] != 0:
-        idx = [0] + idx
 
-    if idx[-1] != len(l):
-        idx += [len(l)]
+def _split_iter(l, idx):
+    if isinstance(idx, numbers.Integral):
+        idx = [idx]
 
-    return [l[sec] for sec in map(slice, idx, idx[1:])]
+    idx = iter(sorted(idx))
+    
+    i, j = 0, None
+    for j in idx:
+        yield l[i:j]
+        i = j
+
+    if j is not None:
+        yield l[j:]
 
 
 def split_where(l, item, start=0, test=None):
@@ -284,16 +233,6 @@ def split_where(l, item, start=0, test=None):
     #     idx += [len(l) - 1]
 
     return split(l, where(l, item, start, test))
-
-
-def re_find(l, pattern):
-    matches = []
-    matcher = re.compile(pattern)
-    for i, x in enumerate(l):
-        m = matcher.match(x)
-        if m:
-            matches.append((i, m.group()))
-    return matches
 
 
 def missing_integers(l):

@@ -4,13 +4,18 @@ support for default values
 """
 
 # pylint: disable=redefined-builtin
-
+# pylint: disable=invalid-name
 
 import warnings
 from recipes.decor import raises
 import docsplice as doc
 
 import builtins
+from operator import *
+
+
+class NULL:
+    "Null singleton"
 
 
 def any(itr, test=bool):
@@ -86,5 +91,69 @@ class itemgetter:
                 yield self.get_default(i)
 
 
-# alias
+# alias #
 getitem = itemgetter
+
+
+def index(obj, item, start=0, test=eq, default=NULL):
+    """
+    Find the index position of `item` in list `l`, or if a test function is
+    provided, the first index position for which the test evaluates as true. If
+    the item is not found, or no items test positive, return the provided
+    default value.
+
+    Parameters
+    ----------
+    obj : list or str
+        The items to be searched
+    item : object
+        item to be found
+    start : int, optional
+        optional starting index for the search, by default 0
+    test : callable, optional
+        Function used to identify the item. Calling sequence of this function is
+        `test(x, item)`, where `x` is an item from the input list. The function
+        should return boolean value to indicate whether the position of that
+        item is to be returned in the index list. The default is `op.eq`, which
+        tests each item for equality with input `item`.
+    default : object, optional
+        The default to return if `item` was not found in the input list, by
+        default None
+
+    Returns
+    -------
+    int
+        The index position where the first occurance of `item` is found, or
+        where `test` evaluates true
+    """
+    # if not isinstance(l, list):
+    #     l = list(l)
+
+    test = test or eq
+    for i, x in enumerate(obj[start:], start):
+        if test(x, item):
+            return i
+
+    # behave like standard indexing by default
+    #  -> only if default parameter was explicitly given do we return that
+    #   instead of raising a ValueError
+    if default is NULL:
+        raise ValueError(f'{item} is not in {type(obj)}')
+
+    return default
+
+
+class contained:  # pylint: disable=invalid-name
+    """
+    Helper class for condition testing presence of items in sequences
+
+    Example
+    >>> [*map(contained('*').within, ['', '**', '..'])]
+    [False, True, False]
+    """
+
+    def __init__(self, item):
+        self.item = item
+
+    def within(self, container):
+        return self.item in container

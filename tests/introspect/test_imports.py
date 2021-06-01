@@ -1,6 +1,7 @@
 import ast
 import textwrap
-from recipes.introspect.imports import ImportCapture, tidy_source
+from recipes.introspect.imports import ImportCapture, tidy, tidy_source
+from pathlib import Path
 
 
 def test_detect_decorator():
@@ -23,15 +24,16 @@ def test_preserve_scope():
         from foo import bar
         bar()
     """)
-    s = tidy_source(source, preserve_scope=True)
+    s = tidy_source(source, unscope=False)
     assert s == source
 
 
 def test_merge_import_lines():
-    source = textwrap.dedent("""\
-    from matplotlib.collections import LineCollection
-    from matplotlib.collections import EllipseCollection
-    """)
+    source = textwrap.dedent(
+        """\
+        from matplotlib.collections import LineCollection
+        from matplotlib.collections import EllipseCollection
+        """)
     s = tidy_source(source, filter_unused=False)
     assert s == "from matplotlib.collections LineCollection, EllipseCollection"
 
@@ -44,9 +46,10 @@ def test_relative_imports():
         pass
     """)
 
-def test_capture_line_limit():
-    imp = ImportCapture(filter_unused=False)
-    imp.visit(ast.parse(source))
+
+# def test_capture_line_limit():
+#     imp = ImportCapture(filter_unused=False)
+#     imp.visit(ast.parse(source))
 
 # TODO:
 #  test_make_groups
@@ -56,6 +59,11 @@ def test_capture_line_limit():
 #  test_multiline_imports
 #  test_keep_comments
 #  test_style_preference
+
+def test_example():
+    answer = tidy('example.py', dry_run=True)
+    expected = Path('example_new.py').read_text()
+    assert answer == expected
 
 """
 import multiprocessing as mp
@@ -98,5 +106,5 @@ from obstools.phot.proc import TaskExecutor
 from obstools.phot.tracking.core import SegmentedImage, SlotModeTracker, \
     check_image_drift  # multiline
 
-from graphing.imagine import ImageDisplay
+from scrawl.imagine import ImageDisplay
 """
