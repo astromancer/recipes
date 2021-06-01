@@ -47,7 +47,7 @@ from motley.profiler.timers import timer  # , profiler
 
 
 def whatwhat():
-    import your.fat.mother
+    import some.nested.local
 
 
 import motley

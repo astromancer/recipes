@@ -1,4 +1,5 @@
 # std libs
+from ..functionals import echo0
 from contextlib import contextmanager
 from recipes.string import sub
 import os
@@ -226,6 +227,7 @@ def iter_lines(filename, *section, mode='r', strip=None):
     #   https://stackoverflow.com/a/38075790/1098683
     if strip is None:
         strip = os.linesep
+    strip = strip or ''
     if 'b' in mode and isinstance(strip, str):
         strip = strip.encode()
 
@@ -304,12 +306,134 @@ def count_lines(filename):
         return 0
 
     with open(str(filename), 'r+') as fp:
-        buf = mmap.mmap(fp.fileno(), 0)
         count = 0
-        readline = buf.readline
-        while readline():
+        buffer = mmap.mmap(fp.fileno(), 0)
+        while buffer.readline():
             count += 1
         return count
+
+
+def write_lines(stream, lines, eol='\n'):
+    """
+    Write multiple lines to a file-like output stream
+
+    Parameters
+    ----------
+    stream : [type]
+        File-like object
+    lines : iterable
+        Sequence of lines to be written to the stream.
+    eol : str, optional
+        End-of-line character to be appended to each line, by default ''.
+    """
+    assert isinstance(eol, str)
+    append = str.__add__ if eol else echo0
+
+    for line in lines:
+        stream.write(append(line, eol))
+
+
+@contextmanager
+def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
+    """
+    Context manager for doing file operations under backup. This will backup
+    your file before any read / writes are attempted. If something goes terribly
+    wrong during the attempted operation, the original content will be restored.
+
+
+    Parameters
+    ----------
+    filename : str or Path
+        The file to be edited.
+    mode : str, optional
+        File mode for opening, by default 'w'.
+    backupfile : str or Path, optional
+        Location of the backup file, by default None. The default location will
+        is the temporary file created by `tempfile.mkstemp`, using the prefix
+        "backup." and suffix being the original `filename`.
+    exception_hook : callable, optional
+        Hook to run on the event of an exception if you wish to modify the
+        error message. The default, None, will leave the exception unaltered.
+
+    Examples
+    --------
+    >>> Path('foo.txt').write_text('Important stuff')
+    ... with safe_write('foo.txt') as fp:
+    ...     fp.write('Some additional text')
+    ...     raise Exception('Catastrophy!')
+    ... Path('foo.txt').read_text()
+    'Important stuff'
+
+    In the example above, the original content was restored upon exception.
+    Catastrophy averted!
+
+    Raises
+    ------
+    Exception
+        The type and message of exceptions raised by this context manager are
+        determined by the optional `exception_hook` function.
+    """
+    # write formatted entries
+    # backup and restore on error!
+    path = Path(filename).resolve()
+    backup_needed = path.exists()
+    if backup_needed:
+        if backupfile is None:
+            bid, backupfile = tempfile.mkstemp(prefix='backup.',
+                                               suffix=f'.{path.name}')
+        else:
+            backupfile = Path(backupfile)
+
+        # create the backup
+        shutil.copy(str(path), backupfile)
+
+    # write formatted entries
+    with path.open(mode) as fp:
+        try:
+            yield fp
+        except Exception as err:
+            if backup_needed:
+                fp.close()
+                os.close(bid)
+                shutil.copy(backupfile, filename)
+            if exception_hook:
+                raise exception_hook(err, filename) from err
+            raise
+
+
+@doc.splice(backed_up, 'summary', omit='Parameters[backupfile]',
+            replace={'operation': 'write',
+                     'read / ': ''})  # FIXME: replace not working here
+def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
+    """
+    {Parameters}
+    lines : list
+        Lines of content to write to file.
+    """
+    assert isinstance(eol, str)
+    append = str.__add__ if eol else echo0
+    
+    with backed_up(filename, mode, exception_hook=exception_hook) as fp:
+        # write lines
+        try:
+            for i, line in enumerate(lines):
+                fp.write(append(line, eol))
+        except Exception as err:
+            if exception_hook:
+                raise exception_hook(err, filename, line, i) from err
+            raise
+
+
+def write_replace(filename, replacements):
+    if not replacements:
+        # nothing to do
+        return
+
+    with backed_up(filename, 'r+') as fp:
+        text = fp.read()
+        fp.seek(0)
+        fp.write(sub(text, replacements))
+        fp.truncate()
 
 
 def iocheck(instr, check, bork=0, convert=None):
@@ -348,98 +472,3 @@ def walk_level(dir_, depth=1):
         num_sep_here = root.count(os.path.sep)
         if num_sep + depth <= num_sep_here:
             del dirs[:]
-
-
-@contextmanager
-def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
-    """
-    Context manager for doing file operations under backup. This will backup
-    your file before any read / writes are attempted. If something goes terribly
-    wrong during the attempted operation, the original content will be restored.
-
-
-    Parameters
-    ----------
-    filename : str or Path
-        The file to be edited.
-    mode : str, optional
-        File mode for opening, by default 'w'.
-    backupfile : str or Path, optional
-        Location of the backup file, by default None. The default location will
-        is the temporary file created by `tempfile.mkstemp`, using the prefix
-        "backup." and suffix being the original `filename`.
-    exception_hook : callable, optional
-        Hook to run on the event of an exception if you wish to modify the
-        error message. The default, None, will leave the exception unaltered.
-
-    Examples
-    --------
-    >>> Path('foo.txt').write_text('Important stuff')
-    ... with safe_write('foo.txt') as fp:
-    ...     fp.write('Some additional text')
-    ...     raise Exception('Catastrophy!')
-    ... Path('foo.txt').read_text()
-    'Important stuff' # original content was restored. Catastrophy averted!
-
-    Raises
-    ------
-    Exception
-        The type and message of exceptions raised by this context manager are
-        determined by the optional `exception_hook` function.
-    """
-    # write formatted entries
-    # backup and restore on error!
-    path = Path(filename).resolve()
-    backup_needed = path.exists()
-    if backup_needed:
-        if backupfile is None:
-            bid, backupfile = tempfile.mkstemp(prefix='backup.',
-                                               suffix=f'.{path.name}')
-        else:
-            backupfile = Path(backupfile)
-
-        # create the backup
-        shutil.copy(str(path), backupfile)
-
-    # write formatted entries
-    with path.open(mode) as fp:
-        try:
-            yield fp
-        except Exception as err:
-            if backup_needed:
-                fp.close()
-                os.close(bid)
-                shutil.copy(backupfile, filename)
-            if exception_hook:
-                raise exception_hook(err, filename) from err
-            raise
-
-
-@doc.splice(backed_up, 'summary', omit='Parameters[backupfile]',
-            replace={'operation': 'write',
-                     'read / ': ''})
-def safe_write(filename, lines, mode='w', exception_hook=None):
-    """
-    {Parameters}
-    lines : list
-        Lines of content to write to file.
-    """
-    with backed_up(filename, mode, exception_hook=exception_hook) as fp:
-        # write lines
-        try:
-            for i, line in enumerate(lines):
-                fp.write(line)
-        except Exception as err:
-            raise exception_hook(err, filename, line, i) from err
-
-
-def write_replace(filename, replacements):
-    if not replacements:
-        # nothing to do
-        return
-
-    with backed_up(filename, 'r+') as fp:
-        text = fp.read()
-        fp.seek(0)
-        fp.write(sub(text, replacements))
-        fp.truncate()

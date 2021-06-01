@@ -1,15 +1,22 @@
+
 # std libs
 import io
 import ast
 import sys
 import math
+import warnings as wrn
 import itertools as itt
+from pathlib import Path
 from functools import partial
 from collections import defaultdict
 
 # third-party libs
+import anytree
 from stdlib_list import stdlib_list
-from anytree import Node, RenderTree
+
+# relative libs
+from ..io import write_lines, safe_write
+from ..functionals import always, echo0 as echo
 
 # from importlib.machinery import PathFinder
 
@@ -26,9 +33,9 @@ builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs + unlisted
 MODULE_GROUP_NAMES = ['std', 'third-party', 'local', 'relative']
 
 # list of local module names
-# TODO: this in separate file
-LOCAL_MODULES = ['obstools', 'graphical', 'pyshoc', 'recipes', 'tsa', 'mCV',
-                 'motley', 'salticam']
+LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
+LOCAL_MODULES = LOCAL_MODULES_DB.read_text().splitlines()
+
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: too many blank lines after module docstring
@@ -40,13 +47,8 @@ LOCAL_MODULES = ['obstools', 'graphical', 'pyshoc', 'recipes', 'tsa', 'mCV',
 # TODO: unit tests!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # TODO: local import that are already in global namespace
 
-
-def null(_):
-    return 0
-
-
-def echo(_):
-    return _
+# function that always returns 0
+zero = always(0)
 
 
 def is_builtin(name):  # name.split('.')[0]
@@ -100,11 +102,7 @@ def get_module_names(node, split=True, depth=None):
     if depth:
         split = True
 
-    if depth is 0:
-        idx = 0
-    else:
-        idx = slice(depth)
-
+    idx = 0 if depth == 0 else slice(depth)
     if isinstance(node, ast.ImportFrom):
         if node.level:
             # this is a module relative import
@@ -129,7 +127,8 @@ def get_module_names(node, split=True, depth=None):
                 f'Encountered `import {", ".join(names)}`.' +
                 'Please split single line, multi-module import '
                 'statements first.  This can be done by using '
-                '`ImportCapture(split=True).visit(ast.parse(source_code))`')
+                '`ImportCapture(split=True).visit(ast.parse(source_code))`'
+            )
     else:
         raise TypeError('Invalid Node type %r' % node)
 
@@ -146,55 +145,80 @@ def sort_nodes(nodes):
     return sorted(nodes, key=_sort)
 
 
-def print_imports_tree(tree, ws=50):
-    """
-    Print a representation of the tree along with the statements at each leaf
-
-    Parameters
-    ----------
-    tree
-
-    Returns
-    -------
-
-    """
-    for pre, _, node in RenderTree(tree, childiter=sort_nodes):
-        # lvl = len(pre) // 4
-        # stm = str(getattr(node, 'order', '')) + ' ' + getattr(node, 'stm', '')
-        stm = getattr(node, 'stm', '')
-        if '\n' in stm:
-            stm = stm.replace('\n',
-                              '\n' + pre[:-4] + ' ' * (len(str(node.name)) + 4))
-        pre = f'{pre}{node.name}'
-        w = ws - len(pre)
-        print(f'{pre}{stm: >{w + len(stm)}s}')
+def grouper(statements, func):
+    groups = defaultdict(list)
+    for stm in statements:
+        groups[func(stm)].append(stm)
+    return groups.items()
 
 
-def print_imports_tree2(tree, ws=50):
-    print(RenderTree(tree).by_attr('stm'))
+# def print_imports_tree2(tree, ws=50):
+#     print(RenderTree(tree).by_attr('stm'))
 
 
-def write_imports_tree(stream, tree, headers=True, suffix='libs'):
-    for pre, _, node in RenderTree(tree, childiter=sort_nodes):
-        lvl = len(pre) // 4
-        if lvl == 1 and headers:
-            # commented header for import group
-            write_line(stream, f'\n# {node.name} {suffix}')
+class Node(anytree.Node):  # ImportNode
+    def pprint(self, ws=50):
+        """
+        Print a representation of the tree along with the statements at each leaf
 
-        if hasattr(node, 'stm'):
-            write_line(stream, node.stm)
-            # separate groups by newline
+        Parameters
+        ----------
+        tree
 
+        Returns
+        -------
 
-def write_line(s, line):
-    s.write(line)
-    s.write('\n')
+        """
+        for pre, _, node in anytree.RenderTree(self, childiter=sort_nodes):
+            # lvl = len(pre) // 4
+            # stm = str(getattr(node, 'order', '')) + ' ' + getattr(node, 'stm', '')
+            stm = getattr(node, 'stm', '')
+            stm = stm.replace(
+                '\n', '\n' + pre[: -4] + ' ' * (len(str(node.name)) + 4))
+            pre = f'{pre}{node.name}'
+            w = ws - len(pre)
+            print(f'{pre}{stm: >{w + len(stm)}s}')
 
+    def gen_lines(self, headers=True, suffix='libs'):
+        for pre, _, node in anytree.RenderTree(self, childiter=sort_nodes):
+            lvl = len(pre) // 4
+            if lvl == 1 and headers:
+                # commented header for import group
+                yield f'\n# {node.name} {suffix}'
 
-def write_lines(s, lines):
-    for line in lines:
-        write_line(s, str(line))  # str convert won't be needed if you make
-        # ImportStatement str subclass
+            if hasattr(node, 'stm'):
+                yield node.stm
+                # separate groups by newline
+
+    def make_branch(self, statements, funcs, sorts, lvl=0):
+        func = funcs[lvl] if lvl < len(funcs) else None
+        sorter = sorts[lvl] if lvl < len(sorts) else zero
+        for child, _, grp in self._make_children(statements, func, sorter, lvl):
+            # print(lvl, child, _, grp)
+            child.make_branch(grp, funcs, sorts, lvl + 1)
+
+    def _make_children(self, statements, func, sort, lvl):
+        statements = list(statements)
+
+        if func is None and sort is zero:
+            # Deepest level. Leaf nodes get attributes here.
+            # print('PING', lvl, rewrite(statements[0]))
+            self.stm = rewrite(statements[0])
+            self.order = min(len(self.stm), 80)
+
+            # order groups by maximal statement length
+            if lvl >= 3:
+                self.order = min(len(self.stm), 80)
+                parent = self.parent
+                for _ in range(3, lvl):
+                    parent.order = max(self.order, parent.order)
+                    parent = parent.parent
+
+            return
+
+        for gid, stm in grouper(statements, func):
+            child = Node(gid, parent=self, order=sort(gid))
+            yield child, gid, stm
 
 
 class _FunkyDict(dict):
@@ -228,6 +252,79 @@ class Funky(object):
 #     visitor.visit(tree)
 #     return visitor.modules
 
+
+def get_tree_file(filename, up_to_line=math.inf, filter_unused=None,
+                  alphabetic=False, aesthetic=True, unscope=False):
+    filename = str(filename)
+    with open(filename) as fp:
+        source = fp.read()
+
+    root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
+                              aesthetic, unscope)
+    return root
+
+
+def get_tree(source, up_to_line=math.inf, filter_unused=None,
+             alphabetic=False, aesthetic=True, unscope=False):
+    # Capture import nodes
+    split_multi_module = True
+    net = ImportCapture(up_to_line, unscope, split_multi_module,
+                        filter_unused)
+    importsTree = net.visit(ast.parse(source))
+
+    # group and sort (creates a new tree structure)
+    return make_tree(importsTree.body, aesthetic, alphabetic), net
+
+
+def make_tree(statements, aesthetic=True, alphabetic=False):
+    """
+    Create a tree of import statements from a list of ast nodes. This divides
+    the import statements into groups and assigns a positional `order` attribute
+    to each to aid further sorting.
+
+    Parameters
+    ----------
+    statements : list of ast.Node
+        Import statements as `ast.Node` objects.
+    aesthetic : bool, optional
+        Whether to sort aesthetically, by default True. Mutually exclusive with
+        `alphabetic` parameter.
+    alphabetic : bool, optional
+        Whether to sort statements alphabetically, by default False. Mutually
+        exclusive with `alphabetic` parameter.
+
+    Returns
+    -------
+    anytree.Node
+        The root node of the new tree.
+    """
+
+    # collect the import statements
+    root = Node('body')
+
+    # no import statements ?
+    if len(statements) == 0:
+        return root
+
+    if aesthetic:
+        # hierarchical group sorting for aesthetic
+        importStyleGroups = get_style_groups(statements)
+
+        def lvl1(stm):
+            return importStyleGroups[get_module_names(stm, depth=0)]
+
+        # decision functions
+        groupers = [get_module_kind, lvl1, ] + list(Funky(statements))
+        sorters = [MODULE_GROUP_NAMES.index, echo]
+
+    elif alphabetic:
+        raise NotImplementedError
+
+    # make tree
+    root.make_branch(statements, groupers, sorters)
+    return root
+
+
 def get_style_groups(statements):
     # moduleNameCount = defaultdict(int)
     moduleIsFrom = defaultdict(list)
@@ -249,100 +346,14 @@ def get_style_groups(statements):
             for m, b in moduleIsFrom.items()}
 
 
-def make_branch(node, statements, funcs, sorts, lvl=0):
-    func = funcs[lvl] if lvl < len(funcs) else None
-    sorter = sorts[lvl] if lvl < len(sorts) else null
-    for child, _, grp in _make_children(node, statements, func, sorter, lvl):
-        # print(lvl, child, _, grp)
-        make_branch(child, grp, funcs, sorts, lvl + 1)
-
-
-def _make_children(node, statements, func, sort, lvl):
-    statements = list(statements)
-
-    if len(statements) == 1:
-        # Deepest level. Leaf nodes get attributes here.
-        # print('PING', lvl, rewrite(statements[0]))
-        node.stm = rewrite(statements[0])
-        node.order = min(len(node.stm), 80)
-
-        # order groups by maximal statement length
-        if lvl >= 3:
-            node.order = min(len(node.stm), 80)
-            parent = node.parent
-            for _ in range(3, lvl):
-                parent.order = max(node.order, parent.order)
-                parent = parent.parent
-
-        return
-
-    else:
-        statements.sort(key=func)
-        for gid, stm in itt.groupby(statements, func):
-            child = Node(gid, parent=node, order=sort(gid))
-            yield child, gid, stm
-
-
-def make_tree(statements, aesthetic=True, alphabetic=False, ):
-    """"""
-
-    # collect the import statements
-    root = Node("body")
-
-    # no import statements ?
-    if len(statements) == 0:
-        return root
-
-    if aesthetic:
-        # hierarchical group sorting for aesthetic
-        importStyleGroups = get_style_groups(statements)
-
-        def lvl1(stm):
-            return importStyleGroups[get_module_names(stm, depth=0)]
-
-        # decision functions
-        groupers = [get_module_kind, lvl1, ] + list(Funky(statements))
-        sorters = [MODULE_GROUP_NAMES.index, echo]
-
-    elif alphabetic:
-        raise NotImplementedError
-
-    # make tree
-    make_branch(root, statements, groupers, sorters)
-    return root
-
-
-def get_tree(source, up_to_line=math.inf, filter_unused=True,
-             alphabetic=False, aesthetic=True, unscope=False):
-    # Capture import nodes
-    split_multi_module = True
-    net = ImportCapture(up_to_line, unscope, split_multi_module,
-                        filter_unused)
-    importsTree = net.visit(ast.parse(source))
-
-    # group and sort (creates a new tree structure)
-    return make_tree(importsTree.body, aesthetic, alphabetic), net
-
-
-def get_tree_file(filename, up_to_line=math.inf, filter_unused=True,
-                  alphabetic=False, aesthetic=True, unscope=False):
-    filename = str(filename)
-    with open(filename) as fp:
-        source = fp.read()
-
-    root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
-                              aesthetic, unscope)
-    return root
-
-
-def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
+def tidy(filename, up_to_line=math.inf, filter_unused=None, alphabetic=False,
          aesthetic=True, unscope=False, keep_multiline=True,
          headers=None, write_to=None, dry_run=False, report=False):
     """
     Tidy up import statements that might lie scattered throughout hastily
-    written source code. Sort them, filter unused, group them, re-write them
-    in the document header or write to a new file or just print the
-    tidied code to stdout.
+    written source code. Sort them, filter unused, group them, re-write them in
+    the document header or write to a new file or just print the prettified code
+    to stdout.
 
 
     Parameters
@@ -355,8 +366,7 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
         sort alphabetically
     aesthetic: bool
         sort aesthetically. The sorting rules are as follow: # TODO
-
-    unscope: bool 
+    unscope: bool
         Whether or not to move the import statements that are in a local scope
     headers: bool or None
         whether to print comment labels eg 'third-party libs' above different
@@ -386,58 +396,47 @@ def tidy(filename, up_to_line=math.inf, filter_unused=True, alphabetic=False,
     # output
     write_to = write_to or filename  # default is to overwrite input file
 
+    # line generator
+    lines = rewrite_gen(
+        source, up_to_line, filter_unused, alphabetic, aesthetic, unscope,
+        keep_multiline, headers, report
+    )
+
     if dry_run:
-        stream = io.StringIO()
-    else:
-        # FIXME: any error that occurs in `_tidy` may leave input file in a
-        #  weird state, or even erase all data? Especially errors with code
-        #  that cannot be parsed due to syntax errors.  TEST FOR THIS!!
-        # FIXME: have to ensure file closes properly when error, also not get
-        #  erased   !!!
-        stream = open(write_to, 'w')
+        with io.StringIO() as stream:
+            write_lines(stream, lines)
+            return stream.getvalue()
 
-    _tidy(source, stream, up_to_line, filter_unused, alphabetic, aesthetic,
-          unscope, keep_multiline, headers, report)
-
-    s = None
-    if dry_run:
-        s = stream.getvalue()
-
-    # closing
-    stream.close()
-
-    # if report: # TODO checkout difflib
-    #     print('-' * 160)
-    #     print(filename)
-    #     print('-' * 160)
-
-    return s
+    #
+    safe_write(write_to, lines)
 
 
-def tidy_source(source, up_to_line=math.inf, filter_unused=True,
+def tidy_source(source, up_to_line=math.inf, filter_unused=None,
                 alphabetic=False, aesthetic=True, unscope=False,
                 keep_multiline=True, headers=None, report=False):
-    #
-    with io.StringIO() as output_stream:
-        _tidy(source, output_stream, up_to_line, filter_unused, alphabetic,
-              aesthetic, unscope, keep_multiline, headers, report)
-        return output_stream.getvalue()
+
+    # line generator
+    lines = rewrite_gen(
+        source, up_to_line, filter_unused, alphabetic, aesthetic, unscope,
+        keep_multiline, headers, report
+    )
+    return '\n'.join(lines)
 
 
-def _tidy(source, output_stream, up_to_line=math.inf, filter_unused=True,
-          alphabetic=False, aesthetic=True, unscope=False,
-          keep_multiline=True, headers=None, report=False):
+def rewrite_gen(source, up_to_line=math.inf, filter_unused=None,
+                alphabetic=False, aesthetic=True, unscope=False,
+                keep_multiline=True, headers=None, report=False):
     #
     root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
                               aesthetic, unscope)
     # at this point the import statements should be grouped and sorted
     # correctly in new tree
     if report:
-        print_imports_tree(root)
+        root.pprint()
 
     if len(root.children) == 0:
         # no imports
-        output_stream.write(source)
+        yield source
         return
 
     # create new source code with import statements re-shuffled
@@ -450,24 +449,30 @@ def _tidy(source, output_stream, up_to_line=math.inf, filter_unused=True,
 
     # get line numbers for removal
     cutLines, _ = excision_flagger(lines, captured.line_nrs)
+    first = cutLines[0]
 
     # write the document header
-    write_lines(output_stream, lines[:cutLines[0]])
-
-    # FIXME: too many newlines after imports
+    yield from lines[:first]
 
     # write the ordered import statements (render the tree!)
-    write_imports_tree(output_stream, root, headers)
+    yield from root.gen_lines(headers)
 
     # finally rebuild the remaining source code, omitting the previously
     # extracted import lines
-    for i, line in enumerate(lines):
-        if (i >= cutLines[0]) and (i not in cutLines):
-            write_line(output_stream, line)
 
+    n = 0  # number of successive newlines
+    for i, line in enumerate(lines[first + 1:], first + 1):
+        if i in cutLines:
+            continue
 
-def line_sort(line):
-    return line.startswith('from'), len(line)
+        if line:
+            n = 0
+        else:
+            n += 1
+
+        # only yield empty lines if they are preceded by fewer than 2 newlines
+        if n <= 2:
+            yield line
 
 
 def excision_flagger(lines, line_nrs):
@@ -570,7 +575,7 @@ def remove_unused_names(node, unused):
             j -= 1
         i += 1
 
-    if len(node.names):
+    if node.names:
         return node
 
 
@@ -585,7 +590,7 @@ def merge_duplicates(stm):
         if i and isinstance(st, ast.ImportFrom) and \
                 isinstance(prev, ast.ImportFrom) and \
                 (st.module == prev.module):
-            names = set(_.name for _ in prev.names)
+            names = {_.name for _ in prev.names}
             for alias in st.names:
                 if alias.name not in names:
                     prev.names.append(alias)
@@ -642,10 +647,26 @@ def gen_module_names(nodes):
 class ImportCapture(ast.NodeTransformer):
 
     # TODO: scope aware capture
-
+    
     def __init__(self, up_to_line=math.inf, capture_local=True, split=True,
-                 filter_unused=True, merge_duplicates=True):
-        #
+                 filter_unused=None, merge_duplicates=True):
+
+        if up_to_line != math.inf:
+            up_to_line = int(up_to_line)
+            if up_to_line < 0:
+                up_to_line = math.inf
+        
+        if filter_unused is None:
+            filter_unused = (up_to_line == math.inf)
+
+        if filter_unused and (up_to_line < math.inf):
+            raise ValueError(
+                'With `up_to_line` given and finite, we cannot determine the '
+                'complete list of used names in module, and therefore cannot '
+                'filter the unused names reliably. Please use '
+                '`filter_unused=False` for partial import inspection.'
+                )
+
         self.up_to_line = up_to_line  # internal line nrs are 1 base
         self.indent_ok = 0  # any indented statement will be ignored
         if bool(capture_local):
@@ -668,39 +689,43 @@ class ImportCapture(ast.NodeTransformer):
 
     def visit_Module(self, node):
 
-        if self.filter_unused and (self.up_to_line < math.inf):
-            raise ValueError('With `up_to_line` given and finite, cannot '
-                             'determine complete list of used names in module.')
-
         # first call to `generic_visit` will build the tree as well as capture
         # all the  imported names and used names
         module = self.generic_visit(node)
 
+        if self.filter_unused and not self.used_names:
+            wrn.warn(
+                '`filter_unused` requested but no code statements (besides '
+                'imports) detected. This will remove all import statements from'
+                ' the source, which is probably not what you intended. Please '
+                'use `filter_unused=False` if you only wish to sort existing '
+                'import statements.'
+                )
+        
         # next filter stuff we don't want
         new_body = []
         i = -1
-        for node in module.body:
+        for child in module.body:
             # filter everything that is not an import statement
-            if isAnyImport(node):
+            if isAnyImport(child):
                 i += 1
             else:
                 continue
 
             if self.filter_unused:
                 # filter unused import statements here
-                inames = self.imported_names[i]
-                unused = set(inames) - self.used_names
-                if len(unused) == len(node.names):  #
-                    continue  # this statement not captured
+                unused = set(self.imported_names[i]) - self.used_names
+                if len(unused) == len(child.names):
+                    continue  # this statement not captured ie. removed
 
-                if len(unused) < len(node.names):
+                if len(unused) < len(child.names):
                     # deal with `from x.y import a, b, c`
                     # style imports where some imported names are unused
-                    if isinstance(node, ast.ImportFrom):
-                        remove_unused_names(node, unused)
+                    if isinstance(child, ast.ImportFrom):
+                        remove_unused_names(child, unused)
 
-            # print('append', node)
-            new_body.append(node)
+            # print('append', child)
+            new_body.append(child)
 
         if self.merge_duplicates:
             new_body = merge_duplicates(new_body)
@@ -716,9 +741,8 @@ class ImportCapture(ast.NodeTransformer):
             # split 1 line multi-module statements like: `import os, re, this`
             if self.split and len(node.names) > 1:
                 new_nodes = []
-                for i, alias in enumerate(node.names):
-                    new_node = ast.Import(
-                        [ast.alias(alias.name, alias.asname)])
+                for alias in node.names:
+                    new_node = ast.Import([ast.alias(alias.name, alias.asname)])
                     new_nodes.append(new_node)
 
                 for _ in self._current_names:
@@ -744,7 +768,9 @@ class ImportCapture(ast.NodeTransformer):
         name = next(filter(None, (node.asname, node.name)))
         if name != '*':
             self._current_names.append(name)
-            # starred imports are lame dude. #todo: emit warning??
+            # starred imports are lame dude.
+            # if self.filter_unused:
+            #     wrn.warn('Wildcard \'*\' import found. ')
         return node
 
     def visit_Name(self, node):
