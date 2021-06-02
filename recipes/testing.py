@@ -1,3 +1,4 @@
+# Flexibly parametrize functional tests
 
 """
 Tools to help building parametrized unit tests
@@ -30,18 +31,21 @@ much neater
 
 """
 
-from recipes.functionals import echo
-from recipes.lists import lists
-import types
-from inspect import signature, Signature, Parameter, _ParameterKind
-import textwrap
-from collections import defaultdict
-from recipes import op, pprint as pp
-# import unittest as ut
 
+# std libs
+import types
+import itertools as itt
+from collections import defaultdict
+from inspect import signature, Signature, Parameter, _ParameterKind
+
+# third-party libs
 import pytest
 
+# local libs
+from recipes.lists import lists
+from recipes import pprint as pp
 from recipes.iter import cofilter, negate
+from recipes.functionals import echo0 as echo
 from recipes.logging import logging, get_module_logger
 
 
@@ -129,6 +133,14 @@ class Throws:
 # def test_brackets_must_close_raises(s):
 #     with pytest.raises(ValueError):
 #         match_brackets(s, must_close=True)
+
+
+class ECHO:
+    """Echo sentinal"""
+
+
+class ANY:
+    """Signify that any result from a test is permissable"""
 
 
 class expected:
@@ -243,15 +255,11 @@ class Expect:
         if self.is_test:
             # already have the test function defined
             test = self.func
-            argspecs = self.get_args(items)
         else:
             # create the test
             test = self.make_test(left_transform, right_transform)
-            # created test function signature has 1 extra parameter
-            argspecs, answers = zip(*items)
-            argspecs = self.get_args(argspecs)
-            argspecs['expected'] = answers
 
+        argspecs = self.get_args(items)
         names = argspecs.keys()
         values = zip(*argspecs.values())
         *values, names = cofilter(negate(isfixture), *values, names)
@@ -259,11 +267,30 @@ class Expect:
         logger.debug('signature: %s', pp.caller(test))
         logger.debug(f'{names=}')  # , {values=}')
 
-        # from IPython import embed
-        # embed(header="Embedded interpreter at 'testing.py':253")
-
         return pytest.mark.parametrize(list(names), lists(values),
                                        *args, **kws)(test)
+
+    def run(self, items, *args, transform=echo, **kws):
+        """
+        For simple tests, merely check if the function succeeds.
+
+        Parameters
+        ----------
+        items : iterable
+            Sequence of arguments to pass to the function
+
+        Examples
+        --------
+        >>> test_init = Expect(TimeSeries).run(
+        ...     [ mock.TimeSeries(y),
+        ...       mock.TimeSeries(y2),
+        ...       mock.TimeSeries(t, y),
+        ...       mock.TimeSeries(t, y, e),
+        ...       mock.TimeSeries(t, ym, e) ]
+        ...     )
+        """
+        items = zip(items, itt.repeat(ANY))
+        return self(items, *args, left_transform=transform, **kws)
 
     def bind(self, *args, **kws):
         ba = self.sig.bind(*args, **kws)
@@ -278,29 +305,29 @@ class Expect:
 
         values = defaultdict(list)
         for spec in items:
-            args, kws = self.get_arg(spec)
+            # call signature emulation via mock handled here
+            spec, result = spec
+
+            if not isinstance(spec, WrapArgs):
+                # simple construction without use of mock function.
+                # ==> No keyword values in arg spec
+                spec = WrapArgs(*to_tuple(spec))
+
+            args, kws = spec
+            if result is ECHO:
+                result = args[0]
+
+            if self.is_test:
+                args += (result, )
+            else:
+                # signature of created test function has 1 extra parameter
+                values['expected'].append(result)
 
             args = self.bind(*args, **{**self.kws, **dict(kws)})
             for name, val in tuple(args.arguments.items()):
                 values[name].append(val)
 
         return values
-
-    def get_arg(self, spec):
-        # call signature emulation via mock handled here
-        if self.is_test:
-            spec, result = spec
-
-        if not isinstance(spec, WrapArgs):
-            # simple construction without use of mock function.
-            # ==> No keyword values in arg spec
-            spec = WrapArgs(*to_tuple(spec))
-
-        args, kws = spec
-        if self.is_test:
-            args += (result, )
-
-        return args, kws
 
     def make_test(self, left_transform, right_transform):
 
@@ -325,6 +352,9 @@ class Expect:
                     left_transform(self.func(*args, **kws))
             else:
                 answer = left_transform(self.func(*args, **kws))
+                if expected is ANY:
+                    return
+                
                 expected = right_transform(expected)
                 # NOTE: explicitly assigning answer here so that pytest
                 # introspection of locals in this scope works when producing the
@@ -332,7 +362,7 @@ class Expect:
                 assert answer == expected
 
         # Override signature to add `expected` parameter
-        # Add expected parameter as after variadic keyword arguments
+        # Add `expected` parameter after variadic keyword arguments
         params = [par.replace(default=par.empty, kind=PKW)
                   for name, par in self.sig.parameters.items()]
         params.append(Parameter('expected', KWO))
