@@ -3,7 +3,6 @@ Recipes involving lists.
 """
 
 
-
 # std libs
 from collections import defaultdict
 
@@ -14,8 +13,7 @@ import more_itertools as mit
 import docsplice as doc
 
 # relative libs
-from .iter import nth_zip
-from . import iter as _iter, op
+from . import op, iter as _iter
 from .dicts import DefaultOrderedDict
 from .functionals import always, echo0 as _echo
 
@@ -238,4 +236,4 @@ def duplicates(l):
 
 def where_duplicate(l):
     """Return lists of indices of duplicate entries"""
-    return nth_zip(1, *_iter.duplicates(l))
+    return _iter.nth_zip(1, *_iter.duplicates(l))

@@ -641,7 +641,7 @@ def gen_module_names(nodes):
 class ImportCapture(ast.NodeTransformer):
 
     # TODO: scope aware capture
-    
+
     def __init__(self, up_to_line=math.inf, capture_local=True, split=True,
                  filter_unused=None, merge_duplicates=True):
 
@@ -649,9 +649,6 @@ class ImportCapture(ast.NodeTransformer):
             up_to_line = int(up_to_line)
             if up_to_line < 0:
                 up_to_line = math.inf
-        
-        if filter_unused is None:
-            filter_unused = (up_to_line == math.inf)
 
         if filter_unused and (up_to_line < math.inf):
             raise ValueError(
@@ -659,7 +656,7 @@ class ImportCapture(ast.NodeTransformer):
                 'complete list of used names in module, and therefore cannot '
                 'filter the unused names reliably. Please use '
                 '`filter_unused=False` for partial import inspection.'
-                )
+            )
 
         self.up_to_line = up_to_line  # internal line nrs are 1 base
         self.indent_ok = 0  # any indented statement will be ignored
@@ -667,7 +664,7 @@ class ImportCapture(ast.NodeTransformer):
             self.indent_ok = math.inf  # all statements will be captured
 
         self.split = bool(split)
-        self.filter_unused = bool(filter_unused)
+        self.filter_unused = filter_unused
         self.merge_duplicates = bool(merge_duplicates)
         #
         self.used_names = set()
@@ -687,6 +684,10 @@ class ImportCapture(ast.NodeTransformer):
         # all the  imported names and used names
         module = self.generic_visit(node)
 
+        if self.filter_unused is None:
+            self.filter_unused = \
+                (self.up_to_line == math.inf) and self.used_names
+
         if self.filter_unused and not self.used_names:
             wrn.warn(
                 '`filter_unused` requested but no code statements (besides '
@@ -694,8 +695,8 @@ class ImportCapture(ast.NodeTransformer):
                 ' the source, which is probably not what you intended. Please '
                 'use `filter_unused=False` if you only wish to sort existing '
                 'import statements.'
-                )
-        
+            )
+
         # next filter stuff we don't want
         new_body = []
         i = -1
