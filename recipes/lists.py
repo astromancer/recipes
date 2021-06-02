@@ -2,28 +2,31 @@
 Recipes involving lists.
 """
 
+
+
 # std libs
 from collections import defaultdict
-import re
-import numbers
-import itertools as itt
 
 # third-party libs
 import more_itertools as mit
 
-# relative libs
-from .dicts import DefaultOrderedDict
-from .iter import nth_zip
+# local libs
 import docsplice as doc
-from . import op
+
+# relative libs
+from .iter import nth_zip
+from . import iter as _iter, op
+from .dicts import DefaultOrderedDict
+from .functionals import always, echo0 as _echo
 
 
-def _echo(_):
-    return _
+# function that always returns 0
+_zero = always(0)
 
 
-def _zero(*_):
-    return 0
+def lists(iters):
+    """Create a sequence of lists from a mapping / iterator / generator."""
+    return list(map(list, iters))
 
 
 def _make_key(master_key, funcs):
@@ -129,19 +132,6 @@ def cosort(*lists, **kws):
     return tuple(map(list, zip(*res)))
 
 
-def lists(mapping):
-    """create a sequence of lists from a mapping / iterator /generator"""
-    return list(map(list, mapping))
-
-
-# def sort_by_index(*its, indices=None):
-#     """Use index array to sort items in multiple sequences"""
-#     if indices is None:
-#         return its
-#     return tuple(list(map(it.__getitem__, ix))
-#                  for it, ix in zip(its, itt.repeat(indices)))
-
-
 @doc.splice(op.index, omit='Parameters[default]')
 def where(l, item, start=0, test=op.eq):
     """
@@ -166,21 +156,7 @@ def where(l, item, start=0, test=op.eq):
         The index positions where test evaluates true
     """
     test = test or op.eq
-    return list(_where(l, item, start, test))
-
-
-def _where(l, item, start=0, test=op.eq):
-    i = start
-    n = len(l)
-    while i < n:
-        try:
-            i = op.index(l, item, i, test)
-            yield i
-        except ValueError:
-            # done
-            return
-        else:
-            i += 1  # start next search one on
+    return list(_iter.where(l, item, start, test))
 
 
 def flatten(l):
@@ -202,22 +178,7 @@ def flatten(l):
 
 def split(l, idx):
     """Split a list into sublists at the given indices"""
-    return list(_split_iter(l, idx))
-
-
-def _split_iter(l, idx):
-    if isinstance(idx, numbers.Integral):
-        idx = [idx]
-
-    idx = iter(sorted(idx))
-    
-    i, j = 0, None
-    for j in idx:
-        yield l[i:j]
-        i = j
-
-    if j is not None:
-        yield l[j:]
+    return list(_iter.split(l, idx))
 
 
 def split_where(l, item, start=0, test=None):
@@ -243,10 +204,6 @@ def missing_integers(l):
 # alias
 missing_ints = missing_integers
 
-
-# def increment_excedes(nrs, threshold):
-#     enum = iter(nrs)
-#     return where(nrs, '', 1, lambda x, _: x - next(enum) > threshold)
 
 def partition(l, predicate):
     parts = defaultdict(list)
@@ -274,18 +231,11 @@ def unique(l):
     return t
 
 
-def iter_duplicates(l):
-    """Yield tuples of item, indices pairs for duplicate values."""
-    for key, idx in unique(l).items():
-        if len(idx) > 1:
-            yield key, idx
-
-
 def duplicates(l):
     """Return tuples of item, indices pairs for duplicate values."""
-    return list(iter_duplicates(l))
+    return list(_iter.duplicates(l))
 
 
 def where_duplicate(l):
     """Return lists of indices of duplicate entries"""
-    return nth_zip(1, *iter_duplicates(l))
+    return nth_zip(1, *_iter.duplicates(l))

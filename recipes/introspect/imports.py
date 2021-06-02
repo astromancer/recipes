@@ -15,8 +15,10 @@ import anytree
 from stdlib_list import stdlib_list
 
 # relative libs
+from ..iter import accumulate
 from ..io import write_lines, safe_write
 from ..functionals import always, echo0 as echo
+
 
 # from importlib.machinery import PathFinder
 
@@ -516,14 +518,6 @@ def excision_flagger(lines, line_nrs):
             cutLines.append(ln)
 
     return sorted(cutLines), is_multiline
-
-
-def accumulate(a, start=0):
-    """Generator that yields cumulative sum of elements of the input iterable"""
-    tot = int(start)
-    for item in a:
-        tot += item
-        yield tot
 
 
 def rewrite(node, width=80):

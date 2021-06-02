@@ -3,19 +3,23 @@ Common patterns involving iterables
 """
 
 
+
 # std libs
+import numbers
 import itertools as itt
 from collections import abc
 
 # third-party libs
 import more_itertools as mit
 
-from .functionals import negate
+# relative libs
+from . import op
+from .functionals import negate, echo0 as echo
 
 
 # ---------------------------------- helpers --------------------------------- #
-def _echo(x):
-    return x
+class null:
+    pass
 
 
 def not_none(x):
@@ -23,11 +27,6 @@ def not_none(x):
 
 
 # -------------------------------- decorators -------------------------------- #
-# def negate(func):
-#     def wrapped(obj):
-#         return not func(obj)
-#     return wrapped
-
 
 def on_nth(func, n):
     def wrapped(obj):
@@ -45,14 +44,6 @@ def on_first(func):
 # ---------------------------------------------------------------------------- #
 
 
-def non_unique(itr):
-    prev = next(itr)
-    for item in itr:
-        if item == prev:
-            yield prev
-        prev = item
-
-
 def as_iter(obj, exclude=(str,), return_as=list):
     """
     Converts the input object to an iterable.
@@ -64,8 +55,7 @@ def as_iter(obj, exclude=(str,), return_as=list):
 
     if isinstance(obj, exclude) or not isinstance(obj, abc.Iterable):
         return return_as([obj])
-    else:
-        return obj
+    return obj
 
 
 # alias
@@ -73,9 +63,66 @@ as_sequence = as_iter
 # as_sequence_unless_str
 
 
+# def where(iterable, test=bool):
+#     return nth_zip(0, *filter(on_first(test), enumerate(iterable)))
+
+def where(l, item, start=0, test=op.eq):
+    """
+    Yield the indices at which the callable ``test'' evaluates True
+    """
+    i = start
+    n = len(l)
+    while i < n:
+        try:
+            # pylint: disable=too-many-function-args
+            i = op.index(l, item, i, test)
+            yield i
+        except ValueError:
+            # done
+            return
+        else:
+            i += 1  # start next search one on
+
+
+# def where_false(iterable, test=bool):
+#     return where(iterable, negate(test))
+
+
 def split(l, idx):
     """Split a list into sub-lists at the given indices"""
-    return map(l.__getitem__, itt.starmap(slice, mit.pairwise(idx)))
+
+    if isinstance(idx, numbers.Integral):
+        idx = [idx]
+
+    if idx:
+        idx = [0, *sorted(idx), len(l)]
+        return map(l.__getitem__, itt.starmap(slice, mit.pairwise(idx)))
+    return l
+
+# def split(l, idx):
+#     if isinstance(idx, numbers.Integral):
+#         idx = [idx]
+
+#     idx = iter(sorted(idx))
+
+#     i, j = 0, None
+#     for j in idx:
+#         yield l[i:j]
+#         i = j
+
+#     if j is not None:
+#         yield l[j:]
+
+
+def non_unique(itr):
+    prev = next(itr, null)
+    if prev is null:
+        return
+
+    for item in itr:
+        if item == prev:
+            yield prev
+        prev = item
 
 
 def cyclic(obj, n=None):
@@ -97,13 +144,14 @@ def zip_slice(start, stop, step, *its):
     return zip(*itt.islice(zip(*its), start, stop, step))
 
 
-def zip_app(zipped, apper):
+def zip_append(items, tails):
     """Appends elements from iterator to the items in a zipped sequence."""
-    return [zpd + (app,) for (zpd, app) in zip(zipped, apper)]
+    return [(*zpd, app) for (zpd, app) in zip(items, tails)]
 
 
 def pad_none(iterable):
-    """Returns the sequence elements and then returns None indefinitely.
+    """
+    Returns the sequence elements and then returns None indefinitely.
 
     Useful for emulating the behavior of the built-in map() function.
     """
@@ -114,15 +162,14 @@ def chunker(itr, size):
     return iter(map(tuple, itt.islice(iter(itr), size)), ())
 
 
-def group_more(func=_echo, *its, **kws):
+def group_more(func=echo, *its, unzip=True, **kws):
     # avoid circular import
     from recipes.lists import cosort
 
     its = cosort(*its, key=func)
     zipper = itt.groupby(zip(*its), on_zeroth(func))
-    if kws.get('unzip', True):
-        unzipper = ((key, zip(*groups)) for key, groups in zipper)
-        return unzipper
+    if unzip:
+        return ((key, zip(*groups)) for key, groups in zipper)
     return zipper
 
 
@@ -139,47 +186,35 @@ def copartition(pred, *its):
     partition(is_odd, range(10), range) --> (1 3 5 7 9), (0 2 4 6 8)
     """
     t1, t2 = tee_more(*its)
-    return cofilter(pred, *t2), cofilter_false(pred, *t1)
-
-
-def where(iterable, pred=bool):
-    """
-    Return the indices of an iterable for which the callable ``pred'' evaluates
-    as True
-    """
-    return nth_zip(0, *filter(on_first(pred), enumerate(iterable)))
-
-
-def where_false(iterable, pred=bool):
-    return where(iterable, negate(pred))
+    return cofilter(pred, *t2), cofilter(negate(pred), *t1)
 
 
 # def first(iterable, pred=bool, default=None):
 #     return next(filter(pred, iterable), default)
 
 
-def first_true_index(iterable, pred=_echo, default=None):
+def first_true_index(iterable, test=echo, default=None):
     """
     Find the first index position of the iterable for the which the callable
     pred returns True
     """
 
-    index, _ = mit.first_true(enumerate(iterable), (None, None), on_first(pred))
+    index, _ = mit.first_true(enumerate(iterable), (None, None), on_first(test))
     if index is None:
         return default
     return index
 
 
-def first_false_index(iterable, pred=_echo, default=None):
+def first_false_index(iterable, test=echo, default=None):
     """
     Find the first index position of the iterable for the which the
     callable pred returns False
     """
-    return first_true_index(iterable, negate(pred), default)
+    return first_true_index(iterable, negate(test), default)
 
 
-def last_true_index(iterable, pred=bool, default=False):
-    return -first_true_index(reversed(iterable), pred, default)
+def last_true_index(iterable, test=bool, default=False):
+    return -first_true_index(reversed(iterable), test, default)
 
 
 # aliases
@@ -202,5 +237,24 @@ def cofilter(func, *its):
     return tuple(itt.compress(it, tf) for it in its)
 
 
-def cofilter_false(func, *its):
-    return cofilter(negate(func or bool), *its)
+# def cofilter_false(func, *its):
+#     return cofilter(negate(func or bool), *its)
+
+
+def accumulate(a, start=0):
+    """
+    Generator that yields cumulative sum of elements of the input iterable
+    """
+    tot = int(start)
+    for item in a:
+        tot += item
+        yield tot
+
+
+def duplicates(l):
+    """Yield tuples of item, indices pairs for duplicate values."""
+    from recipes.lists import unique
+
+    for key, idx in unique(l).items():
+        if len(idx) > 1:
+            yield key, idx

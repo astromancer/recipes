@@ -21,9 +21,9 @@ def raises(kind):
     return _raises
 
 
-def echo0(key, *ignored_):
+def echo0(_, *ignored_):
     """simply return the 0th parameter"""
-    return key
+    return _
 
 
 def echo(*_):
