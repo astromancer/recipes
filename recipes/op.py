@@ -6,12 +6,16 @@ support for default values
 # pylint: disable=redefined-builtin
 # pylint: disable=invalid-name
 
-import warnings
-from recipes.decor import raises
-import docsplice as doc
 
+# std libs
 import builtins
+import warnings
+import functools as ftl
 from operator import *
+
+# local libs
+import docsplice as doc
+from recipes.decor import raises
 
 
 class NULL:
@@ -93,6 +97,55 @@ class itemgetter:
 
 # alias #
 getitem = itemgetter
+
+
+class MethodCaller:
+    """
+    This is adapted from `operator.methodcaller`. The code below is copied
+    verbatim from 'operator.py' (since you can't inherit from
+    `operator.methodcaller!`) with only the `__call__` method altered to support
+    chained attribute lookup like:
+    >>> MethodCaller('foo.bar.func', *args, **kws)(object)
+
+    Return a callable object that calls the given method on its operand.
+    After f = methodcaller('name'), the call f(r) returns r.name().
+    After g = methodcaller('name', 'date', foo=1), the call g(r) returns
+    r.name('date', foo=1).
+    """
+    __slots__ = ('_name', '_args', '_kwargs')
+
+    def __init__(*args, **kwargs):
+        if len(args) < 2:
+            msg = ("%s needs at least one argument, the method name"
+                   % args[0].__class__.__name__)
+            raise TypeError(msg)
+        
+        self = args[0]
+        self._name = args[1]
+        if not isinstance(self._name, str):
+            raise TypeError('method name must be a string')
+        self._args = args[2:]
+        self._kwargs = kwargs
+
+    def __call__(self, obj):
+        return attrgetter(self._name)(obj)(*self._args, **self._kwargs)
+
+    def __repr__(self):
+        args = [repr(self._name),
+                *map(repr, self._args)]
+        args.extend('%s=%r' % (k, v) for k, v in self._kwargs.items())
+        return '%s.%s(%s)' % (self.__class__.__module__,
+                              self.__class__.__name__,
+                              ', '.join(args))
+
+    def __reduce__(self):
+        if self._kwargs:
+            return (ftl.partial(self.__class__, self._name, **self._kwargs),
+                    self._args)
+
+        return self.__class__, (self._name,) + self._args
+# update c
+# MethodCaller.__doc__ += op.methodcaller.__doc__.replace('methodcaller', 'MethodCaller')
 
 
 def index(obj, item, start=0, test=eq, default=NULL):
