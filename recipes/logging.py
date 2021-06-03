@@ -42,11 +42,6 @@ def all_logging_disabled(highest_level=logging.CRITICAL):
         logging.disable(previous_level)
 
 
-# FIXME: doesn't work! EG: 
-# from graphing.sliders import TripleSliders
-# TripleSliders.logger.setLevel(logging.DEBUG)
-# TripleSliders.logger.debug('nothing')  # no message :'(
-
 class LoggingMixin(object):
     """
     Mixin class that exposes the `logger` attribute for the class which is an
