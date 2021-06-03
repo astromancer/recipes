@@ -1,15 +1,23 @@
-import numbers
-import inspect
+
+# std libs
 import math
-from . import remove_affix
-import docsplice as doc
+import inspect
+import numbers
 import itertools as itt
-from ..functionals import always_true, echo0
-from ..op import contained
+
+# local libs
+import docsplice as doc
+
+# relative libs
+from . import remove_affix
+from ..functionals import always, echo0
 
 __all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
 
 # Braces(string) # TODO / .tokenize / .parse
+
+# function that always returns True
+always_true = always(True)
 
 
 def outermost(string, brackets, indices, _ignored):
