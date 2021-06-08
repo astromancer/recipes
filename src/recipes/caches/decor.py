@@ -38,13 +38,20 @@ def generate_key(sig, args, kws):
     Generate name, value pairs that will be used as a unique key 
     for caching the return values.
     """
-
     bound = sig.bind(*args, **kws)
     bound.apply_defaults()
     for name, val in bound.arguments.items():
         if sig.parameters[name].kind is not _VAR_KEYWORD:
-            yield name, val
-    yield from kws.items()
+            yield val
+        else:
+            # deal with variadic keyword args:
+            # remove the keys that have been bound to other keyword_or_position
+            # parameters variadic keyword args can come in any order. To ensure
+            # we resolve calls like foo(a=1, b=2) and foo(b=2, a=1) to the same
+            # cache item, we need to order the keywords. Finally convert to
+            # tuple of 2-tuples (key value pairs) so we can hash
+            keys = sorted(set(kws.keys()) - set(bound.arguments.keys()))
+            yield tuple(zip(keys, map(kws.get, keys)))
 
 
 class Cached(LoggingMixin):  # Cached
@@ -104,7 +111,6 @@ class Cached(LoggingMixin):  # Cached
         self.sig = None
         self._init_args = (filename, capacity, kind)
         self.cache = Cache(capacity, filename, kind=kind)
-
 
     def __call__(self, func):
         """
@@ -167,7 +173,8 @@ class Cached(LoggingMixin):  # Cached
         """caches the result of the function call"""
 
         key = self.get_key(*args, **kws)
-        for name, val in key:
+        params = zip(self.sig.parameters, key)
+        for name, val in params:
             if not isinstance(val, abc.Hashable):
                 warnings.warn(
                     'Refusing to cache return value due to unhashable argument '

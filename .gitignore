@@ -13,6 +13,6 @@ test.py
 
 dev/
 .pylintrc
-recipes/property.py
-recipes/decor/path.py
-recipes/io/parse.py
+src/recipes/property.py
+src/recipes/decor/path.py
+src/recipes/io/parse.py

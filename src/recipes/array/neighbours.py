@@ -1,15 +1,14 @@
-
 # third-party libs
 import numpy as np
-from IPython import embed
-from sklearn.neighbors import NearestNeighbors
+
 
 # relative libs
-from . import ndgrid
+from .misc import Grid
+
+ndgrid = Grid
 
 
-
-#TODO: optimize - class with dynamically generated methods?
+# TODO: optimize - class with dynamically generated methods?
 
 def neighbours(a, centre, size, **kws):
     """
@@ -58,8 +57,8 @@ def neighbours(a, centre, size, **kws):
     return_index = kws.pop('return_index', 0)
     rimap = {None: 0,
              'lower': 1,
-             slice: 2, 'slice' : 2,
-             all: 3, 'all' : 3}
+             slice: 2, 'slice': 2,
+             all: 3, 'all': 3}
     # TODO: sparse grid??
     if return_index in rimap:
         return_index = rimap[return_index]
@@ -82,13 +81,15 @@ def neighbours(a, centre, size, **kws):
                  'shift', 'clip', 'mask')  # allowed modes
     assert len(centre) == a.ndim
     assert pad in pad_modes
-    assert np.all(size < a.shape)       # FIXME: this may only sometimes imply an error
-                                        # FIXME: shoud be ok with pad='mask'
+    assert np.all(
+        size < a.shape)  # FIXME: this may only sometimes imply an error
+    # FIXME: shoud be ok with pad='mask'
     # assert return_index in (0,1)
 
     # determine index ranges of return elements for each dimension
     div = np.floor_divide(size, 2)
-    uneven = np.mod(size, 2).astype(bool)  # True on axis for which window size is uneven
+    uneven = np.mod(size, 2).astype(
+        bool)  # True on axis for which window size is uneven
     ixl = centre - div + (favour_upper & (~uneven))  #
     ixu = centre + div + (favour_upper | uneven)
     ixl = ixl.round().astype(int)
@@ -110,11 +111,10 @@ def neighbours(a, centre, size, **kws):
         a_slice = tuple(map(slice, ixl_, ixu_))
 
         # get sub
-        ixls = np.where(under, -ixl, (0,0))
+        ixls = np.where(under, -ixl, (0, 0))
         ixus = np.where(over, ixu_ - ixl_, size)
         sub_slice = tuple(map(slice, ixls, ixus))
         sub = np.ma.empty(size, a.dtype)
-
 
         # embed()
 
@@ -127,8 +127,8 @@ def neighbours(a, centre, size, **kws):
         #     sub_mask = True
 
         # put the data in the sub-array
-        sub.mask = True                 # mask the entire array
-        sub[sub_slice] = a[a_slice]     # set the data (overwrite masked)
+        sub.mask = True  # mask the entire array
+        sub[sub_slice] = a[a_slice]  # set the data (overwrite masked)
 
         if return_index == 0:
             return sub
@@ -145,7 +145,7 @@ def neighbours(a, centre, size, **kws):
         return sub
 
     # clip to array edge
-    if pad == 'clip':       #TODO: 'shrink' may be more apt
+    if pad == 'clip':  # TODO: 'shrink' may be more apt
         # clip indices for which window bigger than array dimension
         # logging.debug('clipping', ixl, ixu)
         ixl, ixu = np.clip([ixl, ixu], np.zeros(a.ndim, int), a.shape)
@@ -160,7 +160,6 @@ def neighbours(a, centre, size, **kws):
         ixl[over] = ixu[over] - size[over]
         ixl[under] = 0
         ixu[under] = size[under]
-
 
         return _return(a, ixl, ixu, return_index)
 
@@ -210,8 +209,6 @@ def neighbours(a, centre, size, **kws):
         return sub, ix
 
 
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def spillage(a, ixl, ixu):
     """check which index ranges are smaller/larger than the array dimensions"""
@@ -255,20 +252,18 @@ def _return(a, ixl, ixu, return_index):
         return a[slices], tuple(grid)
 
 
+#
+#
+#
+# #****************************************************************************************************
+# class NearestNeighbours(NearestNeighbors):
+#     """fix these aggregious american spelling errors"""
+#     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#     def kneighbours(self, X=None, n_neighbors=None, return_distance=True):
+#         return self.kneighbors(X, n_neighbors, return_distance)
+#
+#     #TODO: fill method!
 
-
-
-
-#****************************************************************************************************
-class NearestNeighbours(NearestNeighbors):
-    """fix these aggregious american spelling errors"""
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def kneighbours(self, X=None, n_neighbors=None, return_distance=True):
-        return self.kneighbors(X, n_neighbors, return_distance)
-
-    #TODO: fill method!
-
-#====================================================================================================
 def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     """
     Fill invalid values with values from data selected from k nearest
@@ -302,25 +297,27 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     array or tuple of arrays depending on keywords
     """
 
-    #TODO: OO
-    #TODO: N-d implementation
-    #TODO: Debug option!!
+    # TODO: OO
+    # TODO: N-d implementation
+    # TODO: Debug option!!
     known_methods = {'mean', 'median', 'mode', 'weighted', 'random'}
     if not method in known_methods:
         raise ValueError('Unrecognised method: {}'.format(method))
 
     with_sigma_clipping = kw.pop('with_sigma_clipping', True)
 
-    return_filled = kw.pop('return_filled', True)     #return the filled array
-    return_filling = kw.pop('return_filling', False)  #return the nearest neighbour data as flattened array
-    return_index = kw.pop('return_index', False)      #return the indeces of the nearest neighbours
+    return_filled = kw.pop('return_filled', True)  # return the filled array
+    return_filling = kw.pop('return_filling',
+                            False)  # return the nearest neighbour data as flattened array
+    return_index = kw.pop('return_index',
+                          False)  # return the indeces of the nearest neighbours
 
     grid = ndgrid.like(data)
 
     if fill_these is None:
         fill_these = data.mask
     else:
-        #NOTE: if there are masked values in data THEY WILL NOT BE FILLED
+        # NOTE: if there are masked values in data THEY WILL NOT BE FILLED
         pass
 
     if ~fill_these.any():
@@ -330,76 +327,78 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
             return ()
 
     if hood is None:
-        hood = ~fill_these    #will bork if not MA
-    else:       #if np.ma.isMA(data):
-        hood = hood & ~fill_these   #so we don't pick from the masked pixels
+        hood = ~fill_these  # will bork if not MA
+    else:  # if np.ma.isMA(data):
+        hood = hood & ~fill_these  # so we don't pick from the masked pixels
 
-    #establish good and bad data coordinates.  Bad to be filled from nearest good neighbours
-    good = yg, xg = grid[:,hood]
-    bad = grid[:,fill_these]
+    # establish good and bad data coordinates.  Bad to be filled from nearest good neighbours
+    good = yg, xg = grid[:, hood]
+    bad = grid[:, fill_these]
 
-    #fill values from given axis only (eg. fill from rows or columns exclusively)
-    #NOTE: This is much faster than providing explicit direction weighted metric
-    axis = kw.pop( 'axis', None )
-    if not axis is None:        #NOTE: rather than doing this, one can just fit 1d data...
-        f = 100  #this will make a pick from the other axes *f* times as unlikely
-        other_axes = np.setdiff1d( range(data.ndim), axis)
+    # fill values from given axis only (eg. fill from rows or columns exclusively)
+    # NOTE: This is much faster than providing explicit direction weighted metric
+    axis = kw.pop('axis', None)
+    if not axis is None:  # NOTE: rather than doing this, one can just fit 1d data...
+        f = 100  # this will make a pick from the other axes *f* times as unlikely
+        other_axes = np.setdiff1d(range(data.ndim), axis)
         good[other_axes] *= f
         bad[other_axes] *= f
     else:
         f = 1
-        other_axes = np.arange( data.ndim )
+        other_axes = np.arange(data.ndim)
 
-    #Get k nearest neighbour pixel values
-    knn = NearestNeighbours(k, **kw).fit( good.T )
-    _ix = knn.kneighbours(bad.T, return_distance=False).astype(int)     #_ix = knn.kneighbours(bad.T, return_distance=False )
+    # Get k nearest neighbour pixel values
+    knn = NearestNeighbours(k, **kw).fit(good.T)
+    _ix = knn.kneighbours(bad.T, return_distance=False).astype(
+        int)  # _ix = knn.kneighbours(bad.T, return_distance=False )
 
     if not axis is None:
-        good[other_axes] = (good[other_axes] / f).astype(int)       #good[other_axes] /= f
-        bad[other_axes] = (bad[other_axes] / f).astype(int)         #bad[other_axes] /= f
+        good[other_axes] = (good[other_axes] / f).astype(
+            int)  # good[other_axes] /= f
+        bad[other_axes] = (bad[other_axes] / f).astype(
+            int)  # bad[other_axes] /= f
 
-
-    ix = good.T[_ix]            #image pixel coordinates of nearest neighbours
-    nn = data[tuple(ix.T)]      #nearest neighbour pixel value
+    ix = good.T[_ix]  # image pixel coordinates of nearest neighbours
+    nn = data[tuple(ix.T)]  # nearest neighbour pixel value
     nn = np.atleast_2d(nn)
 
-
-    if with_sigma_clipping:     #HACK
+    if with_sigma_clipping:  # HACK
         from astropy.stats import sigma_clip
 
         nn = sigma_clip(nn, )
         p = (~nn.mask).astype(float)
         p /= p.sum(0)
     else:
-        nn = np.ma.array(nn)  #make it masked array
+        nn = np.ma.array(nn)  # make it masked array
         p = np.ones_like(nn) / nn.size
 
-    #av= {'mean'         :       np.mean,
-        #'median'       :       np.median,
-        #'mode'         :       scipy.stats.mode}
-
+    # av= {'mean'         :       np.mean,
+    # 'median'       :       np.median,
+    # 'mode'         :       scipy.stats.mode}
 
     if method == 'mean':
         fillvals = np.ma.mean(nn, axis=0)
 
-    if method=='median':
+    if method == 'median':
         fillvals = np.ma.median(nn, axis=0)
 
-    if method=='mode':
+    if method == 'mode':
         from scipy.stats import mode
-        fillvals = np.squeeze(mode(nn, axis=0)[0])  # Will not work with sigma clipping
+        fillvals = np.squeeze(
+                mode(nn, axis=0)[0])  # Will not work with sigma clipping
 
-    if method=='weighted':
+    if method == 'weighted':
         weights = kw['weights']
-        w = weights[ tuple(ix.T) ]
+        w = weights[tuple(ix.T)]
         fillvals = np.average(nn, axis=1, weights=w.T)
 
-    if method=='random':
+    if method == 'random':
         m, n = nn.shape
         selection = np.empty(n, int)
 
         for i, (r, rp) in enumerate(zip(nn.T, p.T)):
-            selection[i] = np.random.choice(m, 1, p=rp)         #generate random integers
+            selection[i] = np.random.choice(m, 1,
+                                            p=rp)  # generate random integers
         selection = (selection, np.arange(n))
 
         fillvals = nn[selection]
@@ -416,14 +415,9 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     if return_index:
         out += (ix,)
 
-    if len(out)==1:
+    if len(out) == 1:
         out = out[0]
     return out
-
-
-
-
-
 
 
 if __name__ == '__main__':
@@ -431,4 +425,4 @@ if __name__ == '__main__':
     a = np.random.randn(10, 10)
 
     for pad in ('shift', 'clip', 'mask'):
-        neighbours(a, (8,8), (4,4), pad=pad)
+        neighbours(a, (8, 8), (4, 4), pad=pad)

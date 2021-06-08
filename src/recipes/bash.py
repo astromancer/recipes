@@ -2,21 +2,23 @@
 Emulate bash brace expansion
 """
 
-from anytree.render import Row, _is_last
-from collections import defaultdict
+
+# std libs
+import re
 import math
-import docsplice as doc
-from recipes.string.string import shared_affix, shared_prefix, shared_suffix
-from recipes.string import remove_prefix
-from recipes import op
-from anytree import Node as _Node, RenderTree
 import itertools as itt
 
-import re
+# third-party libs
+from anytree import Node as _Node, RenderTree
 
-from recipes.string.brackets import braces, contained, xsplit
+# local libs
+import docsplice as doc
+from recipes import op
 from recipes.lists import split_where
 from recipes.functionals import negate
+from recipes.string import remove_prefix
+from recipes.string.brackets import braces, xsplit
+from recipes.string.string import shared_affix, shared_suffix
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
@@ -474,7 +476,7 @@ def brace_contract(items, depth=-1):
         # simply remove single items enclosed in brackets. NOTE this behaviour
         # is different from what bash does: it simply uses the name containing
         # {x} elements verbatim
-        return braces.remove(items[0], condition=negate(contained(',').within))
+        return braces.remove(items[0], condition=negate(op.contained(',').within))
 
     #
     if depth == 1:

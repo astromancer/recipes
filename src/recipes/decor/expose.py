@@ -59,6 +59,7 @@ class show(Decorator):
         sys.stdout.flush()
         return result
 
+args = show
 
 def returns(func):
     """Decorator to print function return details"""

@@ -36,27 +36,27 @@ def in_notebook():
         shell = get_ipython().__class__.__name__
         if shell == 'ZMQInteractiveShell':
             return True  # Jupyter notebook or qtconsole
-        elif shell == 'TerminalInteractiveShell':
-            return False  # Terminal running IPython
-        else:
-            return False  # Other type (?)
+        # elif shell == 'TerminalInteractiveShell':
+        #     return False  # Terminal running IPython
+        # else:
+        return False  # Other type (?)
     except NameError:
         return False  # Probably standard Python interpreter
 
 
-def qtshell(variables):
-    # DOES NOT WORK...
+def qtshell(parent):
+    # FIXME
     import os
     from IPython.lib import guisupport
     from qtconsole.inprocess import QtInProcessKernelManager
     from qtconsole.rich_jupyter_widget import RichJupyterWidget
 
-    def print_process_id():
-        print('Process ID is:', os.getpid())
+    # def print_process_id():
+    #     print('Process ID is:', os.getpid())
 
     # Print the ID of the main process
-    print_process_id()
-    variables['print_process_id'] = print_process_id
+    # print_process_id()
+    # variables['print_process_id'] = print_process_id
 
     app = guisupport.get_app_qt4()
 
@@ -66,21 +66,27 @@ def qtshell(variables):
     kernel_manager = QtInProcessKernelManager()
     kernel_manager.start_kernel()
     kernel = kernel_manager.kernel
-    kernel.gui = 'qt5'
-    kernel.shell.push(variables)
+    kernel.gui = 'qt4'
+    # kernel.shell.push(variables)
 
     kernel_client = kernel_manager.client()
     kernel_client.start_channels()
+    kernel_client.namespace = parent
 
     def stop():
         kernel_client.stop_channels()
         kernel_manager.shutdown_kernel()
         # app.exit()
 
-    control = RichJupyterWidget()
+    control = RichJupyterWidget(parent=parent)
     control.kernel_manager = kernel_manager
     control.kernel_client = kernel_client
     control.exit_requested.connect(stop)
     control.show()
 
-    guisupport.start_event_loop_qt5(app)
+    guisupport.start_event_loop_qt4(app)
+
+    kernel.shell.push({'control': control,
+                       'kernel': kernel,
+                       'parent': parent})
+    return {'control': control, 'kernel': kernel}

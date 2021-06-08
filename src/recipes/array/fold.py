@@ -66,7 +66,7 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
 
     if n < wsize:
         warnings.warn(
-                f'Window size larger than array size along dimension {axis}')
+            f'Window size larger than array size along dimension {axis}')
         return a.reshape(np.insert(shape, axis, 1))
 
     # pad out
@@ -202,18 +202,18 @@ def rebin(x, binsize, t=None, e=None):
         return returns[0]
     return returns
 
-# def get_nocc(N, wsize, overlap):
-#     """
-#     Return an array of length N, with elements representing the number of
-#     times that the index corresponding to that element would be repeated in
-#     the strided array.
-#     """
-#     from recipes.lists import count_repeats, cosort
-#
-#     I = fold(np.arange(N), wsize, overlap).ravel()
-#     if np.ma.is_masked(I):
-#         I = I[~I.mask]
-#
-#     d = count_repeats(I)
-#     ix, noc = cosort(*zip(*d.items()))
-#     return noc
+
+def get_nocc(n, wsize, overlap):
+    """
+    Return an array of length N, with elements representing the number of
+    times that the index corresponding to that element would be repeated in
+    the strided array.
+    """
+    from recipes.lists import tally, cosort
+
+    indices = fold(np.arange(n), wsize, overlap).ravel()
+    if np.ma.is_masked(indices):
+        indices = indices[~indices.mask]
+
+    _, noc = cosort(*zip(*tally(indices).items()))
+    return noc

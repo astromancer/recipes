@@ -115,3 +115,34 @@ class ProgressBarBase(object):
     def close(self):
         self.stream.write(os.linesep * 4)  # move the cursor down 4 lines
         # self.stream.flush()
+
+
+class ProgressLogger(ProgressBarBase):
+    def __init__(self, precision=2, width=None, symbol='=', align='^',
+                 sides='|', every='2.5%', logname='progress'):
+        ProgressBarBase.__init__(self, precision, width, symbol, align, sides,
+                                 every)
+        self.name = logname
+
+    def update(self, i=None):
+        if i is None:
+            i = self.inc()
+
+        # don't update when unnecessary
+        if not self.needs_update(i):
+            return
+
+        # always update when state given
+        if i >= self.end:  # unless state beyond end
+            return
+
+        bar = self.get_bar(i)
+        logger = logging.getLogger(self.name)
+        logger.info('Progress: \n%s' % bar)
+
+# class SyncedProgressLogger(ProgressLogger):
+#     """can be used from multiple processes"""
+#      def __init__(self, counter, precision=2, width=None, symbol='=', align='^', sides='|',
+#                  logname='progress'):
+#          ProgressLogger.__init__(self, precision, width, symbol, align, sides, logname)
+#          self.counter = counter

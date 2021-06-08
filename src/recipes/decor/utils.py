@@ -23,9 +23,9 @@ def decorateAll(decorator=None, exclude=()):
 
 # import functools
 #
-# from .base import OptionalArgumentsDecorator
+# from .base import OptArgDecor
 
-# class DecorateAll(OptionalArgumentsDecorator):
+# class DecorateAll(OptArgDecor):
 #     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #     def __init__(self, cls, decorator, exclude=None):
 #
