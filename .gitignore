@@ -15,3 +15,4 @@ dev/
 .pylintrc
 recipes/property.py
 recipes/decor/path.py
+recipes/io/parse.py
