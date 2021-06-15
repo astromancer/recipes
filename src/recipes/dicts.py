@@ -20,8 +20,8 @@ from collections.abc import Hashable
 # lookup, indexability,
 
 
-def pformat(mapping, name='', lhs=str, equals=': ', rhs=str, sep=',',
-            brackets='{}'):
+def pformat(mapping, name=None, lhs=str, equals=': ', rhs=str, sep=',',
+            brackets='{}', hang=False, tabsize=4):
     """
     pformat (nested) dict types
 
@@ -47,7 +47,6 @@ def pformat(mapping, name='', lhs=str, equals=': ', rhs=str, sep=',',
                         foo=dict(nested=1,
                                 what='?',
                                 x=dict(triple='nested'))))
-
     {x      : hello,
      longkey: w,
      foo    : {nested: 1,
@@ -55,21 +54,26 @@ def pformat(mapping, name='', lhs=str, equals=': ', rhs=str, sep=',',
                x     : {triple: nested}}}
 
     """
-    if brackets in ('', None):
-        brackets = [''] * 2
+    if name is None:
+        kls = type(mapping)
+        name = '' if kls is dict else kls.__name__
 
+    brackets = brackets or ('', '') 
     if len(brackets) != 2:
         raise ValueError(
-            f'Brackets should be a pair of strings, not {brackets!r}')
+            f'Brackets should be a pair of strings, not {brackets!r}'
+            )
 
-    string = _pformat(mapping, lhs, equals, rhs, sep, brackets)
-    string = indent(string, len(name)) # f'{" ": <{pre}}
+    string = _pformat(mapping, lhs, equals, rhs, sep, brackets, hang, tabsize)
+    ispace = 0 if hang else len(name)
+    string = indent(string, ispace)  # f'{" ": <{pre}}
     if name:
         return f'{name}{string}'
     return string
 
 
-def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}'):
+def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}', 
+             hang=False, tabsize=4):
 
     # if isinstance(mapping, dict): # abc.MutableMapping
     #     raise TypeError(f'Object of type: {type(mapping)} is not a '
@@ -80,12 +84,17 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}'):
         return brackets
 
     string, close = brackets
-    bracket_size = len(string)
+    if hang:
+        string += '\n'
+        close = '\n' + close
+    else:
+        tabsize = len(string)
+        
     # make sure we line up the values
     # note that keys may not be str, so first convert
     keys = tuple(map(lhs, mapping.keys()))
     width = max(map(len, keys))  # + post_sep_space
-    indents = itt.chain([0], itt.repeat(bracket_size))
+    indents = itt.chain([hang * tabsize], itt.repeat(tabsize))
     separators = itt.chain(
         itt.repeat(sep + '\n', len(mapping) - 1),
         [close]
@@ -98,7 +107,7 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}'):
             part = rhs(val)
 
         # objects with multi-line representations need to be indented
-        string += indent(part, width + bracket_size + 1)
+        string += indent(part, width + tabsize + 1)
         # item sep / closing bracket
         string += post
 
@@ -132,7 +141,6 @@ def invert(d, convertion={list: tuple}):
 
         inverted[val] = key
     return inverted
-
 
 
 class Pprinter:
@@ -214,7 +222,6 @@ class AVDict(dict, AutoVivify):
 
 # class Tree(defaultdict, AutoVivify):
 #     _factory = (defaultdict.default_factory, )
-
 
 
 class AttrDict(dict):
@@ -514,19 +521,19 @@ class IndexableOrderedDict(OrderedDict):
     def __missing__(self, key):
         if isinstance(key, int):
             return self[list(self.keys())[key]]
-        else:
-            # noinspection PyUnresolvedReferences
-            return OrderedDict.__missing__(self, key)
+
+        # noinspection PyUnresolvedReferences
+        return OrderedDict.__missing__(self, key)
 
 
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
     # Note: dict order is gauranteed since pyhton 3.7
-    def __init__(self, default_factory=None, *a, **kw):
-        if (default_factory is not None and not callable(default_factory)):
+    def __init__(self, default_factory=None, mapping=(), **kws):
+        if not (default_factory is None or callable(default_factory)):
             raise TypeError('first argument must be callable')
 
-        OrderedDict.__init__(self, *a, **kw)
+        OrderedDict.__init__(self, mapping, **kws)
         self.default_factory = default_factory
 
     def __getitem__(self, key):
@@ -542,10 +549,7 @@ class DefaultOrderedDict(OrderedDict):
         return value
 
     def __reduce__(self):
-        if self.default_factory is None:
-            args = tuple()
-        else:
-            args = self.default_factory,
+        args = (self.default_factory, ) if self.default_factory else ()
         return type(self), args, None, None, self.items()
 
     def copy(self):
