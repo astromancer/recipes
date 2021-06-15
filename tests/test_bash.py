@@ -108,6 +108,7 @@ test_single_contraction = Expect(bash.contract)(
     [*invert(expand_once_patterns),
      (range(10),                        '{0..9}'),
      (['*001{0..9}.*', '*002{0,1}.*'],  '*00{1{0..9},2{0,1}}.*'),
+     (['010.fits', '011.fits'],         '01{0,1}.fits'),
      ([],                               Throws(ValueError))]
 )
 
