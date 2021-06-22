@@ -227,33 +227,69 @@ class AVDict(dict, AutoVivify):
 # class Tree(defaultdict, AutoVivify):
 #     _factory = (defaultdict.default_factory, )
 
+# TODO AttrItemWrite
 
-class AttrDict(dict):
+class AttrBase(dict):
+    def copy(self):
+        """Ensure instance of same class is returned"""
+        return self.__class__(super().copy())
+
+
+class AttrReadItem(AttrBase):
+    """
+    Dictionary with item read access through attribute lookup.
+
+    Note: Items keyed on names that are identical to method names of the `dict`
+    builtin, eg. 'keys', will not be accessible through attribute lookup.
+
+    Setting attributes on instances of this class is prohibited since it can
+    lead to ambiguity. If you want item write access through attributes, use 
+    `AttrDict`.
+
+    >>> x = AttrReadItem(hello=0, world=2)
+    >>> x.hello, x.world
+    (0, 2)
+    >>> x['keys'] = None
+    >>> x.keys
+    <function AttrReadItem.keys>
+
+    """
+
+    def __getattr__(self, attr):
+        """
+        Try to get the value in the dict associated with key `attr`. If `attr`
+        is not a key, try get the attribute from the parent class.
+        """
+        if attr in self:
+            return self[attr]
+
+        return super().__getattribute__(attr)
+
+    # def __setattr__(self, name: str, value):
+    # TODO maybe warn once instead
+    #     raise AttributeError(
+    #         'Setting attributes on {} instances is not allowed. Use `recipes.dicts.AttrDict` if you need item write access through attributes.')
+
+
+class AttrDict(AttrBase):
     """dict with key access through attribute lookup"""
-
+    # FIXME: clobbers build in methods like `keys`, `items` etc...
+    # check: dict.__dict__
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
         # pros: IDE autocomplete works on keys
-        # cons: inheritance: have to init this superclass before all others
-
-    def copy(self):
-        """Ensure instance of same class is returned"""
-        cls = self.__class__
-        return cls(super(cls, self).copy())
+        # cons: clobbers build in methods like `keys`, `items` etc...
+        #     : inheritance: have to init this superclass before all others
 
 
-class OrderedAttrDict(OrderedDict):
+class OrderedAttrDict(OrderedDict, AttrBase):
     """dict with key access through attribute lookup"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
 
-    def copy(self):
-        """Ensure instance of same class is returned"""
-        cls = self.__class__
-        return cls(super(cls, self).copy())
 
 
 class Indexable:
@@ -334,39 +370,6 @@ class ListLike(Indexable, OrderedDict, Pprinter):
 #         # if isinstance(key, slice)
 #         # cannot do slices here since the are not hashable
 #         return super().__missing__(key)
-
-
-class AttrReadItem(dict):
-    """
-    Dictionary with item access through attribute lookup.
-
-    Note: Items keyed on names that are identical to the `dict` builtin
-     methods, eg. 'keys', will not be accessible through attribute lookup.
-
-    >>> x = AttrReadItem(hello=0, world=2)
-    >>> x.hello, x.world
-    (0, 2)
-    >>> x['keys'] = None
-    >>> x.keys
-    <function AttrReadItem.keys>
-    """
-
-    # TODO: raise when trying to set attributes??
-
-    def __getattr__(self, attr):
-        """
-        Try to get the value in the dict associated with `attr`. If attr is
-        not a key, try get the attribute.
-        """
-        if attr in self:
-            return self[attr]
-            # return super().__getitem__(attr)
-        #
-        # try:
-        return super().__getattribute__(attr)
-        # except Exception:
-        #     raise AttributeError('%r object has no attribute %r' %
-        #                          (self.__class__.__name__, attr))
 
 
 # class ListLike(AttrReadItem, OrderedDict, Indexable):
