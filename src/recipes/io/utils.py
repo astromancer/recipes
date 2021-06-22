@@ -1,39 +1,31 @@
+
+
 # std libs
-from ..functionals import echo0
-from contextlib import contextmanager
-from recipes.string import sub
 import os
-from recipes.bash import brace_expand_iter
-from recipes.string.brackets import braces
-import docsplice as doc
-
-import pickle
-
-import itertools as itt
-from pathlib import Path
-import mmap
-# local libs
-# from recipes.string import overlay
-# from recipes.interactive import is_interactive
-
-import itertools as itt
 import glob
 import json
+import mmap
+import pickle
 import shutil
 import tempfile
+import fnmatch as fnm
+import itertools as itt
+from pathlib import Path
+from contextlib import contextmanager
+
+# local libs
+import docsplice as doc
+from recipes.bash import brace_expand_iter
+from recipes.string import sub
+from recipes.string.brackets import braces
+
+# relative libs
+from ..functionals import echo0
 
 
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
 FILEMODES = {pickle: 'b', json: ''}
-
-
-# def dumper(obj):
-#     if hasattr(obj, 'to_json'):
-#         return obj.to_json()
-#     return obj.__dict__
-
-# return dumps(some_big_object, default=dumper)
 
 
 def guess_format(filename):
@@ -151,8 +143,8 @@ def iter_files(path, extensions='*', recurse=False):
             extensions = (extensions, )
 
         extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
-        yield from iter_files(
-            f'{path!s}/{"**/" * recurse}*.{extensions}', recurse=recurse)
+        yield from iter_files(f'{path!s}/{"**/" * recurse}*.{extensions}',
+                              recurse=recurse)
         return
 
     if not path.exists():
@@ -172,7 +164,7 @@ def iter_ext(files, extensions='*'):
     files : Container or Iterable
         The files to consider
     extensions : str or Container of str
-        All file extentions to consider
+        All file extensions to consider
 
     Yields
     -------
@@ -412,7 +404,7 @@ def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
     """
     assert isinstance(eol, str)
     append = str.__add__ if eol else echo0
-    
+
     with backed_up(filename, mode, exception_hook=exception_hook) as fp:
         # write lines
         try:

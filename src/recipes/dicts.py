@@ -2,16 +2,19 @@
 Recipes involving dictionaries
 """
 
+
 # std libs
-import itertools as itt
-import warnings
-import types
 import re
+import types
 import numbers
-from collections import abc, UserDict, OrderedDict, defaultdict
-from .string import indent, brackets as bkt
+import warnings
+import itertools as itt
 from pathlib import Path
 from collections.abc import Hashable
+from collections import UserDict, OrderedDict, defaultdict
+
+# relative libs
+from .string import indent, brackets as bkt
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
@@ -58,11 +61,11 @@ def pformat(mapping, name=None, lhs=str, equals=': ', rhs=str, sep=',',
         kls = type(mapping)
         name = '' if kls is dict else kls.__name__
 
-    brackets = brackets or ('', '') 
+    brackets = brackets or ('', '')
     if len(brackets) != 2:
         raise ValueError(
             f'Brackets should be a pair of strings, not {brackets!r}'
-            )
+        )
 
     string = _pformat(mapping, lhs, equals, rhs, sep, brackets, hang, tabsize)
     ispace = 0 if hang else len(name)
@@ -72,7 +75,7 @@ def pformat(mapping, name=None, lhs=str, equals=': ', rhs=str, sep=',',
     return string
 
 
-def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}', 
+def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
              hang=False, tabsize=4):
 
     # if isinstance(mapping, dict): # abc.MutableMapping
@@ -89,7 +92,7 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
         close = '\n' + close
     else:
         tabsize = len(string)
-        
+
     # make sure we line up the values
     # note that keys may not be str, so first convert
     keys = tuple(map(lhs, mapping.keys()))
@@ -143,6 +146,7 @@ def invert(d, convertion={list: tuple}):
     return inverted
 
 
+# ---------------------------------------------------------------------------- #
 class Pprinter:
     """Mixin class that pretty prints dictionary content"""
 
@@ -545,6 +549,7 @@ class DefaultOrderedDict(OrderedDict):
     def __missing__(self, key):
         if self.default_factory is None:
             raise KeyError(key)
+        
         self[key] = value = self.default_factory()
         return value
 

@@ -1,10 +1,12 @@
+"""
+Utilities for operations on strings
+"""
 
 import os
 import re
 import numbers
 
 import numpy as np
-
 
 
 # regexes
@@ -39,7 +41,8 @@ class Percentage(object):
             self.frac = float(mo.group(1)) / 100
         else:
             raise ValueError(
-                f'Could not find a percentage value in the string {s!r}')
+                f'Could not find a percentage value in the string {s!r}'
+                )
 
     def __repr__(self):
         return f'Percentage({self.frac:.2%})'
@@ -67,12 +70,12 @@ class Percentage(object):
             raise TypeError('Not a valid number or numeric array') from None
 
 
-def sub(string, mapping={}, **kws):  # sub / substitute
+def sub(string, mapping=(), **kws):
     """
     Replace all the sub-strings in `string` with the strings in `mapping`.
 
     Replacements are done simultaneously (as opposed to recursively), so that
-    character permutations work as expected. See Examples.
+    character permutations work as expected. See Examples below.
 
     Parameters
     ----------
@@ -94,7 +97,7 @@ def sub(string, mapping={}, **kws):  # sub / substitute
     'loo roll'
 
     # character permutations
-    >>> sub('option(A, B)', A='B', B'='A')
+    >>> sub('option(A, B)', A='B', B='A')
     'option(B, A)'
     >>> sub('AABBCC', A='B', B='C', C='c')
     'BBCCcc'
@@ -106,7 +109,7 @@ def sub(string, mapping={}, **kws):  # sub / substitute
     s: str
 
     """
-    mapping = {**mapping, **kws}
+    mapping = {**dict(mapping), **kws}
     if not mapping:
         return string
 
@@ -120,12 +123,14 @@ def sub(string, mapping={}, **kws):  # sub / substitute
     # check if any keys are contained within another key. If this is true,
     # we have to substitute the latter before the former
     keys = set(mapping)
-    okeys, ovals = cosort(*zip(*mapping.items()),
-                          key=lambda x: op.any(keys - {x}, op.contained(x).within))
+    okeys, ovals = cosort(
+        *zip(*mapping.items()),
+        key=lambda x: op.any(keys - {x}, op.contained(x).within)
+        )
     good = dict(zip(okeys, ovals))
     tmp = {}
     for key in okeys:
-        # if any values have the key in them, need to remap them etmporarily
+        # if any values have the key in them, need to remap them temporarily
         if op.any(ovals, op.contained(key).within):
             tmp[key] = str(id(key))
             good.pop(key)
@@ -248,12 +253,12 @@ def strip_non_ascii(string):
 
 def strike(text):
     """
-    Produce strikethrough text using unicode modifiers
+    Produce strikethrough text using unicode modifiers.
 
     Parameters
     ----------
     text : str
-        Text to be struck trough
+        Text to be struck through
 
     Examples
     --------

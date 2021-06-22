@@ -96,8 +96,10 @@ def split(l, idx):
 
     if idx:
         idx = [0, *sorted(idx), len(l)]
-        return map(l.__getitem__, itt.starmap(slice, mit.pairwise(idx)))
-    return l
+        for i, j in mit.pairwise(idx):
+            yield l[i:j]
+    else:
+        yield l
 
 # def split(l, idx):
 #     if isinstance(idx, numbers.Integral):
