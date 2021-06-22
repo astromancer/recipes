@@ -443,25 +443,43 @@ def write_replace(filename, replacements):
         fp.truncate()
 
 
-def iocheck(instr, check, bork=0, convert=None):
+@contextmanager
+def working_dir(path):
     """
-    Tests a input str for validity by calling the provided check function on it.
-    Returns None if an error was found or raises ValueError if bork is set.
-    Returns the original list if input is valid.
+    Temporarily change working directory to the given `path` with this context
+    manager. 
+
+    Parameters
+    ----------
+    path : str or Path 
+        File system location of temporary work working directory
+
+    Examples
+    --------
+    >>> with working_dir('/path/to/folder/that/exists') as wd:
+    ...     file = wd.with_name('myfile.txt')
+    ...     file.touch()
+    After the context manager returns, we will be switched back to the original 
+    working directory, even if an exception occured.
+    
+    Raises
+    ------
+    ValueError
+        If `path` is not a valid directory
+    
     """
-    if not check(instr):
-        msg = 'Invalid input!! %r \nPlease try again: ' % instr
-        if bork == 1:
-            raise ValueError(msg)
-        elif bork == 0:
-            print(msg)
-            return
-        elif bork == -1:
-            return
-    else:
-        if convert:
-            return convert(instr)
-        return instr
+    if not Path(path).is_dir():
+        raise ValueError("Invalid directory: '{path!s}'")
+    
+    original = os.getcwd()
+    os.chdir(path)
+    try:
+        yield path
+    except Exception as err:
+        raise err
+        
+    finally :
+        os.chdir(original)
 
 
 def walk_level(dir_, depth=1):
