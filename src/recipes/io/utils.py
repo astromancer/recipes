@@ -87,11 +87,23 @@ def save_json(filename, data, **kws):
     serialize(filename, data, json, **kws)
 
 
-def iter_files(path, extensions='*', recurse=False):
+def iter_files(path, extensions='*', recurse=False, ignore=()):
+    if isinstance(ignore, str):
+        ignore = (ignore, )
+        
+    for file in _iter_files(path, extensions, recurse):
+        for pattern in ignore:
+            if fnm.fnmatchcase(str(file), pattern):
+                break
+        else:
+            yield file
+
+
+def _iter_files(path, extensions='*', recurse=False):
     """
     Generator that yields all files in a directory tree with given file
     extension(s), optionally recursing down the directory tree. Brace expansion
-    syntax from bash is supported, allowing multiple directory trees to be
+    syntax from bash is supported, aitrllowing multiple directory trees to be
     traversed with a single statement.
 
     Parameters
@@ -108,6 +120,9 @@ def iter_files(path, extensions='*', recurse=False):
         this parameter can be acheived by including the list of file extensions
         in the expansion pattern. eg: '/path/*.{png,jpg}' will get all png and
         jpg files from path directory.
+    recurse : bool, default=True
+        Whether or not to recurse down the directory tree.  The same as using 
+        ".../**/..." in the glob pattern.
 
     Examples
     --------
@@ -121,7 +136,7 @@ def iter_files(path, extensions='*', recurse=False):
     Raises
     ------
     ValueError
-        If the given path is not a directory
+        If the given base path does not exist
     """
 
     path = str(path)
