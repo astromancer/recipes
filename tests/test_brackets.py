@@ -1,7 +1,12 @@
+
+# third-party libs
 import pytest
-from recipes.testing import Expect, Throws, mock, expected
-from recipes.string.brackets import match, remove, outermost, contained, braces, xsplit
+
+# local libs
+from recipes import op
 from recipes.functionals import negate
+from recipes.testing import Expect, Throws, mock, expected
+from recipes.string.brackets import match, remove, outermost, braces, xsplit
 
 
 # @pytest.mark.skip()
@@ -56,10 +61,10 @@ test_unbracket = Expect(remove)({
     mock.remove('{[(foo)]}', '()'):                    '{[foo]}',
     mock.remove('{{{hello world!}}}', '{}'):           'hello world!',
     mock.remove('{some,thing}{}', '{}',
-                condition=contained(',').within):
+                condition=op.contained(',').within):
     'some,thing{}',
     mock.remove('{some,thing}{}', '{}',
-                condition=negate(contained(',').within)):     '{some,thing}',
+                condition=negate(op.contained(',').within)):     '{some,thing}',
     mock.remove('{{1}}', '{}', 0):                     '{{1}}',
     mock.remove('{{1}}', '{}', 1):                     '{1}',
     mock.remove('{{hi{} {x}}}', '{}',

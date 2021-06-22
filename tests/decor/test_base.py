@@ -49,15 +49,12 @@ DEFAULTS = {'pre': '', 'post': ''}
 #                  post = ['', '@classmethod'])
 #     def test_classmethod(self, argspec, pre, post):
 #         _generic_test(CLASS_TEMPLATE, 'Class', argspec, pre=pre, post=post)
-        
-        
 
-        
 
-@count_calls
-def foo(a):
-    ...
-    
+# @count_calls
+# def foo(a):
+#     ...
+
 # [*map(foo, '12345')]
 
 class Foo:

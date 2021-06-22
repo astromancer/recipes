@@ -1,3 +1,7 @@
+"""
+Detect if we are running in an interactive environment.
+"""
+
 def is_interactive():
     """
     True if we are in a notebook / qtconsole
