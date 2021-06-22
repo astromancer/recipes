@@ -41,6 +41,7 @@ LOCAL_MODULES = LOCAL_MODULES_DB.read_text().splitlines()
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: too many blank lines after module docstring
+# FIXME: from recipes.oo import SelfAware, meta # where meta is unused!
 # FIXME: this weird gotcha:
 # import logging
 # import logging.config # THIS WILL GET REMOVED!

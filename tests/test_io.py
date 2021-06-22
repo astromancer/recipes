@@ -3,8 +3,27 @@ import pytest
 
 from pathlib import Path
 
-from recipes.io.utils import iter_lines
+from recipes import io
 from recipes.testing import Expect, mock
+
+# ---------------------------------------------------------------------------- #
+# Helper functions
+
+
+def srange(*section):
+    return list(map(str, range(*section)))
+
+
+def brange(*section):
+    return list(map(str.encode, srange(*section)))
+
+
+def bnrange(*section):
+    return [b + b'\n' for b in brange(*section)]
+
+
+# ---------------------------------------------------------------------------- #
+# Fixtures
 
 
 @pytest.fixture(scope="session")
@@ -39,21 +58,7 @@ def filename(tmp_path_factory):
 #     assert type(fixture1) == type(fixture2)
 
 
-
-
-def srange(*section):
-    return list(map(str, range(*section)))
-
-
-def brange(*section):
-    return list(map(str.encode, srange(*section)))
-
-
-def bnrange(*section):
-    return [b + b'\n' for b in brange(*section)]
-
-
-test_iter_lines = Expect(iter_lines)(
+test_iter_lines = Expect(io.iter_lines)(
     {mock.iter_lines(filename, 5):                      srange(5),
      mock.iter_lines(filename, 5, 10):                  srange(5, 10),
      mock.iter_lines(filename, 3, mode='rb'):           brange(3),
@@ -61,22 +66,16 @@ test_iter_lines = Expect(iter_lines)(
     transform=list
 )
 
-# @pytest.mark.parametrize(
-#     'section, mode, strip, result',
-#     [((5, ),  'r', None,  srange(5)),
-#      ((3, 8), 'r', None,  srange(3, 8)),
-#       ((3,),  'rb', None, brange(3)),
-#       ((3,),  'rb', '',   bnrange(3)) ]
-#
-# )
-# def test_iter_lines(filename, section, mode, strip, result):
-#     print(filename)
-#     assert list(iter_lines(filename, *section, mode=mode, strip=strip)) == result
 
+# test_iter_files = Expect(io.iter_files)(
+#     ()
+# )
 
 # TODO: test iter_files!!!!!!!
 # iter_files('/root/{main,ch*}', 'tex') # with expansion
 # iter_files('/root/', 'tex', True) #  recursive walk
+#
+# 
 # l = set(map(str, iter_files('/home/hannes/Desktop/PhD/thesis/build/', 'tex', True)))
 # g = set(glob.glob('/home/hannes/Desktop/PhD/thesis/build/**/*.tex',
 # recursive=True))

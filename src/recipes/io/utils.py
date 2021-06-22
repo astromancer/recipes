@@ -1,39 +1,31 @@
+
+
 # std libs
-from ..functionals import echo0
-from contextlib import contextmanager
-from recipes.string import sub
 import os
-from recipes.bash import brace_expand_iter
-from recipes.string.brackets import braces
-import docsplice as doc
-
-import pickle
-
-import itertools as itt
-from pathlib import Path
-import mmap
-# local libs
-# from recipes.string import overlay
-# from recipes.interactive import is_interactive
-
-import itertools as itt
 import glob
 import json
+import mmap
+import pickle
 import shutil
 import tempfile
+import fnmatch as fnm
+import itertools as itt
+from pathlib import Path
+from contextlib import contextmanager
+
+# local libs
+import docsplice as doc
+from recipes.bash import brace_expand_iter
+from recipes.string import sub
+from recipes.string.brackets import braces
+
+# relative libs
+from ..functionals import echo0
 
 
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
 FILEMODES = {pickle: 'b', json: ''}
-
-
-# def dumper(obj):
-#     if hasattr(obj, 'to_json'):
-#         return obj.to_json()
-#     return obj.__dict__
-
-# return dumps(some_big_object, default=dumper)
 
 
 def guess_format(filename):
@@ -95,11 +87,23 @@ def save_json(filename, data, **kws):
     serialize(filename, data, json, **kws)
 
 
-def iter_files(path, extensions='*', recurse=False):
+def iter_files(path, extensions='*', recurse=False, ignore=()):
+    if isinstance(ignore, str):
+        ignore = (ignore, )
+        
+    for file in _iter_files(path, extensions, recurse):
+        for pattern in ignore:
+            if fnm.fnmatchcase(str(file), pattern):
+                break
+        else:
+            yield file
+
+
+def _iter_files(path, extensions='*', recurse=False):
     """
     Generator that yields all files in a directory tree with given file
     extension(s), optionally recursing down the directory tree. Brace expansion
-    syntax from bash is supported, allowing multiple directory trees to be
+    syntax from bash is supported, aitrllowing multiple directory trees to be
     traversed with a single statement.
 
     Parameters
@@ -116,6 +120,9 @@ def iter_files(path, extensions='*', recurse=False):
         this parameter can be acheived by including the list of file extensions
         in the expansion pattern. eg: '/path/*.{png,jpg}' will get all png and
         jpg files from path directory.
+    recurse : bool, default=True
+        Whether or not to recurse down the directory tree.  The same as using 
+        ".../**/..." in the glob pattern.
 
     Examples
     --------
@@ -129,7 +136,7 @@ def iter_files(path, extensions='*', recurse=False):
     Raises
     ------
     ValueError
-        If the given path is not a directory
+        If the given base path does not exist
     """
 
     path = str(path)
@@ -151,8 +158,8 @@ def iter_files(path, extensions='*', recurse=False):
             extensions = (extensions, )
 
         extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
-        yield from iter_files(
-            f'{path!s}/{"**/" * recurse}*.{extensions}', recurse=recurse)
+        yield from iter_files(f'{path!s}/{"**/" * recurse}*.{extensions}',
+                              recurse=recurse)
         return
 
     if not path.exists():
@@ -172,7 +179,7 @@ def iter_ext(files, extensions='*'):
     files : Container or Iterable
         The files to consider
     extensions : str or Container of str
-        All file extentions to consider
+        All file extensions to consider
 
     Yields
     -------
@@ -412,7 +419,7 @@ def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
     """
     assert isinstance(eol, str)
     append = str.__add__ if eol else echo0
-    
+
     with backed_up(filename, mode, exception_hook=exception_hook) as fp:
         # write lines
         try:
@@ -436,25 +443,43 @@ def write_replace(filename, replacements):
         fp.truncate()
 
 
-def iocheck(instr, check, bork=0, convert=None):
+@contextmanager
+def working_dir(path):
     """
-    Tests a input str for validity by calling the provided check function on it.
-    Returns None if an error was found or raises ValueError if bork is set.
-    Returns the original list if input is valid.
+    Temporarily change working directory to the given `path` with this context
+    manager. 
+
+    Parameters
+    ----------
+    path : str or Path 
+        File system location of temporary work working directory
+
+    Examples
+    --------
+    >>> with working_dir('/path/to/folder/that/exists') as wd:
+    ...     file = wd.with_name('myfile.txt')
+    ...     file.touch()
+    After the context manager returns, we will be switched back to the original 
+    working directory, even if an exception occured.
+    
+    Raises
+    ------
+    ValueError
+        If `path` is not a valid directory
+    
     """
-    if not check(instr):
-        msg = 'Invalid input!! %r \nPlease try again: ' % instr
-        if bork == 1:
-            raise ValueError(msg)
-        elif bork == 0:
-            print(msg)
-            return
-        elif bork == -1:
-            return
-    else:
-        if convert:
-            return convert(instr)
-        return instr
+    if not Path(path).is_dir():
+        raise ValueError("Invalid directory: '{path!s}'")
+    
+    original = os.getcwd()
+    os.chdir(path)
+    try:
+        yield path
+    except Exception as err:
+        raise err
+        
+    finally :
+        os.chdir(original)
 
 
 def walk_level(dir_, depth=1):

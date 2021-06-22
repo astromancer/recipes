@@ -2,16 +2,19 @@
 Recipes involving dictionaries
 """
 
+
 # std libs
-import itertools as itt
-import warnings
-import types
 import re
+import types
 import numbers
-from collections import abc, UserDict, OrderedDict, defaultdict
-from .string import indent, brackets as bkt
+import warnings
+import itertools as itt
 from pathlib import Path
 from collections.abc import Hashable
+from collections import UserDict, OrderedDict, defaultdict
+
+# relative libs
+from .string import indent, brackets as bkt
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
@@ -20,8 +23,8 @@ from collections.abc import Hashable
 # lookup, indexability,
 
 
-def pformat(mapping, name='', lhs=str, equals=': ', rhs=str, sep=',',
-            brackets='{}'):
+def pformat(mapping, name=None, lhs=str, equals=': ', rhs=str, sep=',',
+            brackets='{}', hang=False, tabsize=4):
     """
     pformat (nested) dict types
 
@@ -47,7 +50,6 @@ def pformat(mapping, name='', lhs=str, equals=': ', rhs=str, sep=',',
                         foo=dict(nested=1,
                                 what='?',
                                 x=dict(triple='nested'))))
-
     {x      : hello,
      longkey: w,
      foo    : {nested: 1,
@@ -55,21 +57,26 @@ def pformat(mapping, name='', lhs=str, equals=': ', rhs=str, sep=',',
                x     : {triple: nested}}}
 
     """
-    if brackets in ('', None):
-        brackets = [''] * 2
+    if name is None:
+        kls = type(mapping)
+        name = '' if kls is dict else kls.__name__
 
+    brackets = brackets or ('', '')
     if len(brackets) != 2:
         raise ValueError(
-            f'Brackets should be a pair of strings, not {brackets!r}')
+            f'Brackets should be a pair of strings, not {brackets!r}'
+        )
 
-    string = _pformat(mapping, lhs, equals, rhs, sep, brackets)
-    string = indent(string, len(name)) # f'{" ": <{pre}}
+    string = _pformat(mapping, lhs, equals, rhs, sep, brackets, hang, tabsize)
+    ispace = 0 if hang else len(name)
+    string = indent(string, ispace)  # f'{" ": <{pre}}
     if name:
         return f'{name}{string}'
     return string
 
 
-def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}'):
+def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
+             hang=False, tabsize=4):
 
     # if isinstance(mapping, dict): # abc.MutableMapping
     #     raise TypeError(f'Object of type: {type(mapping)} is not a '
@@ -80,12 +87,17 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}'):
         return brackets
 
     string, close = brackets
-    bracket_size = len(string)
+    if hang:
+        string += '\n'
+        close = '\n' + close
+    else:
+        tabsize = len(string)
+
     # make sure we line up the values
     # note that keys may not be str, so first convert
     keys = tuple(map(lhs, mapping.keys()))
     width = max(map(len, keys))  # + post_sep_space
-    indents = itt.chain([0], itt.repeat(bracket_size))
+    indents = itt.chain([hang * tabsize], itt.repeat(tabsize))
     separators = itt.chain(
         itt.repeat(sep + '\n', len(mapping) - 1),
         [close]
@@ -98,7 +110,7 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}'):
             part = rhs(val)
 
         # objects with multi-line representations need to be indented
-        string += indent(part, width + bracket_size + 1)
+        string += indent(part, width + tabsize + 1)
         # item sep / closing bracket
         string += post
 
@@ -134,7 +146,7 @@ def invert(d, convertion={list: tuple}):
     return inverted
 
 
-
+# ---------------------------------------------------------------------------- #
 class Pprinter:
     """Mixin class that pretty prints dictionary content"""
 
@@ -215,34 +227,69 @@ class AVDict(dict, AutoVivify):
 # class Tree(defaultdict, AutoVivify):
 #     _factory = (defaultdict.default_factory, )
 
+# TODO AttrItemWrite
+
+class AttrBase(dict):
+    def copy(self):
+        """Ensure instance of same class is returned"""
+        return self.__class__(super().copy())
 
 
-class AttrDict(dict):
+class AttrReadItem(AttrBase):
+    """
+    Dictionary with item read access through attribute lookup.
+
+    Note: Items keyed on names that are identical to method names of the `dict`
+    builtin, eg. 'keys', will not be accessible through attribute lookup.
+
+    Setting attributes on instances of this class is prohibited since it can
+    lead to ambiguity. If you want item write access through attributes, use 
+    `AttrDict`.
+
+    >>> x = AttrReadItem(hello=0, world=2)
+    >>> x.hello, x.world
+    (0, 2)
+    >>> x['keys'] = None
+    >>> x.keys
+    <function AttrReadItem.keys>
+
+    """
+
+    def __getattr__(self, attr):
+        """
+        Try to get the value in the dict associated with key `attr`. If `attr`
+        is not a key, try get the attribute from the parent class.
+        """
+        if attr in self:
+            return self[attr]
+
+        return super().__getattribute__(attr)
+
+    # def __setattr__(self, name: str, value):
+    # TODO maybe warn once instead
+    #     raise AttributeError(
+    #         'Setting attributes on {} instances is not allowed. Use `recipes.dicts.AttrDict` if you need item write access through attributes.')
+
+
+class AttrDict(AttrBase):
     """dict with key access through attribute lookup"""
-
+    # FIXME: clobbers build in methods like `keys`, `items` etc...
+    # check: dict.__dict__
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
         # pros: IDE autocomplete works on keys
-        # cons: inheritance: have to init this superclass before all others
-
-    def copy(self):
-        """Ensure instance of same class is returned"""
-        cls = self.__class__
-        return cls(super(cls, self).copy())
+        # cons: clobbers build in methods like `keys`, `items` etc...
+        #     : inheritance: have to init this superclass before all others
 
 
-class OrderedAttrDict(OrderedDict):
+class OrderedAttrDict(OrderedDict, AttrBase):
     """dict with key access through attribute lookup"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
 
-    def copy(self):
-        """Ensure instance of same class is returned"""
-        cls = self.__class__
-        return cls(super(cls, self).copy())
 
 
 class Indexable:
@@ -323,39 +370,6 @@ class ListLike(Indexable, OrderedDict, Pprinter):
 #         # if isinstance(key, slice)
 #         # cannot do slices here since the are not hashable
 #         return super().__missing__(key)
-
-
-class AttrReadItem(dict):
-    """
-    Dictionary with item access through attribute lookup.
-
-    Note: Items keyed on names that are identical to the `dict` builtin
-     methods, eg. 'keys', will not be accessible through attribute lookup.
-
-    >>> x = AttrReadItem(hello=0, world=2)
-    >>> x.hello, x.world
-    (0, 2)
-    >>> x['keys'] = None
-    >>> x.keys
-    <function AttrReadItem.keys>
-    """
-
-    # TODO: raise when trying to set attributes??
-
-    def __getattr__(self, attr):
-        """
-        Try to get the value in the dict associated with `attr`. If attr is
-        not a key, try get the attribute.
-        """
-        if attr in self:
-            return self[attr]
-            # return super().__getitem__(attr)
-        #
-        # try:
-        return super().__getattribute__(attr)
-        # except Exception:
-        #     raise AttributeError('%r object has no attribute %r' %
-        #                          (self.__class__.__name__, attr))
 
 
 # class ListLike(AttrReadItem, OrderedDict, Indexable):
@@ -514,19 +528,19 @@ class IndexableOrderedDict(OrderedDict):
     def __missing__(self, key):
         if isinstance(key, int):
             return self[list(self.keys())[key]]
-        else:
-            # noinspection PyUnresolvedReferences
-            return OrderedDict.__missing__(self, key)
+
+        # noinspection PyUnresolvedReferences
+        return OrderedDict.__missing__(self, key)
 
 
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
     # Note: dict order is gauranteed since pyhton 3.7
-    def __init__(self, default_factory=None, *a, **kw):
-        if (default_factory is not None and not callable(default_factory)):
+    def __init__(self, default_factory=None, mapping=(), **kws):
+        if not (default_factory is None or callable(default_factory)):
             raise TypeError('first argument must be callable')
 
-        OrderedDict.__init__(self, *a, **kw)
+        OrderedDict.__init__(self, mapping, **kws)
         self.default_factory = default_factory
 
     def __getitem__(self, key):
@@ -538,14 +552,12 @@ class DefaultOrderedDict(OrderedDict):
     def __missing__(self, key):
         if self.default_factory is None:
             raise KeyError(key)
+        
         self[key] = value = self.default_factory()
         return value
 
     def __reduce__(self):
-        if self.default_factory is None:
-            args = tuple()
-        else:
-            args = self.default_factory,
+        args = (self.default_factory, ) if self.default_factory else ()
         return type(self), args, None, None, self.items()
 
     def copy(self):
