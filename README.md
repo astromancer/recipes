@@ -10,7 +10,8 @@ TODO
 [![GitHub](https://img.shields.io/github/license/astromancer/recipes.svg?color=blue)](https://recipes.readthedocs.io/en/latest/license.html)
  -->
 
-This project is for ...
+This project contains a curated collection of coding recipes that I often use
+across many of my projects.
 
 
 # Install
@@ -27,12 +28,12 @@ pip install recipes
 ```
 
 
-<!-- ![Example Image]({url}/blob/master/tests/images/example_0.png "Example Image") -->
+<!-- ![Example Image](https://github.com/astromancer/recipes/blob/master/tests/images/example_0.png "Example Image") -->
 
 
-For more examples see [Documentation]()
+<!-- For more examples see [Documentation]() -->
 
-# Documentation
+<!-- # Documentation -->
 
 
 # Test
@@ -47,29 +48,29 @@ pytest recipes
 # Contribute
 Contributions are welcome!
 
-1. [Fork it!]({url}/fork)
+1. [Fork it!](https://github.com/astromancer/recipes/fork)
 2. Create your feature branch\
     ``git checkout -b feature/rad``
 3. Commit your changes\
-    ``git commit -am 'Add some cool feature 😎'``
+    ``git commit -am 'Add some cool feature  😎'``
 4. Push to the branch\
     ``git push origin feature/rad``
 5. Create a new Pull Request
 
 # Contact
 
-* e-mail: {email}
+* e-mail: hannes@saao.ac.za
 
 <!-- ### Third party libraries
  * see [LIBRARIES](https://github.com/username/sw-name/blob/master/LIBRARIES.md) files -->
 
 # License
 
-* see [LICENSE]({url}/blob/master/LICENSE)
+* see [LICENSE](https://github.com/astromancer/recipes/blob/master/LICENSE)
 
 
-# Version
+<!-- # Version
 This project uses a [semantic versioning](https://semver.org/) scheme. The 
 latest version is
-* {version}
+* 0.1.0 -->
 
