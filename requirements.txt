@@ -1,0 +1,11 @@
+more_itertools
+pytest
+six
+psutil
+scipy
+astropy
+numpy
+stdlib_list
+anytree
+matplotlib
+motley

@@ -6,7 +6,9 @@ import re
 
 
 def testid(item):
-    return re.search(r'\[([^]]+)\]', item.name)[1]
+    if item.function.__name__.startswith('test_caller'):
+        return re.search(r'\[([^]]+)\]', item.name)[1]
+    return ''
 
 
 def pytest_collection_modifyitems(session, config, items):
