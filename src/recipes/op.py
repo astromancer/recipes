@@ -11,6 +11,7 @@ support for default values
 import builtins
 import warnings
 import functools as ftl
+import operator as _op
 from operator import *
 
 # local libs
@@ -63,21 +64,25 @@ def append(obj, suffix):
     return obj + suffix
 
 
-class itemgetter:
+class ItemGetter:
     """
-    Itemgetter
+    Item getter with optional defaul substitution
     """
+    _worker = getitem
+    _excepts = (KeyError, IndexError)
+    _raises = KeyError
 
-    def __init__(self, *keys, default=KeyError, **defaults):
+    def __init__(self, *keys, default=NULL, defaults=None):
         self.keys = keys
-        self.defaults = defaults
+        self.defaults = defaults or {}
         typo = set(self.defaults.keys()) - set(self.keys)
         if typo:
-            warnings.warn(f'Superfluous defaults: {typo}')
+            warnings.warn(
+                f'Invalid keys in `defaults` mapping: {typo}'
+            )
         self.default = default
-
-        if default is KeyError:
-            self.get_default = raises(KeyError)
+        if default is NULL:
+            self.get_default = raises(self._raises)
 
     def __call__(self, obj):  # -> List:
         unpack = list if len(self.keys) > 1 else next
@@ -90,13 +95,16 @@ class itemgetter:
     def iter(self, obj):
         for i in self.keys:
             try:
-                yield obj[i]
-            except (KeyError, IndexError):
+                yield self._worker(obj, i)
+            except self._excepts:
                 yield self.get_default(i)
 
 
-# alias #
-getitem = itemgetter
+class AttrGetter(ItemGetter):
+    _excepts = (AttributeError, )
+
+    def _worker(self, obj, key):
+        return _op.attrgetter(key)(obj)
 
 
 class MethodCaller:
@@ -119,7 +127,7 @@ class MethodCaller:
             msg = ("%s needs at least one argument, the method name"
                    % args[0].__class__.__name__)
             raise TypeError(msg)
-        
+
         self = args[0]
         self._name = args[1]
         if not isinstance(self._name, str):
@@ -210,3 +218,8 @@ class contained:  # pylint: disable=invalid-name
 
     def within(self, container):
         return self.item in container
+
+
+# aliases
+itemgetter = ItemGetter
+attrgetter = AttrGetter
