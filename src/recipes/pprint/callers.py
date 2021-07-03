@@ -1,13 +1,15 @@
+"""
+Pretty printing callable objects and call signatures
+"""
 
-# import builtins
-# import math
+# std libs
 import inspect
-import functools as ftl
-from ..introspect.utils import get_module_name
 import textwrap as txw
-# import types
 
+# relative libs
+from ..introspect.utils import get_module_name
 from ..introspect import get_class_that_defined_method
+# import types
 
 
 POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
@@ -36,15 +38,15 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
            params_per_line=None, hang=None, show_defaults=True,
            value_formatter=repr):
     """
-    Pretty format a callable object, optionally with paramater values for the 
+    Pretty format a callable object, optionally with paramater values for the
     call signature.
 
     This is a flexible formatter for producing string representations of call
     signatures of any callable python object. Optional arguments allows one to
     print the parameter values of objects passed to the function. One can also
     choose whether or not to print the default parameter values. This function
-    can therefore be used to represent callable objects themselves, ie. the 
-    function without parameters, or a call signature ie. how a call will be 
+    can therefore be used to represent callable objects themselves, ie. the
+    function without parameters, or a call signature ie. how a call will be
     typed out in the source code.
 
     Wrapping the call signature across multiple lines for calls with many
@@ -58,40 +60,41 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
     obj : object
         The callable object
     args : tuple, optional
-        Positional and variadic positional arguments for the function call, by 
+        Positional and variadic positional arguments for the function call, by
         default ()
     kws : dict, optional
         Variadic keywords for the call, by default None
     wrap : int, optional
         Line width for hard wrapping, by default 80
     name_depth : int, optional
-        Controls the function name representation. The number of parents object
-        names to include in the qualified name of the object. The default, 1,
-        will only give the function name itself. Any higher integer will include
-        the the dot-seperated name(s) of the class, (sub)module(s), package, (or
-        <locals>) in the name up to the requested number. 
-        For fully qualified names (up to (sub)module level), use 
+        Controls how the function's name is represented. This parameter gives
+        the namespace depth, number of parent object names to include in the
+        qualified name of the callable. The default, 1, will only give the
+        object name itself. Any higher integer will include the the
+        dot-seperated name(s) of the class, (sub)module(s), package, (or
+        <locals>) in the name up to the requested number.
+        For fully qualified names (up to (sub)module level), use
             `name_depth='module'`.
-        For the full name spec up to the package level, use 
+        For the full name spec up to the package level, use
             `name_depth=-1` or `name_depth='package'`
     params_per_line : ine, optional
         Number of parameters to print per line. If None (the default) a variable
         number of parameters are printed per line while respecting requested
         *wrap* value.
     hang : bool, optional
-        Whether function parameters start on a new line. The default behaviour, 
-        `hang=None`, chooses to hang the parameter spec (if *params_per_line* 
+        Whether function parameters start on a new line. The default behaviour,
+        `hang=None`, chooses to hang the parameter spec (if *params_per_line*
         not given) if the number of parameters in the call is greater than 7, or
         if one of the parameters has a long repr
     show_defaults : bool, optional
-        Whether or not to include parameters with default values, by default 
+        Whether or not to include parameters with default values, by default
         True.
     value_formatter : callable, optional
         Function to use for formatting parameter values, by default repr.
 
     Examples
     --------
-    >>> 
+    >>>
 
     Returns
     -------
@@ -109,7 +112,7 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
     #           : safe_repr
     # TODO: interject str formatter for types eg. np.ndarray?
     # TODO: colourise elements  / defaults / non-defaults
-    # 
+    #
 
     if not callable(obj):
         raise TypeError(f'Object {obj} is not a callable')
@@ -248,8 +251,10 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
 
     return s.join('()')
 
+# @docsplice
 
-def method(func, show_class=True, submodule_depth=1):
+
+def method(func, show_defining_class=True, **kws):
     """
     Get a nice string representing the method.
 
@@ -257,11 +262,10 @@ def method(func, show_class=True, submodule_depth=1):
     ----------
     func: Callable
         The callable to represent
-    show_class: bool
-        whether to show the class name eg: 'MyClass.method'
-    submodule_depth: int
-        number of sub-module levels to show.
-        eg: 'foo.sub.MyClass.method'  for depth of 2
+    show_defining_class: bool
+        Show class that defined method instead of the name of class of object to
+        which the method is bound.
+
 
     Returns
     -------
@@ -269,27 +273,9 @@ def method(func, show_class=True, submodule_depth=1):
 
     """
 
-    if show_class:
+    if show_defining_class:
         cls = get_class_that_defined_method(func)
-    else:
-        cls = None
-        submodule_depth = 0
+        kws['name_depth'] = 0
+        return f'{cls.__name__}{caller(func, **kws)}'
 
-    if cls is None:
-        # handle partial
-        if isinstance(func, ftl.partial):
-            func = func.func
-            # represent missing arguments with unicode centre dot
-            cdot = '·'  # u'\u00B7'
-            argstr = str(func.args).strip(')') + ', %s)' % cdot
-            return 'partial(%s%s)' % (method(func.func), argstr)
-        # just a plain function # FIXME: module???
-        return func.__name__
-    else:
-        # a class method
-        # FIXME: this gives the wrong module.submodule structure if
-        #  show_class=True
-        parents = cls.__module__.split('.')
-        prefixes = parents[:-submodule_depth - 1:-1]
-        parts = prefixes + [cls.__name__, func.__name__]
-        return '.'.join(parts)
+    return caller(func, **kws)
