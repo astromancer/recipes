@@ -80,7 +80,7 @@ SUP_LATIN_UPPER = {
 }
 
 
-class ScriptTranslate(object):
+class ScriptTranslate:
     def __init__(self, chars, nrs):
         self.__dict__.update(**chars)
         self.__nrs = tuple(nrs)

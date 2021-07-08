@@ -6,14 +6,14 @@ import os
 import re
 import numbers
 
-import numpy as np
+import numpy as np  # TODO: remove this dep
 
 
 # regexes
 REGEX_SPACE = re.compile(r'\s+')
 
 
-class Percentage(object):
+class Percentage:
 
     regex = re.compile(r'([\d.,]+)\s*%')
 

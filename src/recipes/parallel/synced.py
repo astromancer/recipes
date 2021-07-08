@@ -59,7 +59,7 @@ def init_synced_array(shape, fill_value=0, dtype=ctypes.c_double):
     shared_array = shared_array.reshape(shape)
 
 
-class SyncedCounter(object):
+class SyncedCounter:
     """
     synchronized shared-memory counter
 

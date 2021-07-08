@@ -41,7 +41,7 @@ August 2001
 """
 
 
-class Null(object):
+class Null:
     """A class for implementing Null objects.
 
     This class ignores all parameters passed when constructing or
@@ -84,10 +84,10 @@ class Null(object):
 
 
 # singleton
-# null = Null()
+NULL = Null()
 
 
-# class NullSingleton(object):
+# class NullSingleton:
 #     instance = Null()
 #
 #     def __getattr__(self, name):

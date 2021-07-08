@@ -124,7 +124,7 @@ def getsize(obj_0):
     return inner(obj_0)
 
 
-class Unbuffered(object):
+class Unbuffered:
     """Class to make stdout unbuffered"""
 
     def __init__(self, stream):

@@ -229,7 +229,7 @@ class _FunkyDict(dict):
         return dict.get(self, key, default)
 
 
-class Funky(object):
+class Funky:
     # Helper class for creating the lower branches of the tree (grouping
     # submodules)
     # basically a hack to create functions that

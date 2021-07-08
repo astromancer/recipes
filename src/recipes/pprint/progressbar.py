@@ -16,7 +16,7 @@ def move_cursor(val):
     sys.stdout.write(mover)
 
 
-class ProgressBarBase(object):
+class ProgressBarBase:
     def __init__(self, precision=2, width=None, symbol='=', align='^',
                  sides='|', every=None):
         """ """

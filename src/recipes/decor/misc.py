@@ -121,7 +121,7 @@ def upon_first_call(do_first):
 # def do_first(q):
 # print( 'DOING IT', q )
 
-# class Test(object):
+# class Test:
 
 # @upon_first_call( do_first )
 # def bar( self, *args ) :

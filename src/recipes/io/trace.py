@@ -5,7 +5,7 @@ import traceback
 from warnings import formatwarning as original_formatwarning
 
 
-class MessageWrapper(object):
+class MessageWrapper:
 
     def __init__(self, wrapped, title=None, width=80, char='='):
         self.active = True
