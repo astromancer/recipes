@@ -326,37 +326,35 @@ class ListLike(Indexable, OrderedDict, Pprinter):
     list-like functionality: indexing by int and appending new data.
     Best of both worlds.
     """
-    _auto_name_fmt = 'item%i'
+    auto_key_template = 'item%i'
 
-    def __init__(self, items=None, **kws):
-        if items is None:
-            # construct from keywords
-            super().__init__(**kws)
-        elif isinstance(items, (list, tuple)):
-            # construct from sequence: make keys using `_auto_name_fmt`
+    def __init__(self, items=(), **kws):
+        if isinstance(items, (list, tuple, set)):
+            # construct from sequence: make keys using `auto_key_template`
             super().__init__()
-            for i, item in enumerate(items):
-                if self._allow_item(item):
-                    self[self._auto_name()] = self._convert_item(item)
+            for item in items:
+                self.append(item)
         else:
             # construct from mapping
-            super().__init__(items, **kws)
+            super().__init__(items or (), **kws)
 
     def __setitem__(self, key, item):
-        item = self._convert_item(item)
+        item = self.convert_item(item)
         OrderedDict.__setitem__(self, key, item)
 
-    def _allow_item(self, item):
+    def check_item(self, item):
         return True
 
-    def _convert_item(self, item):
+    def convert_item(self, item):
         return item
 
-    def _auto_name(self):
-        return self._auto_name_fmt % len(self)
+    def auto_key(self):
+        # auto-generate key
+        return self.auto_key_template % len(self)
 
     def append(self, item):
-        self[self._auto_name()] = self._convert_item(item)
+        self.check_item(item)
+        self[self.auto_key()] = self.convert_item(item)
 
 
 # class Indexable:
@@ -388,22 +386,22 @@ class ListLike(Indexable, OrderedDict, Pprinter):
 #         elif isinstance(groups, (list, tuple)):
 #             super().__init__()
 #             for i, item in enumerate(groups):
-#                 self[self._auto_name()] = self._convert_item(item)
+#                 self[self.auto_key()] = self.convert_item(item)
 #         else:
 #             super().__init__(groups, **kws)
 #
 #     def __setitem__(self, key, item):
-#         item = self._convert_item(item)
+#         item = self.convert_item(item)
 #         OrderedDict.__setitem__(self, key, item)
 #
-#     def _convert_item(self, item):
+#     def convert_item(self, item):
 #         return np.array(item, int)
 #
-#     def _auto_name(self):
+#     def auto_key(self):
 #         return 'group%i' % len(self)
 #
 #     def append(self, item):
-#         self[self._auto_name()] = self._convert_item(item)
+#         self[self.auto_key()] = self.convert_item(item)
 #
 #     # def rename(self, group_index, name):
 #     #     self[name] = self.pop(group_index)
