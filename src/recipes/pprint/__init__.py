@@ -1,3 +1,3 @@
 from .nrs import *
-from .misc import dicts
+from .misc import mapping, truncated
 from .callers import caller, method

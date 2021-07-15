@@ -7,11 +7,11 @@ Miscellaneous functions for pretty printing
 from ..dicts import pformat
 
 
-def dicts(dict_):
-    print(pformat(dict_))
+def mapping(dict_, name=None, **kws):
+    print(pformat(dict_, name, **kws))
 
 
-def seq_repr_trunc(seq, max_items=10, edge_items=1, sep=','):
+def truncated(seq, max_items=10, edge_items=1, sep=','):
     """
 
     Parameters
