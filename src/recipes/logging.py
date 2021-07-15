@@ -1,15 +1,13 @@
+
 # std libs
 import logging
-import functools
+import functools as ftl
 from contextlib import contextmanager
 
-# local libs
-from .oo import ClassProperty
-from .decor.base import DecoratorBase
-from .introspect.utils import get_caller_frame, get_module_name
-# from recipes.caches import cached
-
 # relative libs
+from .decor.base import DecoratorBase
+from .introspect.utils import get_caller_frame, get_module_name, get_class_name
+
 
 def get_module_logger(depth=-1):
     return logging.getLogger(get_module_name(get_caller_frame(2), depth))
@@ -20,7 +18,7 @@ def all_logging_disabled(highest_level=logging.CRITICAL):
     """
     A context manager that will prevent any logging messages triggered during
     the body from being processed.
-    
+
     Parameters
     ----------
     highest_level: int
@@ -42,7 +40,31 @@ def all_logging_disabled(highest_level=logging.CRITICAL):
         logging.disable(previous_level)
 
 
-class LoggingMixin(object):
+# @contextmanager
+# def _at_level(logger, level):
+#     olevel = logger.getEffectiveLevel()
+#     logger.setLevel(level)
+#     yield
+#     logger.setLevel(olevel)
+
+
+class LoggingDescriptor:
+    # use descriptor so we can access the logger via cls.logger and cls().logger
+    # Making this attribute a property also avoids pickling errors since
+    # `logging.Logger` cannot be picked
+
+    def __init__(self, namespace_depth=1):
+        self.namespace_depth = int(namespace_depth)
+
+    def __get__(self, obj, kls=None):
+        return logging.getLogger(self.get_log_name(kls or type(obj)))
+
+    @ftl.lru_cache
+    def get_log_name(self, kls):
+        return get_class_name(kls, self.namespace_depth)
+
+
+class LoggingMixin:
     """
     Mixin class that exposes the `logger` attribute for the class which is an
     instance of python's build in `logging.Logger`.  Allows for easy
@@ -54,30 +76,11 @@ class LoggingMixin(object):
     >>> class Sample(LoggingMixin):
             def __init__(self):
                 self.logger.debug('Initializing')
-    
+
     >>> from sample import Sample
     >>> Sample.logger.setLevel(logging.debug)
     """
-    _show_module_depth = 1  # eg:. foo.sub.Klass #for depth of 2
-
-    # use `ClassProperty` decorator so we can access via cls.name and cls().name
-    # Making this attribute a property also avoids pickling errors since
-    # `logging.Logger` cannot be picked
-    @ClassProperty
-    @classmethod
-    # @memoize
-    def log_name(cls):
-        parts = cls.__module__.split('.') + [cls.__name__]
-        parts = parts[-cls._show_module_depth - 1:]
-        name = '.'.join(filter(None, parts))
-        return name
-
-    # making the logger a property avoids pickling error for inherited classes
-    @ClassProperty
-    @classmethod
-    # @memoize
-    def logger(cls):
-        return logging.getLogger(cls.log_name)
+    logger = LoggingDescriptor()
 
 
 class catch_and_log(DecoratorBase, LoggingMixin):
@@ -99,11 +102,9 @@ class catch_and_log(DecoratorBase, LoggingMixin):
 
     def __call__(self, *args, **kws):
         try:
-            result = self.func(*args, **kws)
-            return result
+            return self.func(*args, **kws)
         except Exception as err:
-            self.logger.exception(
-                '%s' % str(args))  # logs full trace by default
+            self.logger.exception('%s' % str(args))
 
 
 # class MultilineIndenter(logging.LoggerAdapter):

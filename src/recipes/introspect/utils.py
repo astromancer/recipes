@@ -113,6 +113,27 @@ def get_module_name(obj=None, depth=None):
 #     return name.split('.', name.count('.') - depth)[-1]
 
 
+def get_class_name(obj, depth=None):
+    """
+    Get the fully (or partially) qualified (dot-separated) name of an object and
+    its parent (sub)modules and/or package.
+
+    Parameters
+    ----------
+    obj : object
+        The object to be named
+    depth : int, optional
+        Namespace depth, by default None.
+        # eg:. foo.sub.Klass #for depth of 2
+
+    Examples
+    --------
+    >>> 
+    """
+    kls = obj if isinstance(obj, type) else type(obj)
+    return '.'.join((get_module_name(kls, depth), kls.__name__))
+
+
 def get_class_that_defined_method(method):
     # source: https://stackoverflow.com/questions/3589311/#25959545
 
