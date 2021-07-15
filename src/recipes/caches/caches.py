@@ -1,27 +1,29 @@
 # import functools as ftl
+
+# std libs
+import json
+from pathlib import Path
 from collections import OrderedDict as odict
 
-# from .caches import Cache
-from ..io import serialize, deserialize, guess_format
-# from pickle import PicklingError
-# import warnings
-from pathlib import Path
+# relative libs
 from ..logging import LoggingMixin
-import json
-# import re
+from ..io import serialize, deserialize, guess_format
 
-# TOOD: serializing the Cache class is error prone and hard to maintain. 
+
+# TOOD: serializing the Cache class is error prone and hard to maintain.
 # Better to simply serialize the dict and init the cache from that??
 
 # TODO: sqlite, yaml, dill
 
 # ------------------------------- json helpers ------------------------------- #
 
+
 def lists_to_tuples(item):
     if isinstance(item, list):
         # recurse
         return tuple(map(lists_to_tuples, item))
     return item
+
 
 class CacheEncoder(json.JSONEncoder):
     """
@@ -38,7 +40,7 @@ class CacheEncoder(json.JSONEncoder):
             # print('SAVE!', obj)
             return super().encode(
                 {obj.__class__.__name__: obj.__dict__,
-                 'items': list(obj.items())}) # FIXME: dict!!
+                 'items': list(obj.items())})  # FIXME: dict!!
             # note json does not support tuples, so hashability is lost here
         return super().encode(obj)
 
@@ -127,9 +129,8 @@ class CacheMeta(type):
 
         # if we get here, the cache is either in RAM, or requested on disk but
         # non-existent (new cache)
-        cache = type.__call__(kls, capacity, filename)  # .
-        return cache
-
+        return type.__call__(kls, capacity, filename)  # .
+        
 
 class Cache(LoggingMixin, metaclass=CacheMeta):
     """
@@ -271,7 +272,6 @@ class Cache(LoggingMixin, metaclass=CacheMeta):
 #     connects the cache with the function so we can more easily add cache items
 #     manually
 #     def __init__(self, func):
-
 
 
 class LRUCache(Cache, odict):

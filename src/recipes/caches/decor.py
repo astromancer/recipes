@@ -1,20 +1,20 @@
 """
-Memoization classes
+Memoization decorators and helpers
 """
 
 
+# std libs
 import types
-import functools as ftl
-from pathlib import Path
 import warnings
-
-from .caches import Cache
-# from .persistence import PersistantCache
-from ..logging import LoggingMixin
-# from ..interactive import exit_register
-
+import functools as ftl
 from collections import abc
 from inspect import signature, _empty, _VAR_KEYWORD
+
+# relative libs
+from .caches import Cache
+from ..logging import LoggingMixin
+
+# from ..interactive import exit_register
 
 
 def check_hashable_defaults(func):
@@ -35,7 +35,7 @@ def check_hashable_defaults(func):
 
 def generate_key(sig, args, kws):
     """
-    Generate name, value pairs that will be used as a unique key 
+    Generate name, value pairs that will be used as a unique key
     for caching the return values.
     """
     bound = sig.bind(*args, **kws)
@@ -70,7 +70,7 @@ class Cached(LoggingMixin):  # Cached
         : When used to decorate a class, the `__new__` constructor is
           automatically  decorated so that instances of the class get memoized.
 
-    TODOs: 
+    TODOs:
         probably not thread safe. not yet tested
         some stats like ftl.lru_cache
         limit capacity in MB
@@ -109,7 +109,7 @@ class Cached(LoggingMixin):  # Cached
         """
         self.func = None
         self.sig = None
-        self._init_args = (filename, capacity, kind)
+        self.__init_args = (filename, capacity, kind)
         self.cache = Cache(capacity, filename, kind=kind)
 
     def __call__(self, func):
@@ -126,15 +126,15 @@ class Cached(LoggingMixin):  # Cached
             # eval(f'global {name}')
 
             class _Cached:   # FIXME: this local object cannot be pickled
-                @self.__class__(*self._init_args)
+                @self.__class__(*self.__init_args)
                 def __new__(cls, *args, **kws):
                     # print('NEW!!!')
                     obj = super().__new__(cls)
-                    obj._init_args = args
+                    obj.__init_args = args
                     return obj
 
                 # def __reduce__(self):
-                #     return func, self._init_args
+                #     return func, self.__init_args
 
             return type(f'Cached{func.__name__}', (_Cached, func), {})
 
@@ -170,18 +170,22 @@ class Cached(LoggingMixin):  # Cached
         return tuple(generate_key(self.sig, args, kws))
 
     def memoize(self, *args, **kws):
-        """caches the result of the function call"""
-
+        """
+        Caches the result of the function call
+        """
+        func = self.func
         key = self.get_key(*args, **kws)
         params = zip(self.sig.parameters, key)
         for name, val in params:
             if not isinstance(val, abc.Hashable):
-                warnings.warn(
-                    'Refusing to cache return value due to unhashable argument '
-                    f'in {self.func.__class__.__name__} {self.func.__name__!r}:'
-                    f' {name!r} = {val!r}')
+                silent = isinstance(val, Ignore) and val.silent
+                if not silent:
+                    warnings.warn(
+                        f'Refusing to cache return value due to unhashable '
+                        f'argument in {func.__class__.__name__} '
+                        f'{func.__name__!r}: {name!r} = {val!r}')
                 #
-                return self.func(*args, **kws)
+                return func(*args, **kws)
 
             # even though we have hashable types for our function arguments, the
             # actual hashing might not still work, so we catch any potential
@@ -191,10 +195,10 @@ class Cached(LoggingMixin):  # Cached
             except TypeError as err:
                 warnings.warn(
                     f'Hashing failed for '
-                    f'{self.func.__class__.__name__} {self.func.__name__!r}: '
+                    f'{func.__class__.__name__} {func.__name__!r}: '
                     f'{name!r} = {val!r} due to:\n{err!s}')
                 #
-                return self.func(*args, **kws)
+                return func(*args, **kws)
 
         # if we are here, we should be ok to lookup / cache the answer
         if key in self.cache:
@@ -216,6 +220,14 @@ class to_file(Cached):
     def __init__(self, filename, capacity=128, kind='lru'):
         # this here simply to make `filename` a required arg
         Cached.__init__(self, filename, capacity, kind)
+
+
+class Ignore:
+    def __init__(self, silent=False):
+        self.silent = bool(silent)
+
+    def __hash__(self):
+        pass
 
 
 # aliases
