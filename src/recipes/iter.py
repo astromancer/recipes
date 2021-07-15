@@ -3,7 +3,6 @@ Common patterns involving iterables
 """
 
 
-
 # std libs
 import numbers
 import itertools as itt
@@ -260,3 +259,11 @@ def duplicates(l):
     for key, idx in unique(l).items():
         if len(idx) > 1:
             yield key, idx
+
+
+def iter_repeat_last(it):
+    """
+    Yield items from the input iterable and repeat the last item indefinitely
+    """
+    it, it1 = itt.tee(mit.always_iterable(it))
+    return mit.padded(it, next(mit.tail(1, it1)))
