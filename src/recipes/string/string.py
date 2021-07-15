@@ -42,7 +42,7 @@ class Percentage:
         else:
             raise ValueError(
                 f'Could not find a percentage value in the string {s!r}'
-                )
+            )
 
     def __repr__(self):
         return f'Percentage({self.frac:.2%})'
@@ -126,7 +126,7 @@ def sub(string, mapping=(), **kws):
     okeys, ovals = cosort(
         *zip(*mapping.items()),
         key=lambda x: op.any(keys - {x}, op.contained(x).within)
-        )
+    )
     good = dict(zip(okeys, ovals))
     tmp = {}
     for key in okeys:
@@ -168,6 +168,13 @@ def title(string, ignore=()):
     subs = {f'{s.title()} ': f'{s} ' for s in ignore}
     return sub(string.title(), subs)
 
+
+def snake_case(string):
+    new, _ = re.subn('([A-Z])', r'_\1', string)
+    return new.lstrip('_').lower()
+
+def pascal_case(string):
+    return string.replace('_', ' ').title().replace(' ', '')
 
 def remove_affix(string, prefix='', suffix=''):
     for i, affix in enumerate((prefix, suffix)):
@@ -316,13 +323,8 @@ def banner(text, swoosh='=', width=80, title=None, align='^'):
     """
 
     swoosh = swoosh * width
-    if title is None:
-        pre = swoosh
-    else:
-        pre = overlay(' ', swoosh, align)
-
-    banner = os.linesep.join((pre, text, swoosh, ''))
-    return banner
+    pre = swoosh if title is None else overlay(' ', swoosh, align)
+    return os.linesep.join((pre, text, swoosh, ''))
 
 
 def overlay(text, background='', alignment='^', width=None):
