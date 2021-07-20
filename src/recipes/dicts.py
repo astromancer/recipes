@@ -273,15 +273,26 @@ class AttrReadItem(AttrBase):
 
 class AttrDict(AttrBase):
     """dict with key access through attribute lookup"""
+
+    # pros: IDE autocomplete works on keys
+    # cons: clobbers build in methods like `keys`, `items` etc...
+    #     : inheritance: have to init this superclass before all others
     # FIXME: clobbers build in methods like `keys`, `items` etc...
     # check: dict.__dict__
+
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
-        # pros: IDE autocomplete works on keys
-        # cons: clobbers build in methods like `keys`, `items` etc...
-        #     : inheritance: have to init this superclass before all others
 
+    def __setstate__(self, state):
+        self.__dict__ = self
+        return state
+    
+    # def __reduce__(self):
+    #     print('REDUCE! ' * 20)
+    #     return dict, ()
+    
 
 class OrderedAttrDict(OrderedDict, AttrBase):
     """dict with key access through attribute lookup"""
