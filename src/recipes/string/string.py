@@ -237,7 +237,8 @@ def surround(string, wrappers):
     return left + string + right
 
 
-def indent(string, width):
+def indent(string, width=4):
+    # indent `width` number of spaces
     return string.replace('\n', '\n' + ' ' * width)
 
 
