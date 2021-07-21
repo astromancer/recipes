@@ -155,12 +155,20 @@ class Cache(LoggingMixin, metaclass=CacheMeta):
         self.filename = str(filename) if filename else None
         # self.logger.debug(self.__name__, f'{capacity=}; {filename=}')
 
+        # if caching to disc and file exists, flag that we need to load it
+        self.stale = bool(self.filename) and self.path.exists()
+
+    @property
+    def filename(self):
+        return self._filename
+
+    @filename.setter
+    def filename(self, filename):
+        self._filename = str(filename) if filename else None
+        
         if self.path and not self.path.parent.exists():
             raise ValueError(f'Parent folder does not exist: '
                              f'{self.path.parent}')
-
-        # if caching to disc and file exists, flag that we need to load it
-        self.stale = bool(self.filename) and self.path.exists()
 
     @property
     def path(self):
@@ -324,7 +332,7 @@ class LRUCache(Cache, odict):
 
     def __str__(self):
         return Cache.__str__(self)
-    
+
     def get(self, key, default=None):
         if key in self:
             return self[key]
