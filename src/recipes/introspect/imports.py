@@ -42,10 +42,7 @@ LOCAL_MODULES = LOCAL_MODULES_DB.read_text().splitlines()
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: too many blank lines after module docstring
 # FIXME: from recipes.oo import SelfAware, meta # where meta is unused!
-# FIXME: this weird gotcha:
-# import logging
-# import logging.config # THIS WILL GET REMOVED!
-# logging.config
+
 
 # TODO: unit tests!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # TODO: local import that are already in global namespace
@@ -563,7 +560,7 @@ def remove_unused_names(node, unused):
     while i < j:
         alias = node.names[i]
         if (alias.asname in unused) or (alias.name in unused):
-            r = node.names.pop(i)
+            node.names.pop(i)
             # print('removing', r.name, r.asname, 'since',
             #       ['alias.asname in unused',
             #        'alias.name in unused'][(alias.name in unused)])
@@ -686,8 +683,7 @@ class ImportCapture(ast.NodeTransformer):
         module = self.generic_visit(node)
 
         if self.filter_unused is None:
-            self.filter_unused = \
-                (self.up_to_line == math.inf) and self.used_names
+            self.filter_unused = (self.up_to_line == math.inf) and self.used_names
 
         if self.filter_unused and not self.used_names:
             wrn.warn(
@@ -714,11 +710,11 @@ class ImportCapture(ast.NodeTransformer):
                 if len(unused) == len(child.names):
                     continue  # this statement not captured ie. removed
 
-                if len(unused) < len(child.names):
+                if len(unused) < len(child.names) \
+                        and isinstance(child, ast.ImportFrom):
                     # deal with `from x.y import a, b, c`
                     # style imports where some imported names are unused
-                    if isinstance(child, ast.ImportFrom):
-                        remove_unused_names(child, unused)
+                    remove_unused_names(child, unused)
 
             # print('append', child)
             new_body.append(child)
@@ -771,4 +767,10 @@ class ImportCapture(ast.NodeTransformer):
 
     def visit_Name(self, node):
         self.used_names.add(node.id)
+        return node
+
+    def visit_Attribute(self, node):
+        node = self.generic_visit(node)
+        if isinstance(node.value, ast.Name):
+            self.used_names.add(f'{node.value.id}.{node.attr}')
         return node
