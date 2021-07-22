@@ -33,6 +33,7 @@ builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs + unlisted
 
 # internal sorting codes
 MODULE_GROUP_NAMES = ['std', 'third-party', 'local', 'relative']
+GROUP_NAME_SUFFIX = 'libs'
 
 # list of local module names
 LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
@@ -179,7 +180,7 @@ class Node(anytree.Node):  # ImportNode
             w = ws - len(pre)
             print(f'{pre}{stm: >{w + len(stm)}s}')
 
-    def gen_lines(self, headers=True, suffix='libs'):
+    def gen_lines(self, headers=True, suffix=GROUP_NAME_SUFFIX):
         for pre, _, node in anytree.RenderTree(self, childiter=sort_nodes):
             lvl = len(pre) // 4
             if lvl == 1 and headers:
@@ -512,7 +513,7 @@ def excision_flagger(lines, line_nrs):
     # FIXME: ValueError: max() arg is an empty sequence
     for ln in (set(range(search_depth)) - set(cutLines)):
         line = lines[ln]
-        if line.startswith('# ') and line.strip().endswith('libs'):
+        if line.startswith('# ') and line.strip().endswith(GROUP_NAME_SUFFIX):
             cutLines.append(ln)
 
     return sorted(cutLines), is_multiline
