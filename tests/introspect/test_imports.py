@@ -49,23 +49,30 @@ def test_merge_import_lines():
 
 def test_relative_imports():
     code = source("""
-    from .. import CompoundModel, FixedGrid
-    
-    class MyModel(FixedGrid, CompoundModel):
-        pass
-    """)
+        from .. import shocCampaign, shocHDU
+        from .calibrate import calibrate
+        from . import logs, WELCOME_BANNER
+        from . import FolderTree
+        """)
+
+    expected = source("""
+        from .calibrate import calibrate
+        from .. import shocCampaign, shocHDU
+        from . import logs, WELCOME_BANNER, FolderTree
+        """)
+
+    assert expected == tidy_source(code, filter_unused=False)
 
 
-class TestFilter:
-    def test_filter(self):
-        code = source("""
+def test_filter():
+    code = source("""
             import logging
             import logging.config
             
             logging.config.dictConfig({})
             """)
 
-        assert code == tidy_source(code, filter_unused=True)
+    assert code == tidy_source(code, filter_unused=True)
 
 # def test_capture_line_limit():
 #     imp = ImportCapture(filter_unused=False)
@@ -79,6 +86,7 @@ class TestFilter:
 #  test_multiline_imports
 #  test_keep_comments
 #  test_style_preference
+
 
 def test_example():
     answer = tidy(HERE / 'example.py', dry_run=True)

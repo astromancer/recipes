@@ -71,12 +71,12 @@ def is_local(name):
 #     return ('dist-packages' in spec.origin) or ('site-packages' in spec.origin)
 
 
-def isAnyImport(st):
+def is_import_node(st):
     return isinstance(st, (ast.ImportFrom, ast.Import))
 
 
 def get_module_typecode(module_name):
-    if isAnyImport(module_name):
+    if is_import_node(module_name):
         module_name = get_module_names(module_name, depth=0)
 
     if is_builtin(module_name):
@@ -579,14 +579,17 @@ def merge_duplicates(stm):
     r = []
     prev = None
     for i, st in enumerate(stm):
-        if i and isinstance(st, ast.ImportFrom) and \
-                isinstance(prev, ast.ImportFrom) and \
-                (st.module == prev.module):
+        if (i and
+            set(map(type, (st, prev))) == {ast.ImportFrom} and
+            st.module == prev.module and
+            st.level == prev.level
+            ):
+
             names = {_.name for _ in prev.names}
             for alias in st.names:
                 if alias.name not in names:
                     prev.names.append(alias)
-            continue
+                continue
 
         r.append(st)
         prev = st
@@ -683,7 +686,8 @@ class ImportCapture(ast.NodeTransformer):
         module = self.generic_visit(node)
 
         if self.filter_unused is None:
-            self.filter_unused = (self.up_to_line == math.inf) and self.used_names
+            self.filter_unused = (
+                self.up_to_line == math.inf) and self.used_names
 
         if self.filter_unused and not self.used_names:
             wrn.warn(
@@ -699,7 +703,7 @@ class ImportCapture(ast.NodeTransformer):
         i = -1
         for child in module.body:
             # filter everything that is not an import statement
-            if isAnyImport(child):
+            if is_import_node(child):
                 i += 1
             else:
                 continue
