@@ -232,9 +232,10 @@ def shared_affix(strings, pre_stops='', post_stops=''):
     return prefix, suffix
 
 
-def surround(string, wrappers):
-    left, right = wrappers
-    return left + string + right
+def surround(string, left, right=None, sep=''):
+    if not right:
+        right = left
+    return sep.join((left, string, right))
 
 
 def indent(string, width=4):
