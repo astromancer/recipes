@@ -4,7 +4,6 @@ Memoization decorators and helpers
 
 
 # std libs
-import types
 import warnings
 import functools as ftl
 from collections import abc
@@ -17,6 +16,10 @@ from ..logging import LoggingMixin
 # from ..interactive import exit_register
 
 
+def fullname(func):
+    return f'{func.__class__.__name__} {func.__name__!r}'
+
+
 def check_hashable_defaults(func):
     sig = signature(func)
     for name, p in sig.parameters.items():
@@ -27,8 +30,8 @@ def check_hashable_defaults(func):
             continue
 
         raise TypeError(
-            f'{func.__class__.__name__} {func.__name__!r} has default value '
-            f'for {p.kind} parameter {name} = {p.default} that is not hashable.'
+            f'{fullname(func)} has default value for {p.kind} parameter {name}'
+            f' = {p.default} that is not hashable.'
         )
     return sig
 
@@ -54,7 +57,7 @@ def generate_key(sig, args, kws):
             yield tuple(zip(keys, map(kws.get, keys)))
 
 
-class Cached(LoggingMixin):  # CachedCaller
+class Cached(LoggingMixin):
     """
     Decorator for memoization on callable objects
 
@@ -79,7 +82,7 @@ class Cached(LoggingMixin):  # CachedCaller
         more cache types
 
     """
-    
+
     def __init__(self, filename=None, capacity=128, kind='lru'):
         """
         Example:
@@ -91,21 +94,21 @@ class Cached(LoggingMixin):  # CachedCaller
 
         >>> foo(6)
         >>> print(foo.__cache__)
-            LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
+        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
 
         >>> foo([1], [0])
-            UserWarning: Refusing memoization due to unhashable argument passed
-            to function 'foo': 'a' = [1]
+        UserWarning: Refusing memoization due to unhashable argument passed
+        to function 'foo': 'a' = [1]
 
         >>> print(foo.cache)
-            LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
-            # cache unchanged
+        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
+        # cache unchanged
 
         >>> foo(6, hello='world')
         >>> print(foo.cache)
-            LRUCache([((('a', 6), ('b', 0), ('c', ())), 42),
-                      ((('a', 6), ('b', 0), ('c', ()), ('hello', 'world')), 42)])
-            # new cache entry for keyword arguments
+        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42),
+                    ((('a', 6), ('b', 0), ('c', ()), ('hello', 'world')), 42)])
+        # new cache entry for keyword arguments
         """
         self.func = None
         self.sig = None
@@ -158,14 +161,14 @@ class Cached(LoggingMixin):  # CachedCaller
         return tuple(generate_key(self.sig, args, kws))
 
     def is_hashable(self, key):
-        for name, val in  zip(self.sig.parameters, key):
+        for name, val in zip(self.sig.parameters, key):
             if not isinstance(val, abc.Hashable):
                 silent = isinstance(val, Ignore) and val.silent
                 if not silent:
                     warnings.warn(
                         f'Refusing to cache return value due to unhashable '
-                        f'argument in {self.func.__class__.__name__} '
-                        f'{self.func.__name__!r}: {name!r} = {val!r}')
+                        f'argument in {fullname(self.func)}: {name!r} = {val!r}'
+                    )
                 #
                 return False
 
@@ -176,10 +179,9 @@ class Cached(LoggingMixin):  # CachedCaller
                 hash(val)
             except TypeError as err:
                 warnings.warn(
-                    f'Hashing failed for '
-                    f'{func.__class__.__name__} {func.__name__!r}: '
-                    f'{name!r} = {val!r} due to:\n{err!s}'
-                    )
+                    f'Hashing failed for {fullname(self.func)}: {name!r} = '
+                    f'{val!r} due to:\n{err!s}'
+                )
                 #
                 return False
         return True
@@ -196,22 +198,28 @@ class Cached(LoggingMixin):  # CachedCaller
         # load the cached values from file
         # if self.cache is None:
         #     self.cache = Cache.load(self.__init_args[0])
-        
-        # if we are here, we should be ok to lookup / cache the answer
-        if key in self.cache:
-            self.logger.debug('Loading result from cache for call to %s %r.',
-                              self.func.__class__.__name__, self.func.__name__)
-            return self.cache[key]
 
+        try:
+            # if we are here, we should be ok to lookup / cache the answer
+            if key in self.cache:
+                self.logger.debug('Loading result from cache for call to %s.',
+                                  fullname(self.func))
+                return self.cache[key]
+        except Exception as err:
+            self.logger.exception('Cache lookup failed!')
+            # since caching is not mission critical, re-run the function
+            return self.func(*args, **kws)
+        
         # add result to cache
         self.cache[key] = answer = self.func(*args, **kws)
         return answer
-
-
-class ConstructorCache:
-    def __new__(self, kls, *args, **kws):
-        self.kls = kls
         
+
+
+# class ConstructorCache:
+#     def __new__(self, kls, *args, **kws):
+#         self.kls = kls
+
 
 # , monkey patch the
 # constructor so the entire class gets cached!
