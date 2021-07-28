@@ -4,7 +4,6 @@ Memoization decorators and helpers
 
 
 # std libs
-import types
 import warnings
 import functools as ftl
 from collections import abc
@@ -17,6 +16,10 @@ from ..logging import LoggingMixin
 # from ..interactive import exit_register
 
 
+def fullname(func):
+    return f'{func.__class__.__name__} {func.__name__!r}'
+
+
 def check_hashable_defaults(func):
     sig = signature(func)
     for name, p in sig.parameters.items():
@@ -27,8 +30,8 @@ def check_hashable_defaults(func):
             continue
 
         raise TypeError(
-            f'{func.__class__.__name__} {func.__name__!r} has default value '
-            f'for {p.kind} parameter {name} = {p.default} that is not hashable.'
+            f'{fullname(func)} has default value for {p.kind} parameter {name}'
+            f' = {p.default} that is not hashable.'
         )
     return sig
 
@@ -54,7 +57,7 @@ def generate_key(sig, args, kws):
             yield tuple(zip(keys, map(kws.get, keys)))
 
 
-class Cached(LoggingMixin):  # Cached
+class Cached(LoggingMixin):
     """
     Decorator for memoization on callable objects
 
@@ -90,22 +93,22 @@ class Cached(LoggingMixin):  # Cached
                 return a * 7 + b
 
         >>> foo(6)
-        >>> print(foo.cache)
-            LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
+        >>> print(foo.__cache__)
+        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
 
         >>> foo([1], [0])
-            UserWarning: Refusing memoization due to unhashable argument passed
-            to function 'foo': 'a' = [1]
+        UserWarning: Refusing memoization due to unhashable argument passed
+        to function 'foo': 'a' = [1]
 
         >>> print(foo.cache)
-            LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
-            # cache unchanged
+        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
+        # cache unchanged
 
         >>> foo(6, hello='world')
         >>> print(foo.cache)
-            LRUCache([((('a', 6), ('b', 0), ('c', ())), 42),
-                      ((('a', 6), ('b', 0), ('c', ()), ('hello', 'world')), 42)])
-            # new cache entry for keyword arguments
+        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42),
+                    ((('a', 6), ('b', 0), ('c', ()), ('hello', 'world')), 42)])
+        # new cache entry for keyword arguments
         """
         self.func = None
         self.sig = None
@@ -118,31 +121,18 @@ class Cached(LoggingMixin):  # Cached
         """
 
         # check func
-        if isinstance(func, type):
-            # if the decorator is applied to a class, monkey patch the
-            # constructor so the entire class gets cached!
+        # if isinstance(func, type):
+        #     # if the decorator is applied to a class
+        #     if self.cache.filename and self.cache.path.suffix == '.json':
+        #         raise ValueError('Classes are not serializable')
 
-            # name = f'Cached{func.__name__}'
-            # eval(f'global {name}')
+        #     return type(f'Cached{func.__name__}', (_Cached, func), {})
 
-            class _Cached:   # FIXME: this local object cannot be pickled
-                @self.__class__(*self.__init_args)
-                def __new__(cls, *args, **kws):
-                    # print('NEW!!!')
-                    obj = super().__new__(cls)
-                    obj.__init_args = args
-                    return obj
-
-                # def __reduce__(self):
-                #     return func, self.__init_args
-
-            return type(f'Cached{func.__name__}', (_Cached, func), {})
-
-        # hopefully we have a function or a method!
-        assert isinstance(func, (types.MethodType,
-                                 types.FunctionType,
-                                 types.BuiltinFunctionType,
-                                 types.BuiltinMethodType))
+        # # hopefully we have a function or a method!
+        # assert isinstance(func, (types.MethodType,
+        #                          types.FunctionType,
+        #                          types.BuiltinFunctionType,
+        #                          types.BuiltinMethodType))
 
         # check for non-hashable defaults: it is generally impossible to
         #  correctly memoize something that depends on non-hashable arguments
@@ -157,8 +147,9 @@ class Cached(LoggingMixin):  # Cached
             return self.memoize(*args, **kws)
 
         # make a reference to the cache on the decorated function for
-        # convenience
-        decorated.cache = self.cache
+        # convenience. this will allow us to more easily add cache items
+        # manually etc.
+        decorated.__cache__ = self.cache  # OR decorated.__cache__??
         # hack so we can access the inners of this class from the decorated
         # function returned here
         # `decorated.__self__.attr`.
@@ -169,23 +160,17 @@ class Cached(LoggingMixin):  # Cached
         """Create cache key from passed function parameters"""
         return tuple(generate_key(self.sig, args, kws))
 
-    def memoize(self, *args, **kws):
-        """
-        Caches the result of the function call
-        """
-        func = self.func
-        key = self.get_key(*args, **kws)
-        params = zip(self.sig.parameters, key)
-        for name, val in params:
+    def is_hashable(self, key):
+        for name, val in zip(self.sig.parameters, key):
             if not isinstance(val, abc.Hashable):
                 silent = isinstance(val, Ignore) and val.silent
                 if not silent:
                     warnings.warn(
                         f'Refusing to cache return value due to unhashable '
-                        f'argument in {func.__class__.__name__} '
-                        f'{func.__name__!r}: {name!r} = {val!r}')
+                        f'argument in {fullname(self.func)}: {name!r} = {val!r}'
+                    )
                 #
-                return func(*args, **kws)
+                return False
 
             # even though we have hashable types for our function arguments, the
             # actual hashing might not still work, so we catch any potential
@@ -194,21 +179,64 @@ class Cached(LoggingMixin):  # Cached
                 hash(val)
             except TypeError as err:
                 warnings.warn(
-                    f'Hashing failed for '
-                    f'{func.__class__.__name__} {func.__name__!r}: '
-                    f'{name!r} = {val!r} due to:\n{err!s}')
+                    f'Hashing failed for {fullname(self.func)}: {name!r} = '
+                    f'{val!r} due to:\n{err!s}'
+                )
                 #
-                return func(*args, **kws)
+                return False
+        return True
 
-        # if we are here, we should be ok to lookup / cache the answer
-        if key in self.cache:
-            self.logger.debug('Loading result from cache for call to %s %r.',
-                              self.func.__class__.__name__, self.func.__name__)
-            return self.cache[key]
+    def memoize(self, *args, **kws):
+        """
+        Caches the result of the function call
+        """
+        func = self.func
+        key = self.get_key(*args, **kws)
+        if not self.is_hashable(key):
+            return func(*args, **kws)
 
+        # load the cached values from file
+        # if self.cache is None:
+        #     self.cache = Cache.load(self.__init_args[0])
+
+        try:
+            # if we are here, we should be ok to lookup / cache the answer
+            if key in self.cache:
+                self.logger.debug('Loading result from cache for call to %s.',
+                                  fullname(self.func))
+                return self.cache[key]
+        except Exception as err:
+            self.logger.exception('Cache lookup failed!')
+            # since caching is not mission critical, re-run the function
+            return self.func(*args, **kws)
+        
         # add result to cache
         self.cache[key] = answer = self.func(*args, **kws)
         return answer
+        
+
+
+# class ConstructorCache:
+#     def __new__(self, kls, *args, **kws):
+#         self.kls = kls
+
+
+# , monkey patch the
+# constructor so the entire class gets cached!
+
+# name = f'Cached{func.__name__}'
+# eval(f'global {name}')
+
+# class _Cached:   # FIXME: this local object cannot be pickled
+#     @self.__class__(*self.__init_args)
+#     def __new__(cls, *args, **kws):
+#         # print('NEW!!!')
+#         obj = super().__new__(cls)
+#         obj.__init_args = args
+#         return obj
+
+#     # def __reduce__(self):
+#     #     return func, self.__init_args
 
 
 class to_file(Cached):
