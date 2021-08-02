@@ -59,8 +59,9 @@ def cache_decoder(mapping):
         kls = Cache.types_by_name().get(name)
         if kls:
             # avoid infinite recursion by removing the filename parameter
-            filename = mapping[name].pop('filename')
+            filename = mapping[name].pop('_filename')
             obj = Cache(**mapping[name])
+            
             # since json convert all tuples to list, we have to remap
             # to tuples
             # obj.update(mapping['cached'])
