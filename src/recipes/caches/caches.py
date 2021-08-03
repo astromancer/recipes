@@ -1,4 +1,3 @@
-# import functools as ftl
 
 # std libs
 import json
@@ -145,7 +144,7 @@ class CacheMeta(type):
         return type.__call__(kls, capacity, filename)  # .
 
 
-class Cache(LoggingMixin, metaclass=CacheMeta):
+class Cache(LoggingMixin, metaclass=CacheMeta):  # CacheManager?
     """
     A cache that optionally persists on disk
     """
@@ -237,12 +236,12 @@ class Cache(LoggingMixin, metaclass=CacheMeta):
         Parameters
         ----------
         filename : str
-            File system path to the cache location
+            File system path to the cache location.
 
         Returns
         -------
         Cache
-            A cache of the desired type
+            A cache with the desired replacement policy.
 
         Raises
         ------

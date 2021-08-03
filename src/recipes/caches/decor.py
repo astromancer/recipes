@@ -3,16 +3,16 @@ Memoization decorators and helpers
 """
 
 
-
-
 # std libs
+import numbers
 import warnings
 import functools as ftl
 from collections import abc
 from inspect import signature, _empty, _VAR_KEYWORD
 
 # local libs
-from recipes.functionals import negate, echo0
+from recipes.functionals import echo0
+from recipes.string import named_items
 
 # relative libs
 from .caches import Cache
@@ -42,44 +42,73 @@ def check_hashable_defaults(func):
     return sig
 
 
-def check_hash_map(mapping):
-    hash_map = dict(mapping)
-    bad = next(filter(negate(callable), hash_map.values()), None)
-    if bad:
-        raise TypeError(f'Hashing functions should be callable, received '
-                        f'{type(bad).__name__}')
-    return hash_map
+def _check_hashers(mapping, ignore=()):
+    typed = _ignore_params(dict(mapping), ignore)
+    for f in typed.values():
+        if isinstance(f, Ignore):
+            continue
+
+        if not callable(f):
+            raise TypeError(f'Hashing functions should be callable, received '
+                            f'{type(f).__name__}.')
+    return typed
+
+
+def _ignore_params(typed, ignore=()):
+    if not ignore:
+        return typed
+
+    if isinstance(ignore, str):
+        ignore = [ignore]
+
+    for name in ignore:
+        func = typed.pop(name, Ignore(name))
+        if isinstance(func, Ignore):
+            typed[name] = func
+            continue
+
+        raise ValueError(f'Ambiguity for parameter {name}: Asked to ignore, '
+                         'but also appears in `typed` mapping.')
+
+    return typed
+
+
+# class HashableParameters():
+#     def __hash__(self):
 
 
 class Cached(LoggingMixin):
     """
-    Decorator for memoization on callable objects
+    Decorator for memoization on callable objects.
 
     Features:
-        : keyword support
-        : cache contents can be viewed transparently as the `cache` attribute on
-          the decorated function
-        : Raises when attempting to decorate a function with non-hashable
-          default arguments
-        : When non-hashable arguments are passed to a decorated function, a
-          warning is emitted and the caching is merely skipped instead of
-          raising a TypeError
-        : When used to decorate a class, the `__new__` constructor is
-          automatically  decorated so that instances of the class get memoized.
+        : Keyword parameters fully supported.
+        : Works on any picklable callable.
+        : Optional type coercion (typing) for parameter values prior to caching.
+        : Conditionally ignore specific parameters, or entirely reject an entry,
+          based on user provided conditionals.
+        : Cache contents can be viewed transparently as the `__cache__`
+          attribute on the decorated function.
+        : Gracefully handle any exceptions that happen on attempted cache
+          insertion, for example: When attempting to cache a call that has
+          non-hashable parameter values, a informative warning is emitted and 
+          the caching is merely skipped instead of raising a TypeError.
+        : Raises TypeError when attempting to decorate a function with
+          non-hashable default arguments.
 
     TODOs:
-        probably not thread safe. not yet tested
+        not thread safe. 
         some stats like ftl.lru_cache
         limit capacity in MB
-        format json / pkl
-        optional ignore keywords
+        more serialization formats
         more cache types
 
     """
 
-    def __init__(self, filename=None, capacity=128, kind='lru', hash_map=()):
+    def __init__(self, filename=None, capacity=128, kind='lru', ignore=(),
+                 typed=()):
         """
-        A general purpose function memoizer cache.
+        A general purpose function memoizer.
 
         Parameters
         ----------
@@ -90,15 +119,17 @@ class Cached(LoggingMixin):
             Size limit in number of items, by default 128.
         kind : str, optional
             Replacent policy, by default 'lru'. Currently only lru support.
-        hash_map : dict, optional
+        ignore : collection of str
+            Parameter names that will be ignored when computing the hash key.
+        typed : dict, optional
             Dictionary mapping parameters to callable, by default (). These are
             the hash functions for each parameter. ie. Each function will be
             called to get the cache key for that parameter. The final key for
             the cache entry is a tuple of the individual parameter keys,
             including any keywords passed to the function. Parameters can be
-            given in the `hash_map` by their name, or position (int) for
+            given in the `typed` by their name, or position (int) for
             position-only or positional-or-keyword parameters. If a parameter is
-            not found in the `hash_map`, we default to the builtin hash
+            not found in the `typed`, we default to the builtin hash
             mechanism.
 
         Examples
@@ -131,7 +162,7 @@ class Cached(LoggingMixin):
         """
         self.func = None
         self.sig = None
-        self.hash_map = check_hash_map(hash_map)
+        self.typed = _check_hashers(typed, ignore)
         self.__init_args = (filename, capacity, kind)
         self.cache = Cache(capacity, filename, kind=kind)
 
@@ -156,12 +187,16 @@ class Cached(LoggingMixin):
 
         # check for non-hashable defaults: it is generally impossible to
         #  correctly memoize something that depends on non-hashable arguments
-        
+
         self.func = func
         self.sig = check_hashable_defaults(func)
 
+        # resolve typed keys to parameter names
+        self.resolve_types(self.typed)
+
         # since functools.wraps does not work on methods, explicitly decalare
         # decorated function here
+
         @ftl.wraps(func)
         def decorated(*args, **kws):
             return self.memoize(*args, **kws)
@@ -176,6 +211,23 @@ class Cached(LoggingMixin):
         decorated.__self__ = self
         return decorated
 
+    def resolve_types(self, mapping):
+        names = list(self.sig.parameters.keys())
+        key_types = set(map(type, mapping.keys())) - {str}
+        if key_types:
+            for key in tuple(mapping.keys()):
+                if isinstance(key, numbers.Integral):
+                    mapping[key] = names.pop(key)
+                key_types -= {type(key)}
+        if key_types:
+            raise ValueError(f'Hash map key has incorrect types {key_types}.')
+
+        # all keys are now str
+        invalid = set(mapping.keys()) - set(names)
+        if invalid:
+            raise ValueError(f'{fullname(self.func).title()} takes no '
+                             f'{named_items("parameter", invalid)}.')
+
     def _gen_hash_key(self, args, kws):
         """
         Generate hash key from function arguments.
@@ -183,9 +235,19 @@ class Cached(LoggingMixin):
         bound = self.sig.bind(*args, **kws)
         bound.apply_defaults()
         for name, val in bound.arguments.items():
-            hasher = self.hash_map.get(name, echo0)
+            convert = self.typed.get(name, echo0)
+
+            # Filter ignored params
+            if isinstance(convert, Ignore):
+                if not convert.silent:
+                    # emit warning on non-silent ignore
+                    self.logger.debug(
+                        'Ignoring argument in '
+                        f'{fullname(self.func)}: {name!r} = {val!r}')
+                continue
+
             if self.sig.parameters[name].kind is not _VAR_KEYWORD:
-                yield hasher(val)
+                yield convert(val)
             else:
                 # deal with variadic keyword args (**kws):
                 # remove the keys that have been bound to other position-or-keyword
@@ -194,7 +256,7 @@ class Cached(LoggingMixin):
                 # cache item, we need to order the keywords. Finally convert to
                 # tuple of 2-tuples (key value pairs) so we can hash
                 keys = sorted(set(kws.keys()) - set(bound.arguments.keys()))
-                yield hasher(tuple(zip(keys, map(kws.get, keys))))
+                yield convert(tuple(zip(keys, map(kws.get, keys))))
 
     def get_key(self, *args, **kws):
         """
@@ -202,102 +264,136 @@ class Cached(LoggingMixin):
         """
         return tuple(self._gen_hash_key(args, kws))
 
-    def is_hashable(self, key):
-        for name, val in zip(self.sig.parameters, key):
-            if not isinstance(val, abc.Hashable):
-                silent = isinstance(val, Ignore) and val.silent
-                if not silent:
-                    warnings.warn(
-                        f'Refusing to cache return value due to unhashable '
-                        f'argument in {fullname(self.func)}: {name!r} = {val!r}'
-                    )
-                #
-                return False
+    def is_hashable(self, params):
+        """
+        Check if the set of parameter values of a call are hashable. 
+        ie. can the return value from the function call with this set of 
+        parameters be cached?
 
-            # even though we have hashable types for our function arguments, the
-            # actual hashing might not still work, so we catch any potential
-            # exceptions here
-            try:
-                hash(val)
-            except TypeError as err:
-                warnings.warn(
-                    f'Hashing failed for {fullname(self.func)}: {name!r} = '
-                    f'{val!r} due to:\n{err!s}'
-                )
-                #
-                return False
+        Parameters
+        ----------
+        params : tuple
+            Tuple of parameter values generated by the `get_key` method.
+            (*pos, *pos_or_kw, (*var_pos), (kws.items()))
+
+
+        Returns
+        -------
+        bool
+        """
+        for name, val in zip(self.sig.parameters, params):
+            if isinstance(val, abc.Hashable):
+                continue
+
+            # emit warning and break out if we receive a rejection sentinel or
+            # unhashable type
+            what = ('unhashable argument',
+                    'rejection sentinel')[isinstance(val, Reject)]
+            warnings.warn(f'Received {what} from: '
+                          f'{name!r} = {val!r} in {fullname(self.func)}. '
+                          'Return value for call will not be cached.',
+                          CacheRejectionWarning)
+            return False
         return True
 
     def memoize(self, *args, **kws):
         """
         Caches the result of the function call
         """
+
         func = self.func
         key = self.get_key(*args, **kws)
         if not self.is_hashable(key):
             return func(*args, **kws)
 
-        # load the cached values from file
-        # if self.cache is None:
-        #     self.cache = Cache.load(self.__init_args[0])
-
+        # if we are here, we should be ok to lookup / cache the answer
         try:
-            # if we are here, we should be ok to lookup / cache the answer
             if key in self.cache:
-                self.logger.debug('Loading result from cache for call to %s.',
-                                  fullname(self.func))
+                self.logger.debug('Intercepted %s call: Loading result from '
+                                  'cache.', fullname(self.func))
                 return self.cache[key]
         except Exception as err:
-            self.logger.exception('Cache lookup failed!')
-            # since caching is not mission critical, re-run the function
+            # since caching is not mission critical, just log the error and
+            # then run the function
+            self.logger.exception('Cache lookup failed! Executing %s.',
+                                  fullname(self.func))
             return self.func(*args, **kws)
 
-        # add result to cache
-        self.cache[key] = answer = self.func(*args, **kws)
+        # If we are here, it means there is no cache entry for this call
+        # signature. Compute!
+        answer = self.func(*args, **kws)
+
+        # If function call succeeded add, result to cache
+        try:
+            self.cache[key] = answer
+        except Exception as err:
+            self.logger.exception('Caching failed for %s!', fullname(self.func))
+
         return answer
 
 
-# class ConstructorCache:
-#     def __new__(self, kls, *args, **kws):
-#         self.kls = kls
-
-
-# , monkey patch the
-# constructor so the entire class gets cached!
-
-# name = f'Cached{func.__name__}'
-# eval(f'global {name}')
-
-# class _Cached:   # FIXME: this local object cannot be pickled
-#     @self.__class__(*self.__init_args)
-#     def __new__(cls, *args, **kws):
-#         # print('NEW!!!')
-#         obj = super().__new__(cls)
-#         obj.__init_args = args
-#         return obj
-
-#     # def __reduce__(self):
-#     #     return func, self.__init_args
-
-
-class to_file(Cached):
+class ToFile(Cached):
     """
     Decorator for persistent function memoization that saves cache to file as a
     pickle
     """
 
-    def __init__(self, filename, capacity=128, kind='lru'):
+    def __init__(self, filename, capacity=128, kind='lru', ignore=(), typed=()):
         # this here simply to make `filename` a required arg
-        Cached.__init__(self, filename, capacity, kind)
+        Cached.__init__(self, filename, capacity, kind, ignore, typed)
 
 
 class Ignore:
-    def __init__(self, silent=False):
+    """
+    Cache ignore directive for specific function parameters.
+
+    Examples
+    --------
+    A constructor that caches object instances, but ignores the `verbose` 
+    parameter:
+
+    >>> @classmethod
+    ... @caches.to_file('~/.cache/mycache.json',
+    ...                 typed={'verbose': Ignore(silent=True)})
+    ... def builder(cls, a, verbose=True, **kws):
+    ...     if verbose:
+    ...         print(f'Message from {cls}')
+    ...     return cls(a, **kws)
+
+    Notes
+    -----
+    This class will be used internally when initializing the `Cached` decorator
+    with non-empty `ignore` parameter listing the function parameter name(s) to 
+    ignore.
+    """
+    __hash__ = None  # signals python interpreter that this object is unhashable
+
+    def __init__(self, silent=True):
         self.silent = bool(silent)
 
-    def __hash__(self):
-        pass
+
+class Reject(Ignore):
+    """
+    Reject the cache entry entirely
+
+    Examples
+    --------
+    A function that conditionaly rejects cache entries based on the value of a
+    certain parameter:
+
+    >>> @caches.cached(typed={'file': lambda _: _ or Reject(silent=True)})
+    ... def read(file, **kws):
+    ...     if file:
+    ...         return process_text(Path(file).read_text(), **kws)
+
+    """
 
 
-# aliases
+class CacheRejectionWarning(Warning):
+    pass
+
+
+# ---------------------------------------------------------------------------- #
+# Aliases       # pylint: disable=invalid-name
+to_file = ToFile
 memoize = cached = Cached
