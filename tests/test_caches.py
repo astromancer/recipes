@@ -1,6 +1,8 @@
 # pylint: skip-file
 
+
 # std libs
+from recipes.caches.decor import CacheRejectionWarning
 import logging
 import tempfile
 import itertools as itt
@@ -9,16 +11,19 @@ from collections import OrderedDict as odict, defaultdict
 
 # third-party libs
 import pytest
+import numpy as np
 
 # local libs
-from recipes.caches import to_file, Cache, CacheDecoder
-from recipes.caches.decor import check_hashable_defaults
+from recipes.caches import Cache, Cached, to_file
+from recipes.caches.decor import check_hashable_defaults, Ignore, Reject
 
 
 # setup logging
 logging.basicConfig()
 rootlog = logging.getLogger()
 rootlog.setLevel(logging.DEBUG)
+
+# TODO: Test inheritance with decorated methods!
 
 
 # import pickle
@@ -70,6 +75,7 @@ def cache(request):
 
 
 class Case0:
+    # test decorating the constructor methods
     @to_file(get_tmp_filename())
     def __new__(cls, *args):
         return super().__new__(cls)
@@ -78,9 +84,19 @@ class Case0:
         self.args = args
 
 
+@to_file(get_tmp_filename())
 class Case1:
     def __init__(self, *args):
         self.args = args
+
+
+class _CheckIfCalled:
+    # helper that simply sets the `called` attribute to True when called
+    called = False
+
+    @to_file(None)
+    def __call__(self, a, b=None):
+        self.called = True
 
 
 class CaseNonHashableDefaults():
@@ -105,6 +121,31 @@ def case0(a=1):
 def case1(a, b=0, *c, **kws):
     return a * 7 + b
 
+
+@Cached(ignore='verbose')
+def case2(a, verbose=True):
+    return
+
+
+@Cached(typed={'verbose': Ignore()})
+def case3(a, verbose=True):
+    return
+
+
+@Cached(typed={'verbose': Ignore(silent=False)})
+def case4(a, verbose=True):
+    return
+
+
+@Cached(typed={'a': int})
+def case5(a):
+    return
+
+
+@Cached(typed={'file': lambda _: _ or Reject(silent=False)})
+def case6(file, **kws):
+    if file:
+        return 1
 
 # ----------------------------------- Tests ---------------------------------- #
 
@@ -155,7 +196,7 @@ class TestPersistence():
     # def test_load(tmpdir):
 
 
-class TestCachedDecorator():
+class TestDecorator():
 
     @pytest.mark.parametrize(
         'func',
@@ -167,59 +208,99 @@ class TestCachedDecorator():
             check_hashable_defaults(func)
 
     def test_nonhashable_warns(self):
-        with pytest.warns(UserWarning):
+        with pytest.warns(CacheRejectionWarning):
             case0([1])
 
     def test_no_call(self):
-        class Foo:
-            called = False
+        chk = _CheckIfCalled()
+        chk(1)
+        chk.called = False
+        chk(1)
+        assert not chk.called
 
-            @to_file(None)
-            def __call__(self, a):
-                self.called = True
-
-        foo = Foo()
-        foo(1)
-        foo.called = False
-        foo(1)
-        assert foo.called is False
-
-    def test_caching(self):
+    def test_caching_basic(self):
 
         case1(6)
-        current = (6, 0, (), ())
-        assert case1.__cache__== {current: 42}
+        initial = (6, 0, (), ())
+        assert case1.__cache__ == {initial: 42}
 
-        with pytest.warns(UserWarning):
+        with pytest.warns(CacheRejectionWarning):
             case1([1], [0])
             # UserWarning: Refusing memoization due to unhashable argument
             # passed to function 'case1': 'a' = [1]
 
         # cache unchanged
-        assert case1.__cache__== {current: 42}
+        assert case1.__cache__ == {initial: 42}
 
         case1(6, hello='world')
         # new cache item for keyword arguments
-        assert case1.__cache__== {
-            current: 42,
+        assert case1.__cache__ == {
+            initial: 42,
             (6, 0, (), (('hello', 'world'),)): 42
         }
+
+    def check_caching_kws(self):
+        chk = _CheckIfCalled()
+        chk(a=1, b=2)
+        chk.called = False
+        chk(b=2, a=1)
+        assert not chk.called
 
     def test_new(self):
 
         obj = Case0(1)
         # print(Foo.__new__.cache)
-        
+
         assert Case0.__new__.__cache__[(Case0, (1,))] is obj
         assert Case0(1) is obj
 
-    @pytest.mark.parametrize('ext', ['pkl'])
-    def test_class(self, ext):
-        decor = to_file(get_tmp_filename(ext))
-        kls = decor(Case1)
-        obj = kls(1)
+    # @pytest.mark.parametrize('ext', ['pkl'])
+    def test_class(self):  # , ext):
+        # decor = to_file(get_tmp_filename(ext))
+        # kls = decor(Case1)
+        obj = Case1(1)
         # print(Foo.__new__.cache)
 
         # assert kls.__new__.cache[(kls, (1,))] is obj
-        kls.__cache__[((1, ),)] is obj
-        assert kls(1) is obj
+        Case1.__cache__[((1, ),)] is obj
+        assert Case1(1) is obj
+
+    @pytest.mark.parametrize('func', [case2, case3])
+    def test_ignore(self, func):
+
+        func(1, verbose=True)
+        initial = dict(func.__cache__)
+
+        func(1, verbose=False)
+        assert func.__cache__ == initial
+        func(1, True)
+        assert func.__cache__ == initial
+
+    # def test_ignore_warns(self):
+    #     with pytest.warns(UserWarning):
+    #         self.test_ignore(case4)
+
+    def test_rejection(self):
+        func = case6
+        func(1)
+        initial = dict(func.__cache__)
+
+        with pytest.warns(CacheRejectionWarning):
+            func(None)
+
+        assert func.__cache__ == initial
+
+    def test_typed(self):
+        func = case5
+        func(1)
+        initial = dict(func.__cache__)
+
+        for a in (1., '1', np.array(1)):
+            func(a)
+            assert func.__cache__ == initial
+
+    def test_typed_raises_on_invalid_name(self):
+        with pytest.raises(ValueError):
+            @Cached(typed={'a': int})
+            def case6(b):
+                return
