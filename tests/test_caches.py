@@ -121,6 +121,10 @@ def case0(a=1):
 def case1(a, b=0, *c, **kws):
     return a * 7 + b
 
+@Cached
+def case1b(a, b=0, *c, **kws):
+    return a * 7 + b
+
 
 @Cached(ignore='verbose')
 def case2(a, verbose=True):
@@ -218,28 +222,32 @@ class TestDecorator():
         chk(1)
         assert not chk.called
 
-    def test_caching_basic(self):
+    @pytest.mark.parametrize('func', [case1])
+    def test_caching_basic(self, func):
 
-        case1(6)
+        func(6)
         initial = (6, 0, (), ())
-        assert case1.__cache__ == {initial: 42}
+        assert func.__cache__ == {initial: 42}
 
         with pytest.warns(CacheRejectionWarning):
-            case1([1], [0])
+            func([1], [0])
             # UserWarning: Refusing memoization due to unhashable argument
-            # passed to function 'case1': 'a' = [1]
+            # passed to function 'func': 'a' = [1]
 
         # cache unchanged
-        assert case1.__cache__ == {initial: 42}
+        assert func.__cache__ == {initial: 42}
 
-        case1(6, hello='world')
+        func(6, hello='world')
         # new cache item for keyword arguments
-        assert case1.__cache__ == {
+        assert func.__cache__ == {
             initial: 42,
             (6, 0, (), (('hello', 'world'),)): 42
         }
+        
+    def test_auto_init(self):
+        self.test_caching_basic(case1b)
 
-    def check_caching_kws(self):
+    def test_caching_kws(self):
         chk = _CheckIfCalled()
         chk(a=1, b=2)
         chk.called = False
