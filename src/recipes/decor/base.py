@@ -2,216 +2,219 @@
 Base classes for extensible decorators.
 """
 
-import types
-import functools as ftl
+
+# std libs
 import logging
 
+# third-party libs
+from decorator import decorate
 
 logging.basicConfig()
 logger = logging.getLogger(__file__)
 
+# 
+# def inclass(func):
+#     return '.' in str(func)
 
-def inclass(meth):
-    return '.' in str(meth)
+
+# # NOTE: partial functions don't have the __name__, __module__ attributes!
+# # retrieve the deepest func attribute -- the original func
+# while isinstance(func, ftl.partial):
+#     func = func.func
+# self.__module__ = func.__module__
+# self.__name__ = 'partial(%s)' % func.__name__
 
 
-class DecoratorBase:
+# class Wrapper:  # FunctionMimic
+#     """
+#     A picklable decorator. Does nothing by default.
+#     """
+#     def __new__(cls, func, wrapper):
+#         if inclass(func):
+#             # a method
+#             return super().__new__(MethodWrapper)
+#         return super().__new__(FunctionWrapper)
+
+#     def __init__(self, func, wrapper):
+#         assert callable(func)
+#         assert callable(wrapper)
+#         self.__wrapped__ = func
+#         self.__wrapper__ = wrapper
+
+#         # Update this class to look like the wrapped function
+#         # ftl.update_wrapper(self, func)
+
+#         # for decorated methods: make wrapped function MethodType to avoid
+#         # errors downstream
+#         # if inclass(func):
+#         #     # FIXME: binds to the wrong class!!
+#         #     #   at build time this function is still unbound!
+#         #     func = types.MethodType(func, self)
+
+#     def __repr__(self):
+#         return f'<{type(self).__name__} for {self.__wrapped__.__qualname__!r}>'
+
+#     def pformat(self, *args, **kws):
+#         from .. import pprint as pp
+#         return pp.caller(self.__wrapped__, *args, **kws)
+
+#     def pprint(self, *args, **kws):
+#         print(self.pformat(self.__wrapped__, *args, **kws))
+
+#     def __reduce__(self):
+#         print('REDUCE', self.__class__, self.__wrapped__, )
+#         # return Decorator,
+#         #return Wrapper, (self.__wrapped__, self.__wrapper__)
+#         return Decorator(), (self.__wrapped__, )
+#         # from IPython import embed
+#         # embed(header="Embedded interpreter at 'src/recipes/decor/base.py':64")
+#         # return echo, (self.__wrapped__, )
+
+# def echo(obj):
+#     return obj
+
+# class FunctionWrapper(Wrapper):
+#     def __call__(self, *args, **kws):
+#         # Default null decorator
+#         # print(self.__class__, 'calling', self.__wrapper__, args, kws)
+#         return self.__wrapper__(*args, **kws)
+
+
+# class MethodWrapper(Wrapper):
+#     def __call__(self, *args, **kws):
+#         # Default null decorator
+#         # print(self.__class__, 'calling', self.__wrapper__, args, kws)
+#         return self.__wrapper__(self.__wrapper__.__self__, *args, **kws)
+
+
+
+class Decorator:
     """
-    A picklable decorator. Does nothing by default.
-    """
-
-    def __init__(self, func):
-        self.func = func
-        # Update this class to look like the wrapped function
-        ftl.update_wrapper(self, func)
-
-    def __call__(self, *args, **kws):
-        # Default null decorator
-        return self.func(*args, **kws)
-
-
-class decorator:
-    """
-    Decorator class with optional arguments. Can be pickle, unlike function
-    based decorators / factory.
+    Decorator class which supports optional initialization parameters. Can be
+    pickled, unlike function based decorators / factory.
 
     There are two distinct use cases
     1) No explicit arguments provided to decorator.
     eg.:
-
     >>> @decorator
-    ... def foo():
-    ...    return 'did something'
-
-    In this case the wrapper will be built upon construction in `__new__`
+    ... def foo(): ...
 
     2) Explicit arguments and/or keywords provided to decorator.
     eg.:
-
     >>> @decorator('hello', foo='bar')
-    ... def baz(*args, **kws):
-    ...    ...
+    ... def baz(*args, **kws): ...
 
-    In this case the wrapper will be built upon first call to function
+    The function is wrapped by running the `__call__` method of this class. The
+    actual decorator should be implemented by overriding `__wrapper__` method.
+    The `__call__` method assigns the original function to the `__wrapped__`
+    attribute of the `Decorator` instance, and updates the `__wrapper__` method
+    to mimic the call signature and documentation of the original function by
+    running `functools.update_wrapper`.
 
-    This is an abstract class in that it does nothing by default. Let's make it
-    usefull:
-    class increment(decorator):
-        def wrapper(self, func)
-            return self.func(*args, **kws) + 1
+    Considering the usage patterns above:
+    In the first case (no parameters to decorator), the wrapper will be built
+    upon construction by running `__call__` (with the function `foo` as the only
+    parameter) inside `__new__`. Initialization here is trivial.
 
+    In the second use case, the `__init__` method should be implemented to
+    handle the parameters ('hello', foo='bar') passed to the decorator
+    constructor. As before, the `__call__` method creates the wrapper and 
+    returns the `__wrapper__` method as the new decorated function.
 
+    By default, this decorator does nothing besides call the original function. 
+    Subclasses should implement the `__wrapper__` method to do the desired work.
+    For example:
+    >>> class increment(decorator):
+    ...     def __wrapper__(self, *args, **kws)
+    ...         return self.func(*args, **kws) + 1
 
     NOTE: The use case above is identified based on the type of object the
-        constructor receives. It is therefore not possible to use this decorator
-        if the first argument to the decorator initializer is a function.
+    constructor receives as the first argument. It is therefore not possible to
+    use this decorator if the first argument to the initializer is a some
+    callable. This will not work as expected:
+    >>> class coerce_first_param(decorator):
+    ...     def __init__(self, new_type):
+    ...         assert isinstance(new_type, type)
+    ...         self.new_type = new_type
+    ...     def __wrapper__(self, obj):
+    ...         return self.__wrapped__(self.new_type(obj))
+    ...
+    ... @decorator(str)    # NOPE!
+    ... def buz(): ...
 
-        Like so:
-        >>> @decorator(some_callable) # will not work as indended
-        ... def buz():
-        ...     ...
-
-        Purists might argue that this class is an anti-pattern since it invites
-        less explicit constructs that are confusing to the uninitiated.
-        Here it is. Use it. Don't use it. Up to you.
-)
-
+    This can be fixed by passing your callable to the initializer as a
+    keyword parameter:
+    >>> @coerce_first_param(new_type=str)    # OK!
+    ... def buz():
+    ...     return ...
+    ... buz()
+    'Ellipsis'
     """
-    func = None
+
+    # Purists might argue that this class is an anti-pattern since it invites
+    # less explicit constructs that are confusing to the uninitiateod.
+    # Here it is. Use it. Don't use it. Up to you.
+    # __wrapped__ = None
+
+    def __new__(cls, maybe_func=None, *args, **kws):
+        # create class
+        obj = super().__new__(cls)
+
+        # Catch auto-init usage pattern
+        if callable(maybe_func):
+            # No arguments provided to decorator.
+            # >>> @decorator
+            # ... def foo(): return
+            # cls.__init__(obj)
+            return obj(maybe_func)  # call => decorate / wrap the function
+            # NOTE: init will not be called when returning here since we are
+            # intentionally returning an object that is not an instance of this
+            # class!
+
+        # Explicit arguments and/or keywords provided to decorator.
+        # >>> @decorator('hello world!')
+        # ... def foo(): return
+        return obj  # NOTE: `__init__` will be called when returning here
 
     def __init__(self, *args, **kws):
         """
-        Inherited classes can implement stuff here, for example do something
-        with the `args` and `kws`
+        Inherited classes can implement stuff here.
         """
 
-        if len(args) == 1 and callable(args[0]):
-            # No arguments provided to decorator.
-            # @decorator
-            # def foo():
-            #    return 'did something'
-            # No initialization necessary
-            super().__init__()
-            self.wrap(args[0])
-        else:
-            # Explicit arguments and/or keywords provided to decorator.
-            # @decorator('hello world!')
-            # def foo():
-            #    return 'did something'
-            # Initialize with args
-            print('RECURSE', args, kws)
-            super(Decorator, self).__init__(*args, **kws)
+    def __call__(self, func):
+        """Function wrapper created here."""
+        self.__wrapped__ = func
+        # func.__wrapper__ = self.__wrapper__
+        # print('__wrapped__', self.__wrapped__, type(func), inclass(func))
+        return decorate(func, self.__wrapper__)
 
-    def __call__(self, *args, **kws):
-        if self.func is None:
-            # The wrapped function has not yet been created - arguments passed
-            # to decorator constructor
-            self.wrap(args[0])  # make the wrapped function
-            return self  #
+    def __wrapper__(self, func, *args, **kws):
+        """
+        Default wrapper simply calls the original `__wrapped__` function.
+        Subclasses should implement the decorator here.
+        """
+        return func(*args, **kws)
 
-        # The wrapped function has already been created
-        return self.wrapper(*args, **kws)  # call the wrapped function
-
-    def wrapper(self, *args, **kws):
-        return self.func(*args, **kws)
-
-    def wrap(self, func):
-        """Null wrapper. To be implemented by subclass"""
-
-        # for decorated methods: make wrapped function MethodType to avoid
-        # errors downstream
-        # if inclass(func):
-        #     # FIXME: binds to the wrong class!!
-        #       at build time this function is still unbound!
-        #     func = types.MethodType(func, self)
-
-        # update __call__ method to look like func
-        ftl.update_wrapper(self, func)
-        self.func = func
+    # def __reduce__(self):
+    #     return self.__class__
 
 
 # alias
-Decorator = decorator
+decorator = Decorator  # pylint: disable=invalid-name
 
 
-class DecorMeta(type):
-    'todo'
-
-class OptArgDecor:
-
-    def __new__(cls, *args, **kws):
-        logger.debug('__new__ %s: %s; %s', cls, args, kws)
-        obj = object.__new__(cls)
-
-        if len(args) == 1 and callable(args[0]):
-            # No optional arguments provided to decorator.
-            # eg. usage:
-            # @decorator
-            # def foo(): pass
-            logger.debug('No explicit arguments provided to decorator')
-            func = args[0]
-            cls.__init__(obj)
-            obj.wrapped = obj.make_wrapper(func)
-        else:
-            obj.wrapped = None
-            # (optional) arguments provided to decorator.
-            # eg. usage:
-            # @decorator('hello world', bar=None)
-            # def foo(): pass
-            logger.debug('Arguments given: %s; %s', args, kws)
-            # Don't know the function yet, so can't create the wrapper
-            # will create wrapper upon __call__
-
-        return obj
-
-    def __init__(self, *args, **kws):
-        """
-        Inherited classes can implement stuff here, for example what to do with
-        the args and kws passed to the constructor
-        """
-        logger.debug('__init__ %s: %s; %s', self, args, kws)
-        # if self.wrapped is None:
-
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def __call__(self, *args, **kws):
-        logger.debug('calling with %s; %s', args, kws)
-
-        if self.wrapped is None:
-            # The wrapped function has not yet been created - arguments passed
-            # to decorator constructor
-            logger.debug('not wrapped yet. creating wrapper. args: %s; kws: %s',
-                    args, kws)
-            func=args[0]
-            return self.make_wrapper(func)  # return the wrapped function
-
-        # The wrapped function has already been created
-        logger.debug('calling wrapped %s %s %s', self, args, kws)
-        return self.wrapped(*args, **kws)  # call the wrapped function
-
-    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def make_wrapper(self, func):
-        """Null wrapper. To be implemented by subclass"""
-        logger.debug('wrapping %s', func)
-        # logger.debug(('!'*10)+str(getattr(func, '__self__', None)))
-
-        # for decorated methods: make wrapped function MethodType to avoid
-        # errors downstream
-        if inclass(func):
-            func=types.MethodType(func, self)
-
-        # update __call__ method to look like func
-        ftl.update_wrapper(self, func)
-
-        return func
-
-
-#%%
-class count_calls(OptArgDecor):
+# %%
+class count_calls(Decorator):
     def __init__(self, start=0, inc=1):
         self.count = start
         self.inc = inc
-    
-    def wrapper(self, *args, **kws):
-        result = self.func(*args)
-        self.count += self.inc
+
+    def __call__(self, func):
+        super().__call__(self, func)
+        try:
+            return self.func(*args)
+        except Exception as err:
+            raise err from None
+        else:
+            self.count += self.inc
 # %%

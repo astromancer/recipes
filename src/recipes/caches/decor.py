@@ -15,6 +15,7 @@ from recipes.functionals import echo0
 from recipes.string import named_items
 
 # relative libs
+from . import fullname
 from .caches import Cache
 from ..logging import LoggingMixin
 

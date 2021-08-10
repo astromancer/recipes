@@ -1,21 +1,23 @@
-from recipes.decor.base import Decorator
+import pickle
+import pytest
+from recipes.decor.base import decorator  # , Wrapper
 
 from pytest_cases import parametrize, fixture
 
-FUNC_TEMPLATE = """
-@Decorator{argspec}
-def {name}():
-    return True
-"""
-CLASS_TEMPLATE = """
-class {name}:
-    {pre}
-    @Decorator{argspec}
-    {post}
-    def method(self):
-        return True
-"""
-DEFAULTS = {'pre': '', 'post': ''}
+# FUNC_TEMPLATE = """
+# @decorator{argspec}
+# def {name}():
+#     return True
+# """
+# CLASS_TEMPLATE = """
+# class {name}:
+#     {pre}
+#     @decorator{argspec}
+#     {post}
+#     def method(self):
+#         return True
+# """
+# DEFAULTS = {'pre': '', 'post': ''}
 
 
 # @fixture(scope='session',
@@ -37,7 +39,7 @@ DEFAULTS = {'pre': '', 'post': ''}
 #     assert _make(template, name=objname, argspec=argspec, **kws)()
 
 
-# class TestDecorator:
+# class Testdecorator:
 
 #     def test_func(self, argspec):
 #         _generic_test(FUNC_TEMPLATE, 'func', argspec)
@@ -57,36 +59,96 @@ DEFAULTS = {'pre': '', 'post': ''}
 
 # [*map(foo, '12345')]
 
-class Foo:
-    @Decorator
+class Case:
+    @decorator
     def method1(self):
-        print('method1')
+        return 'method1'
 
-    @Decorator()
+    @decorator()
     def method2(self):
-        print('method2')
+        return 'method2'
 
-    @Decorator('hi', hello='world')
+    @decorator('hi', hello='world')
     def method3(self):
-        print('method3')
+        return 'method3'
 
 
-@Decorator
-def foo1():
-    print('foo1')
+@decorator
+def func1():
+    return 'func1'
 
 
-@Decorator()
-def foo2():
-    print('foo2')
+@decorator()
+def func2():
+    return 'func2'
 
 
-def test_decorator():
-    # test
-    foo = Foo()
-    foo.method1()
-    foo.method2()
-    foo.method3()
+@pytest.mark.parametrize('i', [1, 2, 3])
+def test_method(i):
+    obj = Case()
+    name = f'method{i}'
+    method = getattr(obj, name)
+    assert method() == name
 
-    foo1()
-    foo2()
+
+def deco(func):
+    func.hi = 1
+
+
+def work():
+    return ...
+
+
+class Case1:
+    def method(self):
+        pass
+
+
+def echo(_):
+    return _
+
+# def wrap(fun):
+#     return types.MethodType()
+
+
+class Case2:
+    @echo
+    def method(self):
+        pass
+
+# class Case3:
+#     @wrap
+#     def method(self):
+#         pass
+
+
+@pytest.mark.parametrize('obj', [  # Wrapper(work, deco),
+    Case1().method,
+    Case2().method,
+    #  Case3().method
+])
+def test_pickle(obj):
+    clone = pickle.loads(pickle.dumps(obj))
+
+
+@pytest.mark.parametrize('i', [1, 2, 3])
+def test_pickle_method(i):
+    obj = Case()
+    name = f'method{i}'
+    s = pickle.dumps(getattr(obj, name))
+    clone = pickle.loads(s)
+    assert clone() == name
+
+
+@pytest.mark.parametrize('i', [1, 2])
+def test_func(i):
+    fname = f'func{i}'
+    assert eval(fname)() == fname
+
+
+@pytest.mark.parametrize('i', [1, 2])
+def test_pickle_func(i):
+    fname = f'func{i}'
+    func = eval(fname)
+    clone = pickle.loads(pickle.dumps(func))
+    assert clone() == fname
