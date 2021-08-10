@@ -93,8 +93,9 @@ def split(l, idx):
     if isinstance(idx, numbers.Integral):
         idx = [idx]
 
+    idx = sorted(idx)
     if idx:
-        idx = [0, *sorted(idx), len(l)]
+        idx = [0, *idx, len(l)]
         for i, j in mit.pairwise(idx):
             yield l[i:j]
     else:
