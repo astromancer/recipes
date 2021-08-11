@@ -1,6 +1,6 @@
 import pickle
 import pytest
-from recipes.decor.base import decorator  # , Wrapper
+from recipes.decorators.base import decorator  # , Wrapper
 
 from pytest_cases import parametrize, fixture
 

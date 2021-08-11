@@ -29,7 +29,7 @@ class show(Decorator):
     Examples
     --------
 
-    >>> from recipes.decor import expose
+    >>> from recipes.decorators import expose
     >>> @expose.show()
     ... def foo(a, b, c, **kw):
     ...     return a
