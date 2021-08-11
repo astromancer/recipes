@@ -33,6 +33,7 @@ builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs + unlisted
 
 # internal sorting codes
 MODULE_GROUP_NAMES = ['std', 'third-party', 'local', 'relative']
+GROUP_NAME_SUFFIX = 'libs'
 
 # list of local module names
 LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
@@ -42,10 +43,7 @@ LOCAL_MODULES = LOCAL_MODULES_DB.read_text().splitlines()
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: too many blank lines after module docstring
 # FIXME: from recipes.oo import SelfAware, meta # where meta is unused!
-# FIXME: this weird gotcha:
-# import logging
-# import logging.config # THIS WILL GET REMOVED!
-# logging.config
+
 
 # TODO: unit tests!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # TODO: local import that are already in global namespace
@@ -74,12 +72,12 @@ def is_local(name):
 #     return ('dist-packages' in spec.origin) or ('site-packages' in spec.origin)
 
 
-def isAnyImport(st):
+def is_import_node(st):
     return isinstance(st, (ast.ImportFrom, ast.Import))
 
 
 def get_module_typecode(module_name):
-    if isAnyImport(module_name):
+    if is_import_node(module_name):
         module_name = get_module_names(module_name, depth=0)
 
     if is_builtin(module_name):
@@ -182,7 +180,7 @@ class Node(anytree.Node):  # ImportNode
             w = ws - len(pre)
             print(f'{pre}{stm: >{w + len(stm)}s}')
 
-    def gen_lines(self, headers=True, suffix='libs'):
+    def gen_lines(self, headers=True, suffix=GROUP_NAME_SUFFIX):
         for pre, _, node in anytree.RenderTree(self, childiter=sort_nodes):
             lvl = len(pre) // 4
             if lvl == 1 and headers:
@@ -515,7 +513,7 @@ def excision_flagger(lines, line_nrs):
     # FIXME: ValueError: max() arg is an empty sequence
     for ln in (set(range(search_depth)) - set(cutLines)):
         line = lines[ln]
-        if line.startswith('# ') and line.strip().endswith('libs'):
+        if line.startswith('# ') and line.strip().endswith(GROUP_NAME_SUFFIX):
             cutLines.append(ln)
 
     return sorted(cutLines), is_multiline
@@ -563,7 +561,7 @@ def remove_unused_names(node, unused):
     while i < j:
         alias = node.names[i]
         if (alias.asname in unused) or (alias.name in unused):
-            r = node.names.pop(i)
+            node.names.pop(i)
             # print('removing', r.name, r.asname, 'since',
             #       ['alias.asname in unused',
             #        'alias.name in unused'][(alias.name in unused)])
@@ -582,14 +580,17 @@ def merge_duplicates(stm):
     r = []
     prev = None
     for i, st in enumerate(stm):
-        if i and isinstance(st, ast.ImportFrom) and \
-                isinstance(prev, ast.ImportFrom) and \
-                (st.module == prev.module):
+        if (i and
+            set(map(type, (st, prev))) == {ast.ImportFrom} and
+            st.module == prev.module and
+            st.level == prev.level
+            ):
+
             names = {_.name for _ in prev.names}
             for alias in st.names:
                 if alias.name not in names:
                     prev.names.append(alias)
-            continue
+                continue
 
         r.append(st)
         prev = st
@@ -686,8 +687,8 @@ class ImportCapture(ast.NodeTransformer):
         module = self.generic_visit(node)
 
         if self.filter_unused is None:
-            self.filter_unused = \
-                (self.up_to_line == math.inf) and self.used_names
+            self.filter_unused = (
+                self.up_to_line == math.inf) and self.used_names
 
         if self.filter_unused and not self.used_names:
             wrn.warn(
@@ -703,7 +704,7 @@ class ImportCapture(ast.NodeTransformer):
         i = -1
         for child in module.body:
             # filter everything that is not an import statement
-            if isAnyImport(child):
+            if is_import_node(child):
                 i += 1
             else:
                 continue
@@ -714,11 +715,11 @@ class ImportCapture(ast.NodeTransformer):
                 if len(unused) == len(child.names):
                     continue  # this statement not captured ie. removed
 
-                if len(unused) < len(child.names):
+                if len(unused) < len(child.names) \
+                        and isinstance(child, ast.ImportFrom):
                     # deal with `from x.y import a, b, c`
                     # style imports where some imported names are unused
-                    if isinstance(child, ast.ImportFrom):
-                        remove_unused_names(child, unused)
+                    remove_unused_names(child, unused)
 
             # print('append', child)
             new_body.append(child)
@@ -771,4 +772,10 @@ class ImportCapture(ast.NodeTransformer):
 
     def visit_Name(self, node):
         self.used_names.add(node.id)
+        return node
+
+    def visit_Attribute(self, node):
+        node = self.generic_visit(node)
+        if isinstance(node.value, ast.Name):
+            self.used_names.add(f'{node.value.id}.{node.attr}')
         return node

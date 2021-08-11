@@ -2,11 +2,14 @@
 Utilities for operations on strings
 """
 
-import os
+
+# std libs
 import re
 import numbers
+from collections import abc
 
-import numpy as np  # TODO: remove this dep
+# third-party libs
+import numpy as np
 
 
 # regexes
@@ -64,10 +67,9 @@ class Percentage:
         if isinstance(total, (numbers.Real, np.ndarray)):
             return self.frac * total
 
-        try:
-            return self.frac * np.asanyarray(total, float)
-        except ValueError:
-            raise TypeError('Not a valid number or numeric array') from None
+
+# ---------------------------------------------------------------------------- #
+# Substitution
 
 
 def sub(string, mapping=(), **kws):
@@ -150,6 +152,10 @@ def _rreplace(string, mapping):
     return string
 
 
+# ---------------------------------------------------------------------------- #
+# Casing
+
+
 def title(string, ignore=()):
     """
     Title case string with optional ignore patterns.
@@ -173,8 +179,18 @@ def snake_case(string):
     new, _ = re.subn('([A-Z])', r'_\1', string)
     return new.lstrip('_').lower()
 
+
 def pascal_case(string):
     return string.replace('_', ' ').title().replace(' ', '')
+
+
+def camel_case(string):
+    string = pascal_case(string)
+    return string[0].lower() + string[1:]
+
+# ---------------------------------------------------------------------------- #
+# Affixes
+
 
 def remove_affix(string, prefix='', suffix=''):
     for i, affix in enumerate((prefix, suffix)):
@@ -231,16 +247,37 @@ def shared_affix(strings, pre_stops='', post_stops=''):
     suffix = shared_suffix([item[i0:] for item in strings], post_stops)
     return prefix, suffix
 
+# ---------------------------------------------------------------------------- #
+# pluralization (experimental)
 
-def surround(string, wrappers):
-    left, right = wrappers
-    return left + string + right
+
+def naive_plural(text):
+    return text + 'es' if text.endswith('s') else 's'
+
+def plural(text, obj=(())):
+    """conditional plural"""
+    many = isinstance(obj, abc.Collection) and len(obj) != 1
+    return naive_plural(text) if many else text
+
+def named_items(name, object_):
+    return f'{plural(name, object_)}: {object_}'
+    
+# ---------------------------------------------------------------------------- #
+# Misc
+
+def surround(string, left, right=None, sep=''):
+    if not right:
+        right = left
+    return sep.join((left, string, right))
 
 
 def indent(string, width=4):
     # indent `width` number of spaces
     return string.replace('\n', '\n' + ' ' * width)
 
+
+# ---------------------------------------------------------------------------- #
+# Transformations
 
 def strip_non_ascii(string):
     """

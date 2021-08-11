@@ -17,6 +17,7 @@ from operator import *
 # local libs
 import docsplice as doc
 from recipes.decor import raises
+from recipes.functionals import echo0
 
 
 class NULL:
@@ -66,9 +67,9 @@ def append(obj, suffix):
 
 class ItemGetter:
     """
-    Item getter with optional defaul substitution
+    (Multi-)Item getter with optional default substitution
     """
-    _worker = getitem
+    _worker = staticmethod(getitem)
     _excepts = (KeyError, IndexError)
     _raises = KeyError
 
@@ -77,34 +78,63 @@ class ItemGetter:
         self.defaults = defaults or {}
         typo = set(self.defaults.keys()) - set(self.keys)
         if typo:
-            warnings.warn(
-                f'Invalid keys in `defaults` mapping: {typo}'
-            )
+            warnings.warn(f'Invalid keys in `defaults` mapping: {typo}')
+
         self.default = default
         if default is NULL:
+            # intentionally override the `get_default` method
             self.get_default = raises(self._raises)
 
-    def __call__(self, obj):  # -> List:
-        unpack = list if len(self.keys) > 1 else next
-        return unpack(self.iter(obj))
+    def __call__(self, target):  # -> List:
+        unpack = tuple if len(self.keys) > 1 else next
+        return unpack(self._iter(target))
 
     def get_default(self, key):
-        # # pylint: disable=method-hidden
+        """Retrieve the default value of the `key` attribute"""
+        # pylint: disable=method-hidden
         return self.defaults.get(key, self.default)
 
-    def iter(self, obj):
+    def _iter(self, target):
         for i in self.keys:
             try:
-                yield self._worker(obj, i)
+                yield self._worker(target, i)
             except self._excepts:
+                # note. Next line will raise KeyError if no default provided at init
                 yield self.get_default(i)
 
 
 class AttrGetter(ItemGetter):
+    """
+    (Multi-)Attribute getter with optional default substitution and chained
+    lookup support for nested objects.
+    """
     _excepts = (AttributeError, )
 
-    def _worker(self, obj, key):
-        return _op.attrgetter(key)(obj)
+    @staticmethod
+    def _worker(target, key):
+        return _op.attrgetter(key)(target)
+
+
+class AttrSetter:
+    """
+    (Multi-)Attribute setter with chained lookup support for setting attributes
+    on nested objects.
+    """
+    # this is valuable when vectorizing attribute lookup
+
+    def __init__(self, *keys):
+        self.keys = []
+        self.getters = []
+        for key in keys:
+            *chained, attr = key.rsplit('.', 1)
+            self.keys.append(attr)
+            self.getters.append(AttrGetter(*chained) if chained else echo0)
+
+    def __call__(self, target, values):
+        assert len(values) == len(self.keys)
+        for get_obj, attr, value in zip(self.getters, self.keys, values):
+            # logger.debug(get_obj(target), attr, value)
+            setattr(get_obj(target), attr, value)
 
 
 class MethodCaller:

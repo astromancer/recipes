@@ -4,6 +4,7 @@ Recipes involving lists.
 
 
 # std libs
+import itertools as itt
 from collections import defaultdict
 
 # third-party libs
@@ -175,8 +176,18 @@ def flatten(l):
 
 
 def split(l, idx):
-    """Split a list into sublists at the given indices"""
+    """Split a list `l` into sublists at the given indices."""
     return list(_iter.split(l, idx))
+
+
+def split_like(l, lists):
+    """
+    Split a list `l` into sublists, each with the same size as the sequence of
+    lists in `lists`.
+    """
+    *indices, total = itt.accumulate(map(len, lists))
+    assert len(l) == total
+    return split(l, indices)
 
 
 def split_where(l, item, start=0, test=None):

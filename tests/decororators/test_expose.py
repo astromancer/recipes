@@ -1,4 +1,4 @@
-# from recipes.decor.tests import test_cases as tcx
+# from recipes.decorators.tests import test_cases as tcx
 # pylint: disable-all
 
 

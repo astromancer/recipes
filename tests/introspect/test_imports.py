@@ -1,55 +1,82 @@
+
+# std libs
 import ast
-import textwrap
-from recipes.introspect.imports import ImportCapture, tidy, tidy_source
+from textwrap import dedent
 from pathlib import Path
+
+# local libs
+from recipes.introspect.imports import ImportCapture, tidy, tidy_source
+
+
+HERE = Path(__file__).parent.absolute()
+
+
+def source(string):
+    return dedent(string).strip()
 
 
 def test_detect_decorator():
-    source = textwrap.dedent("""\
-    from foo import bar
-    
-    @bar
-    def _():
-        pass
-    """)
+    code = source("""
+        from foo import bar
+        
+        @bar
+        def _():
+            pass
+        """)
 
     imp = ImportCapture(filter_unused=True)
-    imp.visit(ast.parse(source))
+    imp.visit(ast.parse(code))
     assert 'bar' in imp.used_names
 
 
 def test_preserve_scope():
-    source = textwrap.dedent("""\
-    def _():
-        from foo import bar
-        bar()
-    """)
-    s = tidy_source(source, unscope=False)
-    assert s == source
+    code = source("""
+        def _():
+            from foo import bar
+            bar()
+        """)
+    assert code == tidy_source(code, unscope=False)
 
 
 def test_merge_import_lines():
-    source = textwrap.dedent(
-        """\
+    code = source("""
         from matplotlib.collections import LineCollection
         from matplotlib.collections import EllipseCollection
         """)
-    s = tidy_source(source, filter_unused=False)
-    assert s == "from matplotlib.collections LineCollection, EllipseCollection"
+    s = tidy_source(code, filter_unused=False)
+    assert s == "from matplotlib.collections import LineCollection, EllipseCollection"
 
 
 def test_relative_imports():
-    source = textwrap.dedent("""\
-    from .. import CompoundModel, FixedGrid
-    
-    class MyModel(FixedGrid, CompoundModel):
-        pass
-    """)
+    code = source("""
+        from .. import shocCampaign, shocHDU
+        from .calibrate import calibrate
+        from . import logs, WELCOME_BANNER
+        from . import FolderTree
+        """)
 
+    expected = source("""
+        from .calibrate import calibrate
+        from .. import shocCampaign, shocHDU
+        from . import logs, WELCOME_BANNER, FolderTree
+        """)
+
+    assert expected == tidy_source(code, filter_unused=False)
+
+
+def test_filter():
+    code = source("""
+            import logging
+            import logging.config
+            
+            logging.config.dictConfig({})
+            """)
+
+    assert code == tidy_source(code, filter_unused=True)
 
 # def test_capture_line_limit():
 #     imp = ImportCapture(filter_unused=False)
-#     imp.visit(ast.parse(source))
+#     imp.visit(ast.parse(code))
 
 # TODO:
 #  test_make_groups
@@ -60,10 +87,12 @@ def test_relative_imports():
 #  test_keep_comments
 #  test_style_preference
 
+
 def test_example():
-    answer = tidy('example.py', dry_run=True)
-    expected = Path('example_new.py').read_text()
+    answer = tidy(HERE / 'example.py', dry_run=True)
+    expected = (HERE / 'result.py').read_text()
     assert answer == expected
+
 
 """
 import multiprocessing as mp
