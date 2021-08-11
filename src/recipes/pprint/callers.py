@@ -17,6 +17,54 @@ VAR_MARKS = {VAR: '*', VKW: '**'}
 _empty = inspect.Parameter.empty
 
 
+def fullname(obj, sep=' '):
+    """
+    Object type and fully qualified name.
+
+    Parameters
+    ----------
+    obj : callable
+        Any callable object
+    sep : str
+        Character(s) separating object class name and qualname
+
+    Examples
+    --------
+    >>> fullname(str)
+    "type 'str'"
+
+    >>> fullname(id)
+    "builtin_function_or_method 'id'"
+
+    >>> class X:
+    ...     def __call__(self):
+    ...         pass
+
+    >>> fullname(X)
+    "class '__main__.X'"
+
+    >>> fullname(X())
+    "instance of class '__main__.X'"
+
+    Returns
+    -------
+    str
+        Description of `obj` type and its name.
+    """
+    assert callable(obj)
+
+    if isinstance(obj, type):
+        # obj is a class
+        return str(obj).strip("<>")
+
+    if hasattr(obj, '__qualname__'):
+        # any function or method
+        return f'{obj.__class__.__name__}{sep}{obj.__qualname__!r}'
+
+    # any other callable
+    return f'instance of{sep}{str(type(obj)).strip("<>")}'
+
+
 def parameter(par, val_formatter=repr):
     kind = par.kind
     formatted = par._name

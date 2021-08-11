@@ -1,6 +1,6 @@
 
 """
-A collection of some awesome functional decorators used accross recipes
+A collection of some awesome functional decorators used accross recipes.
 """
 
 
@@ -17,7 +17,4 @@ A collection of some awesome functional decorators used accross recipes
 
 
 from ..functionals import *
-
-
-def fullname(func):
-    return f'{func.__class__.__name__} {func.__name__!r}'
+from .base import Decorator
