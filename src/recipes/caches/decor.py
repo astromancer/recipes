@@ -106,6 +106,24 @@ class Cached(LoggingMixin):
 
     """
 
+    def __new__(cls, maybe_func=None, *args, **kws):
+        # create class
+        obj = super().__new__(cls)
+
+        # Catch auto-init usage pattern
+        # >>> @cached
+        # ... def fun():
+        # ...     pass
+        # init and call!
+        if callable(maybe_func):
+            cls.__init__(obj)
+            return obj(maybe_func)
+            # NOTE that init will not be called when we return here since we are
+            # intentionally returning an object that is not an instance of this
+            # class!
+
+        return obj
+
     def __init__(self, filename=None, capacity=128, kind='lru', ignore=(),
                  typed=()):
         """
