@@ -38,3 +38,24 @@ def truncated(seq, max_items=10, edge_items=1, sep=','):
     return ', ... '.join((sep.join(map(repr, seq[:edge_items])),
                           sep.join(map(repr, seq[-edge_items:]))
                           )).join(brackets)
+
+
+def banner(text, swoosh='=', width=80, title=None, align='^'):
+    """
+
+    Parameters
+    ----------
+    text
+    swoosh
+    width
+    title
+    align
+
+    Returns
+    -------
+
+    """
+
+    swoosh = swoosh * width
+    pre = swoosh if title is None else overlay(' ', swoosh, align)
+    return os.linesep.join((pre, text, swoosh, ''))

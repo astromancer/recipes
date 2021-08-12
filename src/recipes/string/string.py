@@ -344,27 +344,6 @@ def monospaced(text):
 #     re.compile(rf'(?s)((?![\\]).){mark}([^\n]*)')
 
 
-def banner(text, swoosh='=', width=80, title=None, align='^'):
-    """
-
-    Parameters
-    ----------
-    text
-    swoosh
-    width
-    title
-    align
-
-    Returns
-    -------
-
-    """
-
-    swoosh = swoosh * width
-    pre = swoosh if title is None else overlay(' ', swoosh, align)
-    return os.linesep.join((pre, text, swoosh, ''))
-
-
 def overlay(text, background='', alignment='^', width=None):
     """overlay text on background using given alignment."""
 
