@@ -1,5 +1,5 @@
 """
-Common patterns involving iterables
+Common patterns involving iterables.
 """
 
 
@@ -83,10 +83,6 @@ def where(l, item, start=0, test=op.eq):
             i += 1  # start next search one on
 
 
-# def where_false(iterable, test=bool):
-#     return where(iterable, negate(test))
-
-
 def split(l, idx):
     """Split a list into sub-lists at the given indices"""
 
@@ -101,6 +97,7 @@ def split(l, idx):
     else:
         yield l
 
+
 # def split(l, idx):
 #     if isinstance(idx, numbers.Integral):
 #         idx = [idx]
@@ -114,6 +111,12 @@ def split(l, idx):
 
 #     if j is not None:
 #         yield l[j:]
+
+def split_slices(indices):
+    """
+    Generate slices for splitting a collection at index positions `indices`.
+    """
+    return map(slice, *zip(*mit.pairwise(itt.chain([0], indices))))
 
 
 def non_unique(itr):
@@ -241,16 +244,6 @@ def cofilter(func, *its):
 
 # def cofilter_false(func, *its):
 #     return cofilter(negate(func or bool), *its)
-
-
-def accumulate(a, start=0):
-    """
-    Generator that yields cumulative sum of elements of the input iterable
-    """
-    tot = int(start)
-    for item in a:
-        tot += item
-        yield tot
 
 
 def duplicates(l):
