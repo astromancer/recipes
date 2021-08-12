@@ -12,7 +12,7 @@ from decorator import decorate
 logging.basicConfig()
 logger = logging.getLogger(__file__)
 
-# 
+#
 # def inclass(func):
 #     return '.' in str(func)
 
@@ -85,7 +85,6 @@ logger = logging.getLogger(__file__)
 #         # Default null decorator
 #         # print(self.__class__, 'calling', self.__wrapper__, args, kws)
 #         return self.__wrapper__(self.__wrapper__.__self__, *args, **kws)
-
 
 
 class Decorator:
@@ -165,8 +164,10 @@ class Decorator:
             # No arguments provided to decorator.
             # >>> @decorator
             # ... def foo(): return
-            # cls.__init__(obj)
-            return obj(maybe_func)  # call => decorate / wrap the function
+            cls.__init__(obj)
+            return obj(maybe_func)
+
+            # call => decorate / wrap the function
             # NOTE: init will not be called when returning here since we are
             # intentionally returning an object that is not an instance of this
             # class!
@@ -187,6 +188,7 @@ class Decorator:
         # func.__wrapper__ = self.__wrapper__
         # print('__wrapped__', self.__wrapped__, type(func), inclass(func))
         return decorate(func, self.__wrapper__)
+        # ftl.update_wrapper(decorated, func)
 
     def __wrapper__(self, func, *args, **kws):
         """

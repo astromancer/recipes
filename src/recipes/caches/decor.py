@@ -4,9 +4,9 @@ Memoization decorators and helpers
 
 
 # std libs
+import types
 import numbers
 import warnings
-import functools as ftl
 from collections import abc
 from inspect import signature, _empty, _VAR_KEYWORD
 
@@ -15,16 +15,26 @@ from recipes.functionals import echo0
 from recipes.string import named_items
 
 # relative libs
-from . import fullname
 from .caches import Cache
+from ..decorators import Decorator
 from ..logging import LoggingMixin
+from ..pprint.callers import fullname
 
 
 # from ..interactive import exit_register
 
 
-def fullname(func):
-    return f'{func.__class__.__name__} {func.__name__!r}'
+# class A:
+#     def __key(self):
+#         return (self.attr_a, self.attr_b, self.attr_c)
+
+#     def __hash__(self):
+#         return hash(self.__key())
+
+#     def __eq__(self, other):
+#         if isinstance(other, A):
+#             return self.__key() == other.__key()
+#         return NotImplemented
 
 
 def check_hashable_defaults(func):
@@ -78,7 +88,7 @@ def _ignore_params(typed, ignore=()):
 #     def __hash__(self):
 
 
-class Cached(LoggingMixin):
+class Cached(Decorator, LoggingMixin):
     """
     Decorator for memoization on callable objects.
 
@@ -98,31 +108,13 @@ class Cached(LoggingMixin):
           non-hashable default arguments.
 
     TODOs:
-        not thread safe. 
+        not thread safe.
         some stats like ftl.lru_cache
         limit capacity in MB
         more serialization formats
         more cache types
 
     """
-
-    def __new__(cls, maybe_func=None, *args, **kws):
-        # create class
-        obj = super().__new__(cls)
-
-        # Catch auto-init usage pattern
-        # >>> @cached
-        # ... def fun():
-        # ...     pass
-        # init and call!
-        if callable(maybe_func):
-            cls.__init__(obj)
-            return obj(maybe_func)
-            # NOTE that init will not be called when we return here since we are
-            # intentionally returning an object that is not an instance of this
-            # class!
-
-        return obj
 
     def __init__(self, filename=None, capacity=128, kind='lru', ignore=(),
                  typed=()):
@@ -179,7 +171,7 @@ class Cached(LoggingMixin):
 
         A new cache entry was made for the keyword arguments.
         """
-        self.func = None
+
         self.sig = None
         self.typed = _check_hashers(typed, ignore)
         self.__init_args = (filename, capacity, kind)
@@ -187,47 +179,59 @@ class Cached(LoggingMixin):
 
     def __call__(self, func):
         """
-        Decorator the function
+        Decorate the function
         """
 
-        # check func
-        # if isinstance(func, type):
-        #     # if the decorator is applied to a class
+        if not callable(func):
+            warnings.warn(f'Cannot memoize {type(func)} {func} which is not '
+                          f'callable.')
+            return func
+
+        if not isinstance(func, (types.MethodType,
+                                 types.FunctionType,
+                                 types.BuiltinFunctionType,
+                                 types.BuiltinMethodType)):
+
+            # decorator is applied to a class - decorate `__call__`
+            original = func.__call__
+
+            def caller(x, *args, **kws):
+                return original(x, *args, **kws)
+
+            def wrapper(func, *args, **kws):
+                return func(*args, **kws)
+
+            from decorator import decorate
+            setattr(func, '__call__', decorate(caller, wrapper))
+
+            # func.__new__ = self(func.__new__))
+            return func
+
         #     if self.cache.filename and self.cache.path.suffix == '.json':
         #         raise ValueError('Classes are not serializable')
 
-        #     return type(f'Cached{func.__name__}', (_Cached, func), {})
-
-        # # hopefully we have a function or a method!
-        # assert isinstance(func, (types.MethodType,
-        #                          types.FunctionType,
-        #                          types.BuiltinFunctionType,
-        #                          types.BuiltinMethodType))
+        decorated = super().__call__(func)
 
         # check for non-hashable defaults: it is generally impossible to
         #  correctly memoize something that depends on non-hashable arguments
-
-        self.func = func
         self.sig = check_hashable_defaults(func)
+
+        if not self.sig.parameters:
+            warnings.warn(f'Cannot memoize {fullname(func)} which takes no '
+                          f'parameters.')
+            return func
 
         # resolve typed keys to parameter names
         self.resolve_types(self.typed)
 
         # since functools.wraps does not work on methods, explicitly decalare
         # decorated function here
-
-        @ftl.wraps(func)
-        def decorated(*args, **kws):
-            return self.memoize(*args, **kws)
+        # ftl.update_wrapper(decorated, func)
 
         # make a reference to the cache on the decorated function for
         # convenience. this will allow us to more easily add cache items
         # manually etc.
         decorated.__cache__ = self.cache  # OR decorated.__cache__??
-        # hack so we can access the inners of this class from the decorated
-        # function returned here
-        # `decorated.__self__.attr`.
-        decorated.__self__ = self
         return decorated
 
     def resolve_types(self, mapping):
@@ -244,7 +248,7 @@ class Cached(LoggingMixin):
         # all keys are now str
         invalid = set(mapping.keys()) - set(names)
         if invalid:
-            raise ValueError(f'{fullname(self.func).title()} takes no '
+            raise ValueError(f'{fullname(self.__wrapped__).title()} takes no '
                              f'{named_items("parameter", invalid)}.')
 
     def _gen_hash_key(self, args, kws):
@@ -262,7 +266,7 @@ class Cached(LoggingMixin):
                     # emit warning on non-silent ignore
                     self.logger.debug(
                         'Ignoring argument in '
-                        f'{fullname(self.func)}: {name!r} = {val!r}')
+                        f'{fullname(self.__wrapped__)}: {name!r} = {val!r}')
                 continue
 
             if self.sig.parameters[name].kind is not _VAR_KEYWORD:
@@ -308,19 +312,20 @@ class Cached(LoggingMixin):
             # unhashable type
             what = ('unhashable argument',
                     'rejection sentinel')[isinstance(val, Reject)]
-            warnings.warn(f'Received {what} from: '
-                          f'{name!r} = {val!r} in {fullname(self.func)}. '
-                          'Return value for call will not be cached.',
-                          CacheRejectionWarning)
+            warnings.warn(
+                f'{fullname(self.__wrapped__).capitalize()} received {what}:'
+                f' {name!r} = {val!r}\n'
+                'Return value for call will not be cached.',
+                CacheRejectionWarning)
             return False
         return True
 
-    def memoize(self, *args, **kws):
+    def __wrapper__(self, func, *args, **kws):
         """
         Caches the result of the function call
         """
+        # pylint: disable=broad-except
 
-        func = self.func
         key = self.get_key(*args, **kws)
         if not self.is_hashable(key):
             return func(*args, **kws)
@@ -329,24 +334,24 @@ class Cached(LoggingMixin):
         try:
             if key in self.cache:
                 self.logger.debug('Intercepted %s call: Loading result from '
-                                  'cache.', fullname(self.func))
+                                  'cache.', fullname(func))
                 return self.cache[key]
-        except Exception as err:
+        except Exception:
             # since caching is not mission critical, just log the error and
             # then run the function
             self.logger.exception('Cache lookup failed! Executing %s.',
-                                  fullname(self.func))
-            return self.func(*args, **kws)
+                                  fullname(func))
+            return func(*args, **kws)
 
         # If we are here, it means there is no cache entry for this call
         # signature. Compute!
-        answer = self.func(*args, **kws)
+        answer = func(*args, **kws)
 
         # If function call succeeded add, result to cache
         try:
             self.cache[key] = answer
-        except Exception as err:
-            self.logger.exception('Caching failed for %s!', fullname(self.func))
+        except Exception:
+            self.logger.exception('Caching failed for %s!', fullname(func))
 
         return answer
 

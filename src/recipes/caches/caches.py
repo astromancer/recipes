@@ -1,20 +1,24 @@
 
+
 # std libs
 import json
 from pathlib import Path
 from collections import OrderedDict as odict
 
+# local libs
+from recipes.dicts import pformat
+from recipes.logging import logging, get_module_logger
+
 # relative libs
 from ..logging import LoggingMixin
 from ..io import serialize, deserialize, guess_format
-from recipes.dicts import pformat
+
 
 # TODO: serializing the Cache class is error prone and hard to maintain.
 # Better to simply serialize the dict and init the cache from that??
 
 # TODO: sqlite, yaml, dill
 
-from recipes.logging import logging, get_module_logger
 
 # module level logger
 logger = get_module_logger()
