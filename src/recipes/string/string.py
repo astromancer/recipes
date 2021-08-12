@@ -17,6 +17,10 @@ REGEX_SPACE = re.compile(r'\s+')
 
 
 class Percentage:
+    """
+    An object representing a percentage of something (usually a number) that
+    computes the actual percentage value when called.
+    """
 
     regex = re.compile(r'([\d.,]+)\s*%')
 
@@ -33,6 +37,7 @@ class Percentage:
         Examples
         --------
         >>> Percentage('1.25%').of(12345)
+        154.3125
 
 
         Raises
@@ -53,6 +58,16 @@ class Percentage:
     def __str__(self):
         return f'{self.frac:.2%}'
 
+    def __call__(self, number):
+        try:
+            if isinstance(number, numbers.Real):
+                return self.frac * number
+            if isinstance(number, abc.Collection):
+                return self.frac * np.asanyarray(number, float)
+        except ValueError:
+            raise TypeError('Not a valid number or numeric array type.') \
+                from None
+
     def of(self, total):
         """
         Get the number representing by the percentage as a total. Basically just
@@ -64,8 +79,7 @@ class Percentage:
             Any number
 
         """
-        if isinstance(total, (numbers.Real, np.ndarray)):
-            return self.frac * total
+        self(total)
 
 
 # ---------------------------------------------------------------------------- #
@@ -385,6 +399,7 @@ def overlay(text, background='', alignment='^', width=None):
 # else:  #even window len
 # pl = ph = div
 
-# idx = width//2-pl, width//2+ph                    #start and end indeces of the text in the center of the progress indicator
+# idx = width//2-pl, width//2+ph
+# #start and end indeces of the text in the center of the progress indicator
 # s = fill*width
 # return s[:idx[0]] + self + s[idx[1]:]                #center text
