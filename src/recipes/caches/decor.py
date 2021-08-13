@@ -15,7 +15,7 @@ from recipes.functionals import echo0
 from recipes.string import named_items
 
 # relative libs
-from .caches import Cache
+from .manager import CacheManager
 from ..decorators import Decorator
 from ..logging import LoggingMixin
 from ..pprint.callers import fullname
@@ -116,6 +116,15 @@ class Cached(Decorator, LoggingMixin):
 
     """
 
+    @classmethod
+    def to_file(cls, filename, capacity=128, kind='lru', ignore=(), typed=()):
+        """
+        Decorator for persistent function memoization that saves cache to file
+        as a pickle / json / ...
+        """
+        # this here simply to make `filename` a required arg
+        return cls(filename, capacity, kind, ignore, typed)
+
     def __init__(self, filename=None, capacity=128, kind='lru', ignore=(),
                  typed=()):
         """
@@ -175,7 +184,13 @@ class Cached(Decorator, LoggingMixin):
         self.sig = None
         self.typed = _check_hashers(typed, ignore)
         self.__init_args = (filename, capacity, kind)
-        self.cache = Cache(capacity, filename, kind=kind)
+        self.cache = CacheManager(kind, capacity, filename)
+
+        # file rotation
+        # filename = self.cache.filename
+        # self.filename_template = None
+        # if filename and '{' in filename:
+        #     self.filename_template = filename
 
     def __call__(self, func):
         """
@@ -183,6 +198,7 @@ class Cached(Decorator, LoggingMixin):
         """
 
         if not callable(func):
+            # Emit a warning and return the original object
             warnings.warn(f'Cannot memoize {type(func)} {func} which is not '
                           f'callable.')
             return func
@@ -192,23 +208,24 @@ class Cached(Decorator, LoggingMixin):
                                  types.BuiltinFunctionType,
                                  types.BuiltinMethodType)):
 
-            # decorator is applied to a class - decorate `__call__`
+            # if self.cache.filename and self.cache.path.suffix == '.json':
+            #     raise ValueError('Classes are not JSON serializable')
+
+            # decorator is applied to a class - decorate the `__call__` method
             original = func.__call__
 
+            # FIXME: CAN'T PICKLE THIS LOCAL FUNCTION
             def caller(x, *args, **kws):
                 return original(x, *args, **kws)
 
-            def wrapper(func, *args, **kws):
-                return func(*args, **kws)
+            # decorate and override the __call__ method
+            setattr(func, '__call__', self(caller))
 
-            from decorator import decorate
-            setattr(func, '__call__', decorate(caller, wrapper))
+            # additionally set the __cache__ on the object itself
+            func.__cache__ = func.__call__.__cache__
 
-            # func.__new__ = self(func.__new__))
+            # return the patched object
             return func
-
-        #     if self.cache.filename and self.cache.path.suffix == '.json':
-        #         raise ValueError('Classes are not serializable')
 
         decorated = super().__call__(func)
 
@@ -255,6 +272,7 @@ class Cached(Decorator, LoggingMixin):
         """
         Generate hash key from function arguments.
         """
+
         bound = self.sig.bind(*args, **kws)
         bound.apply_defaults()
         for name, val in bound.arguments.items():
@@ -320,11 +338,17 @@ class Cached(Decorator, LoggingMixin):
             return False
         return True
 
+    # def rotate_file(self, **params):
+    #     self.cache.filename = self.filename_template.format(**params)
+
     def __wrapper__(self, func, *args, **kws):
         """
         Caches the result of the function call
         """
         # pylint: disable=broad-except
+
+        #
+        # self.rotate_file(**params)
 
         key = self.get_key(*args, **kws)
         if not self.is_hashable(key):
@@ -354,17 +378,6 @@ class Cached(Decorator, LoggingMixin):
             self.logger.exception('Caching failed for %s!', fullname(func))
 
         return answer
-
-
-class ToFile(Cached):
-    """
-    Decorator for persistent function memoization that saves cache to file as a
-    pickle
-    """
-
-    def __init__(self, filename, capacity=128, kind='lru', ignore=(), typed=()):
-        # this here simply to make `filename` a required arg
-        Cached.__init__(self, filename, capacity, kind, ignore, typed)
 
 
 class Ignore:
@@ -398,7 +411,7 @@ class Ignore:
 
 class Reject(Ignore):
     """
-    Reject the cache entry entirely
+    Reject the cache entry entirely.
 
     Examples
     --------
@@ -418,6 +431,6 @@ class CacheRejectionWarning(Warning):
 
 
 # ---------------------------------------------------------------------------- #
-# Aliases       # pylint: disable=invalid-name
-to_file = ToFile
+# Aliases                                       # pylint: disable=invalid-name
+to_file = Cached.to_file
 memoize = cached = Cached
