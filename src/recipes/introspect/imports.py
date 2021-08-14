@@ -15,11 +15,10 @@ import anytree
 from stdlib_list import stdlib_list
 
 # relative libs
-from ..iter import accumulate
 from ..io import write_lines, safe_write
 from ..functionals import always, echo0 as echo
 
-
+# TODO: convert to relative imports
 # from importlib.machinery import PathFinder
 
 
@@ -255,18 +254,17 @@ class Funky:
 
 
 def get_tree_file(filename, up_to_line=math.inf, filter_unused=None,
-                  alphabetic=False, aesthetic=True, unscope=False):
+                  sort='aesthetic', unscope=False):
     filename = str(filename)
     with open(filename) as fp:
         source = fp.read()
 
-    root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
-                              aesthetic, unscope)
+    root, _ = get_tree(source, up_to_line, filter_unused, sort, unscope)
     return root
 
 
 def get_tree(source, up_to_line=math.inf, filter_unused=None,
-             alphabetic=False, aesthetic=True, unscope=False):
+             sort='aesthetic', unscope=False):
     # Capture import nodes
     split_multi_module = True
     net = ImportCapture(up_to_line, unscope, split_multi_module,
@@ -274,10 +272,10 @@ def get_tree(source, up_to_line=math.inf, filter_unused=None,
     importsTree = net.visit(ast.parse(source))
 
     # group and sort (creates a new tree structure)
-    return make_tree(importsTree.body, aesthetic, alphabetic), net
+    return make_tree(importsTree.body, sort), net
 
 
-def make_tree(statements, aesthetic=True, alphabetic=False):
+def make_tree(statements, sort='aesthetic'):
     """
     Create a tree of import statements from a list of ast nodes. This divides
     the import statements into groups and assigns a positional `order` attribute
@@ -307,7 +305,9 @@ def make_tree(statements, aesthetic=True, alphabetic=False):
     if len(statements) == 0:
         return root
 
-    if aesthetic:
+    sort = sort.lower()
+    assert sort in STYLES
+    if sort.startswith('aes'):
         # hierarchical group sorting for aesthetic
         importStyleGroups = get_style_groups(statements)
 
@@ -318,8 +318,8 @@ def make_tree(statements, aesthetic=True, alphabetic=False):
         groupers = [get_module_kind, lvl1, ] + list(Funky(statements))
         sorters = [MODULE_GROUP_NAMES.index, echo]
 
-    elif alphabetic:
-        raise NotImplementedError
+    else:
+        raise NotImplementedError(sort)
 
     # make tree
     root.make_branch(statements, groupers, sorters)
@@ -347,8 +347,8 @@ def get_style_groups(statements):
             for m, b in moduleIsFrom.items()}
 
 
-def tidy(filename, up_to_line=math.inf, filter_unused=None, alphabetic=False,
-         aesthetic=True, unscope=False, keep_multiline=True,
+def tidy(filename, up_to_line=math.inf, filter_unused=None,
+         sort='aesthetic', unscope=False, keep_multiline=True,
          headers=None, write_to=None, dry_run=False, report=False):
     """
     Tidy up import statements that might lie scattered throughout hastily
@@ -399,7 +399,7 @@ def tidy(filename, up_to_line=math.inf, filter_unused=None, alphabetic=False,
 
     # line generator
     lines = rewrite_gen(
-        source, up_to_line, filter_unused, alphabetic, aesthetic, unscope,
+        source, up_to_line, filter_unused, sort, unscope,
         keep_multiline, headers, report
     )
 
@@ -413,23 +413,22 @@ def tidy(filename, up_to_line=math.inf, filter_unused=None, alphabetic=False,
 
 
 def tidy_source(source, up_to_line=math.inf, filter_unused=None,
-                alphabetic=False, aesthetic=True, unscope=False,
-                keep_multiline=True, headers=None, report=False):
+                sort='aesthetic', unscope=False, keep_multiline=True,
+                headers=None, report=False):
 
     # line generator
     lines = rewrite_gen(
-        source, up_to_line, filter_unused, alphabetic, aesthetic, unscope,
-        keep_multiline, headers, report
+        source, up_to_line, filter_unused, sort, unscope, keep_multiline,
+        headers, report
     )
     return '\n'.join(lines)
 
 
 def rewrite_gen(source, up_to_line=math.inf, filter_unused=None,
-                alphabetic=False, aesthetic=True, unscope=False,
+                sort='aesthetic', unscope=False,
                 keep_multiline=True, headers=None, report=False):
     #
-    root, captured = get_tree(source, up_to_line, filter_unused, alphabetic,
-                              aesthetic, unscope)
+    root, captured = get_tree(source, up_to_line, filter_unused, sort, unscope)
     # at this point the import statements should be grouped and sorted
     # correctly in new tree
     if report:
@@ -545,7 +544,7 @@ def rewrite(node, width=80):
         # wrap imported names in a tuple
         s += '('
         mark = len(s)
-        for i, l in enumerate(accumulate(lengths, len(s))):
+        for i, l in enumerate(itt.accumulate(lengths, sum, len(s))):
             if l > width:
                 # go to next line & indent to tuple mark
                 s = s.strip()
@@ -581,9 +580,9 @@ def merge_duplicates(stm):
     prev = None
     for i, st in enumerate(stm):
         if (i and
-            set(map(type, (st, prev))) == {ast.ImportFrom} and
-            st.module == prev.module and
-            st.level == prev.level
+                set(map(type, (st, prev))) == {ast.ImportFrom} and
+                st.module == prev.module and
+                st.level == prev.level
             ):
 
             names = {_.name for _ in prev.names}
