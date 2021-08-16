@@ -268,16 +268,19 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 def naive_plural(text):
     return text + 'es' if text.endswith('s') else 's'
 
+
 def plural(text, obj=(())):
     """conditional plural"""
     many = isinstance(obj, abc.Collection) and len(obj) != 1
     return naive_plural(text) if many else text
 
+
 def named_items(name, object_):
     return f'{plural(name, object_)}: {object_}'
-    
+
 # ---------------------------------------------------------------------------- #
 # Misc
+
 
 def surround(string, left, right=None, sep=''):
     if not right:
@@ -290,8 +293,16 @@ def indent(string, width=4):
     return string.replace('\n', '\n' + ' ' * width)
 
 
+def truncate(string, size, dots=' … ', end=10):
+    n = len(string)
+    if n <= size:
+        return string
+
+    return f'{string[:(size - len(dots) - end)]}{dots}{string[-end:]}'
+
 # ---------------------------------------------------------------------------- #
 # Transformations
+
 
 def strip_non_ascii(string):
     """
