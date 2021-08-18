@@ -11,6 +11,23 @@ import itertools as itt
 from collections import namedtuple, OrderedDict
 from typing import Union, ClassVar
 
+
+
+
+
+
+
+
+
+from example import this_should_become_relative
+
+
+
+
+
+
+
+
 from dataclasses import dataclass, field
 
 # WARNING: THESE IMPORT ARE MEGA SLOW!! ~10s  (localize to mitigate?)
