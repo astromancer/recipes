@@ -5,7 +5,7 @@ import pytest
 # local libs
 from recipes import op
 from recipes.functionals import negate
-from recipes.testing import Expect, Throws, mock, expected
+from recipes.testing import Expected, Throws, mock, expected
 from recipes.string.brackets import match, remove, outermost, braces, xsplit
 
 
@@ -23,7 +23,7 @@ def test_match_brackets(s, pair, result):
         assert r == s[i+1:j]
 
 
-test_brackets_must_close = Expect(match)({
+test_brackets_must_close = Expected(match)({
     #
     mock('foo{bla', '{}', must_close=False):           (None, (None, None)),
     mock('open((((((', '()', must_close=False):        (None, (None, None)),
@@ -40,7 +40,7 @@ test_brackets_must_close = Expect(match)({
 # pytest.mark.skip(test_brackets_must_close)
 
 
-test_iter = Expect(braces.iter)(
+test_iter = Expected(braces.iter)(
     {'{}{}{}{}': [('', (0, 1)), ('', (2, 3)), ('', (4, 5)), ('', (6, 7))]},
     transform=list
 )
@@ -52,7 +52,7 @@ def test_iter_nested(string):
         assert b == string[i+1:j]
 
 
-test_unbracket = Expect(remove)({
+test_unbracket = Expected(remove)({
     mock.remove('', '()'):                             '',
     mock.remove('()', '()'):                           '',
     mock.remove('test()', '()'):                       'test',
@@ -77,7 +77,7 @@ test_unbracket = Expect(remove)({
 # pytest.mark.skip(test_unbracket)
 
 # test splitter
-test_split = Expect(braces.split2)(
+test_split = Expected(braces.split2)(
     {'':                    [('', '')],
      '...':                 [('...', '')],
      '{}':                  [('', '{}')],
@@ -90,7 +90,7 @@ test_split = Expect(braces.split2)(
      },
     transform=list)
 
-test_xsplit = Expect(xsplit)(
+test_xsplit = Expected(xsplit)(
     {'':                    [''],
      '...':                 ['...'],
      '{4..6}':              ['{4..6}'],
@@ -103,7 +103,7 @@ test_xsplit = Expect(xsplit)(
     transform=list)
 
 
-test_depth = Expect(braces.depth)({
+test_depth = Expected(braces.depth)({
     '{}':                                   1,
     '':                                     0,
     '{{{{{}}}}}':                           5,

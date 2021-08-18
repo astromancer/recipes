@@ -1,4 +1,4 @@
-from recipes.testing import Expect, Throws, mock
+from recipes.testing import Expected, Throws, mock
 import pytest
 
 # pylint: disable=unused-argument
@@ -31,13 +31,13 @@ class SomeClass:
         return a, b, c, args, kws
 
 
-# test_fun0 = Expect(fun0)({(): None})
+# test_fun0 = Expected(fun0)({(): None})
 
 
 
 
 for f in (fun1, ):#SomeClass().meth0, SomeClass.meth1):
-    test = Expect(f)({
+    test = Expected(f)({
         mock(1):            (1, 2, 3, (), {}),
         mock(1, 1):         (1, 1, 3, (), {}),
         mock(1, b=1):       (1, 1, 3, (), {}),
@@ -48,11 +48,11 @@ for f in (fun1, ):#SomeClass().meth0, SomeClass.meth1):
     })
     exec(f'test_{f.__name__} = test')
 
-test_throws = Expect(throws1)({(): Throws(ValueError)})
+test_throws = Expected(throws1)({(): Throws(ValueError)})
 
 
 
-# test_fun1 = Expect(fun1)({
+# test_fun1 = Expected(fun1)({
 #     mock(1):            RETURNS,
 #     mock(1, 1):         RETURNS,
 #     mock(1, b=1):       RETURNS,
@@ -62,7 +62,7 @@ test_throws = Expect(throws1)({(): Throws(ValueError)})
 # })
 
 
-# test_meth0 = Expect(SomeClass().meth0)({
+# test_meth0 = Expected(SomeClass().meth0)({
 #     mock(1):            RETURNS,
 #     mock(1, 1):         RETURNS,
 #     mock(1, b=1):       RETURNS,
@@ -72,7 +72,7 @@ test_throws = Expect(throws1)({(): Throws(ValueError)})
 # })
 
 
-# test_meth1 = Expect(SomeClass.meth1)({
+# test_meth1 = Expected(SomeClass.meth1)({
 #     mock(1):            RETURNS,
 #     mock(1, 1):         RETURNS,
 #     mock(1, b=1):       RETURNS,

@@ -8,10 +8,10 @@ import pytest
 import numpy as np
 
 
-from recipes.testing import Expect, mock
+from recipes.testing import Expected, mock
 
 #
-test_decimal = Expect(decimal)(
+test_decimal = Expected(decimal)(
     {mock.decimal(1e4):                         '10000.0',
      mock.decimal(0.0000123444):                '0.0000123',
      mock.decimal(3.14159265, 5):               '3.14159',
@@ -23,7 +23,7 @@ test_decimal = Expect(decimal)(
 )
 
 
-test_hms = Expect(hms)(
+test_hms = Expected(hms)(
     {mock.hms(1e4):                             '02h46m40.0s',
      mock.hms(1.333121112e2, 5):                '00h02m13.31211s',
      mock.hms(1.333121112e2, 5, ':'):           '00:02:13.31211',
