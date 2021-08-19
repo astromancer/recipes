@@ -37,6 +37,7 @@ import astropy.io.fits as pyfits
 from astropy.io.fits.hdu import HDUList, PrimaryHDU
 import more_itertools as mit
 
+import recipes.introspect.imports
 import recipes.iter as itr
 from recipes.io import warn
 from recipes.set import OrderedSet

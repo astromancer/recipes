@@ -6,18 +6,25 @@
 
 
 # std libs
-from recipes.introspect.imports import refactor, NodeFilter
-from recipes.string import remove_prefix
-import pytest
 import ast
-from textwrap import dedent
 from pathlib import Path
+from textwrap import dedent
 
 # local libs
-from recipes.introspect.imports import ImportCapture, ImportFilter, ImportRefactory, ImportMerger, rewrite, tidy
-from recipes.testing import Expected, expected, mock, ECHO, PASS, Warns
+from recipes.string import remove_prefix
+from recipes.introspect.imports import Parentage
+from recipes.introspect.imports import refactor, rewrite
+from recipes.testing import Expected, expected, mock, ECHO, Warns
+from recipes.introspect.imports import (ImportCapture,
+                                        ImportFilter,
+                                        ImportRefactory,
+                                        ImportMerger,
+                                        rewrite,
+                                        tidy,
+                                        ImportSplitter,
+                                        Parentage,
+                                        ImportRelativizer)
 
-from recipes.introspect.imports import ImportSplitter, Parentage, ImportRelativizer
 TESTPATH = Path(__file__).parent.absolute()
 
 # ---------------------------------------------------------------------------- #
@@ -269,9 +276,9 @@ class TestImportRelativizer(TestNodeTransformer):
         assert new == source(expected)
 
 
-test_refactory = Expected(refactor, right_transform=source)({
+test_refactor = Expected(refactor, right_transform=source)({
     # case: Warn if asked to filter unused and no code in body (besides imports)
-    mock('import this', filter_unused=True):        Warns(),
+    mock('import this', filter_unused=True):            Warns(),
     #
     mock(source('''
             import logging
