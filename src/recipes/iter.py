@@ -3,15 +3,15 @@ Common patterns involving iterables.
 """
 
 
-# std libs
+# std
 import numbers
 import itertools as itt
 from collections import abc
 
-# third-party libs
+# third-party
 import more_itertools as mit
 
-# relative libs
+# relative
 from . import op
 from .functionals import negate, echo0 as echo
 

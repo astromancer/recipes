@@ -1,9 +1,9 @@
 
 
-# std libs
+# std
 import multiprocessing as mp
 
-# local libs
+# local
 from recipes.logging import LoggingMixin
 
 

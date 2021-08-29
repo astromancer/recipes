@@ -3,12 +3,13 @@ Functional keyword translation for understanding inexact input from humans
 """
 
 
-# std libs
+
+# std
 import re
 import types
 import functools as ftl
 
-# local libs
+# local
 from recipes.string import brackets
 
 

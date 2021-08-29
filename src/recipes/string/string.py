@@ -3,12 +3,12 @@ Utilities for operations on strings
 """
 
 
-# std libs
+# std
 import re
 import numbers
 from collections import abc
 
-# third-party libs
+# third-party
 import numpy as np
 
 

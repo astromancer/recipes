@@ -32,17 +32,17 @@ much neater
 """
 
 
-# std libs
+# std
 import types
 import itertools as itt
 from contextlib import nullcontext
 from collections import defaultdict
 from inspect import signature, Signature, Parameter, _ParameterKind
 
-# third-party libs
+# third-party
 import pytest
 
-# local libs
+# local
 from recipes.lists import lists
 from recipes import pprint as pp
 from recipes.iter import cofilter, negate

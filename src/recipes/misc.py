@@ -3,20 +3,20 @@ Host of useful miscellaneous classes and functions.
 """
 
 
-# std libs
+# std
 import sys
 import shutil
 import logging
 from numbers import Number
 from collections import abc, deque
 
-# third-party libs
+# third-party
 import numpy as np
 
-# local libs
+# local
 from recipes.logging import logging, get_module_logger
 
-# relative libs
+# relative
 from .interactive import is_interactive
 
 

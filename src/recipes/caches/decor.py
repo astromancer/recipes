@@ -3,18 +3,18 @@ Memoization decorators and helpers
 """
 
 
-# std libs
+# std
 import types
 import numbers
 import warnings
 from collections import abc
 from inspect import signature, _empty, _VAR_KEYWORD
 
-# local libs
+# local
 from recipes.functionals import echo0
 from recipes.string import named_items
 
-# relative libs
+# relative
 from .caches import Cache
 from ..decorators import Decorator
 from ..logging import LoggingMixin

@@ -1,5 +1,5 @@
 
-# std libs
+# std
 import more_itertools as mit
 from recipes import cosort
 from recipes import op
@@ -26,11 +26,11 @@ from pathlib import Path
 from functools import partial
 from collections import defaultdict
 
-# third-party libs
+# third-party
 import anytree
 from stdlib_list import stdlib_list
 
-# relative libs
+# relative
 from ..io import write_lines, safe_write, count_lines
 from ..functionals import always, echo0 as echo
 

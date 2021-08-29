@@ -5,18 +5,17 @@ readable forms
 
 # This module designed for convenience and is *not* speed tested (yet)
 
-# std libs
-import math
+
+# std
 import re
 import pprint
 import numbers
 from collections import namedtuple
 
-# third-party libs
+# third-party
 import numpy as np
 
-# local libs
-from recipes.array.misc import vectorize
+# local
 import docsplice as doc
 
 # note: unicode literals below python3 only!

@@ -3,12 +3,12 @@ Multi-dimensional arrays with synchronized element access
 """
 
 
-# std libs
+# std
 import ctypes
 import multiprocessing as mp
 import multiprocessing.managers as mgr
 
-# third-party libs
+# third-party
 import numpy as np
 
 

@@ -5,7 +5,7 @@
 # pylint: disable=redefined-outer-name
 
 
-# std libs
+# std
 from recipes.introspect.imports import refactor, NodeFilter
 from recipes.string import remove_prefix
 import pytest
@@ -13,7 +13,7 @@ import ast
 from textwrap import dedent
 from pathlib import Path
 
-# local libs
+# local
 from recipes.testing import Expected, expected, mock, ECHO, PASS, Warns
 
 from recipes.introspect.imports import ImportCapture, ImportFilter, ImportRefactory, ImportMerger, rewrite, tidy

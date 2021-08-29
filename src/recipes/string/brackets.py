@@ -1,14 +1,14 @@
 
-# std libs
+# std
 import math
 import inspect
 import numbers
 import itertools as itt
 
-# local libs
+# local
 import docsplice as doc
 
-# relative libs
+# relative
 from . import remove_affix
 from ..functionals import always, echo0
 

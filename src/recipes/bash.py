@@ -3,15 +3,15 @@ Emulate bash brace expansion
 """
 
 
-# std libs
+# std
 import re
 import math
 import itertools as itt
 
-# third-party libs
+# third-party
 from anytree import Node as _Node, RenderTree
 
-# local libs
+# local
 import docsplice as doc
 from recipes import op
 from recipes.lists import split_where

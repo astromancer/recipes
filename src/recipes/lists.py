@@ -3,17 +3,17 @@ Recipes involving lists.
 """
 
 
-# std libs
+# std
 import itertools as itt
 from collections import defaultdict
 
-# third-party libs
+# third-party
 import more_itertools as mit
 
-# local libs
+# local
 import docsplice as doc
 
-# relative libs
+# relative
 from . import op, iter as _iter
 from .dicts import DefaultOrderedDict
 from .functionals import always, echo0 as _echo

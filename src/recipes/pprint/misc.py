@@ -3,7 +3,10 @@ Miscellaneous functions for pretty printing
 """
 
 
-# relative libs
+# std
+import os
+
+# relative
 from ..dicts import pformat
 
 

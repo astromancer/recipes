@@ -1,16 +1,16 @@
 
 
-# std libs
+# std
 import time
 import logging
 import itertools as itt
 import multiprocessing as mp
 
-# third-party libs
+# third-party
 import psutil
 import numpy as np
 
-# local libs
+# local
 from recipes.iter import chunker
 from recipes.logging import LoggingMixin
 # import ctypes

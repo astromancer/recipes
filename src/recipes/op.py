@@ -6,15 +6,15 @@ support for default values
 # pylint: disable=redefined-builtin
 # pylint: disable=invalid-name
 
-
-# std libs
+# std
+from collections import abc
 import builtins
 import warnings
 import functools as ftl
 import operator as _op
 from operator import *
 
-# local libs
+# local
 import docsplice as doc
 from recipes.decor import raises
 from recipes.functionals import echo0

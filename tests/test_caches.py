@@ -1,7 +1,7 @@
 # pylint: skip-file
 
 
-# std libs
+# std
 from recipes.caches.decor import CacheRejectionWarning
 import logging
 import tempfile
@@ -9,11 +9,11 @@ import itertools as itt
 from pathlib import Path
 from collections import OrderedDict as odict, defaultdict
 
-# third-party libs
+# third-party
 import pytest
 import numpy as np
 
-# local libs
+# local
 from recipes.caches import Cache, Cached, to_file
 from recipes.caches.decor import check_hashable_defaults, Ignore, Reject
 

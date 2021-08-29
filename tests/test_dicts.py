@@ -1,11 +1,11 @@
 
-# std libs
+# std
 import types
 
-# third-party libs
+# third-party
 import pytest, pickle
 
-# local libs
+# local
 from recipes.dicts import AVDict, AttrReadItem, AttrDict
 
 

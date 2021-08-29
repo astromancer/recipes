@@ -1,8 +1,8 @@
 
-# third-party libs
+# third-party
 import pytest
 
-# local libs
+# local
 from recipes import op
 from recipes.functionals import negate
 from recipes.testing import Expected, Throws, mock, expected

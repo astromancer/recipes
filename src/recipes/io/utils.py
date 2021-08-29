@@ -1,6 +1,7 @@
 
 
-# std libs
+# std
+import io
 import os
 import glob
 import json
@@ -13,13 +14,13 @@ import itertools as itt
 from pathlib import Path
 from contextlib import contextmanager
 
-# local libs
+# local
 import docsplice as doc
 from recipes.bash import brace_expand_iter
 from recipes.string import sub
 from recipes.string.brackets import braces
 
-# relative libs
+# relative
 from ..functionals import echo0
 
 

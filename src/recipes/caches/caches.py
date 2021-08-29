@@ -1,15 +1,15 @@
 
 
-# std libs
+# std
 import json
 from pathlib import Path
 from collections import OrderedDict as odict
 
-# local libs
+# local
 from recipes.dicts import pformat
 from recipes.logging import logging, get_module_logger
 
-# relative libs
+# relative
 from ..logging import LoggingMixin
 from ..io import serialize, deserialize, guess_format
 

@@ -5,12 +5,12 @@
 # pylint: disable=redefined-outer-name
 
 
-# std libs
+# std
 import ast
 from pathlib import Path
 from textwrap import dedent
 
-# local libs
+# local
 from recipes.string import remove_prefix
 from recipes.introspect.imports import Parentage
 from recipes.introspect.imports import refactor, rewrite

@@ -1,5 +1,5 @@
 
-# std libs
+# std
 import os
 import io
 import ast
@@ -12,11 +12,11 @@ import itertools as itt
 from pathlib import Path
 from collections import defaultdict
 
-# third-party libs
+# third-party
 import more_itertools as mit
 from stdlib_list import stdlib_list
 
-# local libs
+# local
 from recipes import cosort, op
 from recipes.io import open_any
 from recipes import pprint as pp
@@ -24,7 +24,7 @@ from recipes.functionals import negate
 from recipes.string import replace_prefix, truncate
 from recipes.logging import logging, get_module_logger
 
-# relative libs
+# relative
 from ..io import safe_write
 
 

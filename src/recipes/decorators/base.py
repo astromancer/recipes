@@ -3,10 +3,10 @@ Base classes for extensible decorators.
 """
 
 
-# std libs
+# std
 import logging
 
-# third-party libs
+# third-party
 from decorator import decorate
 
 logging.basicConfig()

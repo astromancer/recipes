@@ -2,11 +2,11 @@
 Pretty printing callable objects and call signatures
 """
 
-# std libs
+# std
 import inspect
 import textwrap as txw
 
-# relative libs
+# relative
 from ..introspect.utils import get_module_name
 from ..introspect import get_class_that_defined_method
 # import types

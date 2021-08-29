@@ -3,9 +3,9 @@ Recipes involving dictionaries
 """
 
 
-# std libs
-import re
-import types
+# std
+from collections import abc
+from .functionals import Emit
 import numbers
 import warnings
 import itertools as itt
@@ -13,8 +13,11 @@ from pathlib import Path
 from collections.abc import Hashable
 from collections import UserDict, OrderedDict, defaultdict
 
-# relative libs
-from .string import indent, brackets as bkt
+# third-party
+import more_itertools as mit
+
+# relative
+from .string import indent
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
