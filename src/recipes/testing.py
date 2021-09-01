@@ -31,9 +31,9 @@ much neater
 
 """
 
-
 # std
 import types
+import difflib
 import itertools as itt
 from contextlib import nullcontext
 from collections import defaultdict
@@ -43,30 +43,18 @@ from inspect import signature, Signature, Parameter, _ParameterKind
 import pytest
 
 # local
-from recipes.lists import lists
-from recipes import pprint as pp
-from recipes.iter import cofilter, negate
-from recipes.functionals import echo0 as echo
-from recipes.logging import logging, get_module_logger
+import motley
 
+# relative
+from . import pprint as pp
+from .lists import lists
+from .iter import cofilter, negate
+from .functionals import echo0 as echo
+from .logging import logging, get_module_logger
 
-# module level logger
 logging.basicConfig()
 logger = get_module_logger()
 logger.setLevel(logging.DEBUG)
-
-
-# FIXME: get this to work inside a class!!
-
-# TODO: expected decorator
-
-# @expected(
-#     (CAL/'SHA_20200822.0005.fits', shocBiasHDU,
-#      CAL/'SHA_20200801.0001.fits', shocFlatHDU,
-#      EX1/'SHA_20200731.0022.fits', shocNewHDU)
-# )
-# def hdu_type(filename):
-#     return _BaseHDU.readfrom(filename).__class__
 
 
 POS, PKW, VAR, KWO, VKW = _ParameterKind
@@ -85,6 +73,16 @@ def get_hashable_args(*args, **kws):
 def isfixture(obj):
     return (isinstance(obj, types.FunctionType) and
             hasattr(obj, '_pytestfixturefunction'))
+
+
+def show_diff(actual, expected):
+    """
+    Diff helper function. Returns a string containing the unified diff of two
+    multiline strings.
+    """
+
+    return ''.join(difflib.unified_diff(actual.splitlines(True),
+                                        expected.splitlines(True)))
 
 
 class WrapArgs:
@@ -190,7 +188,7 @@ def get_transforms(main, left, right):
     return left, right
 
 
-#TODO:
+# TODO:
 # class Case
 
 class Expected:
@@ -284,7 +282,7 @@ class Expected:
         if isinstance(cases, dict):
             cases = cases.items()
         elif isinstance(cases, (list, tuple)):
-            # if passing list, signify that all we want is for the tests to 
+            # if passing list, signify that all we want is for the tests to
             # complete. return values will not be checked
             cases = zip(cases, itt.repeat(PASS))
 
@@ -309,7 +307,7 @@ class Expected:
         # return ParametrizedTestHelper(test, names, values, *args, **kws)
         # # NOT WORKING:
         # PytestCollectionWarning: cannot collect because it is not a function
-        
+
         return pytest.mark.parametrize(names, values, *args, **kws)(test)
 
     def run(self, items, *args, transform=echo, **kws):
@@ -381,8 +379,6 @@ class Expected:
                 try:
                     bound = self.bind(*args, **{**self.kws, **kws})
                 except TypeError as err:
-                    from IPython import embed
-                    embed(header="Embedded interpreter at 'src/recipes/testing.py':370")
                     msg = 'too many positional arguments'
                     if msg in str(err) and self.is_test:
                         err = TypeError(
@@ -430,7 +426,19 @@ class Expected:
             # NOTE: explicitly assigning answer here so that pytest
             # introspection of locals in this scope works when producing the
             # failure report
-            assert answer == expected
+            if answer != expected:
+
+                message = '\n'.join((
+                    'Result from function '
+                    f'{motley.green(repr(self.func.__name__))}'
+                    ' is not equal to expected answer!',
+                    f'RESULT:\n{answer}',
+                    f'EXPECTED:\n{expected}'
+                ))
+                if isinstance(answer, str) and isinstance(expected, str):
+                    message += f'\nDIFF\n{show_diff(answer, expected)}'
+
+                raise AssertionError(message)
 
         # Override signature to add `expected` parameter
         # Add `expected` parameter after variadic keyword arguments
@@ -447,11 +455,10 @@ class Expected:
 
 # class TestDescriptorHelper:
 
-
-class ParametrizedTestHelper: # ParametrizedTest:
+class ParametrizedTestHelper:  # ParametrizedTest:
     # set the 'test_xxx' name on classes for automatically constructed tests
     # inside class scope
-    
+
     def __init__(self, test, names, values, *args, **kws):
         self.test = test
         logger.debug('parametrizing %s', pp.caller(test))
@@ -470,5 +477,5 @@ class ParametrizedTestHelper: # ParametrizedTest:
         if not name.startswith('test'):
             logger.debug("renaming test function: %r -> 'test_%s'", name, name)
             name = f'test_{name}'
-        
+
         setattr(kls, name, self.runner)
