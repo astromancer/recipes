@@ -1,10 +1,3 @@
-# pylint: disable=missing-module-docstring
-# pylint: disable=missing-function-docstring
-# pylint: disable=missing-class-docstring
-# pylint: disable=no-self-use
-# pylint: disable=redefined-outer-name
-
-
 # std
 import ast
 from pathlib import Path
@@ -12,11 +5,10 @@ from textwrap import dedent
 
 # local
 from recipes.string import remove_prefix
-from recipes.introspect.imports import Parentage
-from recipes.introspect.imports import refactor, rewrite
 from recipes.testing import Expected, expected, mock, ECHO, Warns
-from recipes.introspect.imports import (ImportCapture,
-                                        ImportFilter,
+from recipes.introspect.imports import (Parentage, refactor, rewrite,
+                                        ImportCapture,
+                                        ImportFilter, NodeTypeFilter,
                                         ImportRefactory,
                                         ImportMerger,
                                         rewrite,
@@ -26,7 +18,7 @@ from recipes.introspect.imports import (ImportCapture,
                                         ImportRelativizer)
 
 TESTPATH = Path(__file__).parent.absolute()
-
+EXAMPLES = TESTPATH / 'import_refactor_examples'
 # ---------------------------------------------------------------------------- #
 
 
@@ -55,7 +47,7 @@ def check_parents(node):
         import re
         import operator as op
         import warnings as wrn
-        
+
         wrn.warn('Dinosaurs!!')
         '''
 )
@@ -72,12 +64,12 @@ class TestNodeTransformer:
         return parse(Transformer, code, *args, **kws)
 
 
-class TestNodeFilter(TestNodeTransformer):
+class TestNodeTypeFilter(TestNodeTransformer):
     @expected({
         ('''
         import re, os
         import operator as op
-        
+
         op.eq(re, os)
         assert 1 + 1 == 2
         raise SytemExit('Done')
@@ -261,13 +253,71 @@ class TestImportSplitter(TestNodeTransformer):
 
 class TestImportRelativizer(TestNodeTransformer):
     @expected({
-        ('''
-        from xx import yy as uu, zz as vv
-        from xx.yy import qq
-        ''', 'xx'):
+        # basic
+        ('from xx import yy as uu, zz as vv\n'
+         'from xx.yy import qq',
+         'xx'):
+        ('from . import yy as uu, zz as vv\n'
+         'from .yy import qq'),
+
+        # one level deep
+        (source('''
+            from recipes import cosort, op
+            from recipes.io import open_any
+            from recipes import pprint as pp
+            from recipes.functionals import negate
+            from recipes.string import replace_prefix, truncate
+            from recipes.logging import logging, get_module_logger
+            from ..io import safe_write
+            '''),
+            'recipes'):
         '''
-        from . import yy as uu, zz as vv
-        from .yy import qq
+        from . import cosort, op
+        from .io import open_any
+        from . import pprint as pp
+        from .functionals import negate
+        from .string import replace_prefix, truncate
+        from .logging import logging, get_module_logger
+        from ..io import safe_write
+        ''',
+        # deeper relativity
+        (source('''
+            from recipes import cosort, op
+            from recipes.io import open_any
+            from recipes import pprint as pp
+            from recipes.functionals import negate
+            from recipes.string import replace_prefix, truncate
+            from recipes.logging import logging, get_module_logger
+            from ..io import safe_write
+            '''),
+            'recipes.other'):
+        '''
+        from .. import cosort, op
+        from ..io import open_any
+        from .. import pprint as pp
+        from ..functionals import negate
+        from ..string import replace_prefix, truncate
+        from ..logging import logging, get_module_logger
+        from ..io import safe_write
+        ''',
+
+        # deeper still: inside a/b/c/d.py
+        (source('''
+        from a import b
+        from a.b import c
+        from a.b.c import e
+        from ..b import f
+        from ..b.c import g
+        from .c import h
+        '''),
+         'a.b.c'):
+        '''
+        from ... import b
+        from .. import c
+        from . import e
+        from .. import f
+        from . import g
+        from . import h
         '''
     })
     def test_rename(self, code, old_name, expected):
@@ -293,7 +343,8 @@ test_refactor = Expected(refactor, right_transform=source)({
         from recipes.oo import SelfAware, meta
 
         class X(SelfAware): pass
-        '''), filter_unused=True):
+        '''),
+         filter_unused=True):
     '''
     from recipes.oo import SelfAware
 
@@ -317,7 +368,43 @@ test_refactor = Expected(refactor, right_transform=source)({
         ''')):
     '''
     from motley.profiler.imports import ImportFinder, ImportExtractor
-    '''
+    ''',
+
+    # Test relativize and merge
+    mock(source('''
+        from recipes import cosort, op
+        from recipes.io import open_any
+        from recipes import pprint as pp
+        from recipes.functionals import negate
+        from recipes.string import replace_prefix, truncate
+        from recipes.logging import logging, get_module_logger
+        from ..io import safe_write
+        '''),
+         relativize='recipes'):
+        '''
+        from . import cosort, op, pprint as pp
+        from .functionals import negate
+        from .io import open_any, safe_write
+        from .string import replace_prefix, truncate
+        from .logging import logging, get_module_logger
+        ''',
+    mock(source('''
+        from recipes import cosort, op
+        from recipes.io import open_any
+        from recipes import pprint as pp
+        from recipes.functionals import negate
+        from recipes.string import replace_prefix, truncate
+        from recipes.logging import logging, get_module_logger
+        from ..io import safe_write
+        '''),
+         relativize='recipes.whatever'):
+        '''
+        from .. import cosort, op, pprint as pp
+        from ..functionals import negate
+        from ..io import open_any, safe_write
+        from ..string import replace_prefix, truncate
+        from ..logging import logging, get_module_logger
+        '''
 
 })
 
@@ -385,11 +472,17 @@ test_refactor = Expected(refactor, right_transform=source)({
 #  test_keep_comments
 #  test_style_preference
 
+# @fixture(scope='module')
+# def example_file(self):
 
-def test_example():
-    answer = refactor((TESTPATH / 'example.py').read_text())
-    expected = (TESTPATH / 'result.py').read_text()
-    assert answer == expected
+
+@expected(
+    dict(zip(EXAMPLES.glob('example*.py'),
+             EXAMPLES.glob('result*.py'))),
+    right_transform=Path.read_text
+)
+def refactor_file(filename):
+    return refactor(filename.read_text())
 
 
 '''

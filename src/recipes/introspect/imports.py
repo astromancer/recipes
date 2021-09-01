@@ -1,3 +1,6 @@
+"""
+Sort import statements in python source code.
+"""
 
 # std
 import os
@@ -5,7 +8,7 @@ import io
 import ast
 import sys
 import math
-import inspect
+import pkgutil
 import warnings as wrn
 import functools as ftl
 import itertools as itt
@@ -16,29 +19,28 @@ from collections import defaultdict
 import more_itertools as mit
 from stdlib_list import stdlib_list
 
-# local
-from recipes import cosort, op
-from recipes.io import open_any
-from recipes import pprint as pp
-from recipes.functionals import negate
-from recipes.string import replace_prefix, truncate
-from recipes.logging import logging, get_module_logger
-
 # relative
-from ..io import safe_write
+from .. import cosort, op, pprint as pp
+from ..functionals import negate
+from ..io import open_any, safe_write
+from ..pprint.callers import fullname
+from ..logging import logging, get_module_logger
+from ..string import remove_suffix, remove_prefix, truncate
 
 
 # FIXME: unscoped imports do not get added to top!!!
-# FIXME: too many blank lines after module docstring
 
 
+# TODO: comment directives to keep imports
 # TODO: split_modules
 # TODO: style preference: "import uncertainties.unumpy as unp" over
 #                         "from uncertainties import unumpy as unp"
 # TODO: keep multiline imports as multiline
 # TODO: local import that are already in global namespace
 # TODO: sort aliases
-# TODO: relativizing higher levels
+# TODO: convert wildcard imports
+# TODO: sort by submodule width?
+
 
 # module level logger
 logger = get_module_logger()
@@ -55,7 +57,7 @@ builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs + unlisted
 
 # internal sorting codes
 MODULE_GROUP_NAMES = ['std', 'third-party', 'local', 'relative']
-GROUP_NAME_SUFFIX = 'libs'
+GROUP_NAME_SUFFIX = ''  # libs
 
 # list of local module names
 LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
@@ -67,6 +69,8 @@ STYLES = ('alphabetic', 'aesthetic')
 F_NAMEMAX = os.statvfs('.').f_namemax
 
 
+# ---------------------------------------------------------------------------- #
+# Functions for sorting / rewriting import nodes
 def is_import(node):
     return isinstance(node,  ast.Import)
 
@@ -79,48 +83,75 @@ def is_any_import_node(node):
     return isinstance(node, (ast.ImportFrom, ast.Import))
 
 
-# def is_3rd_party(name):
-# TODO maybe check if available through pip ???
-#     # check if module lives in `dist-packages` - these are likely 3rd party
-#     spec = pathFinder.find_spec(name)
-#     if spec is None:
-#         # the list below are known 3rd party modules for which the pathFinder
-#         # returns None
-#         return False
-#
-#     return ('dist-packages' in spec.origin) or ('site-packages' in spec.origin)
-
-def get_module_kind(module_name):
-    return MODULE_GROUP_NAMES[get_module_typecode(module_name)]
+def is_relative(node):
+    return get_level(node) > 0
 
 
-def get_module_typecode(module_name):
-    # get name if Node
-    if is_any_import_node(module_name):
-        module_name = get_mod_name0(module_name)
-    #
-    assert isinstance(module_name, str)
-
-    if is_builtin(module_name):
-        return 0
-    if is_local(module_name):
-        return 2
-    if not module_name:  # module_name.startswith('.'):
-        return 3
-    return 1
-    # if is_3rd_party(module_name):
-    #     return 1
+@ftl.singledispatch
+def get_mod_name(node):
+    # get the full (dot separated) module name from various types:
+    # ast.Import
+    raise TypeError()
 
 
-def is_builtin(name):  # name.split('.')[0]
-    return name in builtin_module_names
+@get_mod_name.register(ast.Import)
+def _(node):
+    # assert len(node.names) == 1
+    return node.names[0].name
 
 
-def is_local(name):
-    return name in LOCAL_MODULES
+@get_mod_name.register(ast.ImportFrom)
+def _(node):
+    return f'{"." * node.level}{node.module or ""}'
 
+
+@get_mod_name.register(str)
+@get_mod_name.register(Path)
+def _(path):
+    # get full module name from path
+    path = Path(path)
+    trial = path.parent
+    for _ in range(5):
+        if pkgutil.get_loader(trial.name):
+            path = path.relative_to(trial.parent)
+            return remove_suffix(str(path), '.py').replace('/', '.')
+
+        trial = trial.parent
+
+    wrn.warn(f'Could not find package for {str(path)!r}.')
+
+
+def get_level(node):
+    return getattr(node, 'level', 0)
+
+
+def get_length(node):
+    return len(rewrite(node))
+
+
+def get_mod_name_list(node):
+    return get_mod_name(node).split('.')
+
+
+def get_package_name(node):
+    fullname = get_mod_name(node)
+    # if fullname.startswith('.'):
+    #     return '.' * node.level
+
+    return fullname.split('.', 1)[0]
+
+
+def relative_sorter(node):
+    if is_relative(node):
+        # this prioritizes higher relatives '..' above '.'
+        # also '..' above '..x'
+        return 0.5 * bool(node.module) - node.level
+    return 0
 
 # ---------------------------------------------------------------------------- #
+# Node writer
+
+
 def rewrite(node, width=80):
     """write an import node as str"""
     s = ''
@@ -154,34 +185,50 @@ def rewrite(node, width=80):
     s += ')'
     return s
 
-
-@ftl.singledispatch
-def get_mod_name(node):
-    # get the module name from an Import or ImportFrom node.
-    raise TypeError()
+# ---------------------------------------------------------------------------- #
+# Group sorters
 
 
-@get_mod_name.register(ast.Import)
-def _(node):
-    # assert len(node.names) == 1
-    return node.names[0].name
+def get_module_kind(module_name):
+    return MODULE_GROUP_NAMES[get_module_typecode(module_name)]
 
 
-@get_mod_name.register(ast.ImportFrom)
-def _(node):
-    return f'{"." * node.level}{node.module or ""}'
+def get_module_typecode(module_name):
+    # get name if Node
+    if is_any_import_node(module_name):
+        module_name = get_package_name(module_name)
+    #
+    assert isinstance(module_name, str)
+
+    if is_builtin(module_name):
+        return 0
+    if is_local(module_name):
+        return 2
+    if not module_name or module_name.startswith('.'):
+        return 3
+    return 1
+    # if is_3rd_party(module_name):
+    #     return 1
 
 
-def get_length(node):
-    return len(rewrite(node))
+def is_builtin(name):  # name.split('.')[0]
+    return name in builtin_module_names
 
 
-def get_mod_name_list(node):
-    return get_mod_name(node).split('.')
+def is_local(name):
+    return name in LOCAL_MODULES
 
 
-def get_mod_name0(node):
-    return get_mod_name(node).split('.', 1)[0]
+# def is_3rd_party(name):
+# TODO maybe check if available through pip ???
+#     # check if module lives in `dist-packages` - these are likely 3rd party
+#     spec = pathFinder.find_spec(name)
+#     if spec is None:
+#         # the list below are known 3rd party modules for which the pathFinder
+#         # returns None
+#         return False
+#
+#     return ('dist-packages' in spec.origin) or ('site-packages' in spec.origin)
 
 
 def get_group_style(module):
@@ -202,16 +249,37 @@ def get_group_size(module):
     return len(module.body)
 
 
+# Group import statements
 GROUPERS = (get_module_typecode,
-            get_mod_name0)
+            get_package_name,
+            # get_level
+            )
+
+# Order the groups wrt each other
 GROUP_SORTERS = (get_group_style,
                  get_group_size,
                  get_group_width)
-NODE_SORTERS = (get_module_typecode,
-                is_import_from,
-                get_length,
-                get_mod_name,
-                str)
+
+# Order the statements within groups
+NODE_SORTERS = {
+    'aesthetic': (get_module_typecode,
+                  is_import_from,
+                  relative_sorter,
+                  get_length,
+                  get_mod_name
+                  ),
+    'alphabetic': (get_module_typecode,
+                   is_import_from,
+                   relative_sorter,
+                   get_mod_name,
+                   get_length
+                   )
+}
+
+# list(NODE_SORTERS[''])
+
+# ---------------------------------------------------------------------------- #
+# Node Transformers
 
 
 class NodeTypeFilter(ast.NodeTransformer):
@@ -355,7 +423,8 @@ class ImportMerger(Parentage):
     # >>> from x import y, z
 
     def __init__(self, level=1):  #
-        # [scope][module]{node}
+        # [scope][module_name]{node}
+        # ftl.partial(defaultdict, ast.ImportFrom)
         self.aliases = defaultdict(dict)
 
     def visit_ImportFrom(self, node):
@@ -363,11 +432,17 @@ class ImportMerger(Parentage):
 
         scoped = self.aliases[node.parent]
         module_name = node.module or '.' * node.level
-        new_node = scoped.setdefault(module_name, node)
-        if node is new_node:
+        existing_node = scoped.setdefault(module_name, node)
+        if existing_node is node:
             return node
 
-        scoped[module_name].names.extend(node.names)
+        existing_node.names.extend(node.names)
+        # we are about to visit the aliases, so ensure that Parentage sets those
+        # parents to the previously existing import node which we just extended.
+        # This is also important for correctly scoping the imports at module
+        # level.
+        self.parent = existing_node.parent
+        # dont return anything => filter this node
 
 
 class ImportSplitter(ImportMerger):
@@ -405,22 +480,59 @@ class ImportSplitter(ImportMerger):
 
 
 class ImportRelativizer(ast.NodeTransformer):
-    def __init__(self, module_name):
-        self.module_name = str(module_name)
+    def __init__(self, parent_module_name):
+        """
+        Transform import statements to relative style imports inside
+        module with fullname `module_name`.
+
+        Parameters
+        ----------
+        module_name : str
+            Dot separated name of the parent module or package. 
+            eg: 'awesome.code'
+
+
+        Examples
+        --------
+        >>> module = ImportRelativizer('awesome.code').visit(
+        ...    ast.parse('from awesome.code.magic import levitation')
+        ... )
+        ... rewrite(module.body[0])
+        'from ..magic import levitation'
+        """
+        module_name = str(parent_module_name)
+        # package, *submodules
+        self.parts = module_name.split('.')
+        self.level = len(self.parts)
+        self.replace = dict(map(reversed, enumerate(self.parts[::-1], 1)))
 
     def visit_ImportFrom(self, node):
         node = self.generic_visit(node)
-        if node.module and not node.level:
-            node.module = replace_prefix(
-                node.module, self.module_name, ('.', '')['.' in node.module]
-            )
+
+        if not node.module:
+            # a top-level relative import
+            return node
+
+        # replace module with relative
+        parents = node.module.split('.')
+        pkg, parent = parents[0], parents[-1]
+        if parent in self.replace:
+            # {'a': '...', 'a.b': '..', 'a.b.c': '.'}
+            node.module = None
+            node.level = self.replace[parent]
+
+        elif pkg in self.replace:
+            # {'a.x': '.x'}
+            node.module = remove_prefix(node.module, pkg).lstrip('.')
+            node.level = self.level
+
         return node
 
 
 class HandleFuncs:
     def __init__(self, *functions):
         for func in filter(negate(callable), functions):
-            raise TypeError(f'Sorting function {func} should be callable.')
+            raise TypeError(f'Sorting {fullname(func)} should be callable.')
 
         self.functions = functions
 
@@ -475,14 +587,19 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
 #     visit_Import = visit_ImportFrom = visit_any_import
 
 def _iter_lines(module, headers=None):
+    # generate source code lines from ast.Module, including import group header
+    # comments and empty lines.
 
     # group headings
-
-    headers = (bool(headers) or
-               # module has at least 2 import nodes
-               ((len(module.body) > 1) and
-                # more than one group present
-                len({_.gid for _ in module.body}) > 1))
+    if headers is None:
+        # module has more than one import node
+        n_nodes = len(module.body)
+        # more than one import group present
+        gids = {*op.AttrVector('gid', default=None).filter(module.body)}
+        n_groups = len(set(next(zip(*gids)))) if gids else 1
+        #
+        headers = (n_nodes > 1) and (n_groups > 1)
+    #
     headers = GroupHeaders(*(() if headers else [()]))
 
     for node in module.body:
@@ -497,14 +614,14 @@ class GroupHeaders:
         self.newlines = mit.padded([''], '\n')
 
     def get(self, i):
-        return f'# {self.names[i]} {self.suffix}'
+        return f'# {self.names[i]} {self.suffix}'.rstrip()
 
     def next(self, node):
         gid = getattr(node, 'gid', [-1])[0]
         name = self.names.pop(gid, ())
         if name:
             # pylint: disable=stop-iteration-return
-            yield f'{next(self.newlines)}# {name} {self.suffix}'
+            yield f'{next(self.newlines)}# {name} {self.suffix}'.rstrip()
 
 
 # convenience functions
@@ -623,7 +740,7 @@ class ImportRefactory:
 
     def get_dependencies(self):
         imports_only = self.filter_imports()
-        return set(map(get_mod_name0, imports_only))
+        return set(map(get_package_name, imports_only))
 
     def filter_unused(self, module=None):
         module = module or self.module
@@ -654,17 +771,40 @@ class ImportRefactory:
         module = module or self.module
         return ImportSplitter(level).visit(module)
 
-    def relativize(self, module=None):
+    def relativize(self, module=None, parent_module_name=None, level=None):
         module = module or self.module
-        if not self.filename:
-            return module
 
-        # get the module name so we can replace
-        # >>> from package.module import x
-        # with
-        # >>> from .module import x
-        module_name = inspect.getmodulename(self.filename)
-        return ImportRelativizer(module_name).visit(module)
+        if parent_module_name in (None, True):
+            if not self.filename:
+                # cannot relativize without filename
+                if parent_module_name is True:
+                    wrn.warn(
+                        'Import relativization requested, but no parent module '
+                        'name provided. Since we are running from raw input '
+                        'source code string, you must provide the dot-separated'
+                        ' name of the parent module of the source code via '
+                        '`relativize="my.package.name". Alternatively, if the '
+                        'source resides in a file, pass the filename to the '
+                        '`refactor` method to relativize import statements in '
+                        'place.'
+                    )
+                return module
+
+            # get the package name so we can replace
+            # >>> from package.module import x
+            # with
+            # >>> from .module import x
+            if Path(self.filename).name.startswith('test_'):
+                wrn.warn('This looks like a test file. Skipping relativize.')
+                return module
+
+            module_name = get_mod_name(self.filename)
+            parent_module_name, _ = module_name.rsplit('.', 1)
+
+        # if not level:
+
+        # fullname = pkg_name
+        return ImportRelativizer(parent_module_name).visit(module)
 
     def sort(self, module=None, how='aesthetic'):
         module = module or self.module
@@ -672,12 +812,12 @@ class ImportRefactory:
             keep=(ast.Module, ast.Import, ast.ImportFrom, ast.alias)
         ).visit(module)
 
-        # sorters = get_mod_typecode, length_sort, get_mod_name, str
-        # sorters = SORTING
-        return ImportSorter(*NODE_SORTERS).visit(imports_only)
+        how = how.lower()
+        how = STYLES[op.index(STYLES, how, test=str.startswith)]
+        return ImportSorter(*NODE_SORTERS[how]).visit(imports_only)
 
     # def localize(self):
-    
+
     def delocalize(self):
         return 'TODO'
 
@@ -687,7 +827,7 @@ class ImportRefactory:
                  split=0,
                  merge=1,
                  relativize=True,
-                #  delocalize=False,
+                 #  delocalize=False,
                  ):
         #  unscope=False):
         # keep_multiline=True,
@@ -716,21 +856,21 @@ class ImportRefactory:
         if filter_unused:
             module = self.filter(module)
 
+        if relativize:
+            module = self.relativize(module, relativize)
+
         if split is not None:
             module = self.split(module, split)
 
         if merge is not None:
             module = self.merge(module, merge)
 
-        if relativize:
-            module = self.relativize(module)
-        
-        delocalize=False
+        delocalize = False
         if delocalize:
-            module = self.delocalize(module) # TODO
+            module = self.delocalize(module)  # TODO
         else:
             module = NodeScopeFilter(0).visit(module)
-        
+
         if sort is not None:
             if not module.body:
                 return module
@@ -865,7 +1005,14 @@ def excision_flagger(lines, line_nrs):
     # FIXME: ValueError: max() arg is an empty sequence
     for ln in (set(range(search_depth)) - set(cutLines)):
         line = lines[ln]
-        if line.startswith('# ') and line.strip().endswith(GROUP_NAME_SUFFIX):
+        if is_group_header_comment(line):
             cutLines.append(ln)
 
     return sorted(cutLines), is_multiline
+
+
+def is_group_header_comment(line):
+    # RGX = re.compile(rf'# ({"|".join(MODULE_GROUP_NAMES)}) {GROUP_NAME_SUFFIX}')
+    return (line.startswith('# ') and
+            line[2:].startswith(tuple(MODULE_GROUP_NAMES)) and
+            line.strip().endswith(GROUP_NAME_SUFFIX))
