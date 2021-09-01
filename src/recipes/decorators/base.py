@@ -177,7 +177,7 @@ class Decorator:
         # ... def foo(): return
         return obj  # NOTE: `__init__` will be called when returning here
 
-    def __init__(self, *args, **kws):
+    # def __init__(self, *args, **kws):
         """
         Inherited classes can implement stuff here.
         """
@@ -205,18 +205,3 @@ class Decorator:
 decorator = Decorator  # pylint: disable=invalid-name
 
 
-# %%
-class count_calls(Decorator):
-    def __init__(self, start=0, inc=1):
-        self.count = start
-        self.inc = inc
-
-    def __call__(self, func):
-        super().__call__(self, func)
-        try:
-            return self.func(*args)
-        except Exception as err:
-            raise err from None
-        else:
-            self.count += self.inc
-# %%
