@@ -13,11 +13,13 @@ import warnings
 import functools as ftl
 import operator as _op
 from operator import *
+from collections import abc
 
 # local
 import docsplice as doc
-from recipes.decor import raises
-from recipes.functionals import echo0
+
+# relative
+from .functionals import echo0, raises
 
 
 class NULL:
@@ -135,6 +137,27 @@ class AttrSetter:
         for get_obj, attr, value in zip(self.getters, self.keys, values):
             # logger.debug(get_obj(target), attr, value)
             setattr(get_obj(target), attr, value)
+
+
+class VectorizeMixin:
+    def __call__(self, target):
+        return list(self.map(target))
+
+    def map(self, target):
+        assert isinstance(target, abc.Collection)
+        return map(super().__call__, target)
+
+    def filter(self, *args):
+        *test, target = args
+        return filter(test or None, self.map(target))
+
+
+class ItemVector(VectorizeMixin, ItemGetter):
+    """Vectorized ItemGetter"""
+
+
+class AttrVector(VectorizeMixin, AttrGetter):
+    """Vectorized AttrGetter"""
 
 
 class MethodCaller:
