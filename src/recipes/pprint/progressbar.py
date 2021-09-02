@@ -137,8 +137,7 @@ class ProgressLogger(ProgressBarBase):
             return
 
         bar = self.get_bar(i)
-        logger = logging.getLogger(self.name)
-        logger.info('Progress: \n%s' % bar)
+        logger.info('Progress: \n{:s}' % bar)
 
 # class SyncedProgressLogger(ProgressLogger):
 #     """can be used from multiple processes"""
@@ -146,3 +145,40 @@ class ProgressLogger(ProgressBarBase):
 #                  logname='progress'):
 #          ProgressLogger.__init__(self, precision, width, symbol, align, sides, logname)
 #          self.counter = counter
+
+
+# class ProgressLogger(ProgressBar, LoggingMixin):
+#     # def __init__(self, **kws):
+#     #     ProgressBar.__init__(self, **kws)
+#     #     if not log_progress:
+#     #         self.progress = null_func
+
+#     def create(self, end):
+#         self.end = end
+#         self.every = np.ceil((10 ** -(self.sigfig + 2)) * self.end)
+#         # only have to update text every so often
+
+#     def progress(self, state, info=None):
+#         if self.needs_update(state):
+#             bar = self.get_bar(state)
+#             logger.info('Progress: %s' % bar)
+
+
+# class ProgressPrinter(ProgressBar):
+#     def __init__(self, **kws):
+#         ProgressBar.__init__(self, **kws)
+#         if not print_progress:
+#             self.progress = self.create = null_func
+
+# def progressFactory(log=True, print_=True):
+#     if not log:
+#         global ProgressLogger  # not sure why this is needed
+
+#         class ProgressLogger(ProgressLogger):
+#             progress = null_func
+
+#     if not print_:
+#         class ProgressPrinter(ProgressBar):
+#             progress = create = null_func
+
+#     return ProgressLogger, ProgressBar

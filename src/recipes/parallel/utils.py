@@ -18,9 +18,7 @@ from recipes.logging import LoggingMixin
 # from contextlib import ExitStack
 
 
-
-
-#====================================================================================================
+# ====================================================================================================
 def monCPU(filename, interval, alive, maxsize=1e6):
     i = 0
     fp = open(str(filename), 'w')
@@ -54,7 +52,9 @@ def monMEM(filename, interval, alive, maxsize=1e5):
     else:
         fp.close()
 
-#====================================================================================================
+# ====================================================================================================
+
+
 def qmeasure(qs, filename, interval, alive, maxsize=1e5):
     '''
     Function that measures the sizes of the queues over time and logs these to
@@ -77,7 +77,7 @@ def qmeasure(qs, filename, interval, alive, maxsize=1e5):
         fp.close()
 
 
-#====================================================================================================
+# ====================================================================================================
 def queue_monitor(q, done, trigger, threshold, interval):
     '''
     Basic queue monitor.  Triggers the load events once the (approximate) number
@@ -85,8 +85,9 @@ def queue_monitor(q, done, trigger, threshold, interval):
     until the interval has passed.
     Note: interval should be larger than data load time.
     '''
-    logger = logging.getLogger('phot.lll.monitor')  #TODO: queue_monitor.__module__ + queue_monitor.__name__?
-    logger.info('Starting: threshold=%i' %threshold)
+    logger = logging.getLogger(
+        'phot.lll.monitor')  # TODO: queue_monitor.__module__ + queue_monitor.__name__?
+    logger.info('Starting: threshold={:d}', threshold)
 
     while not done.is_set():
         qsz = q.qsize()
@@ -94,13 +95,15 @@ def queue_monitor(q, done, trigger, threshold, interval):
             logger.info('Triggering next load')
             trigger.set()
         else:
-            logger.debug('Waiting: qsize~%i, threshold=%i' % (qsz, threshold))
+            logger.debug('Waiting: qsize~{:d}, threshold={:d}', qsz, threshold)
             trigger.clear()
 
         logger.debug('Waiting for %1.2f sec' % interval)
         time.sleep(interval)
 
-#====================================================================================================
+# ====================================================================================================
+
+
 def queues_monitor(qs, done, trigger, thresholds, interval):
     '''
     Basic queue monitor.  Triggers the load events once the (approximate) number
@@ -108,12 +111,13 @@ def queues_monitor(qs, done, trigger, thresholds, interval):
     until the interval has passed.
     Note: interval should be larger than data load time.
     '''
-    logger = logging.getLogger('phot.lll.monitor')  #TODO: queue_monitor.__module__ + queue_monitor.__name__?
-    logger.info('Starting: threshold=%s' %thresholds)
+    logger = logging.getLogger(
+        'phot.lll.monitor')  # TODO: queue_monitor.__module__ + queue_monitor.__name__?
+    logger.info('Starting: threshold={:s}' % thresholds)
 
     while not done.is_set():
         qi = [(qn, q.qsize()) for qn, q in qs.items()]
-        logger.debug('Queue sizes: %s' %str(qi))
+        logger.debug('Queue sizes: {}', str(qi))
         qn, qsz = zip(*qi)
         l = np.less(qsz, thresholds)
         can_load = l.all()
@@ -122,48 +126,54 @@ def queues_monitor(qs, done, trigger, thresholds, interval):
             trigger.set()
         else:
             ssize = '; '.join(map(' ~ '.join, np.array(qi)[~l]))
-            logger.debug('Waiting on queues: %s, threshold=%s' % (ssize, thresholds))
+            logger.debug(
+                'Waiting on queues: {:s}, threshold={:s}' %
+                (ssize, thresholds))
             trigger.clear()
 
         logger.debug('Waiting for %1.2f sec' % interval)
         time.sleep(interval)
 
-#====================================================================================================
+# ====================================================================================================
 #from decor import expose
-#@expose.args()
+# @expose.args()
+
+
 def queue_loader_task(trigger, queue, done, func, data, chunksize, args=()):
     '''staggers task loads into queue'''
 
     logger = logging.getLogger('phot.lll.loader')
     #logger.debug('Running:' )
 
-    sentinel = None         #TODO: global??
+    sentinel = None  # TODO: global??
     with_sentinel = itt.chain(data, [sentinel])
     chunks = grouper(with_sentinel, chunksize)
     for i, chunk in enumerate(chunks):
-        #wait for trigger before loading the data
-        logger.info('Waiting on trigger %i' %i)
+        # wait for trigger before loading the data
+        logger.info('Waiting on trigger {:d}', i)
         trigger.wait()
 
-        logger.info('Load %i commencing' %i)
-        logger.info('Adding %i data to queue' %len(chunk))
+        logger.info('Load {:d} commencing', i)
+        logger.info('Adding {:d} data to queue', len(chunk))
         for datum in chunk:
-            #stop loading upon sentinel value
+            # stop loading upon sentinel value
             if datum is not sentinel:
                 #tsk = Task(func, datum, *args)
-                #print(tsk)
+                # print(tsk)
                 queue.put(Task(func, datum, *args))
             else:
-                queue.put(datum)            #SENTINAL
-                done.set()                    #triggers sentinels for consumers
+                queue.put(datum)  # SENTINAL
+                done.set()  # triggers sentinels for consumers
                 logger.info('All data loaded')
                 break
 
         if not done.is_set():
-            logger.info('Load %i done' %i)
+            logger.info('Load {:d} done' % i)
         trigger.clear()
 
-#TODO: update docstring
+# TODO: update docstring
+
+
 def queue_loader(trigger, queue, done, data, chunksize, loader=None,
                  load_sentinel=True, sentinel=None):
     '''
@@ -187,115 +197,103 @@ def queue_loader(trigger, queue, done, data, chunksize, loader=None,
 
     chunksize = int(chunksize)
     if chunksize == 1:
-        chunks = [data]             #maybe not so efficient
+        chunks = [data]  # maybe not so efficient
     elif chunksize > 1:
         chunks = chunker(data, chunksize)
     else:
         raise ValueError('invalid chunksize')
 
-    #load loop
+    # load loop
     for i, chunk in enumerate(chunks):
-        #wait for trigger before loading the data
-        logger.info('Waiting on trigger %i' %i)
+        # wait for trigger before loading the data
+        logger.info('Waiting on trigger {:d}', i)
         trigger.wait()
 
-        logger.info('Load %i commencing' %i)
-        logger.info('Adding %i data to queue' %len(chunk))
+        logger.info('Load {:d} commencing', i)
+        logger.info('Adding {:d} data to queue' % len(chunk))
         for datum in chunk:
             queue.put(datum)
 
-        logger.info('Load %i done' %i)
+        logger.info('Load {:d} done', i)
         trigger.clear()
 
     else:
-        #done loading - add sentinel value
+        # done loading - add sentinel value
         logger.info('All data loaded')
         if load_sentinel:
-            logger.debug('adding sentinel %s' % sentinel)
+            logger.debug('adding sentinel {:s}' % sentinel)
             queue.put(sentinel)
-        done.set()                    #set done event
+        done.set()  # set done event
 
     logger.debug('queue_loader returning')
 
 
-
-#****************************************************************************************************
+# ****************************************************************************************************
 class Qloader(mp.Process, LoggingMixin):
     '''staggers task loads into queue'''
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     sentinel = None
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     def __init__(self, queue,  **kws):
         #mp.Process.__init__(self, **kws)
         self.q = queue
         self._is_done = False
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def is_done(self):
         if self._is_done:
             return self._is_done.is_set()
         return False
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def done(self):
         if self._is_done:
             self._is_done.set()
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def notify_when_done(self):
         self._is_done = mp.Event()
         return self._is_done
 
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def run(self, trigger, data, chunksize):
 
-        logger.debug('Running: %s' %self.name )
+        logger.debug('Running: {:s}', self.name)
 
         with_sentinel = itt.chain(data, [self.sentinel])
         chunks = grouper(with_sentinel, chunksize)
         for i, chunk in enumerate(chunks):
-            #wait for trigger before loading the data
-            self.logger.info('Waiting on trigger %i' %i)
+            # wait for trigger before loading the data
+            self.logger.info('Waiting on trigger {:d}' % i)
             trigger.wait()
 
-            self.logger.info('Load %i commencing' %i)
-            self.logger.info('Adding %i data to queue' %len(list(filter(None, chunk))))
+            self.logger.info('Load {:d} commencing', i)
+            self.logger.info('Adding {:d} data to queue',
+                             len(list(filter(None, chunk))))
             for datum in chunk:
                 #tsk = Task(func, datum, *args)
                 self.q.put(datum)
 
-                #stop loading upon sentinel value
+                # stop loading upon sentinel value
                 if datum is self.sentinel:
                     self.logger.info('All data loaded. Adding sentinel')
-                    self.done()   #triggers sentinels for consumers
+                    self.done()  # triggers sentinels for consumers
                     break
 
             if not self.is_done():
-                self.logger.info('Load %i done' %i)
+                self.logger.info('Load %i done' % i)
             trigger.clear()
 
 
-
-
-
 #import time
-
-#def func(arr):
-    #for i in range(50):
-        #time.sleep(0.01)
-        ##with lock:
+# def func(arr):
+    # for i in range(50):
+        # time.sleep(0.01)
+        # with lock:
         #arr[:] += i
-
 if __name__ == '__main__':
     counter = SyncedArray(shape=(4,))
     #procs = [mp.Process(target=func, args=(counter,)) for i in range(10)]
 
-    #for p in procs:
-        #p.start()
-    #for p in procs:
-        #p.join()
+    # for p in procs:
+    # p.start()
+    # for p in procs:
+    # p.join()
 
-    #print(counter)
-
-
-
+    # print(counter)
