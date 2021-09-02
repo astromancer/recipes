@@ -80,6 +80,7 @@ class Null:
         return self.__class__.__name__
 
     def __bool__(self):
+        """Always False"""
         return False
 
 
@@ -87,10 +88,16 @@ class Null:
 NULL = Null()
 
 
-# class NullSingleton:
-#     instance = Null()
-#
-#     def __getattr__(self, name):
-#         return getattr(self.instance, name)
+class NullSingleton:
+    
+    instance = None
+
+    def __init__(self):
+        kls = self.__class__
+        if kls.instance is None:
+            kls.instance = Null()
+
+    def __getattr__(self, name):
+        return getattr(self.instance, name)
 
 

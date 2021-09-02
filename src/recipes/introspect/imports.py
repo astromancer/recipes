@@ -23,8 +23,7 @@ from stdlib_list import stdlib_list
 from .. import cosort, op, pprint as pp
 from ..functionals import negate
 from ..io import open_any, safe_write
-from ..pprint.callers import fullname
-from ..logging import logging, get_module_logger
+from ..pprint.callers import describe
 from ..string import remove_suffix, remove_prefix, truncate
 
 
@@ -110,13 +109,25 @@ def _(node):
 def _(path):
     # get full module name from path
     path = Path(path)
+    candidates = set()
     trial = path.parent
     for _ in range(5):
         if pkgutil.get_loader(trial.name):
-            path = path.relative_to(trial.parent)
-            return remove_suffix(str(path), '.py').replace('/', '.')
+            candidates.add(trial)
 
         trial = trial.parent
+
+    # this is needed since a module may have the same name as a builtin module,
+    # which is recognised here as a "package" since it is importable. The real
+    # package may actually be higher up in the folder tree.
+    while candidates:
+        trial = candidates.pop()
+        if candidates and (trial in builtin_module_names):
+            continue
+
+        # convert to dot.separated.name
+        path = path.relative_to(trial.parent)
+        return remove_suffix(str(path), '.py').replace('/', '.')
 
     wrn.warn(f'Could not find package for {str(path)!r}.')
 
@@ -532,7 +543,7 @@ class ImportRelativizer(ast.NodeTransformer):
 class HandleFuncs:
     def __init__(self, *functions):
         for func in filter(negate(callable), functions):
-            raise TypeError(f'Sorting {fullname(func)} should be callable.')
+            raise TypeError(f'Sorting {describe(func)} should be callable.')
 
         self.functions = functions
 

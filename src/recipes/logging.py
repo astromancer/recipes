@@ -1,3 +1,6 @@
+"""
+Logging helpers.
+"""
 
 
 # std
@@ -50,6 +53,25 @@ def all_logging_disabled(highest_level=logging.CRITICAL):
 #     logger.setLevel(olevel)
 
 
+# class BraceString(str):
+#     def __mod__(self, other):
+#         return self.format(*other)
+
+#     def __str__(self):
+#         return self
+
+
+# class StyleAdapter(logging.LoggerAdapter):
+
+#     def __init__(self, logger, extra=None):
+#         super().__init__(logger, extra)
+
+#     def process(self, msg, kwargs):
+#         if kwargs.pop('style', '%') == '{':  # optional
+#             msg = BraceString(msg)
+#         return msg, kwargs
+
+
 class LoggingDescriptor:
     # use descriptor so we can access the logger via cls.logger and cls().logger
     # Making this attribute a property also avoids pickling errors since
@@ -85,28 +107,18 @@ class LoggingMixin:
     logger = LoggingDescriptor()
 
 
-class catch_and_log(DecoratorBase, LoggingMixin):
+class catch_and_log(Decorator, LoggingMixin):
     """
-    Decorator that catches and logs errors instead of actively raising.
+    Decorator that catches and logs errors instead of actively raising
+    exceptions.
     """
 
-    # basename = 'log'        #base name of the log - to be set at module level
-
-    def __init__(self, func):
-        super().__init__(func)
-
-        # NOTE: partial functions don't have the __name__, __module__ attributes!
-        # retrieve the deepest func attribute -- the original func
-        while isinstance(func, functools.partial):
-            func = func.func
-        self.__module__ = func.__module__
-        self.__name__ = 'partial(%s)' % func.__name__
-
-    def __call__(self, *args, **kws):
+    def __wrapper__(self, func, *args, **kws):
         try:
-            return self.func(*args, **kws)
-        except Exception as err:
-            self.logger.exception('%s' % str(args))
+            return func(*args, **kws)
+        except Exception:
+            logger.exception('Caught exception in %s: ',
+                             pp.caller(func, args, kws))
 
 
 # class MultilineIndenter(logging.LoggerAdapter):

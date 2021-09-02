@@ -1,3 +1,6 @@
+"""
+Introspction utilities.
+"""
 import inspect
 from types import FrameType
 from typing import cast
@@ -25,7 +28,7 @@ def get_caller_frame(back=1):
 
 def get_caller_name(back=1):
     """
-    Return the calling function or module name
+    Return the calling function or module name.
     """
     # Adapted from: https://stackoverflow.com/a/57712700/
 
@@ -42,7 +45,9 @@ def get_caller_name(back=1):
 
 
 def get_module_name(obj=None, depth=None):
-    #
+    """
+    Get fully qualified module name up to namespace depth `depth`
+    """
     if obj is None:
         obj = get_caller_frame(2)
 
