@@ -5,11 +5,11 @@ import json
 from pathlib import Path
 from collections import OrderedDict as odict
 
-# local
-from recipes.dicts import pformat
-from recipes.logging import logging, get_module_logger
+# third-party
+from loguru import logger
 
 # relative
+from ..dicts import pformat
 from ..logging import LoggingMixin
 from ..io import serialize, deserialize, guess_format
 
@@ -19,11 +19,6 @@ from ..io import serialize, deserialize, guess_format
 
 # TODO: sqlite, yaml, dill
 
-
-# module level logger
-logger = get_module_logger()
-logging.basicConfig()
-logger.setLevel(logging.INFO)
 
 # ------------------------------- json helpers ------------------------------- #
 
@@ -56,7 +51,7 @@ class JSONCacheEncoder(json.JSONEncoder):
 
 
 def cache_decoder(mapping):
-    # logger.debug('cache_decoder: %s', mapping)
+    # logger.debug('cache_decoder: {:s}', mapping)
     if len(mapping) == 2:
         name = next(iter(mapping.keys()))
         kls = Cache.types_by_name().get(name)
@@ -255,7 +250,7 @@ class Cache(LoggingMixin, metaclass=CacheMeta):  # CacheManager?
         """
 
         # load existing cache
-        cls.logger.info('Loading cache at %r', filename)
+        cls.logger.info('Loading cache at {:r}', filename)
         cache = load(filename, **kws)
 
         # Check if serialized object is correct type
@@ -276,7 +271,7 @@ class Cache(LoggingMixin, metaclass=CacheMeta):  # CacheManager?
         if filename is None:
             raise ValueError('Please provide a filename.')
 
-        self.logger.debug('Saving cache: %r', filename)
+        self.logger.debug('Saving cache: {:r}', filename)
         fmt = guess_format(filename)
 
         if fmt is json:
@@ -287,7 +282,7 @@ class Cache(LoggingMixin, metaclass=CacheMeta):  # CacheManager?
             serialize(filename, self, fmt,
                       **{**kws, **SAVE_KWS.get(fmt, {})})
         #
-        self.logger.debug('Saved: %r', filename)
+        self.logger.debug('Saved: {:r}', filename)
 
         # except PicklingError as err:
         #     warnings.warn(

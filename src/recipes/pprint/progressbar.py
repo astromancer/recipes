@@ -137,8 +137,7 @@ class ProgressLogger(ProgressBarBase):
             return
 
         bar = self.get_bar(i)
-        logger = logging.getLogger(self.name)
-        logger.info('Progress: \n%s' % bar)
+        logger.info('Progress: \n{:s}' % bar)
 
 # class SyncedProgressLogger(ProgressLogger):
 #     """can be used from multiple processes"""

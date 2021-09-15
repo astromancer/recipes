@@ -333,13 +333,13 @@ class Cached(Decorator, LoggingMixin):
         # if we are here, we should be ok to lookup / cache the answer
         try:
             if key in self.cache:
-                self.logger.debug('Intercepted %s call: Loading result from '
+                self.logger.debug('Intercepted {:s} call: Loading result from '
                                   'cache.', describe(func))
                 return self.cache[key]
         except Exception:
             # since caching is not mission critical, just log the error and
             # then run the function
-            self.logger.exception('Cache lookup failed! Executing %s.',
+            self.logger.exception('Cache lookup failed! Executing {:s}.',
                                   describe(func))
             return func(*args, **kws)
 
@@ -351,7 +351,7 @@ class Cached(Decorator, LoggingMixin):
         try:
             self.cache[key] = answer
         except Exception:
-            self.logger.exception('Caching failed for %s!', describe(func))
+            self.logger.exception('Caching failed for {:s}!', describe(func))
 
         return answer
 

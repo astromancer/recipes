@@ -46,15 +46,11 @@ import pytest
 import motley
 
 # relative
+from ...logging import LoggingMixin
 from . import pprint as pp
 from .lists import lists
 from .iter import cofilter, negate
 from .functionals import echo0 as echo
-from .logging import logging, get_module_logger
-
-logging.basicConfig()
-logger = get_module_logger()
-logger.setLevel(logging.DEBUG)
 
 
 POS, PKW, VAR, KWO, VKW = _ParameterKind
@@ -191,7 +187,7 @@ def get_transforms(main, left, right):
 # TODO:
 # class Case
 
-class Expected:
+class Expected(LoggingMixin):
     """
     Testing helper for checking expected return values for functions/ methods.
     Allows one to build simple paramertized tests of complex function without
@@ -301,7 +297,7 @@ class Expected:
         names, values = list(names), lists(values)
 
         # if logger.getEffectiveLevel() == logging.DEBUG:
-        #     logger.debug('parametrizing %s', pp.caller(test))
+        #     logger.debug('parametrizing {:s}', pp.caller(test))
         #     logger.debug(f'{names=}')  # , {values=}')
 
         # return ParametrizedTestHelper(test, names, values, *args, **kws)
@@ -396,7 +392,7 @@ class Expected:
 
         def test(*args, **kws):
             #
-            logger.debug('test received: %s, %s', args, kws)
+            self.logger.debug('test received: {:s}, {:s}', args, kws)
 
             expected = kws.pop('expected')
             vkw = kws.pop(self.vkw, {})
@@ -407,7 +403,7 @@ class Expected:
                           self.pnames[:self.pkinds.index(VAR)]),
                         var)
 
-            logger.debug('passing to %s: %s; %s',
+            self.logger.debug('passing to {:s}: {:s}; {:s}',
                          self.func.__name__, args, kws)
 
             ctx = nullcontext()
@@ -447,7 +443,7 @@ class Expected:
         params.append(Parameter('expected', KWO))
         test.__signature__ = Signature(params)
 
-        logger.debug('Created test for function\n%s with signature:\n%s',
+        self.logger.debug('Created test for function\n{:s} with signature:\n{:s}',
                      pp.caller(self.func), test.__signature__)
 
         return test
@@ -455,15 +451,15 @@ class Expected:
 
 # class TestDescriptorHelper:
 
-class ParametrizedTestHelper:  # ParametrizedTest:
+class ParametrizedTestHelper(LoggingMixin):  # ParametrizedTest:
     # set the 'test_xxx' name on classes for automatically constructed tests
     # inside class scope
 
     def __init__(self, test, names, values, *args, **kws):
         self.test = test
-        logger.debug('parametrizing %s', pp.caller(test))
-        # logger.debug('signature: %s', pp.caller(test))
-        # logger.debug(f'{names=}')  # , {values=}')
+        self.logger.debug('parametrizing {:s}', pp.caller(test))
+        # self.logger.debug('signature: {:s}', pp.caller(test))
+        # self.logger.debug(f'{names=}')  # , {values=}')
         self.runner = pytest.mark.parametrize(
             list(names), lists(values), *args, **kws
         )(test)
@@ -472,10 +468,11 @@ class ParametrizedTestHelper:  # ParametrizedTest:
         return self.runner(*args, **kws)
 
     def __set_name__(self, kls, name):
-        logger.debug('Binding %s onto class %s with name %r',
+        self.logger.debug('Binding {:s} onto class {:s} with name {!r:}',
                      self.test, kls, name)
         if not name.startswith('test'):
-            logger.debug("renaming test function: %r -> 'test_%s'", name, name)
+            self.logger.debug(
+                "renaming test function: {!r:} -> 'test_{:s}'", name, name)
             name = f'test_{name}'
 
         setattr(kls, name, self.runner)

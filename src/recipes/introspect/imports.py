@@ -17,6 +17,7 @@ from collections import defaultdict
 
 # third-party
 import more_itertools as mit
+from loguru import logger
 from stdlib_list import stdlib_list
 
 # relative
@@ -40,11 +41,6 @@ from ..string import remove_suffix, remove_prefix, truncate
 # TODO: convert wildcard imports
 # TODO: sort by submodule width?
 
-
-# module level logger
-logger = get_module_logger()
-logging.basicConfig()
-logger.setLevel(logging.INFO)
 
 # list of builtin modules
 easterEggs = ['this', 'antigravity']
@@ -402,7 +398,7 @@ class ImportFilter(ast.NodeTransformer):  #
         node = self.generic_visit(node)
         name = node.asname or node.name
         if name in self.remove:
-            logger.debug('Removing import: %s', name)
+            logger.debug('Removing import: {:s}', name)
             return
         return node
 
