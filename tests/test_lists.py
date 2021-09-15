@@ -3,7 +3,7 @@
 
 
 from recipes.lists import split, split_like
-from recipes.testing import Expect
+from recipes.testing import Expected
 
 
 # def lists(iters):
@@ -12,13 +12,13 @@ from recipes.testing import Expect
 #     return list(map(list, iters))
 
 
-test_split = Expect(split)([
+test_split = Expected(split)([
     (([1, 2, 3], []),            [[1, 2, 3]]),
     (([1, 2, 3], 1),             [[1], [2, 3]]),
     (([1, 2, 3], [1, 2]),        [[1], [2], [3]]),
     (([1, 2, 3], [0, 2]),        [[], [1, 2], [3]])
 ])
 
-test_split = Expect(split_like)([
+test_split = Expected(split_like)([
     (([1, 2, 3], [[0], [0], [0]]), [[1], [2], [3]]),
 ])

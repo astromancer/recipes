@@ -2,11 +2,11 @@
 Pretty printing callable objects and call signatures
 """
 
-# std libs
+# std
 import inspect
 import textwrap as txw
 
-# relative libs
+# relative
 from ..introspect.utils import get_module_name
 from ..introspect import get_class_that_defined_method
 # import types
@@ -17,7 +17,7 @@ VAR_MARKS = {VAR: '*', VKW: '**'}
 _empty = inspect.Parameter.empty
 
 
-def fullname(obj, sep=' '):
+def describe(obj, sep=' ', repr=repr):
     """
     Object type and fully qualified name.
 
@@ -30,20 +30,20 @@ def fullname(obj, sep=' '):
 
     Examples
     --------
-    >>> fullname(str)
-    "type 'str'"
+    >>> describe(str)
+    "class 'str'"
 
-    >>> fullname(id)
+    >>> describe(id)
     "builtin_function_or_method 'id'"
 
     >>> class X:
     ...     def __call__(self):
     ...         pass
 
-    >>> fullname(X)
+    >>> describe(X)
     "class '__main__.X'"
 
-    >>> fullname(X())
+    >>> describe(X())
     "instance of class '__main__.X'"
 
     Returns
@@ -54,15 +54,19 @@ def fullname(obj, sep=' '):
     assert callable(obj)
 
     if isinstance(obj, type):
+        if obj.__module__ == 'builtins':
+            return 'class ' + repr(obj.__name__)
+            
         # obj is a class
-        return str(obj).strip("<>")
+        return 'class ' + repr(f'{obj.__module__}.{obj.__name__}')
+        # return str(obj).strip("<>")
 
     if hasattr(obj, '__qualname__'):
         # any function or method
-        return f'{obj.__class__.__name__}{sep}{obj.__qualname__!r}'
+        return f'{obj.__class__.__name__}{sep}{repr(obj.__qualname__)}'
 
     # any other callable
-    return f'instance of{sep}{str(type(obj)).strip("<>")}'
+    return f'instance of{sep}{describe(type(obj), repr=repr)}'
 
 
 def parameter(par, val_formatter=repr):

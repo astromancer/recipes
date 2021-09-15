@@ -2,14 +2,23 @@
 Functional keyword translation for understanding inexact input from humans 
 """
 
+# Keyword translation on-the-fly for flexible APIs.
+# If you are like me, and often misremember keyword arguments for classes or
+# functions, (especially those with giant signatures [1,2,3]), this module will
+# help you! It matches your typo to the actual API keyword, and corrects your
+# mistake with an optional logged notification.
 
-# std libs
+
+# std
 import re
-import types
-import functools as ftl
+import warnings
 
-# local libs
+# local
 from recipes.string import brackets
+
+# relative
+from .decorators import Decorator
+from .functionals import noop, raises
 
 
 class KeywordTranslator:
@@ -67,8 +76,15 @@ class KeywordTranslator:
         return f'{self.__class__.__name__}({self.pattern} --> {self.answer})'
 
 
-class Synonyms:
-    """Helper class for resolving keywords"""
+class Synonyms(Decorator):
+    """
+    Decorator for keyword translation.
+    """
+    _actions = {-1: noop,              # silently ignore invalid types
+                0: warnings.warn,            # emit warning
+                1: raises(TypeError)}     # raise TypeError
+    _default_action = -1
+    emit = staticmethod(_actions[_default_action])
 
     # TODO: detect ambiguous mappings
 
@@ -80,19 +96,8 @@ class Synonyms:
     def __repr__(self):
         return repr(self.mappings)
 
-    def __call__(self, func):
-        self.func = func
-        # ftl.update_wrapper(self.wrapped, func) # borks!?
-        # self.wrapped.__wrapped__ = func
-        # self.wrapped.__module__ = func.__module__
-        # self.wrapped.__name__ = func.__name__
-        # self.wrapped.__qualname__ = func.__qualname__
-        # self.wrapped.__doc__ = func.__doc__
-        # self.wrapped.__doc__ = func.__doc__
-        return self.wrapped
-
-    def wrapped(self, *args, **kws):
-        return self.func(*args, **self.resolve(**kws))
+    def __wrapper__(self, func, *args, **kws):
+        return func(*args, **self.resolve(**kws))
 
     def update(self, mappings=None, **kws):
         for k, v in dict(mappings, **kws).items():
@@ -101,10 +106,10 @@ class Synonyms:
 
     def resolve(self, namespace=None, **kws):
         """
-        map terse keywords in `kws` to their full form. 
-        If given, values from the `namespace` dict replace those in kws
-        if their corresponging keywords are valid parameter names for `func`
-        and they are non-default values
+        Map typo/terse keywords in `kws` to their correct form. If given, values
+        from the `namespace` dict replace those in kws if their corresponging
+        keywords are valid parameter names for `func` and they are non-default
+        values.
         """
         # get arg names and defaults
         # TODO: use inspect.signature here ?
@@ -133,13 +138,12 @@ class Synonyms:
             for m in self.mappings:
                 trial = m(k)
                 if trial in arg_names:
+                    self.emit('Keyword translated: %r --> %r', k, trial)
                     params[trial] = v
                     break
             else:
                 # get name
-                name = (func.__qualname__
-                        if isinstance(func, types.MethodType) else
-                        func.__name__)
+                name = getattr(func, '__qualname__', func.__name__)
                 raise KeyError(f'{k!r} is not a valid keyword for {name!r}')
 
         # `params` now has keys which are the correct parameter names for

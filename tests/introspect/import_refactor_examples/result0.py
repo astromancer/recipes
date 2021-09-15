@@ -1,5 +1,5 @@
 
-# std libs
+# std
 import os
 import re
 import mmap
@@ -14,14 +14,14 @@ from typing import Union, ClassVar
 from dataclasses import dataclass, field
 from collections import namedtuple, OrderedDict
 
-# third-party libs
+# third-party
 import numpy as np
 import more_itertools as mit
 import astropy.io.fits as pyfits
 from astropy.io.fits.hdu import HDUList, PrimaryHDU
 from IPython import embed
 
-# local libs
+# local
 import recipes.iter as itr
 from recipes.io import warn
 from recipes.list import sorter
@@ -35,7 +35,7 @@ from motley.profiler.timers import timer
 from motley.profiler.imports import (ImportFinder, ModuleExtractor,
                                      ImportExtractor)
 
-# relative libs
+# relative
 from .header import shocHeader
 from .filenaming import NamingConvention
 from .utils import retrieve_coords, convert_skycooords

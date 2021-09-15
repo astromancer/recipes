@@ -3,12 +3,12 @@ Utilities for operations on strings
 """
 
 
-# std libs
+# std
 import re
 import numbers
 from collections import abc
 
-# third-party libs
+# third-party
 import numpy as np
 
 
@@ -17,6 +17,10 @@ REGEX_SPACE = re.compile(r'\s+')
 
 
 class Percentage:
+    """
+    An object representing a percentage of something (usually a number) that
+    computes the actual percentage value when called.
+    """
 
     regex = re.compile(r'([\d.,]+)\s*%')
 
@@ -33,6 +37,7 @@ class Percentage:
         Examples
         --------
         >>> Percentage('1.25%').of(12345)
+        154.3125
 
 
         Raises
@@ -53,6 +58,16 @@ class Percentage:
     def __str__(self):
         return f'{self.frac:.2%}'
 
+    def __call__(self, number):
+        try:
+            if isinstance(number, numbers.Real):
+                return self.frac * number
+            if isinstance(number, abc.Collection):
+                return self.frac * np.asanyarray(number, float)
+        except ValueError:
+            raise TypeError('Not a valid number or numeric array type.') \
+                from None
+
     def of(self, total):
         """
         Get the number representing by the percentage as a total. Basically just
@@ -64,8 +79,7 @@ class Percentage:
             Any number
 
         """
-        if isinstance(total, (numbers.Real, np.ndarray)):
-            return self.frac * total
+        self(total)
 
 
 # ---------------------------------------------------------------------------- #
@@ -111,6 +125,7 @@ def sub(string, mapping=(), **kws):
     s: str
 
     """
+    
     mapping = {**dict(mapping), **kws}
     if not mapping:
         return string
@@ -118,7 +133,12 @@ def sub(string, mapping=(), **kws):
     if len(mapping) == 1:
         # simple replace
         return string.replace(*next(iter(mapping.items())))
-
+    
+    # character permutations with str.translate are an efficient way of doing 
+    # single character permutations
+    # if set(map(len, mapping.keys())) == {1}:
+    #     return string.translate(str.maketrans(mapping))
+    
     from recipes import cosort
     from recipes import op
 
@@ -199,6 +219,7 @@ def remove_affix(string, prefix='', suffix=''):
 
 
 def _replace_affix(string, affix, new, i):
+    # handles prefix and suffix replace. (i==0: prefix, i==1: suffix)
     if affix and (string.startswith, string.endswith)[i](affix):
         w = (1, -1)[i]
         return ''.join((new, string[slice(*(w * len(affix), None)[::w])])[::w])
@@ -215,12 +236,33 @@ def remove_suffix(string, suffix):
     return remove_affix(string, '', suffix)
 
 
-def replace_prefix(string, old_prefix, new_prefix):
-    return _replace_affix(string, old_prefix, new_prefix, 0)
+def replace_prefix(string, old, new):
+    """
+    Substitute a prefix string.
 
+    Parameters
+    ----------
+    string : [type]
+        [description]
+    old : [type]
+        [description]
+    new : [type]
+        [description]
 
-def replace_suffix(string, old_suffix, new_suffix):
-    return _replace_affix(string, old_suffix, new_suffix, 1)
+    Examples
+    --------
+    >>> 
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+    return _replace_affix(string, old, new, 0)
+
+# @doc.splice(replace_prefix)
+def replace_suffix(string, old, new):
+    return _replace_affix(string, old, new, 1)
 
 
 def shared_prefix(strings, stops=''):
@@ -254,16 +296,19 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 def naive_plural(text):
     return text + 'es' if text.endswith('s') else 's'
 
+
 def plural(text, obj=(())):
     """conditional plural"""
     many = isinstance(obj, abc.Collection) and len(obj) != 1
     return naive_plural(text) if many else text
 
+
 def named_items(name, object_):
     return f'{plural(name, object_)}: {object_}'
-    
+
 # ---------------------------------------------------------------------------- #
 # Misc
+
 
 def surround(string, left, right=None, sep=''):
     if not right:
@@ -276,8 +321,16 @@ def indent(string, width=4):
     return string.replace('\n', '\n' + ' ' * width)
 
 
+def truncate(string, size, dots=' … ', end=10):
+    n = len(string)
+    if n <= size:
+        return string
+
+    return f'{string[:(size - len(dots) - end)]}{dots}{string[-end:]}'
+
 # ---------------------------------------------------------------------------- #
 # Transformations
+
 
 def strip_non_ascii(string):
     """
@@ -344,27 +397,6 @@ def monospaced(text):
 #     re.compile(rf'(?s)((?![\\]).){mark}([^\n]*)')
 
 
-def banner(text, swoosh='=', width=80, title=None, align='^'):
-    """
-
-    Parameters
-    ----------
-    text
-    swoosh
-    width
-    title
-    align
-
-    Returns
-    -------
-
-    """
-
-    swoosh = swoosh * width
-    pre = swoosh if title is None else overlay(' ', swoosh, align)
-    return os.linesep.join((pre, text, swoosh, ''))
-
-
 def overlay(text, background='', alignment='^', width=None):
     """overlay text on background using given alignment."""
 
@@ -406,6 +438,7 @@ def overlay(text, background='', alignment='^', width=None):
 # else:  #even window len
 # pl = ph = div
 
-# idx = width//2-pl, width//2+ph                    #start and end indeces of the text in the center of the progress indicator
+# idx = width//2-pl, width//2+ph
+# #start and end indeces of the text in the center of the progress indicator
 # s = fill*width
 # return s[:idx[0]] + self + s[idx[1]:]                #center text

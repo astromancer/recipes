@@ -1,15 +1,27 @@
+"""
+Logging helpers.
+"""
 
-# std libs
+
+# std
 import logging
 import functools as ftl
 from contextlib import contextmanager
 
-# relative libs
-from .decor.base import DecoratorBase
+# third-party
+from loguru import logger
+
+# relative
+from . import pprint as pp
+from .decorators import Decorator
 from .introspect.utils import get_caller_frame, get_module_name, get_class_name
 
 
 def get_module_logger(depth=-1):
+    """
+    Create a logger for a module by calling this function from the module
+    namespace.
+    """
     return logging.getLogger(get_module_name(get_caller_frame(2), depth))
 
 
@@ -48,12 +60,31 @@ def all_logging_disabled(highest_level=logging.CRITICAL):
 #     logger.setLevel(olevel)
 
 
+# class BraceString(str):
+#     def __mod__(self, other):
+#         return self.format(*other)
+
+#     def __str__(self):
+#         return self
+
+
+# class StyleAdapter(logging.LoggerAdapter):
+
+#     def __init__(self, logger, extra=None):
+#         super().__init__(logger, extra)
+
+#     def process(self, msg, kwargs):
+#         if kwargs.pop('style', '%') == '{':  # optional
+#             msg = BraceString(msg)
+#         return msg, kwargs
+
+
 class LoggingDescriptor:
-    # use descriptor so we can access the logger via cls.logger and cls().logger
+    # use descriptor so we can access the logger via logger and cls().logger
     # Making this attribute a property also avoids pickling errors since
     # `logging.Logger` cannot be picked
 
-    def __init__(self, namespace_depth=1):
+    def __init__(self, namespace_depth=-1):
         self.namespace_depth = int(namespace_depth)
 
     def __get__(self, obj, kls=None):
@@ -64,47 +95,57 @@ class LoggingDescriptor:
         return get_class_name(kls, self.namespace_depth)
 
 
+# class LoggingMixin:
+#     """
+#     Mixin class that exposes the `logger` attribute for the class which is an
+#     instance of python's build in `logging.Logger`.  Allows for easy
+#     customization of loggers on a class by class level.
+
+#     Examples
+#     --------
+#     # in sample.py
+#     >>> class Sample(LoggingMixin):
+#             def __init__(self):
+#                 logger.debug('Initializing')
+
+#     >>> from sample import Sample
+#     >>> logger.setLevel(logging.debug)
+#     """
+#     logger = LoggingDescriptor()
+
+
 class LoggingMixin:
+    class Logger:
+        
+        # use descriptor so we can access the logger via logger and cls().logger
+        # Making this attribute a property also avoids pickling errors since
+        # `logging.Logger` cannot be picked
+        # parent = None
+        
+        @staticmethod
+        def add_parent(record, parent):
+            record['function'] = f'{parent}.{record["function"]}'
+
+        def __get__(self, obj, kls=None):
+            return logger.patch(
+                ftl.partial(self.add_parent, parent=(kls or type(obj)).__name__)
+            )
+
+    logger = Logger()
+
+
+class catch_and_log(Decorator, LoggingMixin):
     """
-    Mixin class that exposes the `logger` attribute for the class which is an
-    instance of python's build in `logging.Logger`.  Allows for easy
-    customization of loggers on a class by class level.
-
-    Examples
-    --------
-    # in sample.py
-    >>> class Sample(LoggingMixin):
-            def __init__(self):
-                self.logger.debug('Initializing')
-
-    >>> from sample import Sample
-    >>> Sample.logger.setLevel(logging.debug)
-    """
-    logger = LoggingDescriptor()
-
-
-class catch_and_log(DecoratorBase, LoggingMixin):
-    """
-    Decorator that catches and logs errors instead of actively raising.
+    Decorator that catches and logs errors instead of actively raising
+    exceptions.
     """
 
-    # basename = 'log'        #base name of the log - to be set at module level
-
-    def __init__(self, func):
-        super().__init__(func)
-
-        # NOTE: partial functions don't have the __name__, __module__ attributes!
-        # retrieve the deepest func attribute -- the original func
-        while isinstance(func, functools.partial):
-            func = func.func
-        self.__module__ = func.__module__
-        self.__name__ = 'partial(%s)' % func.__name__
-
-    def __call__(self, *args, **kws):
+    def __wrapper__(self, func, *args, **kws):
         try:
-            return self.func(*args, **kws)
-        except Exception as err:
-            self.logger.exception('%s' % str(args))
+            return func(*args, **kws)
+        except Exception:
+            logger.exception('Caught exception in %s: ',
+                             pp.caller(func, args, kws))
 
 
 # class MultilineIndenter(logging.LoggerAdapter):

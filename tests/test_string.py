@@ -1,9 +1,9 @@
-from recipes.testing import Expect, Throws, mock, expected, ECHO
+from recipes.testing import Expected, Throws, mock, expected, ECHO
 from recipes.string import Percentage, sub, title
 import pytest
 
 
-test_sub = Expect(sub)(
+test_sub = Expected(sub)(
     # basic
     {mock.sub('hello world', {'h': 'm', 'o ': 'ow '}):
      'mellow world',
@@ -35,7 +35,7 @@ test_sub = Expect(sub)(
 )
 
 
-test_title = Expect(title)(
+test_title = Expected(title)(
     # basic
     {mock.title('hello world'):             'Hello World',
      mock.title('hello world', 'world'):    'Hello world',

@@ -1,23 +1,27 @@
 """
-Some drop-in replacements for the cool builtin operator classes, but with added
-support for default values 
+Some drop-in replacements for the very cool builtin operator classes, but with
+added support for default values. Along with some additional related operational
+workhorses.
 """
+
 
 # pylint: disable=redefined-builtin
 # pylint: disable=invalid-name
+# pylint: disable=wildcard-import, unused-wildcard-import
 
-
-# std libs
+# std
 import builtins
 import warnings
 import functools as ftl
 import operator as _op
 from operator import *
+from collections import abc
 
-# local libs
+# local
 import docsplice as doc
-from recipes.decor import raises
-from recipes.functionals import echo0
+
+# relative
+from .functionals import echo0, raises
 
 
 class NULL:
@@ -76,6 +80,7 @@ class ItemGetter:
     def __init__(self, *keys, default=NULL, defaults=None):
         self.keys = keys
         self.defaults = defaults or {}
+        self.unpack = tuple if len(self.keys) > 1 else next
         typo = set(self.defaults.keys()) - set(self.keys)
         if typo:
             warnings.warn(f'Invalid keys in `defaults` mapping: {typo}')
@@ -85,9 +90,8 @@ class ItemGetter:
             # intentionally override the `get_default` method
             self.get_default = raises(self._raises)
 
-    def __call__(self, target):  # -> List:
-        unpack = tuple if len(self.keys) > 1 else next
-        return unpack(self._iter(target))
+    def __call__(self, target):  # -> Tuple or Any:
+        return self.unpack(self._iter(target))
 
     def get_default(self, key):
         """Retrieve the default value of the `key` attribute"""
@@ -137,6 +141,27 @@ class AttrSetter:
             setattr(get_obj(target), attr, value)
 
 
+class VectorizeMixin:
+    def __call__(self, target):
+        return list(self.map(target))
+
+    def map(self, target):
+        assert isinstance(target, abc.Collection)
+        return map(super().__call__, target)
+
+    def filter(self, *args):
+        *test, target = args
+        return filter(test or None, self.map(target))
+
+
+class ItemVector(VectorizeMixin, ItemGetter):
+    """Vectorized ItemGetter"""
+
+
+class AttrVector(VectorizeMixin, AttrGetter):
+    """Vectorized AttrGetter"""
+
+
 class MethodCaller:
     """
     This is adapted from `operator.methodcaller`. The code below is copied
@@ -166,7 +191,7 @@ class MethodCaller:
         self._kwargs = kwargs
 
     def __call__(self, obj):
-        return attrgetter(self._name)(obj)(*self._args, **self._kwargs)
+        return _op.attrgetter(self._name)(obj)(*self._args, **self._kwargs)
 
     def __repr__(self):
         args = [repr(self._name),
@@ -186,21 +211,21 @@ class MethodCaller:
 # MethodCaller.__doc__ += op.methodcaller.__doc__.replace('methodcaller', 'MethodCaller')
 
 
-def index(obj, item, start=0, test=eq, default=NULL):
+def index(collection, item, start=0, test=eq, default=NULL):
     """
-    Find the index position of `item` in list `l`, or if a test function is
-    provided, the first index position for which the test evaluates as true. If
+    Find the index position of `item` in `collection`, or if a test function is
+    provided, the first index position for which the test evaluates True. If
     the item is not found, or no items test positive, return the provided
     default value.
 
     Parameters
     ----------
-    obj : list or str
-        The items to be searched
+    collection : list or str
+        The items to be searched.
     item : object
-        item to be found
+        Item to be found.
     start : int, optional
-        optional starting index for the search, by default 0
+        Optional starting index for the search, by default 0.
     test : callable, optional
         Function used to identify the item. Calling sequence of this function is
         `test(x, item)`, where `x` is an item from the input list. The function
@@ -209,7 +234,7 @@ def index(obj, item, start=0, test=eq, default=NULL):
         tests each item for equality with input `item`.
     default : object, optional
         The default to return if `item` was not found in the input list, by
-        default None
+        default None.
 
     Returns
     -------
@@ -221,7 +246,7 @@ def index(obj, item, start=0, test=eq, default=NULL):
     #     l = list(l)
 
     test = test or eq
-    for i, x in enumerate(obj[start:], start):
+    for i, x in enumerate(collection[start:], start):
         if test(x, item):
             return i
 
@@ -229,7 +254,7 @@ def index(obj, item, start=0, test=eq, default=NULL):
     #  -> only if default parameter was explicitly given do we return that
     #   instead of raising a ValueError
     if default is NULL:
-        raise ValueError(f'{item} is not in {type(obj)}')
+        raise ValueError(f'{item} is not in {type(collection)}')
 
     return default
 

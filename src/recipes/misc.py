@@ -3,28 +3,18 @@ Host of useful miscellaneous classes and functions.
 """
 
 
-# std libs
+# std
 import sys
 import shutil
-import logging
 from numbers import Number
 from collections import abc, deque
 
-# third-party libs
+# third-party
 import numpy as np
+from loguru import logger
 
-# local libs
-from recipes.logging import logging, get_module_logger
-
-# relative libs
+# relative
 from .interactive import is_interactive
-
-
-
-# module level logger
-logger = get_module_logger()
-logging.basicConfig()
-logger.setLevel(logging.INFO)
 
 
 ZERO_DEPTH_BASES = (str, bytes, Number, range, bytearray)

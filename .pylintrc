@@ -147,7 +147,10 @@ disable=print-statement,
         too-many-instance-attributes,
         too-many-arguments,
         too-many-lines,
-        too-many-ancestors
+        too-many-ancestors,
+        inconsistent-return-statements,
+        redefined-outer-name,
+        redefined-argument-from-local
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -271,7 +274,9 @@ contextmanager-decorators=contextlib.contextmanager
 generated-members=numpy.*, np.*,
                   astropy.constants.*,
                   cmasher.*, cmr.*,
-                  motley.*
+                  motley.*,
+                  obstools.image.segmentation.SegmentedImage
+                  
 
 
 # Tells whether missing members accessed in mixin class should be ignored. A
@@ -440,10 +445,11 @@ method-naming-style=snake_case
 
 # Regular expression matching correct method names. Overrides method-naming-
 # style.
-#method-rgx=
+method-rgx=(?:(?P<snake>[a-z_]{2,}))$
 
 # Naming style matching correct module names.
 module-naming-style=snake_case
+# '(?:(?P<snake>[a-z_]+)|(?P<camel>[a-z]+([A-Z][a-z]*)*))$'
 
 # Regular expression matching correct module names. Overrides module-naming-
 # style.

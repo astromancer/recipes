@@ -3,9 +3,9 @@ Recipes involving dictionaries
 """
 
 
-# std libs
-import re
-import types
+# std
+from collections import abc
+from .functionals import Emit
 import numbers
 import warnings
 import itertools as itt
@@ -13,8 +13,11 @@ from pathlib import Path
 from collections.abc import Hashable
 from collections import UserDict, OrderedDict, defaultdict
 
-# relative libs
-from .string import indent, brackets as bkt
+# third-party
+import more_itertools as mit
+
+# relative
+from .string import indent
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
@@ -23,7 +26,7 @@ from .string import indent, brackets as bkt
 # lookup, indexability,
 
 
-def pformat(mapping, name=None, lhs=str, equals=': ', rhs=str, sep=',',
+def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
             brackets='{}', hang=False, tabsize=4):
     """
     pformat (nested) dict types
@@ -97,13 +100,16 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
     # note that keys may not be str, so first convert
     keys = tuple(map(lhs, mapping.keys()))
     width = max(map(len, keys))  # + post_sep_space
-    indents = itt.chain([hang * tabsize], itt.repeat(tabsize))
+    indents = mit.padded([hang * tabsize], tabsize)
     separators = itt.chain(
         itt.repeat(sep + '\n', len(mapping) - 1),
         [close]
     )
     for pre, key, val, post in zip(indents, keys, mapping.values(), separators):
-        string += f'{"": <{pre}}{key: <{width}s}{equals}'
+        # THIS places ':' directly before value
+        # string += f'{"": <{pre}}{key: <{width}s}{equals}'
+        # WHILE this places it directly after key
+        string += f'{"": <{pre}}{key}{equals: <{width - len(key) + len(equals)}s}'
         if isinstance(val, dict):  # abc.MutableMapping
             part = _pformat(val, lhs, equals, rhs, sep, brackets)
         else:
@@ -177,11 +183,11 @@ class Invertible:
 
 class DefaultDict(defaultdict):
     """
-    Default dict that allows default factories which take the key as an 
+    Default dict that allows default factories which take the key as an
     argument.
     """
 
-    factory_takes_key = False
+    factory_takes_key = False  # TODO: can detect this by inspection
     default_factory = None
 
     def __init__(self, factory=None, *args, **kws):
@@ -213,6 +219,7 @@ class AutoVivify:
         if self._av:
             value = self[key] = type(self)()  # *self._factory
             return value
+
         return super().__missing__(key)
 
 
@@ -226,6 +233,7 @@ class AVDict(dict, AutoVivify):
 
 # class Tree(defaultdict, AutoVivify):
 #     _factory = (defaultdict.default_factory, )
+
 
 # TODO AttrItemWrite
 
@@ -280,7 +288,6 @@ class AttrDict(AttrBase):
     # FIXME: clobbers build in methods like `keys`, `items` etc...
     # check: dict.__dict__
 
-    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
@@ -288,11 +295,11 @@ class AttrDict(AttrBase):
     def __setstate__(self, state):
         self.__dict__ = self
         return state
-    
+
     # def __reduce__(self):
     #     print('REDUCE! ' * 20)
     #     return dict, ()
-    
+
 
 class OrderedAttrDict(OrderedDict, AttrBase):
     """dict with key access through attribute lookup"""
@@ -300,7 +307,6 @@ class OrderedAttrDict(OrderedDict, AttrBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
-
 
 
 class Indexable:
@@ -431,9 +437,9 @@ class Record(Indexable, OrderedAttrDict):
 
 class TransDict(UserDict):
     """
-    A many to one mapping. Provides a generic way of translating keywords to
-    their intended meaning. Good for human coders with flaky memory. May be
-    confusing to the uninitiated, so use with discretion.
+    A many to one mapping via layered dictionaries. Provides a generic way of
+    translating keywords to their intended meaning. Good for human coders with
+    flaky memory. May be confusing to the uninitiated, so use with discretion.
 
     Examples
     --------
@@ -443,83 +449,116 @@ class TransDict(UserDict):
 
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
-        self._translated = {}
+        self.dictionary = {}
 
-    def add_translations(self, dic=None, **kwargs):
-        """enable on-the-fly shorthand translation"""
+    def add_mapping(self, dic=None, **kwargs):
+        """Add translation dictionary"""
         dic = dic or {}
-        self._translated.update(dic, **kwargs)
+        self.dictionary.update(dic, **kwargs)
 
     # alias
-    add_trans = add_vocab = add_translations
+    add_trans = add_vocab = add_translations = add_mapping
 
     def __contains__(self, key):
-        return super().__contains__(self._translated.get(key, key))
+        return super().__contains__(self.dictionary.get(key, key))
 
     def __missing__(self, key):
         """if key not in keywords, try translate"""
-        return self[self._translated[key]]
+        return self[self.dictionary[key]]
 
     # def allkeys(self):
     #     # TODO: Keysview**
-    #     return flatiter((self.keys(), self._translated.keys()))
+    #     return flatiter((self.keys(), self.dictionary.keys()))
 
-    def many2one(self, many2one):
+    def many_to_one(self, mapping):
+        """
+        Add many keys to the existing dict that all map to the same key
+
+        Parameters
+        ----------
+        mapping : dict or collection of 2-tuples
+            Keys are tuples of objects mapping to a single object.
+
+
+        Examples
+        --------
+        >>> d.many_to_one({'all', 'these', 'keys', 'will', 'map to':
+                           'THIS VALUE')
+        ... d['all'] == d['these'] == 'THIS VALUE'
+        True
+        """
         # self[one]       # error check
-        for many, one in many2one.items():
+        for many, one in dict(mapping).items():
             for key in many:
-                self._translated[key] = one
+                self.dictionary[key] = one
+
+    many2one = many_to_one
 
 
 class ManyToOneMap(TransDict):
     """
-    Expands on TransDict by adding equivalence mapping functions for keywords
+    Expands on TransDict by adding equivalence mapping functions for keywords.
     """
 
-    warn = True
+    emit = Emit(1)
 
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
-        # equivalence mappings - callables that return the desired item
+        # equivalence mappings - callables that return the desired item.
         self._mappings = []
 
     def __missing__(self, key):
         try:
-            # try translate with vocab
+            # try translate via `dictionary`
             return super().__missing__(key)
         except KeyError as err:
-            for resolved in self._loop_mappings(key):
+            # FIXME: does what `resolve` does??
+            for resolved in self._loop_translators(key):
                 if super().__contains__(resolved):
                     return self[resolved]
             raise err from None
 
-    def add_mapping(self, func):
+    def add(self, obj):
+        """Add translation function / dictionary dispatching on type"""
+        if isinstance(obj, abc.MutableMapping):
+            self.add_mapping(obj)
+        elif callable(obj):
+            self.add_func(obj)
+        else:
+            raise TypeError(
+                f'Invalid translation object {obj!r} of type {type(obj)!r}.'
+            )
+
+    def add_func(self, func):
         if not callable(func):
             raise ValueError(f'{func} object is not callable')
         self._mappings.append(func)
 
-    def add_mappings(self, *funcs):
+    def add_funcs(self, *funcs):
         for func in funcs:
-            self.add_mapping(func)
+            self.add_func(func)
 
-    def _loop_mappings(self, key):
+    def _loop_translators(self, key):
         # try translate with equivalence maps
         for func in self._mappings:
+            # yield catch(func, message=message)(key)
             try:
                 yield func(key)
             except Exception as err:
-                if self.warn:
-                    warnings.warn(
-                        f'Equivalence mapping function failed with:\n{err!s}')
+                self.emit(
+                    f'{type(self).__name__}: Equivalence mapping function'
+                    f' failed with:\n{err!s}'
+                )
 
     def resolve(self, key):
+        # FIXME: return sentinel as `None` can be a valid mapping value
         # try translate with vocab
-        resolved = self._translated.get(key, key)
+        resolved = self.dictionary.get(key, key)
         if resolved in self:
             return resolved
 
         # resolve by looping through mappings
-        for resolved in self._loop_mappings(key):
+        for resolved in self._loop_translators(key):
             if resolved in self:
                 return resolved
 
@@ -527,7 +566,7 @@ class ManyToOneMap(TransDict):
         if super().__contains__(key):
             return True  # no translation needed
 
-        for resolved in self._loop_mappings(key):
+        for resolved in self._loop_translators(key):
             return super().__contains__(resolved)
 
         return False
@@ -561,7 +600,7 @@ class DefaultOrderedDict(OrderedDict):
     def __missing__(self, key):
         if self.default_factory is None:
             raise KeyError(key)
-        
+
         self[key] = value = self.default_factory()
         return value
 
@@ -584,4 +623,3 @@ class DefaultOrderedDict(OrderedDict):
         return '%s(%s, %s)' % (self.__class__.__name__,
                                self.default_factory,
                                OrderedDict.__repr__(self))
-

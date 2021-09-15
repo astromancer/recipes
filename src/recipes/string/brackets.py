@@ -1,14 +1,14 @@
 
-# std libs
+# std
 import math
 import inspect
 import numbers
 import itertools as itt
 
-# local libs
+# local
 import docsplice as doc
 
-# relative libs
+# relative
 from . import remove_affix
 from ..functionals import always, echo0
 
@@ -26,7 +26,10 @@ def outermost(string, brackets, indices, _ignored):
 
 
 class Yielder:
-    """Helper class for iterating and optionally yielding indices"""
+    """
+    Helper class for iterating items while optionally yielding their index
+    positions in the sequence.
+    """
 
     def __init__(self, return_index):
         self.yields = self._with_index if return_index else echo0

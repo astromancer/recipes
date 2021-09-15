@@ -3,14 +3,14 @@ Memoization decorators and helpers
 """
 
 
-# std libs
+# std
 import types
 import numbers
 import warnings
 from collections import abc
 from inspect import signature, _empty, _VAR_KEYWORD
 
-# local libs
+# local
 from recipes.functionals import echo0
 from recipes.string import named_items
 
@@ -18,7 +18,7 @@ from recipes.string import named_items
 from .manager import CacheManager
 from ..decorators import Decorator
 from ..logging import LoggingMixin
-from ..pprint.callers import fullname
+from ..pprint.callers import describe
 
 
 # from ..interactive import exit_register
@@ -47,7 +47,7 @@ def check_hashable_defaults(func):
             continue
 
         raise TypeError(
-            f'{fullname(func)} has default value for {p.kind} parameter {name}'
+            f'{describe(func)} has default value for {p.kind} parameter {name}'
             f' = {p.default} that is not hashable.'
         )
     return sig
@@ -234,7 +234,7 @@ class Cached(Decorator, LoggingMixin):
         self.sig = check_hashable_defaults(func)
 
         if not self.sig.parameters:
-            warnings.warn(f'Cannot memoize {fullname(func)} which takes no '
+            warnings.warn(f'Cannot memoize {describe(func)} which takes no '
                           f'parameters.')
             return func
 
@@ -265,7 +265,7 @@ class Cached(Decorator, LoggingMixin):
         # all keys are now str
         invalid = set(mapping.keys()) - set(names)
         if invalid:
-            raise ValueError(f'{fullname(self.__wrapped__).title()} takes no '
+            raise ValueError(f'{describe(self.__wrapped__).title()} takes no '
                              f'{named_items("parameter", invalid)}.')
 
     def _gen_hash_key(self, args, kws):
@@ -284,7 +284,7 @@ class Cached(Decorator, LoggingMixin):
                     # emit warning on non-silent ignore
                     self.logger.debug(
                         'Ignoring argument in '
-                        f'{fullname(self.__wrapped__)}: {name!r} = {val!r}')
+                        f'{describe(self.__wrapped__)}: {name!r} = {val!r}')
                 continue
 
             if self.sig.parameters[name].kind is not _VAR_KEYWORD:
@@ -331,7 +331,7 @@ class Cached(Decorator, LoggingMixin):
             what = ('unhashable argument',
                     'rejection sentinel')[isinstance(val, Reject)]
             warnings.warn(
-                f'{fullname(self.__wrapped__).capitalize()} received {what}:'
+                f'{describe(self.__wrapped__).capitalize()} received {what}:'
                 f' {name!r} = {val!r}\n'
                 'Return value for call will not be cached.',
                 CacheRejectionWarning)
@@ -357,14 +357,14 @@ class Cached(Decorator, LoggingMixin):
         # if we are here, we should be ok to lookup / cache the answer
         try:
             if key in self.cache:
-                self.logger.debug('Intercepted %s call: Loading result from '
-                                  'cache.', fullname(func))
+                self.logger.debug('Intercepted {:s} call: Loading result from '
+                                  'cache.', describe(func))
                 return self.cache[key]
         except Exception:
             # since caching is not mission critical, just log the error and
             # then run the function
-            self.logger.exception('Cache lookup failed! Executing %s.',
-                                  fullname(func))
+            self.logger.exception('Cache lookup failed! Executing {:s}.',
+                                  describe(func))
             return func(*args, **kws)
 
         # If we are here, it means there is no cache entry for this call
@@ -375,7 +375,7 @@ class Cached(Decorator, LoggingMixin):
         try:
             self.cache[key] = answer
         except Exception:
-            self.logger.exception('Caching failed for %s!', fullname(func))
+            self.logger.exception('Caching failed for {:s}!', describe(func))
 
         return answer
 

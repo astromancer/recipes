@@ -1,23 +1,27 @@
 """
 Pretty formatting of floats, arrays (with uncertainties) in various human
-readable forms
+readable forms.
 """
 
 # This module designed for convenience and is *not* speed tested (yet)
 
-# std libs
-import math
+
+# std
 import re
+import math
 import pprint
 import numbers
 from collections import namedtuple
 
-# third-party libs
+# third-party
 import numpy as np
 
-# local libs
-from recipes.array.misc import vectorize
+# local
 import docsplice as doc
+
+# relative
+from ..array.misc import vectorize
+
 
 # note: unicode literals below python3 only!
 # see: https://docs.python.org/3/howto/unicode.html
@@ -569,7 +573,8 @@ def align_dot(data):
 
 
 def decimal_with_percentage(n, total, precision=None, significant=3, sign='-',
-                            short=False, unicode=False, thousands='', brackets='()'):
+                            short=False, unicode=False, thousands='',
+                            brackets='()'):
     if isinstance(precision, sequences):
         p0, p1 = precision
     else:
