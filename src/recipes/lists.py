@@ -52,16 +52,20 @@ def cosort(*lists, **kws):
         Sort by evaluated value of some combination of all items in the lists
         (call signature of this function needs to be such that it accepts an
         argument tuple of items from each list.
-        eg.: master_key = lambda *l: sum(l) will order all the lists by the
-        sum of the items from each list.
-        If not provided, revert to sorting by `key` function
+        For example:
+        >>> master_key = lambda *l: sum(l) 
+        will order all the lists by the sum of the items from each list. If not
+        provided, revert to sorting by `key` function.
     key: callable or tuple of callables
-        If callble sorting done by value of key(item) for items in first
-        iterable If tuple sorting done by value of
-        (key[0](item_0), ..., key[n](item_n)) for items in the first n iterables
-        (where n is the length of the key tuple) i.e. the first callable is the
-        primary sorting criterion, and the rest act as tie-breakers.
-        If not provided sorting done by value of first input list. 
+        If callble sorting done by value of
+        >>> key(item)
+        for items in first iterable.
+        If tuple sorting done by value of
+        >>> key[0](item_0), ..., key[n](item_n)
+        for items in the first n iterables (where n is the length of the key
+        tuple) i.e. the first callable is the primary sorting criterion, and the
+        rest act as tie-breakers. If not provided sorting done by value of first
+        input list.
 
     Returns
     -------
@@ -183,7 +187,7 @@ def split(l, idx):
 def split_like(l, lists):
     """
     Split a list `l` into sublists, each with the same size as the sequence of
-    lists in `lists`.
+    (raggedly sized) lists in `lists`.
     """
     *indices, total = itt.accumulate(map(len, lists))
     assert len(l) == total

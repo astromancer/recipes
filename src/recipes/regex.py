@@ -126,3 +126,10 @@ def match_all(l, pattern):
         if m:
             matches[i] = m.group()
     return matches
+
+
+def split_iter(string, sep='\s+'):
+    # source : https://stackoverflow.com/a/9770397
+    regex = f'(?:^|{sep})((?:(?!{sep}).)*)'
+    for match in re.finditer(regex, string):
+        yield match.group(1)

@@ -1,14 +1,16 @@
 
 
+# std
 import random
 
-from recipes.pprint.nrs import decimal, hms, to_sexagesimal
-# leading_decimal_zeros
+# third-party
 import pytest
 import numpy as np
 
-
+# local
 from recipes.testing import Expected, mock
+from recipes.pprint.nrs import decimal, hms, to_sexagesimal
+
 
 #
 test_decimal = Expected(decimal)(
@@ -28,11 +30,12 @@ test_hms = Expected(hms)(
      mock.hms(1.333121112e2, 5):                '00h02m13.31211s',
      mock.hms(1.333121112e2, 5, ':'):           '00:02:13.31211',
      mock.hms(1.333121112e2, 5, short=False):   '00h02m13.31211s',
-     mock.hms(1.333121112e2, 'm0',  
+     mock.hms(1.333121112e2, 'm0',
               short=False, unicode=True):       '00ʰ02ᵐ',
      mock.hms(119.95, 's0'):                    '00h02m00s',
      mock.hms(1000, 'm0', sep=':'):             '00:17',
      #  ex.hms(1e4, sep='', sig=0, sign='+'):  '024640'
+     mock.hms(-0.5134137e6, unicode=True):      '−142ʰ36ᵐ53.7ˢ'
      }
 )
 

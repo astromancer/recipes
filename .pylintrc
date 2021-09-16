@@ -445,10 +445,11 @@ method-naming-style=snake_case
 
 # Regular expression matching correct method names. Overrides method-naming-
 # style.
-#method-rgx=
+method-rgx=(?:(?P<snake>[a-z_]{2,}))$
 
 # Naming style matching correct module names.
 module-naming-style=snake_case
+# '(?:(?P<snake>[a-z_]+)|(?P<camel>[a-z]+([A-Z][a-z]*)*))$'
 
 # Regular expression matching correct module names. Overrides module-naming-
 # style.

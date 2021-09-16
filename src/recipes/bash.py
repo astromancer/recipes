@@ -17,7 +17,7 @@ from recipes import op
 from recipes.lists import split_where
 from recipes.functionals import negate
 from recipes.string.brackets import braces, xsplit
-from recipes.string import remove_prefix, shared_affix
+from recipes.string import remove_prefix, shared_affix, strings
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
@@ -32,8 +32,6 @@ def ints(items):
     return [*map(int, items)]
 
 
-def strings(items):
-    return [*map(str, items)]
 
 
 def unclosed(string, open_, close):

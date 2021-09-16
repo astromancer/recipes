@@ -81,6 +81,13 @@ class Percentage:
         """
         self(total)
 
+# ---------------------------------------------------------------------------- #
+# Helpers / Convenience
+
+
+def strings(items):
+    """Map collection to list of str"""
+    return [*map(str, items)]
 
 # ---------------------------------------------------------------------------- #
 # Substitution
@@ -125,6 +132,7 @@ def sub(string, mapping=(), **kws):
     s: str
 
     """
+    
     mapping = {**dict(mapping), **kws}
     if not mapping:
         return string
@@ -132,7 +140,12 @@ def sub(string, mapping=(), **kws):
     if len(mapping) == 1:
         # simple replace
         return string.replace(*next(iter(mapping.items())))
-
+    
+    # character permutations with str.translate are an efficient way of doing 
+    # single character permutations
+    # if set(map(len, mapping.keys())) == {1}:
+    #     return string.translate(str.maketrans(mapping))
+    
     from recipes import cosort
     from recipes import op
 
@@ -213,6 +226,7 @@ def remove_affix(string, prefix='', suffix=''):
 
 
 def _replace_affix(string, affix, new, i):
+    # handles prefix and suffix replace. (i==0: prefix, i==1: suffix)
     if affix and (string.startswith, string.endswith)[i](affix):
         w = (1, -1)[i]
         return ''.join((new, string[slice(*(w * len(affix), None)[::w])])[::w])
@@ -229,12 +243,33 @@ def remove_suffix(string, suffix):
     return remove_affix(string, '', suffix)
 
 
-def replace_prefix(string, old_prefix, new_prefix):
-    return _replace_affix(string, old_prefix, new_prefix, 0)
+def replace_prefix(string, old, new):
+    """
+    Substitute a prefix string.
 
+    Parameters
+    ----------
+    string : [type]
+        [description]
+    old : [type]
+        [description]
+    new : [type]
+        [description]
 
-def replace_suffix(string, old_suffix, new_suffix):
-    return _replace_affix(string, old_suffix, new_suffix, 1)
+    Examples
+    --------
+    >>> 
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+    return _replace_affix(string, old, new, 0)
+
+# @doc.splice(replace_prefix)
+def replace_suffix(string, old, new):
+    return _replace_affix(string, old, new, 1)
 
 
 def shared_prefix(strings, stops=''):
@@ -266,17 +301,21 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 
 
 def naive_plural(text):
-    return text + 'es' if text.endswith('s') else 's'
+    return text + ('s', 'es')[text.endswith('s')]
 
 
-def plural(text, obj=(())):
+def plural(text, collection=(())):
     """conditional plural"""
-    many = isinstance(obj, abc.Collection) and len(obj) != 1
+    many = isinstance(collection, abc.Collection) and len(collection) != 1
     return naive_plural(text) if many else text
 
 
-def named_items(name, object_):
-    return f'{plural(name, object_)}: {object_}'
+def numbered(collection, name):
+    return '{:d} {:s}'.format(len(collection), plural(name, collection))
+
+
+def named_items(name, collection, fmt=str):
+    return f'{plural(name, collection)}: {fmt(collection)}'
 
 # ---------------------------------------------------------------------------- #
 # Misc

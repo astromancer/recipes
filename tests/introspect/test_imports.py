@@ -306,9 +306,11 @@ class TestImportRelativizer(TestNodeTransformer):
         from a import b
         from a.b import c
         from a.b.c import e
-        from ..b import f
-        from ..b.c import g
-        from .c import h
+        from ...b import f
+        from ...b.c import g
+        from ..c import h
+        from ..c.x import i
+        from .c import j        # implies the existence of c/c.py
         '''),
          'a.b.c'):
         '''
@@ -318,6 +320,33 @@ class TestImportRelativizer(TestNodeTransformer):
         from .. import f
         from . import g
         from . import h
+        from .x import i
+        from .c import j
+        ''',
+
+        # modules shadowing builtin names
+        (source('''
+            from recipes.pprint.nrs import xx
+            from recipes.string import yy
+            '''),
+            'recipes.other'):
+        '''
+        from ..pprint.nrs import xx
+        from ..string import yy
+        ''',
+
+        # modules shadowing builtin names
+        (source('''
+            from .image import SkyImage, ImageContainer
+            from .mosaic import MosaicPlotter
+            from .segmentation import SegmentedImage
+            '''),
+            'recipes.image'):
+        # FIXME: ECHO
+        '''
+        from .image import SkyImage, ImageContainer
+        from .mosaic import MosaicPlotter
+        from .segmentation import SegmentedImage
         '''
     })
     def test_rename(self, code, old_name, expected):

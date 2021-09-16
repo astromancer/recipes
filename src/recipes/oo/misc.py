@@ -10,21 +10,20 @@ def iter_subclasses(cls, _seen=None):
     >>> list(iter_subclasses(int)) == [bool]
     True
 
-    >>> class A(object): pass
+    >>> class A: pass
     >>> class B(A): pass
     >>> class C(A): pass
     >>> class D(B,C): pass
     >>> class E(D): pass
-    >>>
     >>> list(iter_subclasses(A))
     [__main__.B, __main__.D, __main__.E, __main__.C]
 
     >>> # get ALL (new-style) classes currently defined
-    >>> [cls.__name__ for cls in iter_subclasses(object)] #doctest: +ELLIPSIS
-    ['type', ...'tuple', ...]
+    >>> [cls.__name__ for cls in iter_subclasses] #doctest: +ELLIPSIS
+    ['type', ... 'tuple', ...]
     """
 
-    # recipe from:
+    # recipe adapted from:
     # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
 
     if not isinstance(cls, type):
@@ -42,16 +41,16 @@ def iter_subclasses(cls, _seen=None):
         if sub not in _seen:
             _seen.add(sub)
             yield sub
-
-            for sub in iter_subclasses(sub, _seen):
-                yield sub
+            yield from iter_subclasses(sub, _seen)
 
 
 def list_subclasses(cls):
     return list(iter_subclasses(cls))
 
 
-class Singleton(object):
+# ---------------------------------------------------------------------------- #
+
+class Singleton:
     class __Singleton:
         def __str__(self):
             return repr(self)
@@ -85,6 +84,8 @@ class Singleton(object):
 #     def __str__(self):
 #         return self.val
 
+# ---------------------------------------------------------------------------- #
+
 
 class SelfAwareness(type):
     """SelfAware type class"""
@@ -110,8 +111,11 @@ class SelfAware(metaclass=SelfAwareness):
                 self.a = a 
 
     >>> a = A(1)
-    >>> a is A(A(A(a)))  # True
+    >>> a is A(A(A(a)))
+    True
     """
+
+# ---------------------------------------------------------------------------- #
 
 
 class ClassProperty(property):
@@ -121,10 +125,10 @@ class ClassProperty(property):
     Examples
     --------
 
-    class Foo(object):
+    class Foo:
 
         _name = None  # optional name.
-         # Will default to class name if not over-written in inheritors
+        # Optional name. Defaults to class name if not over-written by inheritors
 
         @ClassProperty
         @classmethod
@@ -141,13 +145,16 @@ class ClassProperty(property):
             cls._name = name
 
     >>> foo = Foo()
-    >>> print(foo.name) # 'Foo'
+    >>> foo.name
+    'Foo'
     >>> foo.name = 'Yo'
-    >>> print((foo.name, Foo.name)) # ('Yo', 'Yo')
-    >>> Foo.name = 'zzz'
-    >>> print(foo.name, Foo.name) # ('zzz', 'zzz')
+    >>> (foo.name, Foo.name)
+    ('Yo', 'Yo')
+    >>> Foo.name = 'zzz' # FIXME: OVERWRITES `name` - doesn't go through setter
+    >>> foo.name, Foo.name
+    ('zzz', 'zzz')
 
     """
 
-    def __get__(self, cls, owner):
-        return self.fget.__get__(None, owner)()
+    def __get__(self, instance, kls):
+        return self.fget.__get__(None, kls)()
