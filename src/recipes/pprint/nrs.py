@@ -11,6 +11,7 @@ import re
 import math
 import pprint
 import numbers
+import itertools as itt
 from collections import namedtuple
 
 # third-party
@@ -20,22 +21,46 @@ import numpy as np
 import docsplice as doc
 
 # relative
+from .. import op
+from ..functionals import echo0
 from ..array.misc import vectorize
+from ..language import unicode as uni
 
 
 # note: unicode literals below python3 only!
 # see: https://docs.python.org/3/howto/unicode.html
 
 HMS = namedtuple('HMS', list('hms'))
-REGEX_HMS_PRECISION = re.compile(r'([hms])\.?(\d)?')
+DIVISORS = list(itt.accumulate((1, 60, 60, 24, 30, 12), op.mul))[::-1]
+
+REGEX_YMDHMS_PRECISION = re.compile(r'([yMdhms])\.?(\d)?')
+REGEX_YMDHMS_SPEC = re.compile(r'''(?x)
+    # (?P<sep>[^`:\s]?)                           
+    (?P<tail_unit>[yMdhms])
+    (\.?)(?P<precision>\d)?
+    (?P<short>\??)
+    ''')
+# REGEX_YMDHMS_SPEC = re.compile(r'''(?x)
+#     (?P<base_unit>[yMdhms]?)
+#     :?|[yMdhms]{1,5}?
+#     (?P<tail_unit>[yMdhms])
+#     (?P<precision>\.?(\d)?)
+#     ''')
+# SEP_SPEC = {'^': uni.superscripts.translate('ymdhms'),
+# '`': ''
 
 
 # Unicode
 UNI_PWR = dict(enumerate('²³⁴⁵⁶⁷⁸⁹', 2))  # '¹²³⁴⁵⁶⁷⁸⁹'
-UNI_NEG_PWR = '⁻'  # '\N{SUPERSCRIPT MINUS}'
-UNI_PM = '±'
-UNI_MULT = {'x': '×', '.': '·'}
-UNI_HMS = u'ʰᵐˢ'
+# UNI_NEG_PWR = '⁻'  # '\N{SUPERSCRIPT MINUS}'
+# UNI_PM = '±'
+SEP_ASCII = ('y', 'M', 'd ', 'h', 'm', 's')
+SEP_SUPER = uni.superscripts.translate(SEP_ASCII)
+# ('ʸʳ', 'ᴹ', 'ᵈ ', 'ʰ', 'ᵐ', 'ˢ')
+UNI_MULT = {'x': '×',
+            '.': '·'}
+UNI_HMS = 'ʰᵐˢ'
+
 # UNI_INF = '∞'
 # '−'
 # '\N{MINUS SIGN}'              '−'     u'\u2212'
@@ -50,23 +75,25 @@ LATEX_MULT = {'x': r'\times',
               '.': r'\cdot'}
 
 # The SI metric prefixes
-METRIC_PREFIXES = {-24: 'y',
-                   -21: 'z',
-                   -18: 'a',
-                   -15: 'f',
-                   -12: 'p',
-                   -9: 'n',
-                   -6: 'µ',
-                   -3: 'm',
-                   0: '',
-                   +3: 'k',
-                   +6: 'M',
-                   +9: 'G',
-                   +12: 'T',
-                   +15: 'P',
-                   +18: 'E',
-                   +21: 'Z',
-                   +24: 'Y'}
+METRIC_PREFIXES = {
+    -24: 'y',
+    -21: 'z',
+    -18: 'a',
+    -15: 'f',
+    -12: 'p',
+    -9:  'n',
+    -6:  'µ',
+    -3:  'm',
+    0:   '',
+    +3:  'k',
+    +6:  'M',
+    +9:  'G',
+    +12: 'T',
+    +15: 'P',
+    +18: 'E',
+    +21: 'Z',
+    +24: 'Y'
+}
 
 sequences = (list, tuple)
 
@@ -78,15 +105,13 @@ sequences = (list, tuple)
 # DECIMAL_SRE = re.compile('[+-]?\d+\.(0*)[1-9][\d]?', re.ASCII)
 
 
-def _echo(x):
-    return x
-
-
 def signum(n):
     if n == 0:
         return 0
+
     if n < 0:
         return -1
+
     return 1
 
 
@@ -133,8 +158,7 @@ def leading_decimal_zeros(n):
     m = order_of_magnitude(n)
     if m > 0 or math.isinf(m):
         return 0
-    else:
-        return -m - 1
+    return -m - 1
 
 
 def get_significant_digits(x, n=3):
@@ -195,16 +219,16 @@ def to_sexagesimal(t, base_unit='h', precision='s'):
         wrap the input number in a tuple.
     precision : str or int, optional
         The unit and/or numerical precision for the conversion, by default 's'.
-        If str, should start with one of 'h', 'm', or 's' and optionally end on 
+        If str, should start with one of 'h', 'm', or 's' and optionally end on
         a digit 0-9. Eg: 'h1' will return the number as a string in units of
         hours with a decimal precision of 1, while 's8' will return the number
-        as an sexagesimal (hms) string of with a decimal precision of 8. If no 
+        as an sexagesimal (hms) string of with a decimal precision of 8. If no
         digit is given, eg. 's', no rounding will be done.
 
     Returns
     -------
     tuple
-        Sexagesimal representation of the number
+        Sexagesimal representation of the number.
     """
     return tuple(_to_sexa(t, base_unit, precision))[::-1]
 
@@ -221,7 +245,7 @@ def _to_sexa(t, base_unit='h', precision='s'):
     assert unit in 'hms'
     v = 'smh'.index(base_unit)
     w = 'smh'.index(unit)
-    assert v >= w, 'Base unit must be greater that unit of precision'
+    assert v >= w, 'Base unit must be greater than precision unit.'
 
     # compute parts and round
     s = [1, -1][int(t < 0)]
@@ -234,6 +258,141 @@ def _to_sexa(t, base_unit='h', precision='s'):
             p = None  # only round tail unit
         yield s * r
     yield s * t
+
+
+def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
+
+    fill = ('', '', '', '0', '0', '0')
+    width = ('', '', '', 2, 2, 2)
+    # sep = ['y', 'M', 'd ', 'h', 'm', 's']
+
+    # parse spec
+    mo = REGEX_YMDHMS_SPEC.match(spec)
+    # kws = mo.groupdict()
+
+    # generator that computes ydmhms representation
+    mag = 'yMdhms'
+    v = mag.index(base_unit) if base_unit else op.index(DIVISORS, t, test=op.le)
+    w = mag.index(mo['tail_unit'])
+    if v >= w:
+        raise ValueError(f'Base unit ({mag[v]!r}) must have greater magnitude '
+                         f'than tail unit ({mag[w]!r}).')
+
+    # sep = kws.pop('sep') or sep
+    if sep is None:
+        sep = (SEP_SUPER, SEP_ASCII)[ascii]
+    # sep = SEP_SPEC.get(sep, sep)
+    nsep = len(sep)
+    assert nsep in {0, 1, 5, 6}
+    if nsep in {0, 1}:
+        sep = itt.repeat(sep, 5)
+    # print(list(sep))
+    sep = itt.islice(iter(sep), v, w + 1)
+
+    # compute parts and round
+    if t < 0:
+        yield ('\N{MINUS SIGN}', '-')[ascii]
+
+    r = abs(t)
+    for i in range(v, w):  # for d in DIVISORS[v:w]:
+        d = DIVISORS[i]
+        # print(r, d)
+        t, r = divmod(r, d)
+        yield f'{int(t):{fill[i]}{width[i]}d}'
+        yield next(sep, '')
+
+    p = mo['precision'] or 0
+    r /= DIVISORS[w]
+    s = f'{r:{fill[i]}{width[i]}.{p}f}'
+    if mo['short'] and p:
+        s = s.rstrip('0').rstrip('.')
+
+    yield s
+    yield from sep
+
+
+def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
+    return ''.join(_ymdhms(t, base_unit, spec, sep, ascii)).rstrip()
+
+
+# class ydmhms:
+#     sep = 'yMdhms'
+#     fill = ('', '', '', '0', '0', '0')
+#     width = ('', '', '', 2, 2, 2)
+
+#     def __init__(self, t, base_unit=None, spec='s9?', ascii=False, sep=sep):
+
+#         nsep = len(sep)
+#         assert nsep in {0, 1, 6}
+#         if nsep in {0, 1}:
+#             sep = [sep] * 6
+#         elif not ascii:
+#             sep = SUPERSCRIPTS
+
+#         # parse spec
+#         mo = REGEX_YMDHMS_SPEC.match(spec)
+#         kws = mo.groupdict()
+#         self.__dict__.update(kws)
+#         # tail_unit, precision, short
+
+#         self.parts = list(_ydmhms(t, sep=sep, **kws))
+#         # short = is_hms if short is None else short
+#         # short representation only meaningful if time expressed with hms separator.
+#         # ie. the separators express magnitude, unlike using ":"
+
+#     # def __format__(self, spec='s9?'):
+
+#     def __str__(self):
+
+#         # start = self.sep.index(next(iter(self.parts.keys())))
+#         sep, val = self.parts[:-1]
+
+#         itr = mit.islice(zip(self.fill, self.width), start, stop)
+
+#         for sep, val in self.parts.items():
+#             unit =
+#             f'{val:<{f}{w}g}{unit}'
+#             # f'{val:<{f}{w}.{p}f}{unit}'
+
+#         # for mag, val in self.parts.items():
+
+#         # for unit, val in parts:
+#         #     f'{val:<{fill}{width}.{p}f}{unit}'
+
+
+# def _to_ymdhms(t, ):
+
+# class _ydmhms:
+#     __slots__ = [*'yMdhms', 't', '_v', '_w']
+
+#     def __init__(self, t, base_unit=None, tail_unit='s'):
+#         # generator that computes ydmhms representation
+#         self.t = t
+#         mag = self.__slots__[:6]
+#         self._v = v = (mag.index(base_unit) if base_unit else
+#                        op.index(DIVISORS, t, test=op.le))
+#         self._w = w = mag.index(tail_unit)
+#         # print(v, w)
+#         assert v < w, 'Base unit must have greater magnitude than precision unit.'
+
+#         # compute parts and round
+#         s = [1, -1][int(t < 0)]
+#         r = t
+#         for i in range(v, w):  # for d in DIVISORS[v:w]:
+#             d = DIVISORS[i]
+#             # print(r, d)
+#             t, r = divmod(r, d)
+#             setattr(self, self.__slots__[i], s * int(t))
+
+#         r /= DIVISORS[w]
+#         yield setattr(self, self.__slots__[i], s * round(r, p))
+
+#     def __format__(self, spec='h^s9?'):
+#         # parse spec
+#         mo = REGEX_YMDHMS_SPEC.match(spec)
+#         kws = mo.groupdict()
+#         for part in self.__slots__[self._v:self._w - 1]:
+#             sep = getattr(self, part)
 
 
 @doc.splice(to_sexagesimal)
@@ -261,13 +420,13 @@ def resolve_precision(precision):
         return 's', precision
 
     if isinstance(precision, str):
-        mo = REGEX_HMS_PRECISION.fullmatch(precision)
+        mo = REGEX_YMDHMS_PRECISION.fullmatch(precision)
         if mo:
             unit, precision = mo.groups()
             precision = int(precision) if precision else None
             return unit, precision
 
-    raise ValueError('Invalid precision specifier %r' % precision)
+    raise ValueError(f'Invalid precision specifier {precision!r}')
 
 
 @doc.splice(to_sexagesimal)
@@ -288,13 +447,13 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
         short=True does not gaurantee that the number will be given with all the
         decimal digits filled since superfluous trailing 0s will be stripped.
     sep: str
-        separator(s) to use for time representation
+        Separator(s) to use for time representation.
     {Parameters[base_unit]}
     short: bool or None
-        will strip unnecessary parts from the repr if True.
+        Will strip unnecessary parts from the repr if True.
         eg: '0h00m15.4000s' becomes '15.4s'
     unicode: bool
-        Use unicode superscripts ʰᵐˢ as separators
+        Use unicode superscripts (ʰᵐˢ) as separators.
 
     Returns
     -------
@@ -310,14 +469,16 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
     '0:02:13.31211'
     >>> hms(1.333121112e2, 5, short=False)
     '0h02m13.31211s'
+    >>> hms(1.333121112e2, 0, unicode=True)
     """
 
-    ls = len(sep)
-    assert ls in (0, 1, 3)
-    repeat_sep = (ls in (0, 1))
+    nsep = len(sep)
+    assert nsep in {0, 1, 3}
+    repeat_sep = (nsep in {0, 1})
     is_hms = (sep == 'hms')
     short = is_hms if short is None else short
-    # short representation only meaningful if time expressed in hms units
+    # short representation only meaningful if time expressed with hms separator.
+    # ie. the separators express magnitude, unlike using ":"
 
     # resolve separator
     if unicode and is_hms:
@@ -338,11 +499,11 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
     if repeat_sep:
         sep = [sep] * m + ['']
     else:
-        sep = sep['hms'.index(base_unit):'hms'.index(unit) + 1]
+        sep = sep['hms'.index(base_unit):('hms'.index(unit) + 1)]
 
     out = ''
-    fun = _echo
-    for i, (n, p, s) in enumerate(zip(sexa, precision, sep)):
+    fun = echo0
+    for _, (n, p, s) in enumerate(zip(sexa, precision, sep)):
         if short and not n:
             continue
         short = False  # only first number can be truncated
@@ -350,6 +511,9 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
         out += pad(decimal(fun(n), p, unicode=unicode), left=(2, '0')) + s
         fun = abs
     return out
+
+#
+# def ymdhms(t):
 
 
 # alias
@@ -387,14 +551,18 @@ def eng(value, significant=None, base=10, unit=''):
     return '{:.{:d}f}{}'.format(size, significant, f' {prefix}{unit}')
 
 
+engineering = eng
+
 # TODO: docstring / API consistency
+
+
 def decimal(n, precision=None, significant=3, sign='-', short=False,
             unicode=False, thousands=''):
     """
     Decimal representation of float as str up to given number of significant
     digits (relative), or decimal precision (absolute). Support for
     minimalist `short` representations as well as optional left- and right
-    padding and unicode representation of infinity '∞' included.
+    padding and unicode representation of minus/infinity (−/∞) included.
 
     Parameters
     ----------
@@ -467,9 +635,9 @@ def decimal(n, precision=None, significant=3, sign='-', short=False,
         if np.isinf(m):
             m = 0
 
-        # print('oom',m)
-        if precision is None:
-            precision = int(significant) - min(m, 1) - 1
+    # print('oom',m)
+    # if precision is None:
+        precision = int(significant) - min(m, 1) - 1
 
     precision = max(precision, 0)
     # TODO: precision < 0 do rounding
@@ -663,7 +831,7 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
 
         if unicode:
             times = UNI_MULT.get(times, times)
-            pwr_sgn = ['', UNI_NEG_PWR][m < 0]
+            pwr_sgn = ['', '\N{SUPERSCRIPT MINUS}'][m < 0]
             exp = pwr_sgn + UNI_PWR.get(abs(m), '')
         else:
             pwrFmt = '%i'
