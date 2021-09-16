@@ -46,12 +46,12 @@ import pytest
 import motley
 
 # relative
-from ...logging import LoggingMixin
 from . import pprint as pp
 from .lists import lists
+from .logging import LoggingMixin
 from .iter import cofilter, negate
 from .functionals import echo0 as echo
-
+from recipes import op
 
 POS, PKW, VAR, KWO, VKW = _ParameterKind
 
@@ -392,19 +392,20 @@ class Expected(LoggingMixin):
 
         def test(*args, **kws):
             #
-            self.logger.debug('test received: {:s}, {:s}', args, kws)
+            self.logger.debug('test received: {!s}, {!s}', args, kws)
 
+            # pop expected answer from kws dict
             expected = kws.pop('expected')
-            vkw = kws.pop(self.vkw, {})
-            kws = {**kws, **vkw}
-            var = kws.pop(self.var, ())
-            if var:
-                args = (*(kws.pop(name) for name in
-                          self.pnames[:self.pkinds.index(VAR)]),
-                        var)
+            # unpack position only
+            # args = (*(kws.pop(p) for p in self.pos), *args)
+            # unpack variadic keywords
+            kws = {**kws, **kws.pop(self.vkw, {})}
+            args = (*(kws.pop(name) for name in
+                      self.pnames[:op.index(self.pkinds, VAR, default=0)]),
+                    *kws.pop(self.var, ()))
 
-            self.logger.debug('passing to {:s}: {:s}; {:s}',
-                         self.func.__name__, args, kws)
+            self.logger.debug('passing to {:s}: {!s}; {!s}',
+                              self.func.__name__, args, kws)
 
             ctx = nullcontext()
             if isinstance(expected, Throws):
@@ -443,8 +444,8 @@ class Expected(LoggingMixin):
         params.append(Parameter('expected', KWO))
         test.__signature__ = Signature(params)
 
-        self.logger.debug('Created test for function\n{:s} with signature:\n{:s}',
-                     pp.caller(self.func), test.__signature__)
+        self.logger.debug('Created test for function\n{:s}',
+                          pp.caller(self.func))
 
         return test
 
@@ -469,7 +470,7 @@ class ParametrizedTestHelper(LoggingMixin):  # ParametrizedTest:
 
     def __set_name__(self, kls, name):
         self.logger.debug('Binding {:s} onto class {:s} with name {!r:}',
-                     self.test, kls, name)
+                          self.test, kls, name)
         if not name.startswith('test'):
             self.logger.debug(
                 "renaming test function: {!r:} -> 'test_{:s}'", name, name)
