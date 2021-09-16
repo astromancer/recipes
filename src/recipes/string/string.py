@@ -81,6 +81,13 @@ class Percentage:
         """
         self(total)
 
+# ---------------------------------------------------------------------------- #
+# Helpers / Convenience
+
+
+def strings(items):
+    """Map collection to list of str"""
+    return [*map(str, items)]
 
 # ---------------------------------------------------------------------------- #
 # Substitution
