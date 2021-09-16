@@ -9,16 +9,15 @@ import multiprocessing as mp
 # third-party
 import psutil
 import numpy as np
+from loguru import logger
 
-# local
-from recipes.iter import chunker
-from recipes.logging import LoggingMixin
-# import ctypes
-# import traceback
-# from contextlib import ExitStack
+# relative
+from ..iter import chunker
+from ..logging import LoggingMixin
 
 
-# ====================================================================================================
+# class Monitor
+
 def monCPU(filename, interval, alive, maxsize=1e6):
     i = 0
     fp = open(str(filename), 'w')
@@ -52,7 +51,7 @@ def monMEM(filename, interval, alive, maxsize=1e5):
     else:
         fp.close()
 
-# ====================================================================================================
+# 
 
 
 def qmeasure(qs, filename, interval, alive, maxsize=1e5):
@@ -77,7 +76,7 @@ def qmeasure(qs, filename, interval, alive, maxsize=1e5):
         fp.close()
 
 
-# ====================================================================================================
+# 
 def queue_monitor(q, done, trigger, threshold, interval):
     '''
     Basic queue monitor.  Triggers the load events once the (approximate) number
@@ -85,8 +84,8 @@ def queue_monitor(q, done, trigger, threshold, interval):
     until the interval has passed.
     Note: interval should be larger than data load time.
     '''
-    logger = logging.getLogger(
-        'phot.lll.monitor')  # TODO: queue_monitor.__module__ + queue_monitor.__name__?
+    # logger = logging.getLogger(
+    #     'phot.lll.monitor')  # TODO: queue_monitor.__module__ + queue_monitor.__name__?
     logger.info('Starting: threshold={:d}', threshold)
 
     while not done.is_set():
@@ -98,10 +97,10 @@ def queue_monitor(q, done, trigger, threshold, interval):
             logger.debug('Waiting: qsize~{:d}, threshold={:d}', qsz, threshold)
             trigger.clear()
 
-        logger.debug('Waiting for %1.2f sec' % interval)
+        logger.debug('Waiting for {:.2f} sec.', interval)
         time.sleep(interval)
 
-# ====================================================================================================
+# 
 
 
 def queues_monitor(qs, done, trigger, thresholds, interval):
@@ -111,13 +110,12 @@ def queues_monitor(qs, done, trigger, thresholds, interval):
     until the interval has passed.
     Note: interval should be larger than data load time.
     '''
-    logger = logging.getLogger(
-        'phot.lll.monitor')  # TODO: queue_monitor.__module__ + queue_monitor.__name__?
-    logger.info('Starting: threshold={:s}' % thresholds)
+
+    logger.info('Starting: threshold={:s}', thresholds)
 
     while not done.is_set():
         qi = [(qn, q.qsize()) for qn, q in qs.items()]
-        logger.debug('Queue sizes: {}', str(qi))
+        logger.debug('Queue sizes: {:s}', qi)
         qn, qsz = zip(*qi)
         l = np.less(qsz, thresholds)
         can_load = l.all()
@@ -126,15 +124,14 @@ def queues_monitor(qs, done, trigger, thresholds, interval):
             trigger.set()
         else:
             ssize = '; '.join(map(' ~ '.join, np.array(qi)[~l]))
-            logger.debug(
-                'Waiting on queues: {:s}, threshold={:s}' %
-                (ssize, thresholds))
+            logger.debug('Waiting on queues: {:s}, threshold={:s}',
+                         (ssize, thresholds))
             trigger.clear()
 
-        logger.debug('Waiting for %1.2f sec' % interval)
+        logger.debug('Waiting for {:1.2f} sec', interval)
         time.sleep(interval)
 
-# ====================================================================================================
+# 
 #from decor import expose
 # @expose.args()
 

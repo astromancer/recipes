@@ -118,9 +118,10 @@ class LoggingMixin:
     class Logger:
         
         # use descriptor so we can access the logger via logger and cls().logger
-        # Making this attribute a property also avoids pickling errors since
-        # `logging.Logger` cannot be picked
-        # parent = None
+        
+        parent = None
+        """This attribute allows you to optionally set the parent dynamically 
+        which is sometimes useful"""
         
         @staticmethod
         def add_parent(record, parent):
@@ -144,7 +145,7 @@ class catch_and_log(Decorator, LoggingMixin):
         try:
             return func(*args, **kws)
         except Exception:
-            logger.exception('Caught exception in %s: ',
+            logger.exception('Caught exception in {:s}: ',
                              pp.caller(func, args, kws))
 
 
