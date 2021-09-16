@@ -301,17 +301,21 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 
 
 def naive_plural(text):
-    return text + 'es' if text.endswith('s') else 's'
+    return text + ('s', 'es')[text.endswith('s')]
 
 
-def plural(text, obj=(())):
+def plural(text, collection=(())):
     """conditional plural"""
-    many = isinstance(obj, abc.Collection) and len(obj) != 1
+    many = isinstance(collection, abc.Collection) and len(collection) != 1
     return naive_plural(text) if many else text
 
 
-def named_items(name, object_):
-    return f'{plural(name, object_)}: {object_}'
+def numbered(collection, name):
+    return '{:d} {:s}'.format(len(collection), plural(name, collection))
+
+
+def named_items(name, collection, fmt=str):
+    return f'{plural(name, collection)}: {fmt(collection)}'
 
 # ---------------------------------------------------------------------------- #
 # Misc
