@@ -29,7 +29,7 @@ from ..string import remove_suffix, remove_prefix, truncate
 
 
 # FIXME: unscoped imports do not get added to top!!!
-
+# FIXME: duplicate aliases
 
 # TODO: comment directives to keep imports
 # TODO: split_modules
@@ -511,27 +511,43 @@ class ImportRelativizer(ast.NodeTransformer):
         # package, *submodules
         self.parts = module_name.split('.')
         self.level = len(self.parts)
-        self.replace = dict(map(reversed, enumerate(self.parts[::-1], 1)))
+        self.sublevels = dict(map(reversed, enumerate(self.parts[::-1], 1)))
+        parents = itt.accumulate(self.parts, '{}.{}'.format)
+        self.absolute = dict(enumerate(list(parents)[::-1], 1))
 
     def visit_ImportFrom(self, node):
         node = self.generic_visit(node)
+        module = node.module
 
-        if not node.module:
+        if not module:
             # a top-level relative import
             return node
 
-        # replace module with relative
-        parents = node.module.split('.')
-        pkg, parent = parents[0], parents[-1]
-        if parent in self.replace:
-            # {'a': '...', 'a.b': '..', 'a.b.c': '.'}
-            node.module = None
-            node.level = self.replace[parent]
+        if node.level > len(self.parts):
+            wrn.warn(f'Attempted relative import beyond top level: '
+                     f'{rewrite(node)!r}')
+            return node
 
-        elif pkg in self.replace:
-            # {'a.x': '.x'}
-            node.module = remove_prefix(node.module, pkg).lstrip('.')
-            node.level = self.level
+        if node.level:
+            # de-relativize first. Sometimes allows shortening: ..c -> .
+            module = '.'.join((self.absolute[node.level], module))
+
+        # replace module with relative
+        # a         ->      ...
+        # a.b       ->      ..
+        # a.b.c     ->      .
+        # AND
+        # ...b      ->      ..
+        # ...b.c    ->      .
+        # ..c       ->      .
+        # HOWEVER
+        # .c        ->      .c
+        # since it implies the existence of c/c.py
+        for lvl, parent in self.absolute.items():
+            if module.startswith(parent):
+                node.module = remove_prefix(module, parent).lstrip('.') or None
+                node.level = lvl
+                break
 
         return node
 
