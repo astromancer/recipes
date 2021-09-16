@@ -2,8 +2,6 @@
 
 
 # std
-from recipes.caches.decor import CacheRejectionWarning
-import logging
 import tempfile
 import itertools as itt
 from pathlib import Path
@@ -13,16 +11,15 @@ from collections import OrderedDict as odict, defaultdict
 import pytest
 import numpy as np
 
-# local libs
-from recipes.caches import Cache
-from recipes.caches.decor import (check_hashable_defaults, Ignore, Reject,
-                                  cached, to_file)
+# local
+from recipes.caches.manager import CacheManager as Cache
+from recipes.caches.decor import (CacheRejectionWarning,
+                                  check_hashable_defaults,
+                                  Ignore,
+                                  Reject,
+                                  cached,
+                                  to_file)
 
-
-# setup logging
-logging.basicConfig()
-rootlog = logging.getLogger()
-rootlog.setLevel(logging.DEBUG)
 
 # TODO: Test inheritance with decorated methods!
 
@@ -159,36 +156,43 @@ def case6(file, **kws):
         return 1
 
 
-
 # ----------------------------------- Tests ---------------------------------- #
 
 
 class TestLRUCache:
     def test_queue(self, cache):
         cache[1] = 1
-        assert cache == odict([(1, 1)])
+        assert cache.data == odict([(1, 1)])
+
         cache[2] = 2
-        assert cache == odict([(1, 1), (2, 2)])
+        assert cache.data == odict([(1, 1), (2, 2)])
+
         cache[1]
-        assert cache == odict([(2, 2), (1, 1)])
+        assert cache.data == odict([(2, 2), (1, 1)])
+
         cache[3] = 3
-        assert cache == odict([(1, 1), (3, 3)])
+        assert cache.data == odict([(1, 1), (3, 3)])
+
         cache.get(2)
-        assert cache == odict([(1, 1), (3, 3)])
+        assert cache.data == odict([(1, 1), (3, 3)])
+
         cache[4] = 4
-        assert cache == odict([(3, 3), (4, 4)])
+        assert cache.data == odict([(3, 3), (4, 4)])
+
         cache.get(1)
-        assert cache == odict([(3, 3), (4, 4)])
+        assert cache.data == odict([(3, 3), (4, 4)])
+
         cache.get(3)
-        assert cache == odict([(4, 4), (3, 3)])
+        assert cache.data == odict([(4, 4), (3, 3)])
+
         cache[4]
-        assert cache == odict([(3, 3), (4, 4)])
+        assert cache.data == odict([(3, 3), (4, 4)])
 
 
 class TestPersistence():
 
     filename = get_tmp_filename()
-    
+
     def test_serialize(self, cache):
         cache[1] = 1   # this will save the cache
         if cache.filename is None:
@@ -207,12 +211,12 @@ class TestPersistence():
 
         clone = Cache(2, filename)
         assert clone[1] == 1
-        
+
     def test_load(self):
         filename = self.filename
         cache = Cache(2, filename)
         1 in cache
-        
+
 
 class TestDecorator():
 
@@ -234,12 +238,11 @@ class TestDecorator():
             @cached
             def case7():
                 pass
-    
+
     def test_warn_not_callable(self):
         with pytest.warns(UserWarning):
             cached()(Case0())
-            
-    
+
     def test_no_call(self):
         chk = _CheckIfCalled()
         chk(1)

@@ -19,6 +19,8 @@ from .manager import CacheManager
 from ..decorators import Decorator
 from ..logging import LoggingMixin
 from ..pprint.callers import describe
+from .caches import DEFAULT_CAPACITY
+
 
 
 # from ..interactive import exit_register
@@ -95,14 +97,14 @@ class Cached(Decorator, LoggingMixin):
     Features:
         : Keyword parameters fully supported.
         : Works on any picklable callable.
-        : Optional type coercion (typing) for parameter values prior to caching.
+        : Optional type coercion of parameter values prior to caching (typing).
         : Conditionally ignore specific parameters, or entirely reject an entry,
-          based on user provided conditionals.
-        : Cache contents can be viewed transparently as the `__cache__`
-          attribute on the decorated function.
+          based on user specified conditionals.
+        : Cache contents are referenced as the `__cache__` attribute on the
+            decorated function.
         : Gracefully handle any exceptions that happen on attempted cache
           insertion, for example: When attempting to cache a call that has
-          non-hashable parameter values, a informative warning is emitted and 
+          non-hashable parameter values, a informative warning is emitted and
           the caching is merely skipped instead of raising a TypeError.
         : Raises TypeError when attempting to decorate a function with
           non-hashable default arguments.
@@ -117,16 +119,17 @@ class Cached(Decorator, LoggingMixin):
     """
 
     @classmethod
-    def to_file(cls, filename, capacity=128, kind='lru', ignore=(), typed=()):
+    def to_file(cls, filename, capacity=DEFAULT_CAPACITY, policy='lru', 
+                ignore=(), typed=()):
         """
         Decorator for persistent function memoization that saves cache to file
         as a pickle / json / ...
         """
         # this here simply to make `filename` a required arg
-        return cls(filename, capacity, kind, ignore, typed)
+        return cls(filename, capacity, policy, ignore, typed)
 
-    def __init__(self, filename=None, capacity=128, kind='lru', ignore=(),
-                 typed=()):
+    def __init__(self, filename=None, capacity=DEFAULT_CAPACITY, policy='lru',
+                 ignore=(), typed=()):
         """
         A general purpose function memoizer.
 
@@ -137,7 +140,7 @@ class Cached(Decorator, LoggingMixin):
             cache will be active for the duration of the main programme only. 
         capacity : int, optional
             Size limit in number of items, by default 128.
-        kind : str, optional
+        policy : str, optional
             Replacent policy, by default 'lru'. Currently only lru support.
         ignore : collection of str
             Parameter names that will be ignored when computing the hash key.
@@ -183,8 +186,8 @@ class Cached(Decorator, LoggingMixin):
 
         self.sig = None
         self.typed = _check_hashers(typed, ignore)
-        self.__init_args = (filename, capacity, kind)
-        self.cache = CacheManager(kind, capacity, filename)
+        # self.__init_args = (capacity, filename, policy)
+        self.cache = CacheManager(capacity, filename, policy)
 
         # file rotation
         # filename = self.cache.filename
@@ -248,7 +251,7 @@ class Cached(Decorator, LoggingMixin):
         # make a reference to the cache on the decorated function for
         # convenience. this will allow us to more easily add cache items
         # manually etc.
-        decorated.__cache__ = self.cache  # OR decorated.__cache__??
+        decorated.__cache__ = self.cache.data
         return decorated
 
     def resolve_types(self, mapping):
