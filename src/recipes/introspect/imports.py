@@ -105,11 +105,11 @@ def _(node):
 def _(path):
     # get full module name from path
     path = Path(path)
-    candidates = set()
+    candidates = []
     trial = path.parent
     for _ in range(5):
         if pkgutil.get_loader(trial.name):
-            candidates.add(trial)
+            candidates.append(trial)
 
         trial = trial.parent
 
@@ -117,7 +117,7 @@ def _(path):
     # which is recognised here as a "package" since it is importable. The real
     # package may actually be higher up in the folder tree.
     while candidates:
-        trial = candidates.pop()
+        trial = candidates.pop(0)
         if candidates and (trial in builtin_module_names):
             continue
 
