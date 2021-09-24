@@ -23,6 +23,8 @@ from stdlib_list import stdlib_list
 # relative
 from .. import cosort, op, pprint as pp
 from ..functionals import negate
+from ..logging import LoggingMixin
+from ..iter import filter_duplicates
 from ..io import open_any, safe_write
 from ..pprint.callers import describe
 from ..string import remove_suffix, remove_prefix, truncate
@@ -83,7 +85,7 @@ def is_relative(node):
 
 
 @ftl.singledispatch
-def get_mod_name(node):
+def get_mod_name(obj):
     # get the full (dot separated) module name from various types:
     # ast.Import
     raise TypeError()
@@ -443,7 +445,10 @@ class ImportMerger(Parentage):
         if existing_node is node:
             return node
 
-        existing_node.names.extend(node.names)
+        # avoid duplicates >>> from x import y, y
+        aliases = filter_duplicates(existing_node.names + node.names,
+                                    op.attrgetter('name'))
+        existing_node.names = list(aliases)
         # we are about to visit the aliases, so ensure that Parentage sets those
         # parents to the previously existing import node which we just extended.
         # This is also important for correctly scoping the imports at module
@@ -697,7 +702,7 @@ def refactor(file_or_source,
 tidy = refactor
 
 
-class ImportRefactory:
+class ImportRefactory(LoggingMixin):
     """
     Tidy up import statements that might lie scattered throughout hastily
     written source code. Sort them, filter unused, group them, re-write them in
@@ -823,6 +828,7 @@ class ImportRefactory:
 
             module_name = get_mod_name(self.filename)
             parent_module_name, _ = module_name.rsplit('.', 1)
+            self.logger.debug('Using parent module: {}', parent_module_name)
 
         # if not level:
 

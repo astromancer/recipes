@@ -255,6 +255,17 @@ def duplicates(l):
             yield key, idx
 
 
+def filter_duplicates(l, test):
+    """Filter duplicate items based on condition `test`."""
+    results = set()
+    for item in l:
+        result = test(item)
+        if result not in results:
+            yield item
+
+        results.add(result)
+
+
 def iter_repeat_last(it):
     """
     Yield items from the input iterable and repeat the last item indefinitely
