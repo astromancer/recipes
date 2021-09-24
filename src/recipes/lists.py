@@ -16,7 +16,7 @@ import docsplice as doc
 # relative
 from . import op, iter as _iter
 from .dicts import DefaultOrderedDict
-from .functionals import always, echo0 as _echo
+from .functionals import always, echo, echo0 as _echo
 
 
 # function that always returns 0
@@ -35,7 +35,7 @@ def _make_key(master_key, funcs):
     return sort_key
 
 
-def cosort(*lists, **kws):
+def cosort(*lists, key=None, master_key=None, order=1):
     """
     Extended co-sorting of lists. Sort any number of lists simultaneously
     according to:
@@ -44,28 +44,26 @@ def cosort(*lists, **kws):
 
     Parameters
     ----------
-    One or more lists
-
-    Keywords
-    --------
+    lists:
+        One or more lists.
+    key: None or callable or tuple of callables
+        * If None (the default): Sorting done by value of first input list.
+        * If callable: Sorting is done by value of
+            >>> key(item)
+          for successive items from the first iterable.
+        * If tuple: Sorting done by value of
+              >>> key[0](item_0), ..., key[n](item_n)
+          for items in the first n iterables (where n is the length of the `key`
+          tuple) i.e. the first callable is the primary sorting criterion, and the
+          rest act as tie-breakers.
     master_key: callable
         Sort by evaluated value of some combination of all items in the lists
         (call signature of this function needs to be such that it accepts an
-        argument tuple of items from each list.
+        argument tuple of items - one from each list.
         For example:
-        >>> master_key = lambda *l: sum(l) 
+        >>> master_key = lambda *l: sum(l)
         will order all the lists by the sum of the items from each list. If not
         provided, revert to sorting by `key` function.
-    key: callable or tuple of callables
-        If callble sorting done by value of
-        >>> key(item)
-        for items in first iterable.
-        If tuple sorting done by value of
-        >>> key[0](item_0), ..., key[n](item_n)
-        for items in the first n iterables (where n is the length of the key
-        tuple) i.e. the first callable is the primary sorting criterion, and the
-        rest act as tie-breakers. If not provided sorting done by value of first
-        input list.
 
     Returns
     -------
@@ -102,12 +100,6 @@ def cosort(*lists, **kws):
     if not list0:  # all lists are zero length
         return lists
 
-    master_key = kws.pop('master_key', None)
-    key = kws.pop('key', None)
-    order = kws.pop('order', 1)
-    if kws:
-        raise ValueError(f'Unrecognised keyword(s): {tuple(kws.keys())}')
-
     # enable default behaviour
     if key is None:
         # if global sort function given and no local (secondary) key given
@@ -120,13 +112,14 @@ def cosort(*lists, **kws):
 
     # validity checks for sorting functions
     if not callable(master_key):
-        raise ValueError('master_key needs to be callable')
+        raise ValueError('Parameter `master_key` needs to be callable')
 
     if callable(key):
         key = (key, )
     if not isinstance(key, (tuple, list)):
-        raise KeyError("Keyword arg 'key' should be 'None', callable, or a"
-                       f"sequence of callables, not {type(key)}")
+        raise KeyError(
+            'Keyword-only parameter `key` should be `None`, callable, or a'
+            f'sequence of callables, not {type(key)}.')
 
     res = sorted(zip(*lists), key=_make_key(master_key, key))
     if order == -1:
@@ -192,6 +185,10 @@ def split_like(l, lists):
     *indices, total = itt.accumulate(map(len, lists))
     assert len(l) == total
     return split(l, indices)
+
+
+def sort_like(l, order):
+    return cosort(order, l)[1]
 
 
 def split_where(l, item, start=0, test=None):
