@@ -11,6 +11,9 @@ from collections import abc
 # third-party
 import numpy as np
 
+# local
+from recipes.iter import filter_duplicates
+
 
 # regexes
 REGEX_SPACE = re.compile(r'\s+')
@@ -89,8 +92,42 @@ def strings(items):
     """Map collection to list of str"""
     return [*map(str, items)]
 
+
 # ---------------------------------------------------------------------------- #
-# Substitution
+# Deletion / Substitution
+
+def delete(string, indices=()):
+    """
+    Remove characters at position `indices` from string.
+
+    Parameters
+    ----------
+    string : str
+        The string from which to remove characters.
+    indices : collection of int
+        Character index positions to delete. Negative indices are supported. 
+        Duplicated indices are filtered.
+
+    Examples
+    --------
+    >>> delete('0123456789', [0, 9])
+    '12345678'
+    >>> delete('0123456789', [0, -1, 9])
+    '12345678'
+    >>> delete('0123456789', [0, -1])
+    '12345678'
+
+    Returns
+    -------
+    str
+    """
+    n = len(string)
+    z = bytearray(string.encode())
+    # remove duplicate indices accounting for wrapping
+    indices = filter_duplicates(indices, lambda i: (i + n) % n)
+    for i in sorted(indices, key=abs, reverse=True):
+        del z[i]
+    return z.decode()
 
 
 def sub(string, mapping=(), **kws):
@@ -132,7 +169,7 @@ def sub(string, mapping=(), **kws):
     s: str
 
     """
-    
+
     mapping = {**dict(mapping), **kws}
     if not mapping:
         return string
@@ -140,12 +177,12 @@ def sub(string, mapping=(), **kws):
     if len(mapping) == 1:
         # simple replace
         return string.replace(*next(iter(mapping.items())))
-    
-    # character permutations with str.translate are an efficient way of doing 
+
+    # character permutations with str.translate are an efficient way of doing
     # single character permutations
     # if set(map(len, mapping.keys())) == {1}:
     #     return string.translate(str.maketrans(mapping))
-    
+
     from recipes import cosort
     from recipes import op
 
@@ -268,6 +305,8 @@ def replace_prefix(string, old, new):
     return _replace_affix(string, old, new, 0)
 
 # @doc.splice(replace_prefix)
+
+
 def replace_suffix(string, old, new):
     return _replace_affix(string, old, new, 1)
 
