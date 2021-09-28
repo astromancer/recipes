@@ -20,11 +20,19 @@ def echo(*_):
     return _
 
 
-def always(obj):
-    """Same object is returned on each call."""
-    def wrapped(*_):
-        return obj
-    return wrapped
+class always:
+    """The object `obj` is returned on each call."""
+
+    def __init__(self, obj):
+        self.obj = obj
+
+    def __call__(self, func, *args, **kws):
+        return self.obj
+
+    def __str__(self):
+        return f'{self.__class__.__name__}({self.obj})'
+
+    __repr__ = __str__
 
 
 def negate(func=bool):

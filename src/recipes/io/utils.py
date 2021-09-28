@@ -147,7 +147,7 @@ def _iter_files(path, extensions='*', recurse=False):
     path = str(path)
 
     # handle brace expansion first
-    special = bool(braces.match(path, False, must_close=True))
+    special = bool(braces.match(path, must_close=True))
     wildcard = glob.has_magic(path)  # handle glob patterns
     if special | wildcard:
         itr = (brace_expand_iter(path) if special else

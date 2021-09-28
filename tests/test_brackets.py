@@ -1,4 +1,4 @@
-
+# pylint: disable=all
 # third-party
 import pytest
 
@@ -6,7 +6,8 @@ import pytest
 from recipes import op
 from recipes.functionals import negate
 from recipes.testing import Expected, Throws, mock, expected
-from recipes.string.brackets import match, remove, outermost, braces, xsplit
+from recipes.string.brackets import (match, remove, Condition, level, braces,
+                                     xsplit, BracketPair, is_outer)
 
 
 # @pytest.mark.skip()
@@ -16,22 +17,24 @@ from recipes.string.brackets import match, remove, outermost, braces, xsplit
      ('nested((([inside]))]]])))', '[]'):    'inside',
      ('<s>', '<>'):                          's',
      ('((())', '()'):                        None})
-def test_match_brackets(s, pair, result):
-    r, (i, j) = match(s, pair)
-    assert r == result
+def test_match_brackets(string, pair, expected):
+    m = match(string, pair)
+    r = m.enclosed
+    assert r == expected
     if r:
-        assert r == s[i+1:j]
+        i, j = m.indices
+        assert r == string[i+1:j]
 
 
 test_brackets_must_close = Expected(match)({
     #
-    mock('foo{bla', '{}', must_close=False):           (None, (None, None)),
-    mock('open((((((', '()', must_close=False):        (None, (None, None)),
-    mock('((())', '()', must_close=False):             (None, (None, None)),
+    mock('foo{bla', '{}', must_close=False):     BracketPair('{}', None, (None, None)),
+    mock('open((((((', '()', must_close=False):  BracketPair('()', None, (None, None)),
+    mock('((())', '()', must_close=False):       BracketPair('()', None, (None, None)),
     # #
-    mock('foo{bla', '{}', must_close=-1):           ('bla', (3, None)),
-    mock('open((((((', '()', must_close=-1):        ('(((((', (4, None)),
-    mock('((())', '()', must_close=-1):             ('(())', (0, None)),
+    mock('foo{bla', '{}', must_close=-1):           BracketPair('{}', 'bla', (3, None)),
+    mock('open((((((', '()', must_close=-1):        BracketPair('()', '(((((', (4, None)),
+    mock('((())', '()', must_close=-1):             BracketPair('()', '(())', (0, None)),
     #
     mock('(', '()', must_close=True):               Throws(ValueError),
     mock('also_open((((((', '()', must_close=True): Throws(ValueError),
@@ -41,36 +44,48 @@ test_brackets_must_close = Expected(match)({
 
 
 test_iter = Expected(braces.iter)(
-    {'{}{}{}{}': [('', (0, 1)), ('', (2, 3)), ('', (4, 5)), ('', (6, 7))]},
+    {'{}{}{}{}':
+        [BracketPair('{}', '', (0, 1)),
+         BracketPair('{}', '', (2, 3)),
+         BracketPair('{}', '', (4, 5)),
+         BracketPair('{}', '', (6, 7))]},
     transform=list
 )
 
 
-@pytest.mark.parametrize('string', ['0{2{4,6,8}{}{3,5{{{9}}}}}'])
-def test_iter_nested(string):
-    for b, (i, j) in braces.iter_nested(string):
-        assert b == string[i+1:j]
+class Test_iterate:
+    @pytest.mark.parametrize('string', ['0{2{4,6,8}{}{3,5{{{9}}}}}'])
+    def test_iterate(self, string):
+        for b, (i, j), _lvl in braces.iterate(string):
+            assert b == string[i+1:j]
+
+    @pytest.mark.parametrize('depth', range(7))
+    def test_depth_filter(self, depth):
+        itr = braces.iterate('0{1{2{3{4{5{6{7}}}}}}}', condition=(level == depth))
+        pair = next(itr)
+        assert pair.level == depth
+        assert pair.enclosed[0] == str(depth + 1)
 
 
+has_comma = op.has(',').within
 test_unbracket = Expected(remove)({
-    mock.remove('', '()'):                             '',
-    mock.remove('()', '()'):                           '',
-    mock.remove('test()', '()'):                       'test',
-    mock.remove('test(())', '()'):                     'test',
-    mock.remove('test(()', '()'):                      'test(()',
-    mock.remove('{[(foo)]}', '()'):                    '{[foo]}',
-    mock.remove('{{{hello world!}}}', '{}'):           'hello world!',
+    mock.remove('', '()'):                                      '',
+    mock.remove('()', '()'):                                    '',
+    mock.remove('test()', '()'):                                'test',
+    mock.remove('test(())', '()'):                              'test',
+    mock.remove('test(()', '()'):                               'test(()',
+    mock.remove('{[(foo)]}', '()'):                             '{[foo]}',
+    mock.remove('{{{hello world!}}}', '{}'):                    'hello world!',
     mock.remove('{some,thing}{}', '{}',
-                condition=op.contained(',').within):
-    'some,thing{}',
+                Condition(enclosed=has_comma)):                 'some,thing{}',
     mock.remove('{some,thing}{}', '{}',
-                condition=negate(op.contained(',').within)):     '{some,thing}',
-    mock.remove('{{1}}', '{}', 0):                     '{{1}}',
-    mock.remove('{{1}}', '{}', 1):                     '{1}',
-    mock.remove('{{hi{} {x}}}', '{}',
-                condition=outermost):               'hi{} {x}',
-    mock.remove('((hello) world)', '()',
-                condition=outermost):               '(hello) world',
+                Condition(enclosed=negate(has_comma))):         '{some,thing}',
+    mock.remove('{{1}}', '{}', level < 0):                        '{{1}}',
+    mock.remove('{{1}}', '{}', level == 1):                       '{1}',
+    mock.remove('{{hi{} {x}}}', '{}', level == 0):                '{hi{} {x}}',
+    mock.remove('{{hi{} {x}}}', '{}', is_outer):                 'hi{} {x}',
+    mock.remove('((hello) world)', '()', level == 0):             '(hello) world',
+    mock.remove('((hello) world)', '()', is_outer):              '(hello) world',
     mock.remove('{{Bai}, Yu and {Liu}, JiFeng}', '{}'):
     'Bai, Yu and Liu, JiFeng'
 })

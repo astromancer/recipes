@@ -1,54 +1,189 @@
+"""
+Tools for parsing and editing strings containing (nested) brackets ()[]{}<>
+"""
 
 # std
-import math
-import inspect
-import numbers
+import operator as op
 import itertools as itt
+from dataclasses import dataclass, astuple, asdict
+from typing import Tuple, List, Union, Callable, Collection
+
+# third-party
+from loguru import logger
 
 # local
 import docsplice as doc
+from recipes.string import delete
 
 # relative
+from ..functionals import always
 from . import remove_affix
-from ..functionals import always, echo0
 
-__all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
 
 # Braces(string) # TODO / .tokenize / .parse
+# # __all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
 
+SYMBOLS = {op.eq: '==',
+           op.lt: '<',
+           op.le: '≤',
+           op.gt: '>',
+           op.ge: '≥'}
+
+# ---------------------------------------------------------------------------- #
 # function that always returns True
 always_true = always(True)
 
 
-def outermost(string, brackets, indices, _ignored):
-    i, j = indices
-    return remove_affix(string, *brackets) == string[i+1:j]
-
-
-class Yielder:
+class is_outer:
     """
-    Helper class for iterating items while optionally yielding their index
-    positions in the sequence.
+    Conditional to check if brackets are outermost enclosing pair.
     """
 
-    def __init__(self, return_index):
-        self.yields = self._with_index if return_index else echo0
+    def __init__(self, string):
+        self.n = len(string)
 
-    def __call__(self, inside, i, j, start):
-        return self.yields(inside, i, j, start)
-
-    # @staticmethod
-    # def _without_index(inside, *ignored_):
-    #     return inside
-
-    @staticmethod
-    def _with_index(inside, i, j, start):
-        return inside, (start + i, start + j)
+    def __call__(self, match):
+        return ((match.start == match.level) and
+                (match.end == self.n - match.level - 1))
 
 
-class Brackets:
+# ---------------------------------------------------------------------------- #
+
+
+@dataclass
+class Condition:
     """
-    Class representing a pair of brackets
+    Collection of conditional tests on BracketPair attributes. Used for 
+    filtering BracketPair from iterable.
+
+    """
+    enclosed:   Union[Callable, str] = always_true
+    indices:    Union[Callable, Collection[int]] = always_true
+    level:      Union[Callable, int] = always_true
+    brackets:   Union[Callable, Collection[str], str] = always_true
+
+    def __post_init__(self):
+        for key, val in asdict(self).items():
+            if not callable(val):
+                setattr(self, key, val.__eq__)
+
+    def __call__(self, match):
+        return (self.enclosed(match.enclosed) and
+                self.indices(match.indices) and
+                self.level(match.level) and
+                self.brackets(match.brackets))
+
+
+# ---------------------------------------------------------------------------- #
+
+
+class Comparison:
+    """
+    A function factory that wraps the comparison operators for future
+    excecution.
+    """
+
+    def __init__(self, name, op):
+        self.name = name
+        self.op = op
+
+    def __call__(self, rhs):
+        """
+        Create `Compare` object for delayed comparison.
+        """
+        return Compare(self.name, self.op, rhs)
+
+
+class Compare:
+    """Comparison operator wrapper for comparing variable lhs with fixed rhs"""
+
+    def __init__(self, name, op_, rhs):
+        self.name = name
+        self.op = op_
+        self.rhs = rhs
+
+    def __call__(self, lhs):
+        return self.op(lhs, self.rhs)
+
+    def __str__(self):
+        return f'({self.name}{SYMBOLS[self.op]}{self.rhs})'
+
+    __repr__ = __str__
+
+    def __logic(self, op_, rhs):
+        if isinstance(rhs, ChainedCompare):
+            rhs.args.append(self)
+            rhs.ops.append(op_)
+            return rhs
+
+        if isinstance(rhs, Compare):
+            return ChainedCompare((self, rhs), (op_,))
+
+        raise TypeError(f'Invalid type {type(rhs)} encountered on right hand '
+                        f'side while constructing `ChainedComparison` object.')
+
+    def __or__(self, rhs):
+        return self.__logic(op.or_, rhs)
+
+    def __and__(self, rhs):
+        return self.__logic(op.and_, rhs)
+
+
+class ChainedCompare:
+    def __init__(self, comps, ops):
+        self.comps = comps
+        self.ops = ops
+
+    def __call__(self, obj):
+        # reduce
+        init, *comps = self.comps
+        result = init(getattr(obj, init.name))
+        for op_, cmp in zip(self.ops, comps):
+            result = op_(result, cmp(getattr(obj, cmp.name)))
+        return result
+
+
+def lazy(name):
+    class FutureComparisonAbstract:
+        """Abstraction layer for delayed evaluation of comparison operators."""
+        __eq__ = Comparison(name, op.eq)
+        __lt__ = Comparison(name, op.lt)
+        __le__ = Comparison(name, op.le)
+        __gt__ = Comparison(name, op.gt)
+        __ge__ = Comparison(name, op.ge)
+
+    return FutureComparisonAbstract()
+
+
+brackets = lazy('brackets')
+string = lazy('string')
+indices = lazy('indices')
+level = lazy('level')
+
+
+# ---------------------------------------------------------------------------- #
+@dataclass
+class BracketPair:
+    """ """
+    brackets: Tuple[str]
+    enclosed: str
+    indices: List[int] = (None, None)
+    level: int = 0
+
+    def __post_init__(self):
+        self.open, self.close = self.brackets
+        self.start, self.end = self.indices
+
+    def __iter__(self):
+        yield from astuple(self)[1:]
+
+    def __str__(self):
+        return self.enclosed or 'NULL'
+
+
+class Brackets:  # BracketParser
+    """
+    Class for matching iterating and filtering pairs of brackets.
     """
 
     def __init__(self, pair):
@@ -66,7 +201,7 @@ class Brackets:
     def __iter__(self):
         yield from self.brackets
 
-    def match(self, string, return_index=True, must_close=False):
+    def match(self, string, must_close=False):
         """
         Find a matching pair of closed brackets in the string `s` and return the
         encolsed string as well as, optionally, the indices of the bracket pair.
@@ -89,7 +224,7 @@ class Brackets:
         ----------
         string : str
             The string to parse.
-        return_index : bool
+        indexed : bool
             Whether to return the indices where the brackets where found.
         must_close : int
             Controls behaviour on unmatched bracket pairs.
@@ -101,7 +236,7 @@ class Brackets:
             If -1:
                 Partial matches are allowed and the partial string beginning one
                 character after the opening bracket will be returned. In this
-                case, if `return_index` is True, the index of the closing brace
+                case, if `indexed` is True, the index of the closing brace
                 position will take the value None.
 
         Examples
@@ -115,23 +250,33 @@ class Brackets:
         Returns
         -------
         match : str or None
-            The enclosed str index: tuple or None (start, end) indices of the
-            actual brackets that were matched
+            The enclosed str
+        index: tuple or None
+            (start, end) indices of the actual brackets that were matched.
 
         Raises
         ------
         ValueError if `must_close` is True and there is no matched closing
-        bracket
-
+        bracket.
         """
 
-        null_result = None
-        if return_index:
-            null_result = (None, (None, None))
+        # wrap = ftl.partial(, brackets=self.brackets)
+        return BracketPair(self.brackets, *self._match(string, must_close))
+        # match.string = string
+        # return match
+
+    def _match(self, string, must_close=False):
+        # yields = Yielder(indexed, wrapped, self.brackets)
+        # null_result = None
+        # if indexed:
+        # null_result =
+        # yields = BracketPair
 
         left, right = self.brackets
         if left not in string:
-            return null_result
+            return (None, (None, None))
+
+        logger.debug('Searching {!r} in {!r}', self.brackets, string)
 
         # if right not in string:
         #     return null_result
@@ -143,26 +288,27 @@ class Brackets:
         for i, m in enumerate(match):
             if m in self.brackets:
                 open_ += (1, -1)[m == right]
-            if not open_:
-                if return_index:
-                    p = len(pre)
-                    return match[:i], (p, p + i + 1)
-                return match[:i]
+
+            if open_ == 0:
+                p = len(pre)
+                return (match[:i], (p, p + i + 1))
+                # if indexed:
+                #     p = len(pre)
+                #     return match[:i], (p, p + i + 1)
+                # return match[:i]
 
         # land here if (outer) bracket unclosed
         if must_close == 1:
-            raise ValueError(f'No closing bracket {right}')
+            raise ValueError(f'No closing bracket {right!r}.')
 
         if must_close == -1:
             i = string.index(left)
-            if return_index:
-                return string[i + 1:], (i, None)
-            return string[i + 1:]
+            return (string[i + 1:], (i, None))
 
-        return null_result
+        return (None, (None, None))
 
-    def iter(self, string, return_index=True, must_close=False,
-             condition=always_true):
+    def iter(self, string, must_close=False, condition=always_true, level=0,
+             pos=0):
         """
         Iterate through consecutive (non-nested) closed bracket pairs.
 
@@ -170,9 +316,9 @@ class Brackets:
         ----------
         string : str
             String potentially containing pairs of (nested) brackets.
-        return_index : bool, optional
+        indexed : bool, optional
             Whether to yield the indices of opening- closing bracket pairs,
-            by default Tru
+            by default True
 
         Yields
         -------
@@ -183,58 +329,58 @@ class Brackets:
         """
 
         # get condition test call signature
-        test = get_test(condition)
-        # get yield function
-        yields = Yielder(return_index)
+        test = get_test(condition, string)
+        logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
+                     self.brackets, string, condition)
 
-        nr = 0
+        # nr = 0
         start = 0
         while True:
-            inside, (i, j) = self.match(string[start:], True, must_close)
-            # print(f'{string=}, {inside=}, {start=}, {i=}, {j=}')
-            if inside is None:
+            match, (i, j) = self._match(string[start:], must_close)
+            if match is None:
                 break
 
+            match = BracketPair(self.brackets, match,
+                                (pos + start + i, pos + start + j),
+                                level)
+            logger.opt(lazy=True).debug('{}', lambda: repr(match))
+
             # condition
-            if test(string, self.brackets, (i, j), nr):
-                yield yields(inside, i, j, start)
+            # string, self.brackets, (start + i, start + j), None
+            if test(match):
+                # logger.debug('{} TRUE', test)
+                yield match
 
             # increment
-            nr += 1
+            # _, j = match.indices
+            # nr += 1
             start += (j + 1)
 
-    def iter_nested(self, string, return_index=True, condition=always_true,
-                    depth=..., inside_out=True, level=0, pos=0):
+    def iterate(self, string, condition=always_true, inside_out=True,
+                level=0, pos=0):
 
-        if isinstance(depth, numbers.Integral):
-            right_depth = (depth == level)
-        elif depth is ...:
-            right_depth = True
-        else:
-            raise ValueError('Depth should be an integer or an Ellipsis ...')
-
-        yields = Yielder(return_index)
+        # get condition test call signature
+        test = get_test(condition, string)
+        logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
+                     self.brackets, string, condition)
 
         iters = []
         # start = 0
-        for inside, (i, j) in self.iter(string, True, True, condition):
-            itr = self.iter_nested(inside, return_index, condition, depth,
-                                   inside_out, level + 1, pos + i + 1)
+        for match in self.iter(string, False, always_true, level, pos):
+            itr = self.iterate(match.enclosed, test, inside_out,
+                               level + 1,  match.start + 1)
             if inside_out:
                 # unpack from inside out
                 yield from itr
             else:
                 iters.append(itr)
 
-            if right_depth:
-                # print(f'!!{inside!r} {pos=} {i=} {j=}')
-                # print(f'!!{string[i+1:j]!r}')
-                # print(string[i+1:j] == inside)
-                yield yields(inside, i, j, pos)
+            # condition
+            if test(match):
+                # logger.debug('{} TRUE {}', test, match)
+                yield match
 
-        # print('chaining', iters)
         yield from itt.chain(*iters)
-        # print('DONE', level)
 
     def enclose(self, string):
         return string.join(self.brackets)
@@ -255,7 +401,7 @@ class Brackets:
         inner = self.match(string, False)
         return remove_affix(string, *self.brackets) == inner
 
-    def remove(self, string, depth=math.inf, condition=always_true):
+    def remove(self, string, condition=always_true):
         """
         Removes arbitrary number of closed bracket pairs from a string up to
         requested depth.
@@ -268,7 +414,7 @@ class Brackets:
 
         Examples
         --------
-        >>> unbracket('{{{{hello world}}}}')
+        >>> remove('{{{{hello world}}}}')
         'hello world'
 
         Returns
@@ -277,42 +423,45 @@ class Brackets:
             The string with all enclosing brackets removed.
         """
 
-        return self._remove(string, get_test(condition), depth)
+        indices = set()
+        for pair in self.iterate(string, condition=condition):
+            indices.update(pair.indices)
+        return delete(string, indices)
 
-    def _remove(self, string, test=always_true, depth=math.inf, level=0, nr=0):
-        # return if too deep
-        if level >= depth:
-            return string
+    # def _remove(self, string, test=always_true, level=0, nr=0):
+    #     # return if too deep
+    #     # if level >= depth:
+    #     #     return string
 
-        # testing on sequence number for every element is probably less efficient
-        # than slicing the iterator below. Can think of a good way of
-        # implementing that? is there even use cases?
+    #     # testing on sequence number for every element is probably less efficient
+    #     # than slicing the iterator below. Can think of a good way of
+    #     # implementing that? is there even use cases?
 
-        out = ''
-        nr = -1
-        pre = 0
-        itr = self.iter(string, condition=test)
-        for nr, (inside, (i, j)) in enumerate(itr):
-            out += string[pre:i]
-            out += self._remove(inside, test, depth, level+1, nr)
-            pre = j + 1
+    #     nr = -1
+    #     pre = 0
+    #     out = ''
+    #     itr = self.iter(string, condition=test)
+    #     for nr, match in enumerate(itr):
+    #         out += string[pre:match.start]
+    #         out += self._remove(match.enclosed, test, level+1, nr)
+    #         pre = match.end + 1
 
-        # did the loop run?
-        if nr == -1:
-            return string
+    #     # did the loop run?
+    #     if nr == -1:
+    #         return string
 
-        return out + string[j + 1:]
+    #     return out + string[match.end + 1:]
 
     def strip(self, string):
         """
-        Strip outermost brackets
+        Strip outermost paired brackets.
 
         Parameters
         ----------
         string
             The string with outermost enclosing brackets removed.
         """
-        self.remove(string, condition=outermost)
+        return self.remove(string, condition=(level == 0))
 
     def split(self, string):
 
@@ -336,7 +485,8 @@ class Brackets:
 
         start = 0
         j = -1
-        for _, (i, j) in self.iter(string):
+        for match in self.iter(string):
+            i, j = match.indices
             yield string[start:i], string[i:j+1]
             start = j + 1
 
@@ -347,26 +497,62 @@ class Brackets:
             yield (string[j + 1:], '')
 
     def depth(self, string, depth=0):
+        """
+        Get the depth of the deepest nested pair of brackets.
+
+        Parameters
+        ----------
+        string : str
+            String containing (nested) brackets.
+        depth : int, optional
+            The starting depth, by default 0.
+
+        Examples
+        --------
+        >>> braces.depth('0{1{2{3{4{5{6{7}}}}}}}')
+        7
+
+        Returns
+        -------
+        int
+            Deepest nesting level.
+        """
         deepest = depth
-        for sub in self.iter(string, False, True):
-            deepest = max(deepest, self.depth(sub, depth + 1))
+        for match in self.iter(string, must_close=True):
+            deepest = max(deepest, self.depth(match.enclosed, depth + 1))
         return deepest
 
 
-def get_test(condition):
-    # function wrapper to support multiple call signatures for user defined
-    # condition test
-    npar = len(inspect.signature(condition).parameters)
-    if npar == 4:
+def get_test(condition, string):
+    """
+    Function wrapper to support multiple call signatures for user defined
+    condition tests.
+    """
+    if not callable(condition):
+        raise TypeError(
+            'Parameter `condition` should be a callable, or '
+            f'preferably a `Condition` object, not {type(condition)}')
+
+    if isinstance(condition, Condition):
         return condition
 
-    if npar == 1:
-        def test(string, brackets, indices, nr):
-            i, j = indices
-            return condition(string[i+1:j])
-        return test
+    if isinstance(condition, Compare):
+        return Condition(**{condition.name: condition})
 
-    raise ValueError('Condition test function has incorrect signature')
+    if condition is is_outer:
+        return is_outer(string)
+
+    return condition
+
+    # import inspect
+
+    # npar = len(inspect.signature(condition).parameters)
+    # if npar == 1:
+    #     return Condition(condition)
+
+    # from recipes import pprint as pp
+    # raise ValueError(f'Condition test function has incorrect signature: '
+    #                  f'{pp.caller(condition)}')
 
 
 # predifined bracket types
@@ -375,24 +561,55 @@ parentheses = parens = round = Brackets('()')
 square = hard = Brackets('[]')
 chevrons = angles = Brackets('<>')
 
+
+# def _match(string, brackets='()[]{}<>', must_close=False):
+
+#     left, right = brackets
+#     if left not in string:
+#         return (None, (None, None))
+
+#     logger.debug('Searching {!r} in {!r}', brackets, string)
+
+#     # 'hello(world)()'
+#     pre, match = string.split(left, 1)
+#     # 'hello', 'world)()'
+#     open_ = 1  # current number of open brackets
+#     for i, m in enumerate(match):
+#         if m in brackets:
+#             open_ += (1, -1)[m == right]
+
+#         if open_ == 0:
+#             p = len(pre)
+#             return (match[:i], (p, p + i + 1))
+
+#     # land here if (outer) bracket unclosed
+#     if must_close == 1:
+#         raise ValueError(f'No closing bracket {right!r}.')
+
+#     if must_close == -1:
+#         i = string.index(left)
+#         return (string[i + 1:], (i, None))
+
+#     return (None, (None, None))
+
+
 #
 insert = {'Parameters[pair] as brackets': Brackets}
 
 
 @doc.splice(Brackets.match, insert)
-def match(string, brackets, return_index=True, must_close=False):
-    return Brackets(brackets).match(string, return_index, must_close)
+def match(string, brackets, must_close=False):
+    return Brackets(brackets).match(string, must_close)
 
 
 @doc.splice(Brackets.iter, insert)
-def iterate(string, brackets, return_index=True, must_close=False,
-            condition=always_true):
-    return Brackets(brackets).iter(string, return_index, must_close, condition)
+def iterate(string, brackets, must_close=False, condition=always_true):
+    return Brackets(brackets).iter(string, must_close, condition)
 
 
 @doc.splice(Brackets.remove, insert)
-def remove(string, brackets, depth=math.inf, condition=always_true):
-    return Brackets(brackets).remove(string, depth, condition)
+def remove(string, brackets, condition=always_true):
+    return Brackets(brackets).remove(string, condition)
 
 
 @doc.splice(Brackets.strip, insert)
@@ -400,10 +617,35 @@ def strip(string, brackets):
     return Brackets(brackets).strip(string)
 
 
+@doc.splice(Brackets.depth, insert)
+def depth(string, brackets):
+    return Brackets(brackets).depth(string)
+
+
 def xsplit(string, brackets='{}', delimeter=','):
-    # conditional splitter. split on delimeter only if its not enclosed by
-    # brackets. need this for nested brace expansion a la bash
-    # Brackets
+    """
+    Conditional splitter. Split on delimeter only if its not enclosed by
+    brackets. 
+
+    Parameters
+    ----------
+    string : str
+        [description]
+    brackets : str, optional
+        [description], by default '{}'
+    delimeter : str, optional
+        [description], by default ','
+
+    Examples
+    --------
+    >>> 
+
+    Returns
+    -------
+    list
+        [description]
+    """
+    # need this for bash brace expansion for nested braces
 
     itr = Brackets(brackets).split2(string)
 
@@ -419,3 +661,6 @@ def _xsplit_worker(pre, enclosed, delimeter):
     parts = pre.split(delimeter)
     parts[-1] += enclosed
     return parts
+
+
+del insert
