@@ -115,19 +115,20 @@ def _(path):
 
         trial = trial.parent
 
-    # this is needed since a module may have the same name as a builtin module,
-    # which is recognised here as a "package" since it is importable. The real
-    # package may actually be higher up in the folder tree.
+    # This next bit is needed since a module may have the same name as a builtin
+    # module, eg: "recipes.string". Here "string" would be incorrectly
+    # identified here as a "package" since it is importable. The real package
+    # may actually be higher up in the folder tree.
     while candidates:
         trial = candidates.pop(0)
-        if candidates and (trial in builtin_module_names):
+        if candidates and (trial.name in builtin_module_names):
             continue
 
         # convert to dot.separated.name
         path = path.relative_to(trial.parent)
         return remove_suffix(str(path), '.py').replace('/', '.')
 
-    wrn.warn(f'Could not find package for {str(path)!r}.')
+    wrn.warn(f'Could not find package for \'{path}\'.')
 
 
 def get_level(node):
@@ -809,12 +810,12 @@ class ImportRefactory(LoggingMixin):
                     wrn.warn(
                         'Import relativization requested, but no parent module '
                         'name provided. Since we are running from raw input '
-                        'source code string, you must provide the dot-separated'
-                        ' name of the parent module of the source code via '
-                        '`relativize="my.package.name". Alternatively, if the '
-                        'source resides in a file, pass the filename to the '
-                        '`refactor` method to relativize import statements in '
-                        'place.'
+                        '(source code string), you must provide the dot-'
+                        'separated name of the parent module of the source code'
+                        ' via `relativize="my.package.name". Alternatively, if '
+                        'the source resides in a file, pass the `filename` '
+                        'parameter to the `refactor` method to relativize '
+                        'import statements in-place.'
                     )
                 return module
 

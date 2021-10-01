@@ -11,7 +11,7 @@ from recipes.introspect.imports import (Parentage, refactor, rewrite,
                                         ImportFilter, NodeTypeFilter,
                                         ImportRefactory,
                                         ImportMerger,
-                                        rewrite,
+                                        rewrite, get_mod_name,
                                         tidy,
                                         ImportSplitter,
                                         Parentage,
@@ -354,6 +354,9 @@ class TestImportRelativizer(TestNodeTransformer):
         new = '\n'.join(map(rewrite, module.body))
         assert new == source(expected)
 
+test_get_module_name = Expected(get_mod_name)({
+    '/recipes/src/recipes/string/brackets.py': 'recipes.string'
+})
 
 test_refactor = Expected(refactor, right_transform=source)({
     # case: Warn if asked to filter unused and no code in body (besides imports)
