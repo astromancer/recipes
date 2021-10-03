@@ -5,6 +5,7 @@ Common patterns involving iterables.
 
 # std
 import numbers
+import textwrap as txw
 import itertools as itt
 from collections import abc
 
@@ -65,16 +66,62 @@ as_sequence = as_iter
 # def where(iterable, test=bool):
 #     return nth_zip(0, *filter(on_first(test), enumerate(iterable)))
 
-def where(l, item, start=0, test=op.eq):
+def where(l, *args, start=0):
     """
-    Yield the indices at which the callable ``test'' evaluates True
+    Yield the indices at which items in `l` evaluate True.
+    Valid call signatures are:
+        >>> where(l)
+        >>> where(l, item)
+        >>> where(l, func, rhs)
+
+    Parameters
+    ----------
+    l : list
+        Any list
+    args : ([test], rhs)
+        test : callable, optional
+            Function for testing, should return bool, by default op.eq.
+        rhs : object
+            Right hand side item for equality test.
+    start : int, optional
+        Starting index for search, by default 0.
+
+    Yields
+    -------
+    int
+        Index at which `item` was found or `test` evaluated True
+
+    Raises
+    ------
+    ValueError
+        On receiving invalid number of function arguments.
     """
+    nargs = len(args)
+    if nargs == 0:
+        for i, item in enumerate(l):
+            if item:
+                yield i
+        return
+
+    if nargs == 1:
+        test = op.eq
+        rhs, = args
+    elif nargs == 2:
+        test, rhs = args
+    else:
+        raise ValueError(txw.dedent('''\
+            Too many arguments for function `where`. Valid call signatures are:
+                >>> where(l)
+                >>> where(l, item)
+                >>> where(l, func, rhs)''')
+                )
+
     i = start
     n = len(l)
     while i < n:
         try:
             # pylint: disable=too-many-function-args
-            i = op.index(l, item, i, test)
+            i = op.index(l, rhs, i, test)
             yield i
         except ValueError:
             # done

@@ -129,10 +129,10 @@ def cosort(*lists, key=None, master_key=None, order=1):
 
 
 @doc.splice(op.index, omit='Parameters[default]')
-def where(l, item, start=0, test=op.eq):
+def where(l, *args, start=0):
     """
     A multi-indexer for lists. Return index positions of all occurances of
-    `item` in a list `l`.  If a test function is given, return all indices at
+    `item` in a list `l`. If a test function is given, return all indices at
     which the test evaluates true.
 
     {Parameters}
@@ -140,19 +140,18 @@ def where(l, item, start=0, test=op.eq):
     Examples
     --------
     >>> l = ['ab', 'Ba', 'cb', 'dD']
-    >>> where(l, 'a', str.__contains__)
+    >>> where(l, op.contains, 'a')
     [0, 1]
-    >>> where(l, 'a', indexer=str.startswith)
+    >>> where(l, str.startswith, 'a')
     [0]
 
 
     Returns
     -------
     list of int or `default`
-        The index positions where test evaluates true
+        The index positions where test evaluates true.
     """
-    test = test or op.eq
-    return list(_iter.where(l, item, start, test))
+    return list(_iter.where(l, *args, start=start))
 
 
 def flatten(l):
@@ -203,7 +202,7 @@ def split_where(l, item, start=0, test=None):
     # if withlast:
     #     idx += [len(l) - 1]
 
-    return split(l, where(l, item, start, test))
+    return split(l, where(l, test, item, start=start))
 
 
 def missing_integers(l):
