@@ -126,7 +126,8 @@ def _(path):
 
         # convert to dot.separated.name
         path = path.relative_to(trial.parent)
-        return remove_suffix(str(path), '.py').replace('/', '.')
+        name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
+        return name.replace('/', '.')
 
     wrn.warn(f'Could not find package for \'{path}\'.')
 
@@ -735,6 +736,11 @@ class ImportRefactory(LoggingMixin):
         module = self.refactor(*args, **kws)
         return self.write(module)
 
+    @property
+    def path(self):
+        if self.filename:
+            return Path(self.filename)
+
     # def parse(self, stream):
     #     with open_any(stream) as file:
     #         return ImportCapture().visit(ast.parse(file.read()))
@@ -780,13 +786,12 @@ class ImportRefactory(LoggingMixin):
 
         if imported_names and not self.captured.used_names:
             wrn.warn(
-                '`filter_unused` requested but no code statements (besides '
-                'imports) detected. This will remove all import statements from'
-                ' the source, which is probably not what you intended. Please '
-                'use `filter_unused=False` if you only wish to sort existing '
-                'import statements.'
+                'Filtering unused imports requested for source that contains no'
+                ' code statements (besides imports). This will remove all '
+                'import statements from the source, which is probably not what '
+                'you intended. Please use `filter_unused=False` if you only '
+                'wish to sort existing import statements.'
             )
-
         return ImportFilter(unused).visit(module)
 
     # alias
@@ -804,7 +809,7 @@ class ImportRefactory(LoggingMixin):
         module = module or self.module
 
         if parent_module_name in (None, True):
-            if not self.filename:
+            if self.filename is None:
                 # cannot relativize without filename
                 if parent_module_name is True:
                     wrn.warn(
@@ -823,7 +828,7 @@ class ImportRefactory(LoggingMixin):
             # >>> from package.module import x
             # with
             # >>> from .module import x
-            if Path(self.filename).name.startswith('test_'):
+            if self.path.name.startswith('test_'):
                 wrn.warn('This looks like a test file. Skipping relativize.')
                 return module
 
@@ -849,7 +854,7 @@ class ImportRefactory(LoggingMixin):
     # def localize(self):
 
     def delocalize(self):
-        return 'TODO'
+        raise NotImplementedError
 
     def refactor(self,
                  sort='aesthetic',
@@ -882,7 +887,7 @@ class ImportRefactory(LoggingMixin):
         #     module = self.unscope(module)
 
         # filter_unused = (self.up_to_line == math.inf and bool(used_names))
-        filter_unused = filter_unused or bool(self.captured.used_names)
+        filter_unused = (filter_unused is None) and self._should_filter()
         if filter_unused:
             module = self.filter(module)
 
@@ -922,6 +927,19 @@ class ImportRefactory(LoggingMixin):
                 module.body.extend(mod.body)
 
         return module
+
+    def _should_filter(self):
+        # is_init_file = 
+        if self.path and (self.path.name == '__init__.py'):
+            self.logger.info('Not filtering unused statements for module '
+                             'initializer: \'{}\'', get_mod_name(self.path))
+            return False
+
+        if len(self.captured.used_names) == 0:
+            self.logger.info('Not filtering unused statements for import-only '
+                             'script.')
+            return False
+        return True
 
     def _iter_lines(self, module=None, headers=None):  # keep_multiline=True
         # line generator to rewrite source code
