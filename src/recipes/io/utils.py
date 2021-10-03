@@ -19,7 +19,7 @@ from pathlib import Path
 import docsplice as doc
 from recipes.string import sub
 from recipes.bash import brace_expand_iter
-from recipes.string.brackets import braces
+from recipes.string.brackets import BracketParser
 
 # relative
 from ..functionals import echo0
@@ -28,6 +28,8 @@ from ..functionals import echo0
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
 FILEMODES = {pickle: 'b', json: ''}
+
+braces = BracketParser('{}')
 
 
 def guess_format(filename):
@@ -134,7 +136,7 @@ def _iter_files(path, extensions='*', recurse=False):
     >>> iter_files()
 
     Yields
-    -------
+    ------
     pathlib.Path
         system path pointing to the file
 

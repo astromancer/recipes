@@ -16,13 +16,14 @@ import docsplice as doc
 from recipes import op
 from recipes.lists import split_where
 from recipes.functionals import negate
-from recipes.string.brackets import braces, xsplit
+from recipes.string.brackets import BracketParser, xsplit
 from recipes.string import remove_prefix, shared_affix, strings
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
 RGX_BASH_RANGE = re.compile(r'(\d+)[.]{2}(\d+)')
 
+braces = BracketParser('{}')
 
 # ---------------------------------------------------------------------------- #
 # utility functions
@@ -52,26 +53,21 @@ def brace_expand_iter(string, level=0):
     # detect bad patterns like the one above and refuse
 
     # handle special bash expansion syntax here  xx{12..15}.fits
-    inside = None
-    inside, (i, j) = braces.match(string)
-    if inside is None:
+    match = braces.match(string)
+    if match is None:
         yield string
         return
 
-    head, tail = string[:i], string[j + 1:]
+    head, tail = string[:match.start], string[match.end + 1:]
     # print(f'{inside=}, {head=}, {tail=}')
-    for new in _expander(inside, head, tail):
+    for new in _expander(match.enclosed, head, tail):
         yield from brace_expand_iter(new, level=level+1)
 
 
 def _expander(item, head='', tail=''):
     rng = RGX_BASH_RANGE.fullmatch(item)
-    if rng:
-        # bash expansion syntax implies an inclusive number interval
-        items = range(int(rng[1]), int(rng[2]) + 1)
-    else:
-        items = xsplit(item)
-
+    # bash expansion syntax implies an inclusive number interval
+    items = range(int(rng[1]), int(rng[2]) + 1) if rng else xsplit(item)
     for x in items:
         yield f'{head}{x}{tail}'
 

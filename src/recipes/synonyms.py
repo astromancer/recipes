@@ -14,7 +14,7 @@ import re
 import warnings
 
 # local
-from recipes.string import brackets
+from recipes.string.brackets import BracketParser
 
 # relative
 from .decorators import Decorator
@@ -23,8 +23,9 @@ from .functionals import noop, raises
 
 class KeywordTranslator:
     """
-    Class to assist many-to-one keyword mappings via regex pattern matching
+    Class to assist many-to-one keyword mappings via regex pattern matching.
     """
+    parser = BracketParser('[]')
 
     def __init__(self, pattern, answer=None):
         """
@@ -50,13 +51,16 @@ class KeywordTranslator:
         self.pattern = pattern
         sub = pattern
         while 1:
-            s, (i0, i1) = brackets.square.match(sub, return_index=True,
-                                                must_close=True)
-            # print(s, i0, i1)
-            if s is None:
+            match = self.parser.match(sub, must_close=True)
+            if match is None:
                 regex += sub
                 break
 
+            # print(s, i0, i1)
+            s = match.enclosed
+            i0, i1 = match.indices
+            # FIXME: this regex not exactly correct for optional characters
+            # 'n[umbe]r[_rows]' -> n(umber)?r(_rows)?
             regex += f'{sub[:i0]}[{s}]{{0,{len(s)}}}'
             self.answer += sub[:i0]
             sub = sub[i1 + 1:]

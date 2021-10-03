@@ -5,6 +5,7 @@ Tools for parsing and editing strings containing (nested) brackets ()[]{}<>
 # std
 import operator as op
 import itertools as itt
+from collections import defaultdict
 from dataclasses import dataclass, astuple, asdict
 from typing import Tuple, List, Union, Callable, Collection
 
@@ -13,15 +14,21 @@ from loguru import logger
 
 # local
 import docsplice as doc
-from recipes.string import delete
 
 # relative
+from .. import op
 from ..functionals import always
-from . import remove_affix
+from ..iter import where, cofilter
+from . import delete, remove_affix
 
 
 # Braces(string) # TODO / .tokenize / .parse
 # # __all__ = ['Brackets', 'braces', 'square', 'round', 'chevrons']
+
+ALL_BRACKET_PAIRS = ('()', '[]', '{}', '<>')
+PAIRED = dict(ALL_BRACKET_PAIRS)
+PAIRED.update(dict(zip(PAIRED.values(), PAIRED.keys())))
+
 
 SYMBOLS = {op.eq: '==',
            op.lt: '<',
@@ -562,35 +569,226 @@ square = hard = Brackets('[]')
 chevrons = angles = Brackets('<>')
 
 
-# def _match(string, brackets='()[]{}<>', must_close=False):
+def _match(string, brackets, must_close=False):
 
-#     left, right = brackets
-#     if left not in string:
-#         return (None, (None, None))
+    left, right = brackets
+    if left not in string:
+        return (None, (None, None))
 
-#     logger.debug('Searching {!r} in {!r}', brackets, string)
+    logger.debug('Searching {!r} in {!r}', brackets, string)
 
-#     # 'hello(world)()'
-#     pre, match = string.split(left, 1)
-#     # 'hello', 'world)()'
-#     open_ = 1  # current number of open brackets
-#     for i, m in enumerate(match):
-#         if m in brackets:
-#             open_ += (1, -1)[m == right]
+    # 'hello(world)()'
+    pre, match = string.split(left, 1)
+    # 'hello', 'world)()'
+    open_ = 1  # current number of open brackets
+    for i, m in enumerate(match):
+        if m in brackets:
+            open_ += (1, -1)[m == right]
 
-#         if open_ == 0:
-#             p = len(pre)
-#             return (match[:i], (p, p + i + 1))
+        if open_ == 0:
+            p = len(pre)
+            return (match[:i], (p, p + i + 1))
 
-#     # land here if (outer) bracket unclosed
-#     if must_close == 1:
-#         raise ValueError(f'No closing bracket {right!r}.')
+    # land here if (outer) bracket unclosed
+    if must_close == 1:
+        raise ValueError(f'No closing bracket {right!r}.')
 
-#     if must_close == -1:
-#         i = string.index(left)
-#         return (string[i + 1:], (i, None))
+    if must_close == -1:
+        i = string.index(left)
+        return (string[i + 1:], (i, None))
 
-#     return (None, (None, None))
+    return (None, (None, None))
+
+
+class BracketParser:
+    def __init__(self, *pairs):
+        """
+        Object representing a pair of brackets
+
+        Parameters
+        ----------
+        pair : str or tuple of str
+            Characters or strings for opening and closing bracket. Must have
+            length of 2.
+        """
+        if not pairs:
+            pairs = ALL_BRACKET_PAIRS
+        self.pairs = list(set(pairs))
+        self.open, self.close = zip(*self.pairs)
+        self._chars = ''.join(self.open) + ''.join(self.close)
+
+    # @ftl.lru_cache()
+    def _index(self, string):
+        # NOTE: line below reverses the operands:
+        # >>> (c in self._chars for c in string)
+        for i in where(string, op.contained, self._chars):
+            yield i, string[i]
+
+    def _iter(self, string, must_close=False):
+        # TODO: filter level here to avoid unnecessary construction of
+        # BracketPair and performance cost.
+        assert must_close in {-1, 0, 1}
+
+        positions = defaultdict(list)
+        open_ = defaultdict(int)
+        for j, b in self._index(string):
+            if b in self.open:
+                positions[b].append(j)
+                open_[b] += 1
+            else:
+                o = PAIRED[b]
+                open_[o] -= 1
+                pos = positions[o]
+                if pos:
+                    i = pos.pop(-1)
+                    yield BracketPair((o, b), string[i + 1:j], (i, j),
+                                      len(positions[o]))
+                elif must_close == 0:
+                    yield BracketPair((o, b), None, (None, j), 0)
+
+                elif must_close == 1:
+                    raise ValueError(f'No opening bracket for: {b!r} at {j}.')
+                # must_close == -1 doesn't yield anything
+        #
+        if must_close and any(positions.values()):
+            pos, open_ = cofilter(op.not_, positions.values(), positions.keys())
+            # pylint: disable=stop-iteration-return
+            raise ValueError('No closing bracket for: '
+                             f'{next(open_)!r} at {next(pos):d}')
+            # +'; '.join(map('{!r:} at {:d}'.format, open_, pos)))
+
+        for b, idx in positions.items():
+            o = PAIRED[b]
+            for i in idx:
+                yield BracketPair((o, b), None, (i, None), 0)
+
+    def match(self, string, must_close=False):
+        return next(self._iter(string, must_close), None)
+
+    def iterate(self, string, must_close=False, condition=always_true,
+                inside_out=True):
+        """
+        Iterate bracket pairs.
+
+        Parameters
+        ----------
+        string : str
+            String potentially containing pairs of (nested) brackets.
+        must_close : {-1, 0, 1}
+            Defines the behaviour for unclosed pairs of brackets:
+            -1          : Silently ignore
+             0 or False : Yield BracketPair with None at missing index
+             1 or True  : raises ValueError
+
+        Yields
+        -------
+        match : BracketPair
+        """
+
+        # get condition test call signature
+        test = get_test(condition, string)
+        # logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
+        #              self.brackets, string, condition)
+        itr = filter(test, self._iter(string, must_close))
+        if inside_out:
+            yield from itr
+            return
+
+        levels = defaultdict(int)
+        for match in itr:
+            levels[match.level].append(match)
+
+        for lvl in sorted(levels.keys()):
+            yield from levels[lvl]
+
+    def findall(self, string, must_close=False, condition=always_true,
+                inside_out=True):
+        return list(self.iterate(string, must_close, condition, inside_out))
+
+    # def groupby(self, *attrs):
+
+    def remove(self, string, condition=always_true):
+        """
+        Removes arbitrary number of closed bracket pairs from a string up to
+        requested depth.
+
+        Parameters
+        ----------
+        s : str
+            string to be stripped of brackets.
+
+
+        Examples
+        --------
+        >>> remove('{{{{hello world}}}}')
+        'hello world'
+
+        Returns
+        -------
+        string
+            The string with all enclosing brackets removed.
+        """
+        indices = set()
+        for pair in self.iterate(string, condition=condition):
+            indices.update(pair.indices)
+        indices.remove(None)
+        return delete(string, indices)
+
+    def strip(self, string):
+        """
+        Strip outermost paired brackets.
+
+        Parameters
+        ----------
+        string
+            The string with outermost enclosing brackets removed.
+        """
+        return self.remove(string, condition=(level == 0))
+
+    # def split(self, string):
+
+    #     start = 0
+    #     j = -1
+    #     for match in self.iter(string):
+    #         i, j = match.indices
+    #         yield string[start:i], string[i:j+1]
+    #         start = j + 1
+
+    #     if start == 0:
+    #         yield (string, '')
+
+    #     elif j + 1 != len(string):
+    #         yield (string[j + 1:], '')
+
+    def depth(self, string):
+        """
+        Get the depth of the deepest nested pair of brackets.
+
+        Parameters
+        ----------
+        string : str
+            String containing (nested) brackets.
+        depth : int, optional
+            The starting depth, by default 0.
+
+        Examples
+        --------
+        >>> braces.depth('0{1{2{3{4{5{6{7}}}}}}}')
+        7
+
+        Returns
+        -------
+        int
+            Deepest nesting level.
+        """
+        depth = defaultdict(int)
+        for match in self.iterate(string, must_close=True):
+            depth[match.brackets] = max(depth[match.brackets], match.level + 1)
+
+        if len(self.pairs) == 1:
+            return depth.popitem()
+
+        return dict(depth)
 
 
 #

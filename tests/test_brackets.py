@@ -125,3 +125,6 @@ test_depth = Expected(braces.depth)({
     '{{{{{99dmckkcmmm/ {}}}}}}':            6,
     '{{{{{99dmckkcmmm/ {}{}}}}}{}}':        6
 })
+
+def test_new_parser():
+    BracketParser()._index('[this(nested{set<of>[brackets]})]')
