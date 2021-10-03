@@ -1,13 +1,12 @@
 
-from recipes.string.brackets import braces
-
-import pytest
-
-from recipes import bash
+# std
 import textwrap as txw
 
+# local
+from recipes import bash
+from recipes.testing import Expected, expected, Throws
 
-from recipes.testing import Expected, mock, expected, Throws
+
 # from recipes.dicts import invert
 
 
@@ -116,8 +115,8 @@ test_single_contraction = Expected(bash.contract)(
 # test_full_contraction
 
 
-def components(s):
-    return sorted(braces.match(s, False).split(','))
+# def components(s):
+#     return sorted(braces.match(s, False).split(','))
 
 
 test_full_contraction = Expected(bash.brace_contract)(

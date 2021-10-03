@@ -28,13 +28,6 @@ def lists(iters):
     return list(map(list, iters))
 
 
-def _make_key(master_key, funcs):
-    def sort_key(x):
-        values = ((f or _zero)(z) for f, z in zip(funcs, x))
-        return (master_key(*x),) + tuple(values)
-    return sort_key
-
-
 def cosort(*lists, key=None, master_key=None, order=1):
     """
     Extended co-sorting of lists. Sort any number of lists simultaneously
@@ -121,11 +114,18 @@ def cosort(*lists, key=None, master_key=None, order=1):
             'Keyword-only parameter `key` should be `None`, callable, or a'
             f'sequence of callables, not {type(key)}.')
 
-    res = sorted(zip(*lists), key=_make_key(master_key, key))
+    res = sorted(zip(*lists), key=_make_cosort_key(master_key, key))
     if order == -1:
         res = reversed(res)
 
     return tuple(map(list, zip(*res)))
+
+
+def _make_cosort_key(master_key, funcs):
+    def sort_key(x):
+        values = ((f or _zero)(z) for f, z in zip(funcs, x))
+        return (master_key(*x),) + tuple(values)
+    return sort_key
 
 
 @doc.splice(op.index, omit='Parameters[default]')
