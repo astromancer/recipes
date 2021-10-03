@@ -4,15 +4,18 @@ Logging helpers.
 
 
 # std
-import logging
+import sys
 import functools as ftl
+import logging
+from logging import StreamHandler
+from logging.handlers import MemoryHandler
 from contextlib import contextmanager
 
 # third-party
 from loguru import logger
 
 # relative
-from . import pprint as pp
+from . import op, pprint as pp
 from .decorators import Decorator
 from .introspect.utils import get_caller_frame, get_module_name, get_class_name
 
@@ -116,12 +119,12 @@ class LoggingDescriptor:
 
 class LoggingMixin:
     class Logger:
-        
+
         # use descriptor so we can access the logger via logger and cls().logger
         # Making this attribute a property also avoids pickling errors since
         # `logging.Logger` cannot be picked
         # parent = None
-        
+
         @staticmethod
         def add_parent(record, parent):
             record['function'] = f'{parent}.{record["function"]}'
@@ -161,3 +164,47 @@ class catch_and_log(Decorator, LoggingMixin):
 
 # to get logging level:
 # debug = logging.getLogger().isEnabledFor(logging.DEBUG)
+
+
+class RepeatMessageHandler(MemoryHandler):
+    """
+    Filter duplicate log messages.
+    """
+    # These attributres will be compared to determine equality between Record objects
+    _attrs = ('msg', 'args', 'levelname')
+    _get_record_atr = op.AttrGetter(*_attrs)
+
+    def __init__(self, capacity=2,
+                 flushLevel=logging.ERROR,
+                 target=StreamHandler(sys.stdout),
+                 flushOnClose=True):
+        super().__init__(capacity, flushLevel, target, flushOnClose)
+
+    def emit(self, record):
+        record.repeats = 1
+        if not self.buffer:
+            return super().emit(record)
+
+        duplicate = self.is_repeat(record)
+        if not duplicate:
+            self.flush()
+            return super().emit(record)
+
+        previous = self.buffer[-1]
+        previous.repeats += 1
+
+    def is_repeat(self, record):
+        if not self.buffer:
+            return False
+
+        return (self._get_record_atr(record) == self._get_record_atr(self.buffer[-1]))
+
+    def flush(self):
+        if not self.buffer:
+            return
+
+        previous = self.buffer[-1]
+        if previous.repeats > 1:
+            previous.msg += ' [Message repeats ×{}]'.format(previous.repeats)
+
+        super().flush()
