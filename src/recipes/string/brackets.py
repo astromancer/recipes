@@ -185,7 +185,15 @@ class BracketPair:
         yield from astuple(self)[1:]
 
     def __str__(self):
-        return self.enclosed or 'NULL'
+        return self.enclosed  # or ''
+
+    def __bool__(self):
+        return any((self.enclosed, *self.indices))
+
+    # @ftl.cached_property
+    @property
+    def full(self):
+        return self.enclosed.join(self.brackets)
 
 
 class Brackets:  # BracketParser
@@ -268,51 +276,11 @@ class Brackets:  # BracketParser
         """
 
         # wrap = ftl.partial(, brackets=self.brackets)
-        return BracketPair(self.brackets, *self._match(string, must_close))
+        return BracketPair(
+            self.brackets, *_match(string, self.brackets, must_close)
+        )
         # match.string = string
         # return match
-
-    def _match(self, string, must_close=False):
-        # yields = Yielder(indexed, wrapped, self.brackets)
-        # null_result = None
-        # if indexed:
-        # null_result =
-        # yields = BracketPair
-
-        left, right = self.brackets
-        if left not in string:
-            return (None, (None, None))
-
-        logger.debug('Searching {!r} in {!r}', self.brackets, string)
-
-        # if right not in string:
-        #     return null_result
-
-        # 'hello(world)()'
-        pre, match = string.split(left, 1)
-        # 'hello', 'world)()'
-        open_ = 1  # current number of open brackets
-        for i, m in enumerate(match):
-            if m in self.brackets:
-                open_ += (1, -1)[m == right]
-
-            if open_ == 0:
-                p = len(pre)
-                return (match[:i], (p, p + i + 1))
-                # if indexed:
-                #     p = len(pre)
-                #     return match[:i], (p, p + i + 1)
-                # return match[:i]
-
-        # land here if (outer) bracket unclosed
-        if must_close == 1:
-            raise ValueError(f'No closing bracket {right!r}.')
-
-        if must_close == -1:
-            i = string.index(left)
-            return (string[i + 1:], (i, None))
-
-        return (None, (None, None))
 
     def iter(self, string, must_close=False, condition=always_true, level=0,
              pos=0):
@@ -337,20 +305,20 @@ class Brackets:  # BracketParser
 
         # get condition test call signature
         test = get_test(condition, string)
-        logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
-                     self.brackets, string, condition)
+        # logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
+        #              self.brackets, string, condition)
 
         # nr = 0
         start = 0
         while True:
-            match, (i, j) = self._match(string[start:], must_close)
+            match, (i, j) = _match(string[start:], self.brackets, must_close)
             if match is None:
                 break
 
             match = BracketPair(self.brackets, match,
                                 (pos + start + i, pos + start + j),
                                 level)
-            logger.opt(lazy=True).debug('{}', lambda: repr(match))
+            # logger.opt(lazy=True).debug('{}', lambda: repr(match))
 
             # condition
             # string, self.brackets, (start + i, start + j), None
@@ -368,8 +336,8 @@ class Brackets:  # BracketParser
 
         # get condition test call signature
         test = get_test(condition, string)
-        logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
-                     self.brackets, string, condition)
+        # logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
+        #              self.brackets, string, condition)
 
         iters = []
         # start = 0
@@ -470,23 +438,23 @@ class Brackets:  # BracketParser
         """
         return self.remove(string, condition=(level == 0))
 
-    def split(self, string):
+    # def split(self, string):
 
-        if not string:
-            yield [string]
-            return
+    #     if not string:
+    #         yield [string]
+    #         return
 
-        itr = self.iter(string)
-        start = 0
-        for _, (i, j) in itr:
-            if i != start:
-                yield string[start:i]
-            # if i != j + 1:
-            yield string[i:j+1]
-            start = j + 1
+    #     itr = self.iter(string)
+    #     start = 0
+    #     for _, (i, j) in itr:
+    #         if i != start:
+    #             yield string[start:i]
+    #         # if i != j + 1:
+    #         yield string[i:j+1]
+    #         start = j + 1
 
-        if start != len(string):
-            yield string[start:]
+    #     if start != len(string):
+    #         yield string[start:]
 
     def split2(self, string):
 
@@ -575,7 +543,7 @@ def _match(string, brackets, must_close=False):
     if left not in string:
         return (None, (None, None))
 
-    logger.debug('Searching {!r} in {!r}', brackets, string)
+    # logger.debug('Searching {!r} in {!r}', brackets, string)
 
     # 'hello(world)()'
     pre, match = string.split(left, 1)
@@ -823,7 +791,7 @@ def depth(string, brackets):
 def xsplit(string, brackets='{}', delimeter=','):
     """
     Conditional splitter. Split on delimeter only if its not enclosed by
-    brackets. 
+    brackets.
 
     Parameters
     ----------
@@ -845,6 +813,11 @@ def xsplit(string, brackets='{}', delimeter=','):
     """
     # need this for bash brace expansion for nested braces
 
+    # short circuit
+    if brackets is None:
+        return string.split(delimeter)
+
+    #
     itr = Brackets(brackets).split2(string)
 
     collected = _xsplit_worker(*next(itr), delimeter)
