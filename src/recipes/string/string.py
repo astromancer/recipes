@@ -6,17 +6,28 @@ Utilities for operations on strings
 # std
 import re
 import numbers
+import warnings as wrn
+import itertools as itt
 from collections import abc
 
 # third-party
 import numpy as np
+import more_itertools as mit
 
-# local
-from recipes.iter import filter_duplicates
+# relative
+from .. import op
+from ..misc import duplicate_if_scalar
+from ..iter import filter_duplicates, where
 
 
 # regexes
 REGEX_SPACE = re.compile(r'\s+')
+
+# justification
+JUSTIFY_MAP = {'r': '>',
+               'l': '<',
+               'c': '^',
+               's': ' '}
 
 
 class Percentage:
@@ -130,6 +141,10 @@ def delete(string, indices=()):
     return z.decode()
 
 
+def insert(sub, string, index):
+    return string[:index] + sub + string[index:]
+
+
 def sub(string, mapping=(), **kws):
     """
     Replace all the sub-strings in `string` with the strings in `mapping`.
@@ -184,7 +199,7 @@ def sub(string, mapping=(), **kws):
     #     return string.translate(str.maketrans(mapping))
 
     from recipes import cosort
-    from recipes import op
+    # from recipes import op
 
     # check if any keys are contained within another key. If this is true,
     # we have to substitute the latter before the former
@@ -442,14 +457,41 @@ def monospaced(text):
 
 
 # TODO:
-# def decomment(string, mark='#', keep=()):
+# def uncomment(string, mark='#', keep=()):
 
 #     re.compile(rf'(?s)((?![\\]).){mark}([^\n]*)')
 
 
-def overlay(text, background='', alignment='^', width=None):
-    """overlay text on background using given alignment."""
+def overlay(text, background='', align='^', width=None):
+    """
+    Overlay `text` on `background` using given `alignment`.
 
+    Parameters
+    ----------
+    text : [type]
+        [description]
+    background : str, optional
+        [description], by default ''
+    align : str, optional
+        [description], by default '^'
+    width : [type], optional
+        [description], by default None
+
+    Examples
+    --------
+    >>> 
+
+    Returns
+    -------
+    [type]
+        [description]
+
+    Raises
+    ------
+    ValueError
+        [description]
+    """
+    # TODO: drop width arg
     # TODO: verbose alignment name conversions. see motley.table.get_alignment
 
     if not (background or width):  # nothing to align on
@@ -463,21 +505,24 @@ def overlay(text, background='', alignment='^', width=None):
     if len(background) < len(text):  # pointless alignment
         return text
 
-    # do alignment
-    if alignment == '<':  # left aligned
-        overlaid = text + background[len(text):]
-    elif alignment == '>':  # right aligned
-        overlaid = background[:-len(text)] + text
-    elif alignment == '^':  # center aligned
+    # left aligned
+    if align == '<':
+        return text + background[len(text):]
+
+    # right aligned
+    if align == '>':
+        return background[:-len(text)] + text
+
+    # center aligned
+    if align == '^':
         div, mod = divmod(len(text), 2)
         pl, ph = div, div + mod
         # start and end indeces of the text in the center of the background
         idx = width // 2 - pl, width // 2 + ph
         # center text on background
-        overlaid = background[:idx[0]] + text + background[idx[1]:]
-    else:
-        raise ValueError('Alignment character %r not understood' % alignment)
-    return overlaid
+        return background[:idx[0]] + text + background[idx[1]:]
+
+    raise ValueError(f'Alignment character {align!r} not understood')
 
 
 # def centre(self, width, fill=' ' ):
@@ -491,4 +536,146 @@ def overlay(text, background='', alignment='^', width=None):
 # idx = width//2-pl, width//2+ph
 # #start and end indeces of the text in the center of the progress indicator
 # s = fill*width
+
 # return s[:idx[0]] + self + s[idx[1]:]                #center text
+
+
+def resolve_justify(align):
+    align = JUSTIFY_MAP.get(align.lower()[0], align)
+    if align not in '<^> ':
+        raise ValueError(f'Unrecognised alignment {align!r}')
+    return align
+
+
+def justify(text, how='<', width_=None, /):
+    """
+    [summary]
+
+    Parameters
+    ----------
+    text : [type]
+        [description]
+    how : str, optional
+        [description], by default '<'
+    width_ : [type], optional
+        [description], by default None
+
+    Examples
+    --------
+    >>> 
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+    how = resolve_justify(how)
+    width_ = int(width_ or width(text))
+    if how != ' ':
+        return '\n'.join(map(f'{{: {how}{width_}}}'.format, text.splitlines()))
+
+    lines = text.splitlines()
+    # widths = list(map(len, lines))
+
+    for i, line in enumerate(lines):
+        w = len(line)
+        delta = width_ - w
+        if delta < 0:
+            wrn.warn(f'Cannot justify paragraph to width of {width_} which is '
+                     f'smaller than the length of the longest line ({w}).')
+            continue
+
+        indices = list(where(line, ' '))
+        d, r = divmod(delta, len(indices))
+        for j, k in enumerate(indices[::-1]):
+            line[i] = insert(' ' * d + (j < r), line, k)
+
+    return '\n'.join(lines)
+
+
+def width(string):
+    indices = [*where(string, '\n'), len(string)]
+
+    if len(indices) == 1:
+        return indices[0]
+
+    return -min(map(op.sub, *zip(*mit.pairwise(indices))))
+
+
+def _max_line_width(lines):
+    return max(map(len, lines))
+
+
+def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width):
+    """
+    Stick two or more multi-line strings together horizontally.
+
+    Parameters
+    ----------
+    strings
+    spacing : int
+        Number of horizontal spaces to be added as a column between the string
+        blocks.
+    offsets : Sequence of int
+        Vertical offsets in number of rows between string blocks.
+
+
+    Returns
+    -------
+    str
+        Horizontally stacked string
+    """
+
+    # short circuit
+    if isinstance(strings, str):
+        return strings
+
+    if len(strings) == 1:
+        return str(strings[0])
+
+    # get columns and trim trailing whitespace column
+    columns = _get_hstack_columns(strings, spacing, offsets, width_func)
+    columns = itt.islice(columns, 2 * len(strings) - 1)
+    return '\n'.join(map(''.join, zip(*columns)))
+
+
+def _get_hstack_columns(strings, spacing, offsets, width_func):
+
+    # resolve offsets
+    if isinstance(offsets, numbers.Integral):
+        offsets = [0] + [offsets] * (len(strings) - 1)
+
+    offsets = list(offsets)
+    assert len(offsets) <= len(strings)
+
+    # first we need to compute the widths
+    widths = []
+    lines_list = []
+    max_length = 0
+    for string, off in itt.zip_longest(strings, offsets, fillvalue=0):
+        lines = str(string).splitlines()
+        max_length = max(len(lines), max_length)
+        widths.append(width_func(lines))   # ansi.length_seen(lines[0])
+        lines_list.append(([''] * off) + lines)
+
+    # Intersperse columns with whitespace
+    for lines, width in zip(lines_list, widths):
+        # fill whitespace
+        yield mit.padded(lines, ' ' * (width), max_length)
+        yield itt.repeat(' ' * spacing, max_length)
+
+
+def vstack(strings,  justify_='<', width_=None, spacing=0):
+
+    s = list(filter(lambda s: s is not None, strings))
+    justify_ = duplicate_if_scalar(justify_, len(s))
+
+    if width_ is None:
+        width_ = max(map(width, s))
+
+    vspace = '\n'.join(itt.repeat(' ' * width_, spacing))
+    itr = itt.zip_longest(s, justify_, fillvalue=justify_)
+    itr = (justify(par, just, width_) for par, just in itr)
+    return '\n'.join(
+        mit.interleave_longest(itr, itt.repeat(vspace, len(s) - 1))
+    )
