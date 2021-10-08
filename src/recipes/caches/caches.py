@@ -6,7 +6,6 @@ from collections import OrderedDict as odict
 # relative
 from ..logging import LoggingMixin
 from ..string import remove_suffix
-from ..io import deserialize, guess_format
 
 
 DEFAULT_CAPACITY = 2**7

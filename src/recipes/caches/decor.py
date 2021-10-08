@@ -251,7 +251,7 @@ class Cached(Decorator, LoggingMixin):
         # make a reference to the cache on the decorated function for
         # convenience. this will allow us to more easily add cache items
         # manually etc.
-        decorated.__cache__ = self.cache.data
+        decorated.__cache__ = self.cache
         return decorated
 
     def resolve_types(self, mapping):

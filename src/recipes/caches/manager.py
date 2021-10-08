@@ -17,7 +17,7 @@ from . import Cache, DEFAULT_CAPACITY
 # TODO: serializing the Cache class is error prone and hard to maintain.
 # Better to simply serialize the dict and init the cache from that??
 
-# TODO: sqlite, yaml, dill
+# TODO: sqlite, yaml, dill, jsons
 
 
 # ------------------------------- json helpers ------------------------------- #
@@ -127,7 +127,7 @@ class CacheManager(LoggingMixin):
     def __str__(self):
         info = {'size': f'{len(self.data)}/{self.capacity}'}
         if self.filename:
-            info['file'] = self.path.name
+            info['file'] = str(self.path)
         info = pformat(info, lhs=str, brackets="[]")
         return pformat(self.data,
                        f'{type(self).__name__}{info}',
@@ -142,10 +142,11 @@ class CacheManager(LoggingMixin):
     @filename.setter
     def filename(self, filename):
         self._filename = str(filename) if filename else None
-
-        if self.path and not self.path.parent.exists():
-            raise ValueError(f'Parent folder does not exist: '
-                             f'{self.path.parent}')
+        if self.path:
+            self.stale = True
+            if not self.path.parent.exists():
+                raise ValueError(f'Parent folder does not exist: '
+                                 f'{self.path.parent}')
 
     @property
     def path(self):
@@ -177,7 +178,9 @@ class CacheManager(LoggingMixin):
     def _update_from_file(self):
         if self.filename and self.stale:
             clone = self.load(self.filename)
-            self.data.update(clone.data)
+            # self.data.update(clone.data) 
+            # # RuntimeError: OrderedDict mutated during iteration
+            self.data = clone.data
 
     def get(self, key, default=None):
         return self.data.get(key, default)
