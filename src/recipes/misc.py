@@ -10,7 +10,6 @@ from numbers import Number
 from collections import abc, deque
 
 # third-party
-import numpy as np
 from loguru import logger
 
 # relative
@@ -20,8 +19,9 @@ from .interactive import is_interactive
 ZERO_DEPTH_BASES = (str, bytes, Number, range, bytearray)
 
 
-def duplicate_if_scalar(a, n=2, raises=True):
+def duplicate_if_scalar(a, n=2, raises=True):  # TODO: severity
     """
+    Ensure object size or duplicate if necessary.
 
     Parameters
     ----------
@@ -34,12 +34,24 @@ def duplicate_if_scalar(a, n=2, raises=True):
     # if isinstance(a, numbers.Number):
     #     return [a] * n
 
-    if np.size(a) == 1:
-        # preserves duck type arrays
-        return np.asanyarray([a] * n).squeeze()
+    if not isinstance(a, abc.Sized):
+        return [a] * n
 
-    if (np.size(a) != n) and raises:
-        raise ValueError(f'Input should be of size 1 or {n}')
+    size = len(a)
+    if size == 0:
+        return [a] * n
+
+    if size == 1:
+        return list(a) * n
+
+    # if np.size(a) == 1:
+    #     # preserves duck type arrays
+    #     return np.asanyarray([a] * n).squeeze()
+
+    if (size != n) and raises:
+        raise ValueError(f'Input object of type {type(a)} has incorrect size. '
+                         f'Expected either a scalar type object, or a Container'
+                         f' with length in {{1, {n}}}.')
 
     return a
 
