@@ -21,10 +21,13 @@ import motley
 # relative
 from recipes.introspect.imports import refactor
 
+
 # TODO: argparse options
+logger.configure(activation=[('recipes', 'INFO')])
 
 filename = sys.argv[1]
-debug = False
+# debug = False
+
 
 logger.info('Tidying import statements in {}', motley.blue(filename))
-refactor(filename)#.sort_imports(dry_run=debug, report=debug)
+refactor(filename)  # .sort_imports(dry_run=debug, report=debug)

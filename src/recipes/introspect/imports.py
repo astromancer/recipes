@@ -287,6 +287,9 @@ NODE_SORTERS = {
                    )
 }
 
+
+def ALIAS_SORTER(alias):
+    return alias.name, alias.name.islower()
 # list(NODE_SORTERS[''])
 
 # ---------------------------------------------------------------------------- #
@@ -560,6 +563,8 @@ class ImportRelativizer(ast.NodeTransformer):
 
 
 class HandleFuncs:
+    """Base class that checks that inputs are callable"""
+
     def __init__(self, *functions):
         for func in filter(negate(callable), functions):
             raise TypeError(f'Sorting {describe(func)} should be callable.')
@@ -595,6 +600,7 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
 
     def visit_any_import(self, node):
         node.order = self(node)
+        node.names = sorted(node.names, key=ALIAS_SORTER)
         return node
     #
     visit_Import = visit_ImportFrom = visit_any_import
@@ -842,6 +848,8 @@ class ImportRefactory(LoggingMixin):
         return ImportRelativizer(parent_module_name).visit(module)
 
     def sort(self, module=None, how='aesthetic'):
+        logger.trace('Sorting imports in module {} using {!r} sorter.',
+                     module, how)
         module = module or self.module
         imports_only = NodeTypeFilter(
             keep=(ast.Module, ast.Import, ast.ImportFrom, ast.alias)
@@ -929,7 +937,7 @@ class ImportRefactory(LoggingMixin):
         return module
 
     def _should_filter(self):
-        # is_init_file = 
+        # is_init_file =
         if self.path and (self.path.name == '__init__.py'):
             self.logger.info('Not filtering unused statements for module '
                              'initializer: \'{}\'', get_mod_name(self.path))
