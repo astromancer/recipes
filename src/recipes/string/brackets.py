@@ -754,7 +754,7 @@ class BracketParser:
             depth[match.brackets] = max(depth[match.brackets], match.level + 1)
 
         if len(self.pairs) == 1:
-            return depth.popitem()
+            return depth.pop(tuple(self.pairs[0]), 0)
 
         return dict(depth)
 
