@@ -12,8 +12,8 @@ import pytest
 import numpy as np
 
 # local
-from recipes.caches.manager import CacheManager as Cache
-from recipes.caches.decor import (CacheRejectionWarning,
+from recipes.caching.manager import CacheManager as Cache
+from recipes.caching.decor import (CacheRejectionWarning,
                                   check_hashable_defaults,
                                   Ignore,
                                   Reject,
@@ -26,7 +26,7 @@ from recipes.caches.decor import (CacheRejectionWarning,
 
 # import pickle
 # from collections import OrderedDict as odict
-# from recipes.caches import LRUCache
+# from recipes.caching import LRUCache
 
 # class _Test(LRUCache, odict):
 #     def __reduce__(self):

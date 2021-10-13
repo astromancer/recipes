@@ -17,7 +17,7 @@ from . import Cache, DEFAULT_CAPACITY
 # TODO: serializing the Cache class is error prone and hard to maintain.
 # Better to simply serialize the dict and init the cache from that??
 
-# TODO: sqlite, yaml, dill, jsons
+# TODO: sqlite, yaml, dill, jsons, msgpack
 
 
 # ------------------------------- json helpers ------------------------------- #
@@ -114,7 +114,8 @@ class CacheManager(LoggingMixin):
     Manages cache saving and loading etc.
     """
 
-    def __init__(self, capacity=DEFAULT_CAPACITY, filename=None, policy='lru'):
+    def __init__(self, capacity=DEFAULT_CAPACITY, filename=None, policy='lru',
+                 enabled=True):
         self.capacity = int(capacity)
         self.policy = str(policy).lower()
         self.filename = str(filename) if filename else None
@@ -123,6 +124,7 @@ class CacheManager(LoggingMixin):
         # if caching to disc and file exists, flag that we need to load it
         self.data = Cache.oftype(policy)(capacity)  # the actual cache
         self.stale = bool(self.filename) and self.path.exists()
+        self.enabled = bool(enabled)
 
     def __str__(self):
         info = {'size': f'{len(self.data)}/{self.capacity}'}
@@ -184,6 +186,25 @@ class CacheManager(LoggingMixin):
 
     def get(self, key, default=None):
         return self.data.get(key, default)
+    
+    def enable(self, filename=None):
+        """
+        (Re-)enable a cache, optionally at a new file location.
+
+        Parameters
+        ----------
+        filename : str or Path, optional
+            [description], by default None.
+            
+        Note, the filename parameter is here for convenience. Assigning a new
+        location to the filename attribute also works.
+        """
+        self.enabled = True
+        if filename:
+            self.filename = filename
+
+    def disable(self):
+        self.enabled = False
 
     @classmethod
     def load(cls, filename, **kws):

@@ -22,7 +22,6 @@ from ..pprint.callers import describe
 from .caches import DEFAULT_CAPACITY
 
 
-
 # from ..interactive import exit_register
 
 
@@ -119,17 +118,17 @@ class Cached(Decorator, LoggingMixin):
     """
 
     @classmethod
-    def to_file(cls, filename, capacity=DEFAULT_CAPACITY, policy='lru', 
-                ignore=(), typed=()):
+    def to_file(cls, filename, capacity=DEFAULT_CAPACITY, policy='lru',
+                ignore=(), typed=(), enabled=True):
         """
         Decorator for persistent function memoization that saves cache to file
         as a pickle / json / ...
         """
         # this here simply to make `filename` a required arg
-        return cls(filename, capacity, policy, ignore, typed)
+        return cls(filename, capacity, policy, ignore, typed, enabled)
 
     def __init__(self, filename=None, capacity=DEFAULT_CAPACITY, policy='lru',
-                 ignore=(), typed=()):
+                 ignore=(), typed=(), enabled=True):
         """
         A general purpose function memoizer.
 
@@ -187,7 +186,7 @@ class Cached(Decorator, LoggingMixin):
         self.sig = None
         self.typed = _check_hashers(typed, ignore)
         # self.__init_args = (capacity, filename, policy)
-        self.cache = CacheManager(capacity, filename, policy)
+        self.cache = CacheManager(capacity, filename, policy, enabled)
 
         # file rotation
         # filename = self.cache.filename
@@ -348,16 +347,19 @@ class Cached(Decorator, LoggingMixin):
         """
         Caches the result of the function call
         """
-        # pylint: disable=broad-except
 
-        #
         # self.rotate_file(**params)
+        if not self.cache.enabled:
+            self.logger.debug('Caching disabled for {}. Calling function.',
+                              describe(func))
+            return func(*args, **kws)
 
         key = self.get_key(*args, **kws)
         if not self.is_hashable(key):
             return func(*args, **kws)
 
         # if we are here, we should be ok to lookup / cache the answer
+        # pylint: disable=broad-except
         try:
             if key in self.cache:
                 self.logger.debug('Intercepted {:s} call: Loading result from '
@@ -431,9 +433,3 @@ class Reject(Ignore):
 
 class CacheRejectionWarning(Warning):
     pass
-
-
-# ---------------------------------------------------------------------------- #
-# Aliases                                       # pylint: disable=invalid-name
-to_file = Cached.to_file
-memoize = cached = Cached
