@@ -4,20 +4,18 @@ Recipes involving dictionaries
 
 
 # std
-from collections import abc
-from .functionals import Emit
 import numbers
-import warnings
 import itertools as itt
 from pathlib import Path
 from collections.abc import Hashable
-from collections import UserDict, OrderedDict, defaultdict
+from collections import OrderedDict, UserDict, abc, defaultdict
 
 # third-party
 import more_itertools as mit
 
 # relative
 from .string import indent
+from .functionals import Emit
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
@@ -307,6 +305,21 @@ class OrderedAttrDict(OrderedDict, AttrBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
+
+
+class TreeLike(AttrDict, AutoVivify):
+    def __init__(self, mapping=(), **kws):
+        super().__init__()
+        kws.update(mapping)
+        for a, v in kws.items():
+            self[a] = v
+
+    def __setitem__(self, key, val):
+        if '.' in key:
+            key, tail = key.split('.', 1)
+            self[key][tail] = val
+        else:
+            super().__setitem__(key, val)
 
 
 class Indexable:
