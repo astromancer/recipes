@@ -144,11 +144,16 @@ class CacheManager(LoggingMixin):
     @filename.setter
     def filename(self, filename):
         self._filename = str(filename) if filename else None
-        if self.path:
-            self.stale = True
-            if not self.path.parent.exists():
-                raise ValueError(f'Parent folder does not exist: '
-                                 f'{self.path.parent}')
+        path = self.path
+        if not path:
+            return
+        
+        self.stale = True
+        if path.parent.exists():
+            return
+            
+        raise ValueError(f'Parent folder does not exist: {path.parent}')
+            
 
     @property
     def path(self):
@@ -178,7 +183,7 @@ class CacheManager(LoggingMixin):
         return val
 
     def _update_from_file(self):
-        if self.filename and self.stale:
+        if self.stale and self.filename and self.path.exists():
             clone = self.load(self.filename)
             # self.data.update(clone.data) 
             # # RuntimeError: OrderedDict mutated during iteration
