@@ -20,10 +20,11 @@ class Node(anytree.Node):
 
     # This function decides the names of the nodes. It will be called on each
     # string in the input list, returning the name of the of that node parent
-    get_name = op.itemgetter(0)
+    get_prefix = op.itemgetter(0)
 
+    # rendering option
     use_dynamic_spacing = True
-    
+
     @classmethod
     def from_list(cls, items):
         # ensure list of strings
@@ -39,16 +40,13 @@ class Node(anytree.Node):
         Build the tree by splitting the list of strings letter by letter and
         grouping when subsequent letters have the same prefix.
         """
-        for base, words in itt.groupby(filter(None, words), self.get_name):
+        for base, words in itt.groupby(filter(None, words), self.get_prefix):
             child = self.__class__(base, parent=self)
             child.make_branch((remove_prefix(w, base)
                                for w in filter(None, words)))
 
-    # def get_name():
-    #     return op.itemgetter(0)
-
     def __repr__(self):
-        # we need this because anytree uses repr to render the tree. Not ideal 
+        # we need this because anytree uses repr to render the tree. Not ideal
         # since it obscures the true object.
         return str(self.name)
 
@@ -60,7 +58,7 @@ class Node(anytree.Node):
     # def append(self, name):
     #     child = type(self)(name)
     #     self.children = (*self.children, child)
-    
+
     def collapse_unary(self):
         """
         Collapse all unary branches of the node ie. If a node has only one child 
@@ -151,7 +149,7 @@ class Node(anytree.Node):
 
         if not self.use_dynamic_spacing:
             return s
-        
+
         pre = re.compile('([│├└ ])[─ ]{2} ')
         first, *lines = s.splitlines()
         new = first + '\n'
@@ -174,5 +172,6 @@ class Node(anytree.Node):
 
 
 class FileSystemNode(Node):
-    def get_name(self, item):
+
+    def get_prefix(self, item):
         return ''.join(item.partition(r'/')[:-1])
