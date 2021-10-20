@@ -71,7 +71,7 @@ def append(obj, suffix):
 
 class ItemGetter:
     """
-    (Multi-)Item getter with optional default substitution
+    (Multi-)Item getter with optional default substitution.
     """
     _worker = staticmethod(getitem)
     _excepts = (KeyError, IndexError)
@@ -81,9 +81,11 @@ class ItemGetter:
         self.keys = keys
         self.defaults = defaults or {}
         self.unpack = tuple if len(self.keys) > 1 else next
-        typo = set(self.defaults.keys()) - set(self.keys)
-        if typo:
-            warnings.warn(f'Invalid keys in `defaults` mapping: {typo}')
+        
+        # FAILS for slices: TypeError: unhashable type: 'slice'
+        # typo = set(self.defaults.keys()) - set(self.keys)
+        # if typo:
+        #     warnings.warn(f'Invalid keys in `defaults` mapping: {typo}')
 
         self.default = default
         if default is NULL:
@@ -110,7 +112,7 @@ class ItemGetter:
 class AttrGetter(ItemGetter):
     """
     (Multi-)Attribute getter with optional default substitution and chained
-    lookup support for nested objects.
+    lookup support for lookup on nested objects.
     """
     _excepts = (AttributeError, )
 
@@ -158,7 +160,7 @@ class ItemVector(VectorizeMixin, ItemGetter):
     """Vectorized ItemGetter"""
 
 
-class AttrVector(VectorizeMixin, AttrGetter):
+class AttrVector(VectorizeMixin, AttrGetter):  # AttrTable!
     """Vectorized AttrGetter"""
 
 
@@ -207,10 +209,9 @@ class MethodCaller:
                     self._args)
 
         return self.__class__, (self._name,) + self._args
-# update c
-# MethodCaller.__doc__ += op.methodcaller.__doc__.replace('methodcaller', 'MethodCaller')
 
 
+# pylint: disable=function-redefined
 def index(collection, item, start=0, test=eq, default=NULL):
     """
     Find the index position of `item` in `collection`, or if a test function is
@@ -261,15 +262,24 @@ def index(collection, item, start=0, test=eq, default=NULL):
 
 class contained:  # pylint: disable=invalid-name
     """
-    Helper class for condition testing presence of items in sequences
+    Helper class for condition testing presence of items in sequences.
 
     Example
     >>> [*map(contained('*').within, ['', '**', '..'])]
     [False, True, False]
     """
+    def __new__(cls, *args):
+        if len(args) == 2:
+            return (args[0] in args[1])
+
+        return super().__new__(cls)
 
     def __init__(self, item):
         self.item = item
+
+    # def __call__(self, item, container):
+    #     """ item in container"""
+    #     return item in container
 
     def within(self, container):
         return self.item in container
@@ -278,3 +288,4 @@ class contained:  # pylint: disable=invalid-name
 # aliases
 itemgetter = ItemGetter
 attrgetter = AttrGetter
+has = contained

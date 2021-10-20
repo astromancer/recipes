@@ -95,18 +95,6 @@ def save_json(filename, data, **kws):
 
 
 def iter_files(path, extensions='*', recurse=False, ignore=()):
-    if isinstance(ignore, str):
-        ignore = (ignore, )
-
-    for file in _iter_files(path, extensions, recurse):
-        for pattern in ignore:
-            if fnm.fnmatchcase(str(file), pattern):
-                break
-        else:
-            yield file
-
-
-def _iter_files(path, extensions='*', recurse=False):
     """
     Generator that yields all files in a directory tree with given file
     extension(s), optionally recursing down the directory tree. Brace expansion
@@ -145,6 +133,19 @@ def _iter_files(path, extensions='*', recurse=False):
     ValueError
         If the given base path does not exist
     """
+    if isinstance(ignore, str):
+        ignore = (ignore, )
+
+    for file in _iter_files(path, extensions, recurse):
+        for pattern in ignore:
+            if fnm.fnmatchcase(str(file), pattern):
+                break
+        else:
+            yield file
+
+
+def _iter_files(path, extensions='*', recurse=False):
+    
 
     path = str(path)
 

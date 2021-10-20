@@ -16,7 +16,7 @@ import docsplice as doc
 # relative
 from . import op, iter as _iter
 from .dicts import DefaultOrderedDict
-from .functionals import always, echo, echo0 as _echo
+from .functionals import always, echo0 as _echo
 
 
 # function that always returns 0
@@ -86,8 +86,10 @@ def cosort(*lists, key=None, master_key=None, order=1):
     lists = list(map(list, lists))
 
     # check that all lists have the same length
-    if len(set(map(len, lists))) != 1:
-        raise ValueError('Cannot co-sort raggedly shaped lists')
+    unique_sizes = set(map(len, lists))
+    if len(unique_sizes) != 1:
+        raise ValueError(f'Cannot co-sort lists with varying sizes: '
+                         f'{unique_sizes}')
 
     list0 = list(lists[0])
     if not list0:  # all lists are zero length

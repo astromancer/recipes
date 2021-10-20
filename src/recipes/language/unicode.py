@@ -113,8 +113,9 @@ class ScriptTranslate(dict):
     """(Super/sub)script translation helper"""
 
     def __init__(self, nrs, chars, symbols):
-        super().__init__(enumerate(nrs), **chars)
+        super().__init__(nrs)
         self.update(zip(strings(nrs), nrs.values()))
+        self.update(chars)
         self.update(symbols)
         self.__dict__.update(chars)
 

@@ -2,6 +2,7 @@
 Common decorators and simple helpers for functional code patterns.
 """
 
+# pylint: disable=invalid-name
 
 import warnings
 
@@ -55,9 +56,9 @@ class Emit:
     """
 
     def __init__(self, severity=-1, exception=Exception):
-        self._actions = {-1: noop,               # silently ignore invalid types
-                         0: warnings.warn,           # emit warning
-                         1: raises(exception)}       # raise
+        self._actions = {-1: noop,              # silently ignore invalid types
+                         0: warnings.warn,      # emit warning
+                         1: raises(exception)}  # raise
         self.severity = severity
 
     @property

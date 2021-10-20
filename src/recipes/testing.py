@@ -235,6 +235,7 @@ class Expected(LoggingMixin):
 
         # get func signature
         self.sig = signature(self.func)
+        # self.pos = ()
         self.vkw = self.var = None
         self.pnames = params = ()
         if self.sig.parameters:
@@ -243,6 +244,9 @@ class Expected(LoggingMixin):
         for k, v in dict(vkw=VKW, var=VAR).items():
             if v in kinds:
                 setattr(self, k, self.pnames[kinds.index(v)])
+
+        # if POS in kinds:
+        #     self.pos = self.pnames[:kinds.index(POS)]
 
         # mock
         # setattr(self, name, get_hashable_args)
@@ -330,17 +334,18 @@ class Expected(LoggingMixin):
         return self(items, *args, left_transform=transform, **kws)
 
     def bind(self, *args, **kws):
-        if self.is_method:
-            args = (None, *args)
+        # if self.is_method:
+        #     args = (None, *args)
 
         bound = self.sig.bind(*args, **kws)
         bound.apply_defaults()
-        params = bound.arguments
+        return bound.arguments
+        # params = bound.arguments
 
-        if self.is_method:
-            params.pop('self')
+        # if self.is_method:
+        #     params.pop('self')
 
-        return params
+        # return params
 
     def get_args(self, items):
         # loop through the input argument list (items) and create the full
@@ -424,18 +429,18 @@ class Expected(LoggingMixin):
             # introspection of locals in this scope works when producing the
             # failure report
             if answer != expected:
-
                 message = '\n'.join((
                     'Result from function '
-                    f'{motley.green(repr(self.func.__name__))}'
+                    '{self.func.__name__:s|green}'
                     ' is not equal to expected answer!',
-                    f'RESULT:\n{answer}',
-                    f'EXPECTED:\n{expected}'
+                    'RESULT:\n{answer!r}',
+                    'EXPECTED:\n{expected!r}'
                 ))
                 if isinstance(answer, str) and isinstance(expected, str):
-                    message += f'\nDIFF\n{show_diff(answer, expected)}'
+                    diff_string = show_diff(repr(answer), repr(expected))
+                    message += f'\nDIFF\n{diff_string}'
 
-                raise AssertionError(message)
+                raise AssertionError(motley.format(message, **locals()))
 
         # Override signature to add `expected` parameter
         # Add `expected` parameter after variadic keyword arguments

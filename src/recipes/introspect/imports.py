@@ -32,6 +32,7 @@ from ..string import remove_suffix, remove_prefix, truncate
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: duplicate aliases
+# FIXME: inline comments get removed
 
 # TODO: comment directives to keep imports
 # TODO: split_modules

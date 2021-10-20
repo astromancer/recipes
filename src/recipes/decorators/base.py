@@ -131,10 +131,12 @@ class Decorator:
     constructor receives as the first argument. It is therefore not possible to
     use this decorator if the first argument to the initializer is a some
     callable. This will not work as expected:
+    
     >>> class coerce_first_param(decorator):
     ...     def __init__(self, new_type):
     ...         assert isinstance(new_type, type)
     ...         self.new_type = new_type
+    ...
     ...     def __wrapper__(self, obj):
     ...         return self.__wrapped__(self.new_type(obj))
     ...

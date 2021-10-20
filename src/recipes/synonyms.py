@@ -1,5 +1,27 @@
 """
-Functional keyword translation for understanding inexact input from humans 
+Parameter and Keyword name translation for understanding inexact human inputself.
+
+Say you have an API function:
+
+>>> def stamp(labeled=True, color='default', center=False):
+...     'does a thing'
+
+Your users might attempt the following:
+>>> stamp(centre=True, colour='green', labelled='order 66')
+unwittingly having used a variant spelling of the parameter names that is
+natural to theor local. This will of course lead to an error. Unless...
+
+We can teach out function these alternatives like so:
+>>> @api.synonymns(dict(
+...     labeled ='labell?ed',
+...     color   ='colou?r[ed]',
+...     center  ='cent[er|re]'
+... ))
+... def stamp(labeled=True, color='default', center=False):
+...     'the usual definition goes here'
+
+Now, like magic, our function will work with the alternatives we gave it via the
+regexes above at the cost of a small overhead for each misspelled parameter.
 """
 
 # Keyword translation on-the-fly for flexible APIs.
