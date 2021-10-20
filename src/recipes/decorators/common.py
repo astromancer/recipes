@@ -1,10 +1,18 @@
+"""
+Some common decorators.
+"""
 
+# std
 import warnings
-from .. import pprint as pp
-from . import Decorator
+from collections import abc
 from textwrap import dedent
-from ..functionals import noop, raises
 
+# relative
+from .. import pprint as pp
+from ..functionals import Emit
+from . import Decorator
+
+# # pylint: disable=invalid-name
 
 # def raises(exception):
 #     """raises an exception of type `exception`."""
@@ -13,9 +21,10 @@ from ..functionals import noop, raises
 #     return _raises
 
 
-
-
 class catch(Decorator):
+    """
+    Catch an exception and log it, or raise an alternate exception.
+    """
     def __init__(self, exceptions=Exception, action=-1, alternate=Exception,
                  message='Caught the following {err.__class__.__name__}: {err}'
                  ):
@@ -29,8 +38,27 @@ class catch(Decorator):
         except self.exceptions as err:
             self.emit(self.message(func, args, kws, err))
 
-    def message(self, func, args, kws,  err):
-        return self.template.format(err)
+    def message(self, _func, args, kws,  err):
+        """format the message template"""
+        return self.template.format(*args, **kws, err=err)
+
+
+class fallback(Decorator):
+    """Return the fallback value in case of exception."""
+
+    def __init__(self, value, exceptions=(Exception, ), warns=False):
+        self.fallback = value
+        if (not isinstance(exceptions, abc.Collection)
+            and issubclass(exceptions, BaseException)):
+            exceptions = (exceptions,)
+        self.excepts = tuple(exceptions)
+        self.emit = Emit(warns - 1)
+
+    def __wrapper__(self, func, *args, **kws):
+        try:
+            return func(*args, **kws)
+        except self.excepts as err:
+            self.emit(err)
 
 
 class post(Decorator):
