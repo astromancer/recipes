@@ -504,19 +504,59 @@ def working_dir(path):
     finally:
         os.chdir(original)
 
-
-def walk_level(dir_, depth=1):
+def show_tree(folder, use_dynamic_spacing=False):
     """
-    Walk the system path, but only up to the given depth
+    Print the file system tree:
+
+    Parameters
+    ----------
+    folder : str or Path
+        File system directory.
+
+    Examples
+    --------
+    >>> show_tree('.')
+    .
+    ├── 20130615.ragged.dat
+    ├── 20130615.ragged.txt
+    ├── 20140703
+    │   ├── 20140703.010.ragged.txt
+    │   └── 20140703.011.ragged.txt
+    ├── 20140703.ragged.dat
+    ├── 20140703.ragged.txt
+    ├── 20140708.ragged.dat
+    ├── 20140708.ragged.txt
+    ├── 20160707.ragged.dat
+    ├── 20160707.ragged.txt
+    ├── 202130615
+    │   ├── 202130615.0020.ragged.txt
+    │   └── 202130615.0021.ragged.txt
+    ├── 202140708
+    │   └── 202140708.001.ragged.txt
+    └── SHA_20160707
+        └── SHA_20160707.0010.ragged.txt
     """
-    # http://stackoverflow.com/a/234329/1098683
+    
+    from ..tree import FileSystemNode
+    
+    tree = FileSystemNode.from_list(iter_files(folder))
+    tree.collapse_unary()
+    tree.use_dynamic_spacing = bool(use_dynamic_spacing)
+    return tree.render()
 
-    dir_ = dir_.rstrip(os.path.sep)
-    assert os.path.isdir(dir_)
+def walk(folder, depth=1):
+    """
+    Walk the system path, but only up to the given depth.
+    """
+    # adapted from: http://stackoverflow.com/a/234329/1098683
 
-    num_sep = dir_.count(os.path.sep)
-    for root, dirs, files in os.walk(dir_):
+    folder = folder.rstrip(os.path.sep)
+    assert os.path.isdir(folder)
+
+    n_sep = folder.count(os.path.sep)
+    for root, dirs, files in os.walk(folder):
         yield root, dirs, files
-        num_sep_here = root.count(os.path.sep)
-        if num_sep + depth <= num_sep_here:
+
+        level = root.count(os.path.sep)
+        if n_sep + depth <= level:
             del dirs[:]
