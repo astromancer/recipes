@@ -675,10 +675,14 @@ class BracketParser:
 
     # def groupby(self, *attrs):
 
-    def remove(self, string, condition=always_true):
+    def strip(self, string, condition=always_true):
         """
-        Removes arbitrary number of closed bracket pairs from a string up to
-        requested depth.
+        Conditionally strip opening and closing brackets from the string. 
+
+        See Also
+        --------
+        `replace` which replaces the enclosed string for each matched pair of
+        brackets
 
         Parameters
         ----------
@@ -694,24 +698,37 @@ class BracketParser:
         Returns
         -------
         string
-            The string with all enclosing brackets removed.
+            The string with brackets stripped.
         """
+
         indices = set()
         for pair in self.iterate(string, condition=condition):
             indices.update(pair.indices)
-        indices.remove(None)
+        indices -= {None}
         return delete(string, indices)
 
-    def strip(self, string):
-        """
-        Strip outermost paired brackets.
+    # def strip(self, string):
+    #     """
+    #     Strip all outermost paired brackets.
 
-        Parameters
-        ----------
-        string
-            The string with outermost enclosing brackets removed.
-        """
-        return self.remove(string, condition=(level == 0))
+    #     return self.remove(string, condition=(level == 0))
+
+    def _ireplace(self, string, sub, condition=always_true):
+        start = 0
+        for pair in self.iterate(string, condition=condition):
+            yield string[start:pair.start]
+            yield sub
+            start = pair.end + 1
+        yield string[start:]
+
+    def replace(self, string, sub, condition=always_true):
+        return ''.join(self._ireplace(string, sub, condition))
+
+    def remove(self, string, condition=always_true):
+        return self.replace(string, '', condition)
+
+    # def switch():
+    # change bracket type
 
     # def split(self, string):
 
