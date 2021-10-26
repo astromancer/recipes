@@ -1,6 +1,21 @@
 """
 Some object oriented code patterns.
 """
+import contextlib as ctx
+
+
+@ctx.contextmanager
+def temporarily(obj, **kws):
+    try:
+        original = {atr: getattr(obj, atr) for atr in kws}
+        for atr, val in kws.items():
+            setattr(obj, atr, val)
+        yield obj
+    except:
+        raise
+    finally:
+        for atr, val in original.items():
+            setattr(obj, atr, val)
 
 
 def iter_subclasses(cls, _seen=None):
@@ -47,48 +62,17 @@ def iter_subclasses(cls, _seen=None):
 def list_subclasses(cls):
     return list(iter_subclasses(cls))
 
-
-# ---------------------------------------------------------------------------- #
-
-class Singleton:
-    class __Singleton:
-        def __str__(self):
-            return repr(self)
-
-    instance = None
-
-    def __init__(self):
-        if Singleton.instance is None:
-            Singleton.instance = Singleton.__Singleton()
-
-    def __getattr__(self, name):
-        return getattr(self.instance, name)
-
-
-#
-# Singleton/BorgSingleton.py
-# Alex Martelli's 'Borg'
-
-# class Borg:
-#     _shared_state = {}
-#
-#     def __init__(self):
-#         self.__dict__ = self._shared_state
-#
-#
-# class Singleton(Borg):
-#     def __init__(self, arg):
-#         Borg.__init__(self)
-#         self.val = arg
-#
-#     def __str__(self):
-#         return self.val
-
 # ---------------------------------------------------------------------------- #
 
 
 class SelfAwareness(type):
-    """SelfAware type class"""
+    """
+    Meta class for SelfAware objects. When initializing a `SelfAware` class (by
+    calling this metaclass) with an instance of the same class as the first
+    parameter, that same instance is returned instead of initializing a new
+    object. This allows an optimization for objects with heavy initialization
+    overhead.
+    """
     def __call__(cls, instance=None, *args, **kws):
         # this is here to handle initializing the object from an already
         # existing instance of the class
@@ -102,20 +86,42 @@ class SelfAware(metaclass=SelfAwareness):
     """"
     A class which is aware of members of its own class. When initializing with
     an already existing instance, `__init__` is skipped and the original object
-    is returned
+    is returned.
 
     Examples
     --------
     >>> class A(SelfAware): 
-            def __init__(self, a): 
-                self.a = a 
-
-    >>> a = A(1)
-    >>> a is A(A(A(a)))
+    ...     def __init__(self, a): 
+    ...         self.a = a
+    ...
+    ... a = A(1)
+    ... a is A(A(A(a)))
     True
     """
 
-# ---------------------------------------------------------------------------- #
+
+class PartialAttributeLookup:
+    """
+    Attribute lookup that returns if the lookup key matches the start of the
+    attribute name and the match is one-to-one. Raises AttributeError otherwise.
+
+    Example
+    >>> class SmartThing(PartialAttributeLookup):
+    ...     some_long_attribute_name_that_is_overly_tautologous = '!'
+    ... SmartThing().some
+    '!'
+    """
+
+    def __getattr__(self, key):
+        try:
+            return super().__getattribute__(key)
+        except AttributeError as err:
+            maybe = [_ for _ in self.__dict__ if _.startswith(key)]
+            real, *others = maybe or (None, ())
+            if others or not real:
+                # ambiguous or non-existant
+                raise err from None
+            return super().__getattribute__(real)
 
 
 class ClassProperty(property):
@@ -125,36 +131,42 @@ class ClassProperty(property):
     Examples
     --------
 
-    class Foo:
-
-        _name = None  # optional name.
-        # Optional name. Defaults to class name if not over-written by inheritors
-
-        @ClassProperty
-        @classmethod
-        def name(cls):
-            return cls._name or cls.__name__
-
-        @name.setter
-        def name(self, name):
-            self.set_name(name)
-
-        @classmethod
-        def set_name(cls, name):
-            assert isinstance(name, str)
-            cls._name = name
-
-    >>> foo = Foo()
-    >>> foo.name
-    'Foo'
-    >>> foo.name = 'Yo'
-    >>> (foo.name, Foo.name)
-    ('Yo', 'Yo')
-    >>> Foo.name = 'zzz' # FIXME: OVERWRITES `name` - doesn't go through setter
-    >>> foo.name, Foo.name
+    >>> class Example:
+    ...
+    ...    _name = None  # optional name.
+    ...    # Optional name. Defaults to class name if not over-written by 
+    ...    # inheritors.
+    ...
+    ...    @ClassProperty
+    ...    @classmethod
+    ...    def name(cls):
+    ...        return cls._name or cls.__name__
+    ...
+    ...    @name.setter
+    ...    def name(self, name):
+    ...        self.set_name(name)
+    ...
+    ...    @classmethod
+    ...    def set_name(cls, name):
+    ...        assert isinstance(name, str)
+    ...        cls._name = name
+    ...
+    ... obj = Example()
+    ... obj.name
+    'Example'
+    >>> obj.name = 'New'
+    ... (obj.name, Example.name)
+    ('New', 'New')
+    
+    NOTE:FIXME Class level assignment OVERWRITES `name` - doesn't go through
+    setter
+    >>> Example.name = 'zzz'
+    ... obj.name, Example.name
     ('zzz', 'zzz')
 
     """
 
     def __get__(self, instance, kls):
         return self.fget.__get__(None, kls)()
+
+
