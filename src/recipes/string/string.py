@@ -4,6 +4,7 @@ Utilities for operations on strings
 
 
 # std
+
 import re
 import numbers
 import warnings as wrn
@@ -102,6 +103,38 @@ class Percentage:
 def strings(items):
     """Map collection to list of str"""
     return [*map(str, items)]
+
+
+# ---------------------------------------------------------------------------- #
+# String pattern matching
+
+def similarity(a, b):
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def most_similar(string, options, cutoff=0.5):
+    from recipes.lists import cosort
+
+    sims = [similarity(string, _) for _ in options]
+    sims, options = cosort(sims, options, order=-1)
+    # print('Similarities: {}', dict(zip(options, sims)))
+    # sims = sorted(sims, reverse=True)
+
+    potentials = where(sims, op.ge, cutoff)
+    first = next(potentials, None)
+
+    # at least one match above cutoff
+    if first is None:
+        return
+
+    # and top two matches not equally similar
+    second = next(potentials, None)
+    if second and sims[first] == sims[second]:
+        # ambiguous match
+        return
+
+    return options[first]
 
 
 # ---------------------------------------------------------------------------- #
