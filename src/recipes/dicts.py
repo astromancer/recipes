@@ -150,6 +150,11 @@ def invert(d, convertion={list: tuple}):
     return inverted
 
 
+def groupby(items, func):
+    """Convert itt.groupby to a dict"""
+    return {group: list(itr) for group, itr in itt.groupby(items, func)}
+        
+
 # ---------------------------------------------------------------------------- #
 class Pprinter:
     """Mixin class that pretty prints dictionary content"""
