@@ -153,9 +153,33 @@ def invert(d, convertion={list: tuple}):
 def groupby(items, func):
     """Convert itt.groupby to a dict"""
     return {group: list(itr) for group, itr in itt.groupby(items, func)}
-        
+
+
+def merge(*mappings, **kws):
+    """
+    Merge an arbitrary number of dictionaries together by repeated update.
+
+    Examples
+    --------
+    >>> merge(*({f'{(l := case(letter))}': ord(l)} 
+    ...        for case in (str.upper, str.lower) for letter in 'abc'))
+    {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99}
+
+    Returns
+    -------
+    dict
+        Merged dict
+
+    """
+    out = {}
+    for mapping in mappings:
+        out.update(mapping)
+    out.update(kws)
+    return out
 
 # ---------------------------------------------------------------------------- #
+
+
 class Pprinter:
     """Mixin class that pretty prints dictionary content"""
 
