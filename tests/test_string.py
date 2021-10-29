@@ -1,5 +1,5 @@
 from recipes.testing import Expected, Throws, mock, expected, ECHO
-from recipes.string import Percentage, sub, title
+from recipes.string import Percentage, sub, title, justify
 import pytest
 
 
@@ -29,19 +29,19 @@ test_sub = Expected(sub)(
         \label{eq:bin_pot_vec}
         Ψ\qty(\vb{r}) = - \frac{GM_1}{\abs{\vb{r - r_1}}}
         \end{equation}""",
-              {'_p': 'ₚ', 'eq:bin_pot_vec': 'eq:bin_pot_vec'}): 
+              {'_p': 'ₚ', 'eq:bin_pot_vec': 'eq:bin_pot_vec'}):
      ECHO
      }
 )
 
 
-test_title = Expected(title)(
+test_title = Expected(title)({
     # basic
-    {mock.title('hello world'):             'Hello World',
-     mock.title('hello world', 'world'):    'Hello world',
-     mock.title('internal in inside', 'in'):   'Internal in Inside',
-     mock.title('words for the win', ('for', 'the')): 'Words for the Win'
-     }
+    mock.title('hello world'):                         'Hello World',
+    mock.title('hello world', 'world'):                'Hello world',
+    mock.title('internal in inside', 'in'):            'Internal in Inside',
+    mock.title('words for the win', ('for', 'the')):   'Words for the Win'
+}
 )
 
 
@@ -70,9 +70,20 @@ def test_percentage(s, e):
     assert Percentage(s).of(12345.) == e
 
 
+test_justify = Expected(justify)({
+    # (justify := mock.justify), 
+    mock.justify('!\n!', '<', 10): '!         \n!         ',
+    mock.justify('!\n!', '>', 10): '         !\n         !',
+    mock.justify('!\n!', '>', 10): '    !     \n    !     '
+})
+
+
 # @pytest.mark.parametrize('s', ['3r',
 #                                'some text 100.0.ss',
 #                                '12.0001 %'])
 # def test_percentage_raises(s):
 #     n = Percentage(s).of(12345.)
 #     print(n)
+
+
+# def test_hstack(strings):

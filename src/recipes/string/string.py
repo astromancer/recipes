@@ -618,48 +618,54 @@ def resolve_justify(align):
     return align
 
 
-def justify(text, how='<', width_=None, /):
+def justify(text, align='<', width=None, length_func=len, formatter=str.format):
     """
-    [summary]
+    Justify a paragraph of text.
 
     Parameters
     ----------
-    text : [type]
-        [description]
-    how : str, optional
-        [description], by default '<'
-    width_ : [type], optional
-        [description], by default None
-
-    Examples
-    --------
-    >>> 
+    text : str
+        Text to justify.
+    align : str, optional
+        Alignment, by default '<'.
+    width : int, optional
+        Line width. The default is None, which uses the terminal width if
+        available, falling back to classic 80.
 
     Returns
     -------
-    [type]
-        [description]
+    str
+        Justified text.
     """
-    how = resolve_justify(how)
-    width_ = int(width_ or width(text))
-    if how != ' ':
-        return '\n'.join(map(f'{{: {how}{width_}}}'.format, text.splitlines()))
+    return '\n'.join(_justify(text, align, width, length_func, formatter))
 
+
+def _justify(text, align, width, length_func, formatter):
+
+    align = resolve_justify(align)
     lines = text.splitlines()
-    # widths = list(map(len, lines))
+    linewidths = list(map(length_func, lines))
+    widest = max(linewidths)
+    width = int(width or widest)
+    if widest > width:
+        wrn.warn(f'Requested paragraph width of {width} is less than the '
+                 f'length of widest line: {widest}.')
 
-    for i, line in enumerate(lines):
-        w = len(line)
-        delta = width_ - w
+    if align != ' ':
+        for lw, line in zip(linewidths, lines):
+            yield formatter('{: {}{}}', line, align, max(width, lw))
+        return
+
+    for w, line in zip(linewidths, lines):
+        delta = width - w
         if delta < 0:
-            wrn.warn(f'Cannot justify paragraph to width of {width_} which is '
-                     f'smaller than the length of the longest line ({w}).')
-            continue
+            yield line
 
         indices = list(where(line, ' '))
         d, r = divmod(delta, len(indices))
         for j, k in enumerate(indices[::-1]):
-            line[i] = insert(' ' * d + (j < r), line, k)
+            yield insert(' ' * d + (j < r), line, k)
+
 
     return '\n'.join(lines)
 
