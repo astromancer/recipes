@@ -17,8 +17,8 @@ import more_itertools as mit
 
 # relative
 from .. import op
+from ..iter import where
 from ..misc import duplicate_if_scalar
-from ..iter import filter_duplicates, where
 
 
 # regexes
@@ -165,13 +165,32 @@ def delete(string, indices=()):
     -------
     str
     """
-    n = len(string)
-    z = bytearray(string.encode())
+
+    if not indices:
+        return string
+
+    return ''.join(_delete(string, indices))
+
+
+def _delete(string, indices):
     # remove duplicate indices accounting for wrapping
-    indices = filter_duplicates(indices, lambda i: (i + n) % n)
-    for i in sorted(indices, key=abs, reverse=True):
-        del z[i]
-    return z.decode()
+    n = len(string)
+    i = prev = -1
+    indices = duplicate_if_scalar(indices, 1, raises=False)
+    for i in sorted({(i + n) % n for i in indices}):
+        yield string[prev + 1:i]
+        prev = i
+
+    if i < n - 1:
+        yield string[i + 1:]
+
+    # BELOW ONLY WORKS FOR ASCII!!
+    # z = bytearray(string.encode())
+    # indices = filter_duplicates(indices, lambda i: (i + n) % n)
+    # for i in sorted(indices, key=abs, reverse=True):
+    #     del z[i]
+    # return z#.decode()
+
 
 
 def insert(sub, string, index):
