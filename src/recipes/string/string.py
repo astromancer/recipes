@@ -192,6 +192,25 @@ def _delete(string, indices):
     # return z#.decode()
 
 
+def backspaced(string):
+    """
+    Resolve backspace control sequence "\b" by remove them and the characters
+    that immediately preceed them. 
+
+    Parameters
+    ----------
+    string : str
+
+    Examples
+    --------
+    >>> backspaced('.?!\b\b')
+    '.'
+    """
+    if '\b' not in string:
+        return string
+
+    return backspaced(delete(string, [i := string.index('\b'), max(i - 1, 0)]))
+
 
 def insert(sub, string, index):
     return string[:index] + sub + string[index:]
