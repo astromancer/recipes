@@ -46,9 +46,14 @@ from ..string import remove_suffix, remove_prefix, truncate
 
 
 # list of builtin modules
-easterEggs = ['this', 'antigravity']
-unlisted = ['keyword']  # auto-generated module for builtin keywords
-builtin_module_names = stdlib_list(sys.version[:3]) + easterEggs + unlisted
+BUILTIN_MODULE_NAMES = [
+    # builtins
+    *stdlib_list(sys.version[:3]),
+    # python easter eggs
+    'this', 'antigravity'
+    # auto-generated module for builtin keywords
+    'keyword'
+]
 
 # object that finds system location of module from name
 # pathFinder = PathFinder()
@@ -85,9 +90,41 @@ def is_relative(node):
     return get_level(node) > 0
 
 
+def get_level(node):
+    """Get the level of an import node. Positive for relative imports else 0."""
+    return getattr(node, 'level', 0)
+
+
+def get_length(node):
+    """Get line width of the import statement as it would appear in source."""
+    return len(rewrite(node))
+
+
+def get_mod_name_list(node):
+    return get_mod_name(node).split('.')
+
+
+def get_package_name(node):
+    fullname = get_mod_name(node)
+    # if fullname.startswith('.'):
+    #     return '.' * node.level
+
+    return fullname.split('.', 1)[0]
+
+
+def relative_sorter(node):
+    if is_relative(node):
+        # this prioritizes higher relatives '..' above '.'
+        # also '..' above '..x'
+        return 0.5 * bool(node.module) - node.level
+    return 0
+
+# ---------------------------------------------------------------------------- #
+# Dispatcher for getting module name import node or path
+
 @ftl.singledispatch
-def get_mod_name(obj):
-    # get the full (dot separated) module name from various types:
+def get_mod_name(_):
+    """Get the full (dot separated) module name from various types."""
     # ast.Import
     raise TypeError()
 
@@ -122,7 +159,7 @@ def _(path):
     # may actually be higher up in the folder tree.
     while candidates:
         trial = candidates.pop(0)
-        if candidates and (trial.name in builtin_module_names):
+        if candidates and (trial.name in BUILTIN_MODULE_NAMES):
             continue
 
         # convert to dot.separated.name
@@ -132,33 +169,6 @@ def _(path):
 
     wrn.warn(f'Could not find package for \'{path}\'.')
 
-
-def get_level(node):
-    return getattr(node, 'level', 0)
-
-
-def get_length(node):
-    return len(rewrite(node))
-
-
-def get_mod_name_list(node):
-    return get_mod_name(node).split('.')
-
-
-def get_package_name(node):
-    fullname = get_mod_name(node)
-    # if fullname.startswith('.'):
-    #     return '.' * node.level
-
-    return fullname.split('.', 1)[0]
-
-
-def relative_sorter(node):
-    if is_relative(node):
-        # this prioritizes higher relatives '..' above '.'
-        # also '..' above '..x'
-        return 0.5 * bool(node.module) - node.level
-    return 0
 
 # ---------------------------------------------------------------------------- #
 # Node writer
@@ -224,7 +234,7 @@ def get_module_typecode(module_name):
 
 
 def is_builtin(name):  # name.split('.')[0]
-    return name in builtin_module_names
+    return name in BUILTIN_MODULE_NAMES
 
 
 def is_local(name):
@@ -290,7 +300,12 @@ NODE_SORTERS = {
 
 
 def ALIAS_SORTER(alias):
-    return alias.name, alias.name.islower()
+    """
+    Aliases are sorted in case-sensitive alphabetical order. 
+    UPPERCASE preceeds TitleCase preceeds lowercase.
+    """
+    return (not alias.name.isupper()), alias.name, alias.name.islower()
+
 # list(NODE_SORTERS[''])
 
 # ---------------------------------------------------------------------------- #
