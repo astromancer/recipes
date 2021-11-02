@@ -22,9 +22,6 @@ from . import delete
 # # __all__ = ['BracketParser', 'braces', 'square', 'round', 'chevrons']
 
 ALL_BRACKET_PAIRS = ('()', '[]', '{}', '<>')
-PAIRED = dict(ALL_BRACKET_PAIRS)
-PAIRED.update(dict(zip(PAIRED.values(), PAIRED.keys())))
-
 
 SYMBOLS = {op.eq: '==',
            op.lt: '<',
@@ -284,6 +281,8 @@ class BracketParser:
         self.pairs = list(set(pairs))
         self.open, self.close = zip(*self.pairs)
         self._open_close = ''.join(self.open) + ''.join(self.close)
+        self.pair_map = pm = dict(pairs)
+        self.pair_map.update(dict(zip(pm.values(), pm.keys())))
 
     # @ftl.lru_cache()
     def _index(self, string):
@@ -304,7 +303,7 @@ class BracketParser:
                 positions[b].append(j)
                 open_[b] += 1
             else:
-                o = PAIRED[b]
+                o = self.pair_map[b]
                 open_[o] -= 1
                 pos = positions[o]
                 if pos:
@@ -326,7 +325,7 @@ class BracketParser:
             # +'; '.join(map('{!r:} at {:d}'.format, open_, pos)))
 
         for b, idx in positions.items():
-            o = PAIRED[b]
+            o = self.pair_map[b]
             for i in idx:
                 yield BracketPair((o, b), None, (i, None), 0)
 
@@ -416,7 +415,7 @@ class BracketParser:
 
     def strip(self, string, condition=always_true):
         """
-        Conditionally strip opening and closing brackets from the string. 
+        Conditionally strip opening and closing brackets from the string.
 
         See Also
         --------
