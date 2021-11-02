@@ -34,6 +34,7 @@ regexes above at the cost of a small overhead for each misspelled parameter.
 # std
 import re
 import inspect
+import itertools as itt
 
 # third-party
 from loguru import logger
@@ -44,28 +45,56 @@ from ..decorators import Decorator
 from ..string.brackets import BracketParser
 
 
+def _ordered_group(word):
+    return '|'.join(itt.accumulate(word)).join(('()'))
+
+
+def _unordered_group(word):
+    return word.join('[]') + f'{{0,{len(word)}}}'
+
+
+OPTION_REGEX_BUILDERS = {'[]': _ordered_group,
+                         '()': _unordered_group}
+
+
 class KeywordTranslator:
     """
     Class to assist many-to-one keyword mappings via regex pattern matching.
     """
-    parser = BracketParser('[]')
+    parser = BracketParser('[]', '()')
 
-    def __init__(self, pattern, answer=''):
+    def __init__(self, pattern, answer=''):  # ensure_order
         """
+        Implements a basic pattern matching syntax to match incomplete words.
+        Optional characters that need to appear in order should be enclosed in
+        square brackets eg: "n[umbe]r". This pattern will match "number" as well
+        as "numr" and "nr", but not "nuber". Optional characters that can have
+        any order should be enclosed in round brackets eg: "frivol(ou)s".
+
+        Note that input patterns are translated to regex, so eg:
+            "n[umbe]r" --> "n(u|um|umb|umbe)r"
+            "n(umber)" --> "n[umber]{0,5}"
+        Any other regex syntax in the pattern will pass through unaltered. You 
+        can use this to your adbvantage. For example to match a single optional
+        optional character, either enclose it in round brackets, or append a "?"
+        eg: "col(_)head" and "col_?head" both work to match the optional
+        underscore.
 
         Parameters
         ----------
-        pattern
-        answer
+        pattern : str
+            Pattern for matching parameter / keyword names.
+        answer: str
+            The desired translation target.
 
         Example
         -------
-        >>> tr = KeywordTranslator('n[umbe]r[_rows]', 'row_nrs')
-        >>> tr('number_rows')
+        >>> resolve = KeywordTranslator('n[umbe]r[_rows]', 'row_nrs')
+        >>> resolve('number_rows')
+        'row_nrs' 
+        >>> resolve('nr_rows')
         'row_nrs'
-        >>> tr('nr_rows')
-        'row_nrs'
-        >>> tr('nrs')
+        >>> resolve('nrs')
         'row_nrs'
         """
 
@@ -81,10 +110,11 @@ class KeywordTranslator:
 
             # print(s, i0, i1)
             i0, i1 = match.indices
-            s = match.enclosed
+            s = OPTION_REGEX_BUILDERS[''.join(match.brackets)](match.enclosed)
             # regex for optional characters
             # 'n[umbe]r[_rows]' -> n(umber)?r(_rows)?
-            regex += f'{sub[:i0]}({s})?'
+
+            regex += f'{sub[:i0]}{s}?'
             # self.answer += sub[:i0]
             sub = sub[i1 + 1:]
 
