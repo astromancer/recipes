@@ -90,13 +90,14 @@ logger = logging.getLogger(__file__)
 class Decorator:
     """
     Decorator class which supports optional initialization parameters. Can be
-    pickled, unlike function based decorators / factory.
+    pickled, unlike function based decorators / factory. The actual decorator
+    should be implemented by overriding the `__wrapped__` method.
 
     There are two distinct use cases
     1) No explicit arguments provided to decorator.
     eg.:
     >>> @decorator
-    ... def foo(): ...
+    ... def fun(): ...
 
     2) Explicit arguments and/or keywords provided to decorator.
     eg.:
@@ -117,7 +118,7 @@ class Decorator:
 
     In the second use case, the `__init__` method should be implemented to
     handle the parameters ('hello', foo='bar') passed to the decorator
-    constructor. As before, the `__call__` method creates the wrapper and 
+    constructor. As before, the `__call__` method creates the wrapper and
     returns the `__wrapper__` method as the new decorated function.
 
     By default, this decorator does nothing besides call the original function. 
@@ -131,7 +132,7 @@ class Decorator:
     constructor receives as the first argument. It is therefore not possible to
     use this decorator if the first argument to the initializer is a some
     callable. This will not work as expected:
-    
+
     >>> class coerce_first_param(decorator):
     ...     def __init__(self, new_type):
     ...         assert isinstance(new_type, type)
@@ -155,9 +156,9 @@ class Decorator:
     # Purists might argue that this class is an anti-pattern since it invites
     # less explicit constructs that are confusing to the uninitiateod.
     # Here it is. Use it. Don't use it. Up to you.
-    # __wrapped__ = None
+    __wrapped__ = None
 
-    def __new__(cls, maybe_func=None, *args, **kws):
+    def __new__(cls, maybe_func=None, *_, **__):
         # create class
         obj = super().__new__(cls)
 
@@ -179,13 +180,16 @@ class Decorator:
         # ... def foo(): return
         return obj  # NOTE: `__init__` will be called when returning here
 
-    # def __init__(self, *args, **kws):
+    def __init__(self, *args, **kws):
         """
         Inherited classes can implement stuff here.
         """
 
     def __call__(self, func):
-        """Function wrapper created here."""
+        """
+        Function wrapper created here.
+        """
+        assert callable(func)
         self.__wrapped__ = func
         # func.__wrapper__ = self.__wrapper__
         # print('__wrapped__', self.__wrapped__, type(func), inclass(func))
@@ -197,6 +201,7 @@ class Decorator:
         Default wrapper simply calls the original `__wrapped__` function.
         Subclasses should implement the decorator here.
         """
+        # pylint: disable=no-self-use
         return func(*args, **kws)
 
     # def __reduce__(self):
@@ -205,5 +210,3 @@ class Decorator:
 
 # alias
 decorator = Decorator  # pylint: disable=invalid-name
-
-

@@ -66,18 +66,19 @@ as_sequence = as_iter
 # def where(iterable, test=bool):
 #     return nth_zip(0, *filter(on_first(test), enumerate(iterable)))
 
-def where(l, *args, start=0):
+def where(items, *args, start=0):
     """
-    Yield the indices at which items in `l` evaluate True.
+    Yield the indices at which items in `items` evaluate True.
+
     Valid call signatures are:
-        >>> where(l)
-        >>> where(l, item)
-        >>> where(l, func, rhs)
+        >>> where(items)                # yield indices where items are truthy
+        >>> where(items, value)         # yield indices where items equal value
+        >>> where(items, func, value)   # conditionally on func(item, value)
 
     Parameters
     ----------
-    l : list
-        Any list
+    items : Collection
+        Any Collection
     args : ([test], rhs)
         test : callable, optional
             Function for testing, should return bool, by default op.eq.
@@ -98,7 +99,7 @@ def where(l, *args, start=0):
     """
     nargs = len(args)
     if nargs == 0:
-        for i, item in enumerate(l):
+        for i, item in enumerate(items):
             if item:
                 yield i
         return
@@ -114,14 +115,14 @@ def where(l, *args, start=0):
                 >>> where(l)
                 >>> where(l, item)
                 >>> where(l, func, rhs)''')
-                )
+                         )
 
     i = start
-    n = len(l)
+    n = len(items)
     while i < n:
         try:
             # pylint: disable=too-many-function-args
-            i = op.index(l, rhs, i, test)
+            i = op.index(items, rhs, i, test)
             yield i
         except ValueError:
             # done

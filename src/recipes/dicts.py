@@ -498,7 +498,7 @@ class TransDict(UserDict):
         dic = dic or {}
         self.dictionary.update(dic, **kwargs)
 
-    # alias
+    # aliases
     add_trans = add_vocab = add_translations = add_mapping
 
     def __contains__(self, key):
@@ -573,7 +573,7 @@ class ManyToOneMap(TransDict):
 
     def add_func(self, func):
         if not callable(func):
-            raise ValueError(f'{func} object is not callable')
+            raise ValueError(f'{func} object is not callable.')
         self._mappings.append(func)
 
     def add_funcs(self, *funcs):
@@ -589,7 +589,7 @@ class ManyToOneMap(TransDict):
             except Exception as err:
                 self.emit(
                     f'{type(self).__name__}: Equivalence mapping function'
-                    f' failed with:\n{err!s}'
+                    f' failed with:\n{err!s}.'
                 )
 
     def resolve(self, key):
@@ -628,7 +628,9 @@ class DefaultOrderedDict(OrderedDict):
     # Note: dict order is gauranteed since pyhton 3.7
     def __init__(self, default_factory=None, mapping=(), **kws):
         if not (default_factory is None or callable(default_factory)):
-            raise TypeError('first argument must be callable')
+            raise TypeError(
+                'First argument to {self.__class__.__name__} must be callable.'
+                )
 
         OrderedDict.__init__(self, mapping, **kws)
         self.default_factory = default_factory
@@ -665,3 +667,7 @@ class DefaultOrderedDict(OrderedDict):
         return '%s(%s, %s)' % (self.__class__.__name__,
                                self.default_factory,
                                OrderedDict.__repr__(self))
+
+
+# alias
+OrderedDefaultDict = DefaultOrderedDict

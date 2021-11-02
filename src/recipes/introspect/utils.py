@@ -1,13 +1,10 @@
 """
 Introspction utilities.
 """
+
 import inspect
-from types import FrameType
 from typing import cast
-
-
-# from importlib.machinery import all_suffixes
-# SUFFIXES = all_suffixes()
+from types import FrameType, MethodType
 
 
 def get_caller_frame(back=1):
@@ -46,7 +43,7 @@ def get_caller_name(back=1):
 
 def get_module_name(obj=None, depth=None):
     """
-    Get fully qualified module name up to namespace depth `depth`
+    Get fully qualified module name of an object up to namespace depth `depth`.
     """
     if obj is None:
         obj = get_caller_frame(2)
@@ -139,7 +136,20 @@ def get_class_name(obj, depth=None):
     return '.'.join((get_module_name(kls, depth), kls.__name__))
 
 
-def get_class_that_defined_method(method):
+def get_class_that_defined_method(method: MethodType):
+    """
+    Get the class that defined a method.
+
+    Parameters
+    ----------
+    method : types.MethodType
+        The method for which the defining class will be retrieved.
+
+    Returns
+    -------
+    type
+        Class that defined the method.
+    """
     # source: https://stackoverflow.com/questions/3589311/#25959545
 
     # handle bound methods

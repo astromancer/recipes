@@ -25,6 +25,7 @@ from .. import op
 from ..functionals import echo0
 from ..array.misc import vectorize
 from ..language import unicode as uni
+from ..misc import duplicate_if_scalar
 
 
 # note: unicode literals below python3 only!
@@ -95,8 +96,6 @@ METRIC_PREFIXES = {
     +24: 'Y'
 }
 
-sequences = (list, tuple)
-
 
 #  centi-, deci-, deka-, and hecto-) ???
 
@@ -163,14 +162,20 @@ def leading_decimal_zeros(n):
 
 def get_significant_digits(x, n=3):
     """
-    Return the first `n` non-zero significant digits
+    Return the first `n` non-zero significant digits.
 
     Parameters
     ----------
-    x: any python scalar
+    x: numers.Real
+        Any scalar number.
     n: int
-        number of significant digits to return
-
+        Number of significant digits to return
+        
+    Examples
+    --------
+    >>> get_significant_digits(1238488290, 3)
+    (124, 9)
+    
     Returns
     -------
     nrs: int
@@ -566,8 +571,8 @@ def decimal(n, precision=None, significant=3, sign='-', short=False,
 
     Parameters
     ----------
-    n: int or float
-        the number to format
+    n: numbers.Real
+        The number to be formatted.
     precision: int, optional
         if int:
             decimal precision (absolute) for format.
@@ -575,15 +580,16 @@ def decimal(n, precision=None, significant=3, sign='-', short=False,
             precision = 1 if the abs(number) is larger than 1. eg. 100.1
             Otherwise it is chosen such that at least 3 significant digits are
             shown: eg: 0.0000345 or 0.985
-    significant: int
+    significant: int, optional
         If precision is not given, this gives the number of non-zero digits
         after the decimal point that will be displayed. This argument allows
         specification of dynamic precision values.
-    sign: str or bool
+    sign: str or bool, optional
         True: always sign; False: only negative
         '+' or '-' or ' ' behaves like builtin format spec
-    short : bool  # TODO: short ??
-        if True, redundant zeros and decimal point will be stripped.
+    short : bool, optional
+        If True, redundant zeros after decimal point will be stripped to yield a
+        more compact representation of the same number.
     unicode:
         # TODO: latex:\\infty also spaces for thousands also ignore padding ???
         prefer unicode minus '−' over '-'
@@ -743,14 +749,13 @@ def align_dot(data):
 def decimal_with_percentage(n, total, precision=None, significant=3, sign='-',
                             short=False, unicode=False, thousands='',
                             brackets='()'):
-    if isinstance(precision, sequences):
-        p0, p1 = precision
-    else:
-        p0 = p1 = precision
 
-    d = decimal(n, p0, significant, sign, short, unicode, thousands)
-    p = '{:.{}%}'.format(n / total, p1)
-    return d + p.join(brackets)
+    p0, p1 = duplicate_if_scalar(precision, 2)
+
+    return ' '.join(
+        (decimal(n, p0, significant, sign, short, unicode, thousands),
+         f'{n / total:.{p1}%}'.join(brackets))
+    )
 
 
 def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
@@ -856,7 +861,7 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
     r = ''.join([mantis, times, base, exp])
 
     if latex:
-        return '$%s$' % r
+        return f'${r}$'
         # TODO: make this wrap optional. since decimal does not do this
         #  integration within numeric is bad
 
@@ -873,7 +878,7 @@ def numeric(n, precision=3, significant=3, log_switch=5, sign='-', times='x',
     significant
     n
     precision
-    log_switch: int # TODO: tuple  # TODO: log_switch better name
+    log_switch: int # TODO: tuple  
         Controls switching between decimal/scientific notation. Scientific
         notation is triggered if `abs(math.log10(abs(n))) > switch`.
 

@@ -4,7 +4,6 @@ Utilities for operations on strings
 
 
 # std
-
 import re
 import numbers
 import warnings as wrn
@@ -39,7 +38,7 @@ class Percentage:
 
     regex = re.compile(r'([\d.,]+)\s*%')
 
-    def __init__(self, s):
+    def __init__(self, string):
         """
         Convert a percentage string like '3.23494%' to a floating point number
         and retrieve the actual number (percentage of a total) that it
@@ -54,18 +53,16 @@ class Percentage:
         >>> Percentage('1.25%').of(12345)
         154.3125
 
-
         Raises
         ------
-        ValueError [description]
+        ValueError
+            If percentage could not be parsed from the string.
         """
-        mo = self.regex.search(s)
-        if mo:
+        if mo := self.regex.search(string):
             self.frac = float(mo.group(1)) / 100
         else:
-            raise ValueError(
-                f'Could not find a percentage value in the string {s!r}'
-            )
+            raise ValueError(f'Could not find anything resembling a percentage'
+                             f' in the string {string!r}.')
 
     def __repr__(self):
         return f'Percentage({self.frac:.2%})'
@@ -77,6 +74,7 @@ class Percentage:
         try:
             if isinstance(number, numbers.Real):
                 return self.frac * number
+
             if isinstance(number, abc.Collection):
                 return self.frac * np.asanyarray(number, float)
         except ValueError:
@@ -86,15 +84,18 @@ class Percentage:
     def of(self, total):
         """
         Get the number representing by the percentage as a total. Basically just
-        multiplies the parsed fraction with the number `total`
+        multiplies the parsed fraction with the number `total`.
 
         Parameters
         ----------
         total : number, array-like
-            Any number
+            Any number.
 
+        Returns
+        -------
+        float or np.ndarray
         """
-        self(total)
+        return self(total)
 
 # ---------------------------------------------------------------------------- #
 # Helpers / Convenience
@@ -213,6 +214,24 @@ def backspaced(string):
 
 
 def insert(sub, string, index):
+    """
+    Insert a substring `sub` into `string` immediately before `index` position.
+
+    Parameters
+    ----------
+    sub, string : str
+        Any string.
+    index : int
+        Index position before which to insert `sub`. Index of 0 prepends, while
+        -1 appends.
+
+
+    Returns
+    -------
+    string
+        Modified string
+    """
+    index = int(min((n := len(string), (index + n) % n)))
     return string[:index] + sub + string[index:]
 
 
@@ -667,10 +686,21 @@ def _justify(text, align, width, length_func, formatter):
             yield insert(' ' * d + (j < r), line, k)
 
 
-    return '\n'.join(lines)
-
-
 def width(string):
+    """
+    Find the width of a paragraph. Non-display chatacters are counted.
+
+    Parameters
+    ----------
+    string : str
+        A paragraph of text.
+
+
+    Returns
+    -------
+    int
+        Length of the longest line of text.
+    """
     indices = [*where(string, '\n'), len(string)]
 
     if len(indices) == 1:

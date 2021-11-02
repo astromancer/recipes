@@ -69,7 +69,7 @@ class Emit:
     @severity.setter
     def severity(self, val):
         self._severity = int(val)
-        self.emit = staticmethod(self._actions[self._severity])
+        self.emit = self._actions[self._severity]
 
     def __call__(self, message):
         self.emit(message)
