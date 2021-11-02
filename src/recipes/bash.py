@@ -16,7 +16,7 @@ from .tree import Node
 from .lists import split_where
 from .functionals import negate
 from .string import shared_affix, strings
-from .string.brackets import BracketParser, xsplit
+from .string.brackets import BracketParser, csplit
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
@@ -64,7 +64,7 @@ def brace_expand_iter(string, level=0):
 def _expander(item, head='', tail=''):
     rng = RGX_BASH_RANGE.fullmatch(item)
     # bash expansion syntax implies an inclusive number interval
-    items = range(int(rng[1]), int(rng[2]) + 1) if rng else xsplit(item)
+    items = range(int(rng[1]), int(rng[2]) + 1) if rng else csplit(item)
     for x in items:
         yield f'{head}{x}{tail}'
 

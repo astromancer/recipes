@@ -87,7 +87,7 @@ def invert(dict_):
 # tests
 # ---------------------------------------------------------------------------- #
 # test splitter
-test_splitter = Expected(bash.xsplit)(
+test_splitter = Expected(bash.csplit)(
     {'{4..6}':           ['{4..6}'],
      '{4,6}':            ['{4,6}'],
      '4,6':              ['4', '6'],

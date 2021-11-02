@@ -7,7 +7,7 @@ from recipes import op
 from recipes.functionals import negate
 from recipes.testing import Expected, Throws, mock, expected
 from recipes.string.brackets import (match, remove, Condition, level, braces,
-                                     xsplit, BracketPair, is_outer)
+                                     csplit, BracketPair, is_outer)
 
 
 # @pytest.mark.skip()
@@ -105,7 +105,7 @@ test_split = Expected(braces.split2)(
      },
     transform=list)
 
-test_xsplit = Expected(xsplit)(
+test_csplit = Expected(csplit)(
     {'':                    [''],
      '...':                 ['...'],
      '{4..6}':              ['{4..6}'],

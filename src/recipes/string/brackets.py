@@ -562,10 +562,10 @@ def depth(string, brackets):
     return BracketParser(brackets).depth(string)
 
 
-def xsplit(string, brackets='{}', delimeter=','):
+def csplit(string, brackets='{}', delimeter=','):
     """
-    Conditional splitter. Split on delimeter only if its not enclosed by
-    brackets.
+    Conditional splitter. Split on `delimeter` only if it is not enclosed by
+    `brackets`. Enclosed delimited substrings are ignored.
 
     Parameters
     ----------
@@ -593,15 +593,19 @@ def xsplit(string, brackets='{}', delimeter=','):
 
     #
     itr = BracketParser(brackets).split2(string, condition=(level == 0))
-    collected = _xsplit_worker(*next(itr), delimeter)
+    collected = _csplit_worker(*next(itr), delimeter)
     for pre, enclosed in itr:
-        first, *parts = _xsplit_worker(pre, enclosed, delimeter)
+        first, *parts = _csplit_worker(pre, enclosed, delimeter)
         collected[-1] += first
         collected.extend(parts)
     return collected
 
 
-def _xsplit_worker(pre, enclosed, delimeter):
+# alias
+xsplit = csplit
+
+
+def _csplit_worker(pre, enclosed, delimeter):
     parts = pre.split(delimeter)
     parts[-1] += enclosed
     return parts
