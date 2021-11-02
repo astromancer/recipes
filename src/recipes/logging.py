@@ -17,7 +17,7 @@ from loguru import logger
 # relative
 from . import op, pprint as pp
 from .decorators import Decorator
-from .introspect.utils import get_caller_frame, get_module_name, get_class_name
+from .introspect.utils import get_caller_frame, get_class_that_defined_method, get_module_name, get_class_name
 
 
 def get_module_logger(depth=-1):
@@ -128,13 +128,20 @@ class LoggingMixin:
         """This attribute allows you to optionally set the parent dynamically 
         which is sometimes useful"""
 
+        # @staticmethod
+        # def get_name(fname, parent):
+            
+        
         @staticmethod
         def add_parent(record, parent):
-            record['function'] = f'{parent}.{record["function"]}'
+            """Prepend the class name to the function name in the log record."""
+            fname = record['function']
+            parent = get_class_that_defined_method(getattr(parent, fname))
+            record['function'] = f'{parent.__name__}.{fname}'
 
         def __get__(self, obj, kls=None):
             return logger.patch(
-                ftl.partial(self.add_parent, parent=(kls or type(obj)).__name__)
+                ftl.partial(self.add_parent, parent=(kls or type(obj)))
             )
 
     logger = Logger()
