@@ -4,6 +4,7 @@ Utilities for operations on strings
 
 
 # std
+
 import re
 import numbers
 import warnings as wrn
@@ -172,13 +173,50 @@ def delete(string, indices=()):
 
     return ''.join(_delete(string, indices))
 
+# def _intervals_from_slices(slices, n):
+#     from recipes.lists import cosort
+
+#     intervals = zip(*cosort(*zip(s.indices(n) for s in slices)))
+#     start, stop = next(intervals)
+#     start, stop = [start], [stop]
+#     for begin, end in intervals:
+#         if begin < stop[-1]:
+#             stop[-1] = end
+#         else:
+#             start.append(begin)
+#             stop.append(end)
+#     return start, stop
+
+
+def _integers_from_slices(slices, n):
+    integers = set()
+    for s in slices:
+        integers |= set(range(*s.indices(n)))
+    return integers
+
+
+def ensure_list(obj):
+    if isinstance(obj, abc.Iterator):
+        return list(obj)
+    return duplicate_if_scalar(obj, 1, raises=False)
+
 
 def _delete(string, indices):
-    # remove duplicate indices accounting for wrapping
+    from recipes.dicts import groupby
+
     n = len(string)
+
+    # ensure list
+    indices = groupby(ensure_list(indices), type)
+    integers = _integers_from_slices(indices.pop(slice, ()), n)
+    for kls, idx in indices.items():
+        if not issubclass(kls, numbers.Integral):
+            raise TypeError(f'Invalid index type {kls}.')
+        integers.union(idx)
+
+    # remove duplicate indices accounting for wrapping
     i = prev = -1
-    indices = duplicate_if_scalar(indices, 1, raises=False)
-    for i in sorted({(i + n) % n for i in indices}):
+    for i in sorted({(i + n) % n for i in integers}):
         yield string[prev + 1:i]
         prev = i
 
