@@ -178,6 +178,10 @@ class BracketPair:
     """Indices of opening- and closing bracket pairs."""
     level: int = 0
 
+    @classmethod
+    def null(cls):
+        return cls('{}', None, (None, None))
+
     def __post_init__(self):
         self.open, self.close = self.brackets
         self.start, self.end = self.indices
@@ -329,25 +333,25 @@ class BracketParser:
             for i in idx:
                 yield BracketPair((o, b), None, (i, None), 0)
 
-    def match(self, string, must_close=False):
+    def match(self, string, must_close=False, condition=always_true):
         """
-        Find a matching pair of closed brackets in the string `s` and return the
-        encolsed string as well as, optionally, the indices of the bracket pair.
+        Find a matching pair of closed brackets in the string `string` and
+        return the encolsed string as well as, optionally, the indices of the
+        bracket pair.
 
-        Will return only the first closed pair if the input string `s` contains
-        multiple closed bracket pairs. To iterate over bracket pairs, use
-        `iter_brackets`.
+        Will return only the first (and outermost) closed pair if the input
+        string `string` contains multiple closed bracket pairs. To iterate over
+        bracket pairs, use `iter_brackets`.
 
-        If there are nested bracket inside `string`, only the outermost pair
-        will be matched.
-
-        If `string` does not contain the opening bracket, None is always
-        returned.
-
-        If `string` does not contain a closing bracket the return value will be
-        `None`, unless `must_close` has been set in which case a ValueError is
-        raised.
-
+        Parameters
+        ----------
+        string : str
+            String to match for bracket pairs.
+        must_close : bool, optional
+            Defines the behaviour for unclosed pairs of brackets:
+            -1          : Silently ignore
+             0 or False : Yield BracketPair with None at missing index.
+             1 or True  : raises ValueError
 
         Examples
         --------
@@ -366,7 +370,8 @@ class BracketParser:
         ValueError if `must_close` is True and there is no matched closing
         bracket.
         """
-        return next(self._iter(string, must_close), None)
+
+        return next(self.iterate(string, must_close, condition), None)
 
     def iterate(self, string, must_close=False, condition=always_true,
                 inside_out=True):
@@ -493,6 +498,8 @@ class BracketParser:
 
     # alias
     split_paired = split2
+
+    # def encloses
 
     def depth(self, string):
         """
