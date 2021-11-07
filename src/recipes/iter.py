@@ -4,6 +4,7 @@ Common patterns involving iterables.
 
 
 # std
+import functools as ftl
 import numbers
 import textwrap as txw
 import itertools as itt
@@ -16,10 +17,12 @@ import more_itertools as mit
 from . import op
 from .functionals import negate, echo0 as echo
 
+#
+SAFETY_LIMIT = 1e8
+#
+NULL = object()
 
 # ---------------------------------- helpers --------------------------------- #
-class null:
-    pass
 
 
 def not_none(x):
@@ -68,7 +71,10 @@ as_sequence = as_iter
 
 def where(items, *args, start=0):
     """
-    Yield the indices at which items in `items` evaluate True.
+    Yield the indices at which items in a Iterable or Collection `items`
+    evaluate True. This function will consume the iterable, so take care not to
+    pass infinite iterables - the function will break out after the module
+    constant `SAFETY_LIMIT` (by default 10**8) number of iterations is reached.
 
     Valid call signatures are:
         >>> where(items)                # yield indices where items are truthy
@@ -77,8 +83,8 @@ def where(items, *args, start=0):
 
     Parameters
     ----------
-    items : Collection
-        Any Collection
+    items : Iterable
+        Any iterable. Note that this function will consume the iterable.
     args : ([test], rhs)
         test : callable, optional
             Function for testing, should return bool, by default op.eq.
@@ -110,25 +116,61 @@ def where(items, *args, start=0):
     elif nargs == 2:
         test, rhs = args
     else:
-        raise ValueError(txw.dedent('''\
-            Too many arguments for function `where`. Valid call signatures are:
-                >>> where(l)
-                >>> where(l, item)
-                >>> where(l, func, rhs)''')
-                         )
+        # print valid call signatures from docstring
+        raise ValueError(txw.dedent(where.__doc__.split('\n\n')[1]))
+
+    yield from multi_index(items, rhs, test, start)
+
+
+def windowed(obj, size, step=1):
+    assert isinstance(size, numbers.Integral)
+
+    if isinstance(obj, str):
+        for i in range(0, len(obj), step):
+            yield obj[i:i + size]
+        return
+
+    yield from mit.windowed(obj, size)
+
+
+@ftl.singledispatch
+def multi_index(obj, rhs, test=None, start=0):
+    """default dispatch for multi-indexing"""
+    raise TypeError(f'Object of type {type(obj)} is not an iterable.')
+
+
+@multi_index.register(str)
+def _(string, rhs, test=op.eq, start=0):
+    # ensure we are comparing to str
+    assert isinstance(rhs, str)
+    assert callable(test)
+
+    # if comparing to rhs substring with non-unit length
+    if (n := len(rhs) > 1):
+        yield from multi_index(windowed(string, n), rhs, test, start)
+        return
 
     i = start
-    n = len(items)
-    while i < n:
+    while i < len(string):
         try:
-            # pylint: disable=too-many-function-args
-            i = op.index(items, rhs, i, test)
+            i = string.index(rhs, i)
             yield i
         except ValueError:
             # done
             return
         else:
-            i += 1  # start next search one on
+            i += 1
+
+
+@multi_index.register(abc.Iterable)
+def _(obj, rhs, test=op.eq, start=0):
+    mit.consume(obj, start)
+    for i, x in enumerate(obj, start):
+        if test(x, rhs):
+            yield i
+
+        if i >= SAFETY_LIMIT:
+            raise ValueError('Infinite iterable?')
 
 
 def split(l, idx):
@@ -168,8 +210,8 @@ def split_slices(indices):
 
 
 def non_unique(itr):
-    prev = next(itr, null)
-    if prev is null:
+    prev = next(itr, NULL)
+    if prev is NULL:
         return
 
     for item in itr:
