@@ -188,7 +188,7 @@ def get_strided_array(a, size, overlap, axis=0):
 
     # byte steps
     new_strides = np.insert(a.strides, axis, step * a.strides[axis])
-    return as_strided(a, new_shape, new_strides)
+    return as_strided(a, new_shape, new_strides, subok=True)
 
 
 def gen(a, size, overlap=0, axis=0, **kw):
