@@ -10,17 +10,16 @@ import numpy as np
 from numpy.lib.stride_tricks import as_strided
 
 
-def _checks(wsize, overlap, n, axis):
+def _check_window_overlap(wsize, overlap, n, axis):
     # checks
     if n < wsize < 0:
         raise ValueError(f'Window size ({wsize}) should be greater than 0 and '
-                         f'smaller than array size ({n}) along axis {axis}')
+                         f'smaller than array size ({n}) along axis {axis}.')
+
     if wsize <= overlap < 0:
         raise ValueError(f'Overlap ({overlap}) should be greater equal 0 and '
-                         f'smaller than window size ({wsize})')
+                         f'smaller than window size ({wsize}).')
 
-
-# FIXME: does not always pad out to the correct length!
 
 def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     """
@@ -77,7 +76,8 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     shape = a.shape
     n = shape[axis]
 
-    _checks(wsize, overlap, n, axis)
+    # checks
+    _check_window_overlap(wsize, overlap, n, axis)
 
     # short circuits
     if (n == wsize) and (overlap == 0):
@@ -90,7 +90,7 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
 
     # pad out
     if pad:
-        a, n_seg = padder(a, wsize, overlap, axis, **kws)
+        a, _ = padder(a, wsize, overlap, axis, **kws)
     #
     sa = get_strided_array(a, wsize, overlap, axis)
 
@@ -120,7 +120,7 @@ def padder(a, wsize, overlap=0, axis=0, pad_mode='masked', **kws):
     n = a.shape[axis]
 
     # checks
-    _checks(wsize, overlap, n, axis)
+    _check_window_overlap(wsize, overlap, n, axis)
 
     #
     mask = a.mask if np.ma.is_masked(a) else None
@@ -179,11 +179,9 @@ def get_strided_array(a, size, overlap, axis=0):
         axis += a.ndim
 
     step = size - overlap
-    # if padded:
-    # note line below relies on the array already being padded out
-    n_segs = (a.shape[axis] - overlap) // step  # number of segments
+    # note lines below relies on the array already being padded out
     new_shape = np.insert(a.shape, axis + 1, size)
-    new_shape[axis] = n_segs
+    new_shape[axis] = (a.shape[axis] - overlap) // step  # number of segments
     # new shape is (..., n_seg, size, ...)
 
     # byte steps
@@ -191,7 +189,7 @@ def get_strided_array(a, size, overlap, axis=0):
     return as_strided(a, new_shape, new_strides, subok=True)
 
 
-def gen(a, size, overlap=0, axis=0, **kw):
+def ifold(a, size, overlap=0, axis=0, **kw):
     """
     Generator version of fold.
     """
@@ -228,7 +226,7 @@ def rebin(x, binsize, t=None, e=None):
     return returns
 
 
-def get_nocc(n, wsize, overlap):
+def get_n_repeats(n, wsize, overlap):
     """
     Return an array of length N, with elements representing the number of
     times that the index corresponding to that element would be repeated in
@@ -240,5 +238,4 @@ def get_nocc(n, wsize, overlap):
     if np.ma.is_masked(indices):
         indices = indices[~indices.mask]
 
-    _, noc = cosort(*zip(*tally(indices).items()))
-    return noc
+    return cosort(*zip(*tally(indices).items()))[1]
