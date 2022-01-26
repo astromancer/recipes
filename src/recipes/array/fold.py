@@ -1,3 +1,7 @@
+"""
+Fold arrays along a given dimension without duplicating elements in memory
+"""
+
 # std
 import warnings
 
@@ -20,25 +24,34 @@ def _checks(wsize, overlap, n, axis):
 
 def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     """
-    Fold (window) an array along a given `axis` at given `size`, with successive
-    windows overlapping each previous by `overlap` elements.  This method
-    works on masked arrays as well and will fold the mask identically to the
-    data. By default the array is padded out with masked elements so that the
-    step size evenly divides the array along the given axis.
+    Fold (window) an array along a given `axis` at given `wsize`, with
+    successive windows overlapping each previous window by `overlap` number of
+    elements. This method works on masked arrays as well and will fold the mask
+    identically to the data. By default the array is padded out with masked
+    elements so that the step size evenly divides the array along the given
+    axis.
 
     Parameters
     ----------
-    a
-    wsize
-    overlap
-    axis
-    pad
-    kws
+    a : array-like
+        The array to be folded.
+    wsize : int
+        Window size in number of elements.
+    overlap : int, optional
+        Number of overlapping elements in each window, by default 0.
+    axis : int, optional
+        Axis along which to fold, by default 0.
+    pad : str, optional
+        Mode for padding, by default 'masked'.
+
+    kws :
         Keywords are passed to `np.pad` which pads up the array to the required
         length.
 
     Returns
     -------
+    np.ndarray or np.ma.MaskedArray
+        The folded / windowed array.
 
     Notes
     -----
@@ -47,13 +60,19 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     doing inplace arithmetic operations on the returned array.
     eg.:
     >>> n, size, overlap = 100, 10, 5
-    >>> q = fold(np.arange(n), size, overlap)
+    ... q = fold.fold(np.arange(n), size, overlap, pad=False)
+    ... q
+    array([[0, 1],
+           [1, 2]])
+
     >>> k = 0
-    >>> q[0, overlap + k] *= 10
-    >>> q[1, k] == q[0, overlap + k]
-    True
+    ... q[0, overlap + k] *= 10
+    ... q
+    array([[ 0, 10],
+           [10,  2]])
 
     """
+
     a = np.asanyarray(a)
     shape = a.shape
     n = shape[axis]
@@ -86,11 +105,17 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
 
 
 def is_null(x):
+    """Check if an object is None or False."""
     return (x is None) or (x is False)
 
 
+# FIXME: does not always pad out to the correct length!
+
 def padder(a, wsize, overlap=0, axis=0, pad_mode='masked', **kws):
-    """ """
+    """
+    Pad the array out to the required length so a uniform fold can be made with
+    no leftover elements.
+    """
     a = np.asanyarray(a)  # convert to (un-masked) array
     n = a.shape[axis]
 
@@ -185,7 +210,7 @@ def gen(a, size, overlap=0, axis=0, **kw):
 def rebin(x, binsize, t=None, e=None):
     """
     Rebin time series data. Assumes data are evenly sampled in time (constant
-     time steps).
+    time steps).
     """
     xrb = fold(x, binsize).mean(1)
     returns = (xrb,)
