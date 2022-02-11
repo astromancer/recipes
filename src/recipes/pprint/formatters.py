@@ -2,6 +2,7 @@
 import math
 import numbers
 import warnings
+from fractions import Fraction
 
 # third-party
 import numpy as np
@@ -9,6 +10,7 @@ import numpy as np
 # relative
 from ..string import sub
 from ..language import unicode
+from ..dicts import AttrReadItem
 from ..misc import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 from .callers import describe
@@ -115,7 +117,7 @@ class BaseNumeric:
             raise ValueError('Only scalars are accepted by this function.')
 
         # handle nans
-        if np.isnan(n):
+        if math.isnan(n):
             return 'nan'
 
 
@@ -394,14 +396,14 @@ class Scientific(Decimal):
         return self(n, 'e', '', int)
 
     def unicode(self, n):
-        return self(n, UNICODE_MULTIPLIERS.get(t := self.times, t),
+        return self(n, UNICODE_MULTIPLIERS.get((t := self.times), t),
                     # '\N{DECIMAL EXPONENT SYMBOL}' <-  ugly: '⏨⁵'
                     # '\N{NUMBER TEN FULL STOP}'    <-  this maybe ok: "⒑⁵"
                     '10',
                     unicode.superscript)
 
     def latex(self, n):
-        return self(n, LATEX_MULTIPLIERS.get(t := self.times, t),
+        return self(n, LATEX_MULTIPLIERS.get((t := self.times), t),
                     '10', '{{{:d}}}'.format)
 
 
@@ -432,11 +434,11 @@ class Metric:
         """
         # significant = int(significant)
         sign = signum(n)
-        n = np.abs(n)
+        n = abs(n)
         if sign == 0:
             return str(n)
 
-        pwr = np.log(n) / np.log(self.base)
+        pwr = math.log(n) / math.log(self.base)
         pwr3 = int((pwr // 3) * 3)
         sig = self.significant or [0, 1][pwr3 < 0]
         mantissa = n / (self.base ** pwr3)
@@ -556,3 +558,103 @@ class Numeric(Conditional):
             Scientific(significant, sign, times, thousands, shorten),
             Decimal(precision, significant, sign, thousands, shorten)
         )
+
+
+class FractionOf:
+
+    templates = dict(
+        ascii=('{n}{symbol}', '{n}{symbol}/{d}'),
+        latex=('{n}{symbol}', r'\frac{{{n}{symbol}}}{{{d}}}')
+    )
+
+    def __init__(self, symbols=(), **kws):
+        symbols = {k: str(v) for k, v in dict(symbols, **kws).items()}
+        assert symbols.keys() == {'ascii', 'unicode', 'latex'}
+
+        self.symbols = AttrReadItem(symbols)
+
+    def __call__(self, f, style='ascii'):
+        return self.format(f, style)
+
+    def format(self, f, style='ascii'):
+
+        if f == 0:
+            return '0'
+
+        if f == 1:
+            return self.symbols[style]
+
+        if not isinstance(f, Fraction):
+            f = Fraction(f)
+
+        itmp, ftmp = self.templates[style]
+
+        f = f.limit_denominator()
+        n = n if ((n := f.numerator) != 1) else ""
+
+        if ((d := f.denominator) == 1):
+            return itmp.format(n=n, symbol=self.symbols[style], d=d)
+
+        return ftmp.format(n=n, symbol=self.symbols[style], d=f.denominator)
+
+    def format_mpl(self, f, _pos=None):
+        return self.format(f, 'latex')
+    
+    def ascii(self, f, _pos=None):
+        return self.format(f, 'ascii')
+
+    def latex(self, f, _pos=None):
+        if f == 0:
+            return self.format(f, 'latex')
+        return self.format(f, 'latex').join('$$')
+
+    def unicode(self, f, _pos=None):
+        return self.format(f, 'unicode')
+
+
+class FractionOfPi(FractionOf):
+    def __init__(self):
+        super().__init__(ascii='pi',
+                         unicode='π',
+                         latex=r'\pi')
+        
+    def from_radian(self, n, _pos=None, style='latex'):
+        return self.format(n / math.pi, style)
+
+
+def frac_of(f, symbol, i_template='{n}{symbol}', f_template='{n}{symbol}/{d}'):
+    # i_template='{n}{symbol}', f_
+
+    if f == 0:
+        return '0'
+
+    if f == 1:
+        return symbol
+
+    f = f.limit_denominator()
+    n = n if ((n := f.numerator) != 1) else ""
+
+    if ((d := f.denominator) == 1):
+        return i_template.format(n=n, symbol=symbol, d=d)
+
+    return f_template.format(n=n, symbol=symbol, d=f.denominator)
+
+# "½" #  onehalf # VULGAR FRACTION ONE HALF
+# "⅓"	#U2153 # VULGAR FRACTION ONE THIRD
+# "¼" #  onequarter # VULGAR FRACTION ONE QUARTER
+# "⅕"	#U2155 # VULGAR FRACTION ONE FIFTH
+# "⅙"	#U2159 # VULGAR FRACTION ONE SIXTH
+# "⅐"	#U2150 # VULGAR FRACTION ONE SEVENTH
+# "⅛"	#U215B # VULGAR FRACTION ONE EIGHTH
+# "⅑"	#U2151 # VULGAR FRACTION ONE NINTH
+# "⅒"	#U2152 # VULGAR FRACTION ONE TENTH
+# "⅔"	#U2154 # VULGAR FRACTION TWO THIRDS
+# "⅖"	#U2156 # VULGAR FRACTION TWO FIFTHS
+# "¾" #  threequarters # VULGAR FRACTION THREE QUARTERS
+# "⅗"	#U2157 # VULGAR FRACTION THREE FIFTHS
+# "⅜"	#U215C # VULGAR FRACTION THREE EIGHTHS
+# "⅘"	#U2158 # VULGAR FRACTION FOUR FIFTHS
+# "⅚"	#U215A # VULGAR FRACTION FIVE SIXTHS
+# "⅝"	#U215D # VULGAR FRACTION FIVE EIGHTHS
+# "⅞"	#U215E # VULGAR FRACTION SEVEN EIGHTHS
+# "↉"	#U2189 # VULGAR FRACTION ZERO THIRDS
