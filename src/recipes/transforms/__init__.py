@@ -1,3 +1,8 @@
+"""
+A few basic coordinate transformers
+"""
+
+
 from .rotation import *
 
 
@@ -35,9 +40,11 @@ def cart2pol(x, y):
             np.arctan2(y, x))        # θ
 
 
-def sph2cart(r, theta, phi, key=None):
+def sph2cart(r, theta, phi):
     """
-    Spherical polar to cartesian transformation
+    Transform spherical polar (r,θ,φ) to Cartesian (x,y,z) coordinates.
+    Parameter definitions are as per physics (ISO 80000-2:2019) convention with
+    φ the azimuth and θ the colatitude.
 
     Parameters
     ----------

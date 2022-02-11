@@ -346,7 +346,7 @@ def count_lines(filename):
 
 def write_lines(stream, lines, eol='\n'):
     """
-    Write multiple lines to a file-like output stream
+    Write multiple lines to a file-like output stream.
 
     Parameters
     ----------

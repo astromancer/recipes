@@ -47,10 +47,10 @@ def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
     Examples
     --------
     >>> pformat(dict(x='hello',
-                        longkey='w',
+                      longkey='w',
                         foo=dict(nested=1,
-                                what='?',
-                                x=dict(triple='nested'))))
+                                 what='?',
+                                 x=dict(triple='nested'))))
     {x      : hello,
      longkey: w,
      foo    : {nested: 1,

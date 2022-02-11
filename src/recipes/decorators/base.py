@@ -91,7 +91,7 @@ class Decorator:
     """
     Decorator class which supports optional initialization parameters. Can be
     pickled, unlike function based decorators / factory. The actual decorator
-    should be implemented by overriding the `__wrapped__` method.
+    should be implemented by overriding the `__wrapper__` method.
 
     There are two distinct use cases
     1) No explicit arguments provided to decorator.
@@ -141,7 +141,7 @@ class Decorator:
     ...     def __wrapper__(self, obj):
     ...         return self.__wrapped__(self.new_type(obj))
     ...
-    ... @decorator(str)    # NOPE!
+    ... @coerce_first_param(str)    # NOPE!
     ... def buz(): ...
 
     This can be fixed by passing your callable to the initializer as a

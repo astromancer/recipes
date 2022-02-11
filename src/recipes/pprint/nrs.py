@@ -748,8 +748,8 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
         * using 'E' or 'e' will switch to E-notation style. eg.: 1.3e-12
         * Any other str may be passed in which case it will be used verbatim.
     short: bool
-        should redundant zeros after decimal point be stripped to yield a
-        more short representation of the same number?
+        If True, redundant zeros after decimal point will be stripped to yield a
+        more compact representation of the same number.
     unicode: bool
         prefer unicode minus symbol '−' over '-'
         prefer unicode infinity symbol  '∞' over 'inf'
