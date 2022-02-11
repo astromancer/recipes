@@ -137,7 +137,8 @@ class LoggingMixin:
             """Prepend the class name to the function name in the log record."""
             fname = record['function']
             parent = get_class_that_defined_method(getattr(parent, fname))
-            record['function'] = f'{parent.__name__}.{fname}'
+            parent = '' if parent is None else parent.__name__
+            record['function'] = f'{parent}.{fname}'
 
         def __get__(self, obj, kls=None):
             return logger.patch(

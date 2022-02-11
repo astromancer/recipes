@@ -11,6 +11,14 @@ def noop(*_, **__):
     """Do nothing."""
 
 
+def is_none(x):
+    return x is None
+
+
+def not_none(x):
+    return x is not None
+
+
 def echo0(_, *ignored_):
     """simply return the 0th parameter."""
     return _

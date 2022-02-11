@@ -46,7 +46,7 @@ class catch(Decorator):
 class fallback(Decorator):
     """Return the fallback value in case of exception."""
 
-    def __init__(self, value, exceptions=(Exception, ), warns=False):
+    def __init__(self, value=None, exceptions=(Exception, ), warns=False):
         self.fallback = value
         if (not isinstance(exceptions, abc.Collection)
             and issubclass(exceptions, BaseException)):
@@ -59,6 +59,7 @@ class fallback(Decorator):
             return func(*args, **kws)
         except self.excepts as err:
             self.emit(err)
+            return self.fallback
 
 
 class post(Decorator):

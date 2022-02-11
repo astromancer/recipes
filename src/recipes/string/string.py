@@ -212,7 +212,7 @@ def _delete(string, indices):
     for kls, idx in indices.items():
         if not issubclass(kls, numbers.Integral):
             raise TypeError(f'Invalid index type {kls}.')
-        integers.union(idx)
+        integers = integers.union(idx)
 
     # remove duplicate indices accounting for wrapping
     i = prev = -1
@@ -483,7 +483,7 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 
 
 def naive_plural(text):
-    return text + ('s', 'es')[text.endswith('s')]
+    return text + ('e' * text.endswith('s')) + 's'
 
 
 def plural(text, collection=(())):
@@ -493,7 +493,7 @@ def plural(text, collection=(())):
 
 
 def numbered(collection, name):
-    return '{:d} {:s}'.format(len(collection), plural(name, collection))
+    return f'{len(collection):d} {plural(name, collection):s}'
 
 
 def named_items(name, collection, fmt=str):

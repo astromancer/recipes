@@ -5,17 +5,16 @@ Tools for parsing and editing strings containing (nested) brackets.
 # std
 import operator as op
 from collections import defaultdict
-from dataclasses import asdict, astuple, dataclass
+from dataclasses import asdict, dataclass
 from typing import Callable, Collection, List, Tuple, Union
-
-# local
-# import docsplice as doc
 
 # relative
 from .. import op
 from ..functionals import always
 from ..iter import cofilter, where
 from . import delete
+
+# import docsplice as doc
 
 
 # Braces(string) # TODO / .tokenize / .parse
@@ -48,7 +47,6 @@ class is_outer:
 
 
 # ---------------------------------------------------------------------------- #
-
 
 @dataclass
 class Condition:
@@ -187,7 +185,8 @@ class BracketPair:
         self.start, self.end = self.indices
 
     def __iter__(self):
-        yield from astuple(self)[1:]
+        yield self.enclosed
+        yield self.indices
 
     def __str__(self):
         return self.enclosed  # or ''
@@ -398,6 +397,7 @@ class BracketParser:
         # logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
         #              self.brackets, string, condition)
         itr = filter(test, self._iter(string, must_close))
+
         if inside_out:
             yield from itr
             return
@@ -544,8 +544,8 @@ insert = {'Parameters[pair] as brackets': BracketParser}
 
 
 # @doc.splice(BracketParser.match, insert)
-def match(string, brackets, must_close=False):
-    return BracketParser(brackets).match(string, must_close)
+def match(string, brackets, must_close=False, condition=always_true):
+    return BracketParser(brackets).match(string, must_close, condition)
 
 
 # @doc.splice(BracketParser.iterate, insert)

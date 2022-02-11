@@ -4,14 +4,14 @@ added support for default values. Along with some additional related operational
 workhorses.
 """
 
-
 # pylint: disable=redefined-builtin
+# pylint: disable=function-redefined
 # pylint: disable=invalid-name
 # pylint: disable=wildcard-import, unused-wildcard-import
 
+
 # std
 import builtins
-import warnings
 import functools as ftl
 import operator as _op
 from operator import *
@@ -50,7 +50,7 @@ def any(itr, test=bool):
 
     Examples
     --------
-    >>> any(('U', 'X'), str.isupper)
+    >>> any(('U', 'x'), str.isupper)
     True
     """
     return builtins.any(map(test, itr))
@@ -81,7 +81,7 @@ class ItemGetter:
         self.keys = keys
         self.defaults = defaults or {}
         self.unpack = tuple if len(self.keys) > 1 else next
-        
+
         # FAILS for slices: TypeError: unhashable type: 'slice'
         # typo = set(self.defaults.keys()) - set(self.keys)
         # if typo:
@@ -137,10 +137,24 @@ class AttrSetter:
             self.getters.append(AttrGetter(*chained) if chained else echo0)
 
     def __call__(self, target, values):
-        assert len(values) == len(self.keys)
-        for get_obj, attr, value in zip(self.getters, self.keys, values):
+        keys = self.keys
+        if isinstance(values, dict):
+            keys = values.keys()
+            values = values.values()
+
+        assert len(values) == len(keys)
+        for get_obj, attr, value in zip(self.getters, keys, values):
             # logger.debug(get_obj(target), attr, value)
             setattr(get_obj(target), attr, value)
+
+
+class AttrDict(AttrGetter):
+    """
+    Like attrgetter, but returns a dict keyed on requested attributes. 
+    """
+
+    def __call__(self, target):
+        return dict(zip(self.keys, super().__call__(target)))
 
 
 class VectorizeMixin:
@@ -148,7 +162,7 @@ class VectorizeMixin:
         return list(self.map(target))
 
     def map(self, target):
-        assert isinstance(target, abc.Collection)
+        assert isinstance(target, abc.Iterable)
         return map(super().__call__, target)
 
     def filter(self, *args):
@@ -179,7 +193,7 @@ class MethodCaller:
     """
     __slots__ = ('_name', '_args', '_kwargs')
 
-    def __init__(*args, **kwargs):
+    def __init__(*args, **kwargs):  # pylint: disable=no-method-argument
         if len(args) < 2:
             msg = ("%s needs at least one argument, the method name"
                    % args[0].__class__.__name__)
@@ -211,7 +225,12 @@ class MethodCaller:
         return self.__class__, (self._name,) + self._args
 
 
-# pylint: disable=function-redefined
+class MethodVector(MethodCaller):
+    def __call__(self, target):
+        assert isinstance(target, abc.Iterable)
+        return list(map(super().__call__, target))
+
+
 def index(collection, item, start=0, test=eq, default=NULL):
     """
     Find the index position of `item` in `collection`, or if a test function is
