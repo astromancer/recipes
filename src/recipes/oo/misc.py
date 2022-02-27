@@ -1,21 +1,7 @@
 """
 Some object oriented code patterns.
 """
-import contextlib as ctx
 
-
-@ctx.contextmanager
-def temporarily(obj, **kws):
-    try:
-        original = {atr: getattr(obj, atr) for atr in kws}
-        for atr, val in kws.items():
-            setattr(obj, atr, val)
-        yield obj
-    except:
-        raise
-    finally:
-        for atr, val in original.items():
-            setattr(obj, atr, val)
 
 
 def iter_subclasses(cls, _seen=None):
@@ -100,15 +86,15 @@ class SelfAware(metaclass=SelfAwareness):
     """
 
 
-class PartialAttributeLookup:
+class AttributeAutoComplete:  # AttributeAutocomplete
     """
     Attribute lookup that returns if the lookup key matches the start of the
     attribute name and the match is one-to-one. Raises AttributeError otherwise.
 
     Example
-    >>> class SmartThing(PartialAttributeLookup):
+    >>> class SmartClass(AttributeAutoComplete):
     ...     some_long_attribute_name_that_is_overly_tautologous = '!'
-    ... SmartThing().some
+    ... SmartClass().some
     '!'
     """
 
