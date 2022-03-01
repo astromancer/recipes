@@ -351,6 +351,8 @@ def filter_duplicates(l, test):
 
         results.add(result)
 
+# aliases
+unduplicate = filter_duplicates
 
 def iter_repeat_last(it):
     """

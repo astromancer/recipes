@@ -22,23 +22,21 @@ from stdlib_list import stdlib_list
 
 # relative
 from .. import cosort, op, pprint as pp
+from ..iter import unduplicate
 from ..functionals import negate
 from ..logging import LoggingMixin
-from ..iter import filter_duplicates
 from ..io import open_any, safe_write
 from ..pprint.callers import describe
 from ..string import remove_prefix, remove_suffix, truncate
 
 
 # FIXME: unscoped imports do not get added to top!!!
-# FIXME: duplicate aliases
 # FIXME: inline comments get removed
 
 # TODO: comment directives to keep imports
 # TODO: split_modules
 # TODO: style preference: "import uncertainties.unumpy as unp" over
 #                         "from uncertainties import unumpy as unp"
-# TODO: keep multiline imports as multiline
 # TODO: local import that are already in global namespace
 
 # TODO: convert wildcard imports
@@ -191,7 +189,7 @@ def rewrite(node, width=80, hang=None, indent=4, one_per_line=False):
     s += 'import '
     aliases = [
         f'{alias.name}{f" as {alias.asname}" if alias.asname else ""}, '
-        for alias in node.names
+        for alias in unduplicate(node.names, op.attrgetter('name', 'asname'))
     ]
     aliases[-1] = aliases[-1].rstrip(', ')
 
@@ -424,10 +422,7 @@ class ImportFilter(ast.NodeTransformer):  #
         self.remove = set(names)
 
     def visit_Module(self, node):
-        if not self.remove:
-            return node
-
-        return self.generic_visit(node)
+        return self.generic_visit(node) if self.remove else node
 
     def _visit_any_import(self, node):
         node = self.generic_visit(node)
@@ -491,8 +486,8 @@ class ImportMerger(Parentage):
             return node
 
         # avoid duplicates >>> from x import y, y
-        aliases = filter_duplicates(existing_node.names + node.names,
-                                    op.attrgetter('name'))
+        aliases = unduplicate(existing_node.names + node.names,
+                              op.attrgetter('name'))
         existing_node.names = list(aliases)
         # we are about to visit the aliases, so ensure that Parentage sets those
         # parents to the previously existing import node which we just extended.
@@ -694,8 +689,7 @@ class GroupHeaders:
 
     def next(self, node):
         gid = getattr(node, 'gid', [-1])[0]
-        name = self.names.pop(gid, ())
-        if name:
+        if name := self.names.pop(gid, ()):
             # pylint: disable=stop-iteration-return
             yield f'{next(self.newlines)}# {name} {self.suffix}'.rstrip()
 
@@ -766,6 +760,11 @@ class ImportRefactory(LoggingMixin):
         line number for last line in input file that will be processed
     """
 
+    @property
+    def path(self):
+        if self.filename:
+            return Path(self.filename)
+
     def __init__(self, file_or_source):
 
         with open_any(get_stream(file_or_source)) as file:
@@ -782,10 +781,81 @@ class ImportRefactory(LoggingMixin):
         module = self.refactor(*args, **kws)
         return self.write(module)
 
-    @property
-    def path(self):
-        if self.filename:
-            return Path(self.filename)
+    def refactor(self,
+                 sort='aesthetic',
+                 filter_unused=None,
+                 split=0,
+                 merge=1,
+                 relativize=None,
+                 #  delocalize=False,
+                 ):
+
+        # keep_multiline=True,
+        #  up_to_line=math.inf,
+        """
+
+        sort: str, {'aesthetic', 'alphabetically'}
+            The sorting rules are as follow:
+            # TODO
+        unscope: bool
+            Whether or not to move the import statements that are in a local scope
+        headers: bool or None
+            whether to print comment labels eg 'third-party libs' above different
+            import groups.  If None (the default) this will only be done if there
+            are imports from multiple groups.
+
+        """
+
+        module = self.module
+
+        # if unscope:
+        #     module = self.unscope(module)
+
+        # filter_unused = (self.up_to_line == math.inf and bool(used_names))
+        if filter_unused is None:
+            filter_unused = self._should_filter()
+
+        if filter_unused:
+            module = self.filter(module)
+
+        if (relativize is None):
+            relativize = self.filename is not None
+
+        if relativize:
+            module = self.relativize(module, relativize)
+
+        if split is not None:
+            module = self.split(module, split)
+
+        if merge is not None:
+            module = self.merge(module, merge)
+
+        delocalize = False
+        if delocalize:
+            module = self.delocalize(module)  # TODO
+        else:
+            module = NodeScopeFilter(0).visit(module)
+
+        if sort is not None:
+            if not module.body:
+                return module
+
+            # group and sort
+            grouper = ImportGrouper(*GROUPERS)
+            grouper.visit(module)
+            groups = {g: self.sort(mod, sort)
+                      for g, mod in grouper.groups.items()}
+
+            # reorder the groups
+            modules = groups.values()
+            typecodes, *_ = zip(*groups.keys())
+            group_order = (map(f, modules) for f in GROUP_SORTERS)
+            _, (module, *modules) = cosort(zip(typecodes, *group_order), modules)
+
+            for mod in modules:
+                module.body.extend(mod.body)
+
+        return module
 
     # def parse(self, stream):
     #     with open_any(stream) as file:
@@ -902,83 +972,6 @@ class ImportRefactory(LoggingMixin):
 
     def delocalize(self):
         raise NotImplementedError
-
-    def refactor(self,
-                 sort='aesthetic',
-                 filter_unused=None,
-                 split=0,
-                 merge=1,
-                 relativize=None,
-                 #  delocalize=False,
-                 ):
-
-        # keep_multiline=True,
-        #  up_to_line=math.inf,
-        """
-
-        sort: str, {'aesthetic', 'alphabetically'}
-            The sorting rules are as follow:
-            # TODO
-        unscope: bool
-            Whether or not to move the import statements that are in a local scope
-        headers: bool or None
-            whether to print comment labels eg 'third-party libs' above different
-            import groups.  If None (the default) this will only be done if there
-            are imports from multiple groups.
-
-        """
-
-        module = self.module
-
-        # if unscope:
-        #     module = self.unscope(module)
-
-        # filter_unused = (self.up_to_line == math.inf and bool(used_names))
-        if filter_unused is None:
-            filter_unused = self._should_filter()
-
-        if filter_unused:
-            module = self.filter(module)
-
-        if (relativize is None):
-            relativize = self.filename is not None
-
-        if relativize:
-            module = self.relativize(module, relativize)
-
-        if split is not None:
-            module = self.split(module, split)
-
-        if merge is not None:
-            module = self.merge(module, merge)
-
-        delocalize = False
-        if delocalize:
-            module = self.delocalize(module)  # TODO
-        else:
-            module = NodeScopeFilter(0).visit(module)
-
-        if sort is not None:
-            if not module.body:
-                return module
-
-            # group and sort
-            grouper = ImportGrouper(*GROUPERS)
-            grouper.visit(module)
-            groups = {g: self.sort(mod, sort)
-                      for g, mod in grouper.groups.items()}
-
-            # reorder the groups
-            modules = groups.values()
-            typecodes, *_ = zip(*groups.keys())
-            group_order = (map(f, modules) for f in GROUP_SORTERS)
-            _, (module, *modules) = cosort(zip(typecodes, *group_order),
-                                           modules)
-
-            for mod in modules:
-                module.body.extend(mod.body)
-
-        return module
 
     def _should_filter(self):
         # is_init_file =

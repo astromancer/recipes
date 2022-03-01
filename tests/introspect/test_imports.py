@@ -1,21 +1,14 @@
 # std
 import ast
-from pathlib import Path
 import textwrap as txw
+from pathlib import Path
 
 # local
-from recipes.string import remove_prefix
-from recipes.testing import Expected, expected, mock, ECHO, Warns
-from recipes.introspect.imports import (Parentage, refactor, rewrite,
-                                        ImportCapture,
-                                        ImportFilter, NodeTypeFilter,
-                                        ImportRefactory,
-                                        ImportMerger,
-                                        rewrite, get_mod_name,
-                                        tidy,
-                                        ImportSplitter,
-                                        Parentage,
-                                        ImportRelativizer)
+from recipes.testing import ECHO, Expected, Warns, expected, mock
+from recipes.introspect.imports import (
+    ImportCapture, ImportFilter, ImportMerger, ImportRelativizer,
+    ImportSplitter, NodeTypeFilter, Parentage, get_mod_name, refactor, rewrite)
+
 
 TESTPATH = Path(__file__).parent.absolute()
 EXAMPLES = TESTPATH / 'import_refactor_examples'
@@ -480,8 +473,8 @@ test_rewrite = Expected(
             '''
             from recipes.introspect.imports import (
                 Parentage, refactor, rewrite, ImportCapture, ImportFilter, NodeTypeFilter,
-                ImportRefactory, ImportMerger, rewrite, get_mod_name, tidy, ImportSplitter,
-                Parentage, ImportRelativizer)
+                ImportRefactory, ImportMerger, get_mod_name, tidy, ImportSplitter,
+                ImportRelativizer)
             ''',
 
             mock(hang=False):
@@ -489,9 +482,8 @@ test_rewrite = Expected(
             from recipes.introspect.imports import (Parentage, refactor, rewrite,
                                                     ImportCapture, ImportFilter,
                                                     NodeTypeFilter, ImportRefactory,
-                                                    ImportMerger, rewrite, get_mod_name,
-                                                    tidy, ImportSplitter, Parentage,
-                                                    ImportRelativizer)
+                                                    ImportMerger, get_mod_name, tidy,
+                                                    ImportSplitter, ImportRelativizer)
             ''',
 
             mock(hang=False, one_per_line=True):
@@ -504,11 +496,9 @@ test_rewrite = Expected(
                                                     NodeTypeFilter,
                                                     ImportRefactory,
                                                     ImportMerger,
-                                                    rewrite,
                                                     get_mod_name,
                                                     tidy,
                                                     ImportSplitter,
-                                                    Parentage,
                                                     ImportRelativizer)
             ''',
 
@@ -523,15 +513,15 @@ test_rewrite = Expected(
                 NodeTypeFilter,
                 ImportRefactory,
                 ImportMerger,
-                rewrite,
                 get_mod_name,
                 tidy,
                 ImportSplitter,
-                Parentage,
                 ImportRelativizer)
             '''
     })
 
+
+# def test_
 
 # class Test_reformat:
 
