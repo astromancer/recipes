@@ -57,9 +57,7 @@ POS, PKW, VAR, KWO, VKW = _ParameterKind
 
 
 def to_tuple(obj):
-    if isinstance(obj, tuple):
-        return obj
-    return (obj, )
+    return obj if isinstance(obj, tuple) else (obj, )
 
 
 def get_hashable_args(*args, **kws):
@@ -171,10 +169,6 @@ class expected:
         return Expected(func, **self.kws)(self.cases, *self.args)
 
 
-PKW = Parameter.POSITIONAL_OR_KEYWORD
-KWO = Parameter.KEYWORD_ONLY
-
-
 def get_transforms(main, left, right):
     if main is not None:
         assert callable(main)
@@ -209,13 +203,14 @@ class Expected(LoggingMixin):
     ...      }
     ... )
 
-    This will automatically construct a test function: 'test_dicimal' which has
-    the same signature as the function `decimal`, with a single parameter
-    `results` added. The sequence of input output pairs passed to the `expects`
-    method is used to parametrize the test, so that pytest will include all
-    cases in your test run. Assigning the output of the `expects` method above
-    to a variable name starting with 'test_' is important for pytest test
-    discovery to work correctly.
+    This will automatically construct a test function: 'test_hms' which has the
+    same signature as the function `hms`, with a single parameter `results`
+    added at the end of the list of extant positional-or-keyword parameters. The
+    sequence of input-output pairs passed to the `expects` method is used to
+    parametrize the test, so that pytest will include all cases in your test
+    run. Assigning the output of the `expects` method above to a variable name
+    starting with 'test_' is important for pytest test discovery to work
+    correctly.
     """
 
     # result_name = 'expected'
@@ -232,6 +227,8 @@ class Expected(LoggingMixin):
         self.is_test = name.startswith('test_')
         # crude test for whether this function is defined in a class scope
         self.is_method = (name != func.__qualname__)
+        self.is_dispatch = all(hasattr(func, _) for _ in
+                               {'register', 'dispatch', 'registry'})
 
         # get func signature
         self.sig = signature(self.func)
@@ -334,18 +331,18 @@ class Expected(LoggingMixin):
         return self(items, *args, left_transform=transform, **kws)
 
     def bind(self, *args, **kws):
-        # if self.is_method:
-        #     args = (None, *args)
+        if self.is_method:
+            args = (None, *args)
 
         bound = self.sig.bind(*args, **kws)
         bound.apply_defaults()
-        return bound.arguments
-        # params = bound.arguments
+        # return bound.arguments
+        params = bound.arguments
 
-        # if self.is_method:
-        #     params.pop('self')
+        if self.is_method:
+            params.pop('self')
 
-        # return params
+        return params
 
     def get_args(self, items):
         # loop through the input argument list (items) and create the full
@@ -394,7 +391,7 @@ class Expected(LoggingMixin):
         return values
 
     def make_test(self, left_transform, right_transform):
-
+        # -------------------------------------------------------------------- #
         def test(*args, **kws):
             #
             self.logger.debug('test received: {!s}, {!s}', args, kws)
@@ -404,10 +401,15 @@ class Expected(LoggingMixin):
             # unpack position only
             # args = (*(kws.pop(p) for p in self.pos), *args)
             # unpack variadic keywords
+
             kws = {**kws, **kws.pop(self.vkw, {})}
             args = (*(kws.pop(name) for name in
                       self.pnames[:op.index(self.pkinds, VAR, default=0)]),
                     *kws.pop(self.var, ()))
+
+            # single dispatch functions require positional arguments
+            if args == () and self.is_dispatch:
+                args = (kws.pop(self.pnames[0]), )
 
             self.logger.debug('passing to {:s}: {!s}; {!s}',
                               self.func.__name__, args, kws)
@@ -442,6 +444,7 @@ class Expected(LoggingMixin):
 
                 raise AssertionError(motley.format(message, **locals()))
 
+        # -------------------------------------------------------------------- #
         # Override signature to add `expected` parameter
         # Add `expected` parameter after variadic keyword arguments
         params = [par.replace(default=par.empty, kind=PKW)
