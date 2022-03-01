@@ -27,7 +27,7 @@ from ..logging import LoggingMixin
 from ..iter import filter_duplicates
 from ..io import open_any, safe_write
 from ..pprint.callers import describe
-from ..string import remove_suffix, remove_prefix, truncate
+from ..string import remove_prefix, remove_suffix, truncate
 
 
 # FIXME: unscoped imports do not get added to top!!!
@@ -40,7 +40,7 @@ from ..string import remove_suffix, remove_prefix, truncate
 #                         "from uncertainties import unumpy as unp"
 # TODO: keep multiline imports as multiline
 # TODO: local import that are already in global namespace
-# TODO: sort aliases
+
 # TODO: convert wildcard imports
 # TODO: sort by submodule width?
 
@@ -113,19 +113,17 @@ def get_package_name(node):
 
 
 def relative_sorter(node):
-    if is_relative(node):
-        # this prioritizes higher relatives '..' above '.'
-        # also '..' above '..x'
-        return 0.5 * bool(node.module) - node.level
-    return 0
+    # this prioritizes higher relatives '..' above '.'
+    # also '..' above '..x'
+    return (0.5 * bool(node.module) - node.level) if is_relative(node) else 0
 
 # ---------------------------------------------------------------------------- #
 # Dispatcher for getting module name import node or path
 
+
 @ftl.singledispatch
 def get_mod_name(_):
     """Get the full (dot separated) module name from various types."""
-    # ast.Import
     raise TypeError()
 
 
@@ -147,9 +145,16 @@ def _(path):
     path = Path(path)
     candidates = []
     trial = path.parent
+    stop = (Path.home(), Path('/'))
     for _ in range(5):
-        if pkgutil.get_loader(trial.name):
-            candidates.append(trial)
+        if trial in stop:
+            break
+
+        try:
+            if pkgutil.get_loader(trial.name):
+                candidates.append(trial)
+        except ImportError:
+            pass
 
         trial = trial.parent
 
@@ -160,6 +165,7 @@ def _(path):
     while candidates:
         trial = candidates.pop(0)
         if candidates and (trial.name in BUILTIN_MODULE_NAMES):
+            # candidates.append(trial)
             continue
 
         # convert to dot.separated.name
@@ -174,7 +180,7 @@ def _(path):
 # Node writer
 
 
-def rewrite(node, width=80):
+def rewrite(node, width=80, hang=None, indent=4, one_per_line=False):
     """write an import node as str"""
     s = ''
     if isinstance(node, ast.ImportFrom):
@@ -190,21 +196,36 @@ def rewrite(node, width=80):
     aliases[-1] = aliases[-1].rstrip(', ')
 
     # check length
-    mark, *splitx = itt.accumulate(map(len, aliases), initial=len(s))
+    lengths = list(map(len, aliases))
 
-    if splitx[-1] <= width:
+    # mark, *splitx = itt.accumulate(map(len, aliases), initial=len(s))
+
+    if (total := len(s) + sum(lengths)) <= width:
         return ''.join((s, *aliases))
 
     # split lines
+    if hang is None:
+        # hang modules on line below if they will span more than 2 lines if not
+        # hung. This is the natural, space optimal choice.
+        right_space = width - len(s)
+        hang = (((total // right_space) > 2)
+                or any(l > right_space for l in lengths))
+
     # wrap imported names in a tuple
-    s += '('
-    mark = len(s)
-    for i, l in enumerate(splitx):
-        if l > width:
+    s += '(' + ('\n' + (' ' * indent)) * hang
+    start = mark = indent if hang else len(s)
+    nl = f'\n{"":<{start}}'
+    for i, l in enumerate(lengths):
+        # print(aliases[i], mark, l,  mark + l > width)
+        if (i and one_per_line) or (mark + l > width):
             # go to next line & indent to tuple mark
-            s = f'{s.strip()}\n{"":<{mark}}'
+            s = s.strip() + nl
+            mark = start
+
         s += aliases[i]
-    s += ')'
+        mark += l
+
+    s += ')'  # ('\n' * hang + ')')
     return s
 
 # ---------------------------------------------------------------------------- #
@@ -301,10 +322,13 @@ NODE_SORTERS = {
 
 def ALIAS_SORTER(alias):
     """
-    Aliases are sorted in case-sensitive alphabetical order. 
+    Aliases are sorted in case-sensitive alphabetical order.
     UPPERCASE preceeds TitleCase preceeds lowercase.
     """
-    return (not alias.name.isupper()), alias.name, alias.name.islower()
+    return (alias.asname is not None,  # "import x as y" after "import whatever"
+            not alias.name.isupper(),
+            alias.name,
+            alias.name.islower())
 
 # list(NODE_SORTERS[''])
 
@@ -521,7 +545,7 @@ class ImportRelativizer(ast.NodeTransformer):
         Parameters
         ----------
         module_name : str
-            Dot separated name of the parent module or package. 
+            Dot separated name of the parent module or package.
             eg: 'awesome.code'
 
 
@@ -710,7 +734,7 @@ def refactor(file_or_source,
              filter_unused=None,
              split=0,
              merge=1,
-             relativize=True,
+             relativize=None,
              #  unscope=False,
              headers=None,
              ):
@@ -831,19 +855,18 @@ class ImportRefactory(LoggingMixin):
         module = module or self.module
 
         if parent_module_name in (None, True):
-            if self.filename is None:
-                # cannot relativize without filename
-                if parent_module_name is True:
-                    wrn.warn(
-                        'Import relativization requested, but no parent module '
-                        'name provided. Since we are running from raw input '
-                        '(source code string), you must provide the dot-'
-                        'separated name of the parent module of the source code'
-                        ' via `relativize="my.package.name". Alternatively, if '
-                        'the source resides in a file, pass the `filename` '
-                        'parameter to the `refactor` method to relativize '
-                        'import statements in-place.'
-                    )
+            # cannot relativize without filename
+            if ((self.filename is None) and (parent_module_name is True)):
+                wrn.warn(
+                    'Import relativization requested, but no parent module name'
+                    ' provided. Since we are running from raw input (source '
+                    'code string), you must provide the dot-separated name of '
+                    'the parent module of the source code via '
+                    '`relativize="my.package.name". Alternatively, if the '
+                    'source resides in a file, pass the `filename` parameter to'
+                    ' the `refactor` method to relativize import statements in-'
+                    'place.'
+                )
                 return module
 
             # get the package name so we can replace
@@ -885,10 +908,10 @@ class ImportRefactory(LoggingMixin):
                  filter_unused=None,
                  split=0,
                  merge=1,
-                 relativize=True,
+                 relativize=None,
                  #  delocalize=False,
                  ):
-        #  unscope=False):
+
         # keep_multiline=True,
         #  up_to_line=math.inf,
         """
@@ -911,9 +934,14 @@ class ImportRefactory(LoggingMixin):
         #     module = self.unscope(module)
 
         # filter_unused = (self.up_to_line == math.inf and bool(used_names))
-        filter_unused = (filter_unused is None) and self._should_filter()
+        if filter_unused is None:
+            filter_unused = self._should_filter()
+
         if filter_unused:
             module = self.filter(module)
+
+        if (relativize is None):
+            relativize = self.filename is not None
 
         if relativize:
             module = self.relativize(module, relativize)
@@ -1045,6 +1073,7 @@ def excision_flagger(lines, line_nrs):
     # handling for these ito giving statement line end numbers. Lines ending on
     # the line continuation character '\', and lines containing multi-line
     # tuples are handled below
+    # TODO: i think this is now changed in python >3.8
     cutLines = []
     is_multiline = []
     for ln in line_nrs:

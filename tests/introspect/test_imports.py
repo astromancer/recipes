@@ -1,7 +1,7 @@
 # std
 import ast
 from pathlib import Path
-from textwrap import dedent
+import textwrap as txw
 
 # local
 from recipes.string import remove_prefix
@@ -22,13 +22,13 @@ EXAMPLES = TESTPATH / 'import_refactor_examples'
 # ---------------------------------------------------------------------------- #
 
 
-def source(string):
-    return dedent(string).strip()
+def dedent(string):
+    return txw.dedent(string).strip()
 
 
-def parse(kls, code, *args, **kws):
+def parse(code, kls=ast.NodeTransformer, *args, **kws):
     transformer = kls(*args, **kws)
-    module = transformer.visit(ast.parse(source(code)))
+    module = transformer.visit(ast.parse(dedent(code)))
     return transformer, module
 
 
@@ -52,19 +52,23 @@ def check_parents(node):
         '''
 )
 def test_parentage(kls, code, expected):
-    _, module = parse(kls, code)
+    _, module = parse(code, kls)
 
     assert module.parent is None
     check_parents(module)
 
 
 class TestNodeTransformer:
+    Transformer = ast.NodeVisitor  # null transformer
+
     def parse(self, code, *args, **kws):
-        Transformer = eval(remove_prefix(type(self).__name__, 'Test'))
-        return parse(Transformer, code, *args, **kws)
+        #Transformer = eval(remove_prefix(type(self).__name__, 'Test'))
+        return parse(code, self.Transformer, *args, **kws)
 
 
 class TestNodeTypeFilter(TestNodeTransformer):
+    Transformer = NodeTypeFilter
+
     @expected({
         ('''
         import re, os
@@ -82,10 +86,11 @@ class TestNodeTypeFilter(TestNodeTransformer):
     def test_(self, code, keep, expected):
         _, module = self.parse(code, (), keep)
         new = '\n'.join(map(rewrite, module.body))
-        assert new == source(expected)
+        assert new == dedent(expected)
 
 
 class TestImportCapture(TestNodeTransformer):
+    Transformer = ImportCapture
 
     @expected({
         # case: detect names basic
@@ -135,6 +140,7 @@ class TestImportCapture(TestNodeTransformer):
 
 
 class TestImportFilter(TestNodeTransformer):
+    Transformer = ImportFilter
 
     code0 = '''
             from xx.yy import zz
@@ -144,19 +150,19 @@ class TestImportFilter(TestNodeTransformer):
 
     @expected({
         mock(code0, remove=['zz']):
-        source('''
+        dedent('''
                 import re, os
                 import operator as op
             '''),
 
         mock(code0, remove=['zz', 're']):
-        source('''
+        dedent('''
                 import os
                 import operator as op
             '''),
 
         mock(code0, remove=['op']):
-        source('''
+        dedent('''
                 from xx.yy import zz
                 import re, os
             '''),
@@ -174,6 +180,7 @@ class TestImportFilter(TestNodeTransformer):
 
 
 class TestImportMerger(TestNodeTransformer):
+    Transformer = ImportMerger
 
     @expected({
         '''
@@ -210,10 +217,12 @@ class TestImportMerger(TestNodeTransformer):
     def test_merge(self, code, expected):
         _, module = self.parse(code)
         new = '\n'.join(map(rewrite, module.body))
-        assert new == source(expected)
+        assert new == dedent(expected)
 
 
 class TestImportSplitter(TestNodeTransformer):
+    Transformer = ImportSplitter
+
     @expected(
         code='''
              import os, re, this
@@ -248,10 +257,12 @@ class TestImportSplitter(TestNodeTransformer):
     def test_split(self, code, level, expected):
         _, module = self.parse(code, level=level)
         new = '\n'.join(map(rewrite, module.body))
-        assert new == source(expected)
+        assert new == dedent(expected)
 
 
 class TestImportRelativizer(TestNodeTransformer):
+    Transformer = ImportRelativizer
+
     @expected({
         # basic
         ('from xx import yy as uu, zz as vv\n'
@@ -261,7 +272,7 @@ class TestImportRelativizer(TestNodeTransformer):
          'from .yy import qq'),
 
         # one level deep
-        (source('''
+        (dedent('''
             from recipes import cosort, op
             from recipes.io import open_any
             from recipes import pprint as pp
@@ -281,7 +292,7 @@ class TestImportRelativizer(TestNodeTransformer):
         from ..io import safe_write
         ''',
         # deeper relativity
-        (source('''
+        (dedent('''
             from recipes import cosort, op
             from recipes.io import open_any
             from recipes import pprint as pp
@@ -302,7 +313,7 @@ class TestImportRelativizer(TestNodeTransformer):
         ''',
 
         # deeper still: inside a/b/c/d.py
-        (source('''
+        (dedent('''
         from a import b
         from a.b import c
         from a.b.c import e
@@ -325,7 +336,7 @@ class TestImportRelativizer(TestNodeTransformer):
         ''',
 
         # modules shadowing builtin names
-        (source('''
+        (dedent('''
             from recipes.pprint.nrs import xx
             from recipes.string import yy
             '''),
@@ -336,7 +347,7 @@ class TestImportRelativizer(TestNodeTransformer):
         ''',
 
         # modules shadowing builtin names
-        (source('''
+        (dedent('''
             from .image import SkyImage, ImageContainer
             from .mosaic import MosaicPlotter
             from .segmentation import SegmentedImage
@@ -352,17 +363,19 @@ class TestImportRelativizer(TestNodeTransformer):
     def test_rename(self, code, old_name, expected):
         _, module = self.parse(code, old_name)
         new = '\n'.join(map(rewrite, module.body))
-        assert new == source(expected)
+        assert new == dedent(expected)
+
 
 test_get_module_name = Expected(get_mod_name)({
-    '/recipes/src/recipes/string/brackets.py': 'recipes.string'
+    '/recipes/src/recipes/string/brackets.py': 'recipes.string.brackets',
+    '/recipes/src/recipes/oo/property.py': 'recipes.oo.property'
 })
 
-test_refactor = Expected(refactor, right_transform=source)({
+test_refactor = Expected(refactor, right_transform=dedent)({
     # case: Warn if asked to filter unused and no code in body (besides imports)
     mock('import this', filter_unused=True):            Warns(),
     #
-    mock(source('''
+    mock(dedent('''
             import logging
             import logging.config
 
@@ -371,12 +384,12 @@ test_refactor = Expected(refactor, right_transform=source)({
          filter_unused=True):                            ECHO,
 
     # case
-    mock(source('''
+    mock(dedent('''
         from recipes.oo import SelfAware, meta
 
         class X(SelfAware): pass
         '''),
-         filter_unused=True):
+        filter_unused=True):
     '''
     from recipes.oo import SelfAware
 
@@ -384,26 +397,26 @@ test_refactor = Expected(refactor, right_transform=source)({
     ''',
 
     # Test line wrapping
-    mock(source('''
+    mock(dedent('''
         from motley.profiler.imports import ImportFinder, ModuleExtractor, \
             ImportExtractor
         ''')):
     '''
-    from motley.profiler.imports import (ImportFinder, ModuleExtractor,
-                                         ImportExtractor)
+    from motley.profiler.imports import (ImportExtractor, ImportFinder,
+                                         ModuleExtractor)
     ''',
 
     #
-    mock(source('''
+    mock(dedent('''
         from motley.profiler.imports import ImportFinder, \
             ImportExtractor
         ''')):
     '''
-    from motley.profiler.imports import ImportFinder, ImportExtractor
+    from motley.profiler.imports import ImportExtractor, ImportFinder
     ''',
 
     # Test relativize and merge
-    mock(source('''
+    mock(dedent('''
         from recipes import cosort, op
         from recipes.io import open_any
         from recipes import pprint as pp
@@ -418,9 +431,9 @@ test_refactor = Expected(refactor, right_transform=source)({
         from .functionals import negate
         from .io import open_any, safe_write
         from .string import replace_prefix, truncate
-        from .logging import logging, get_module_logger
+        from .logging import get_module_logger, logging
         ''',
-    mock(source('''
+    mock(dedent('''
         from recipes import cosort, op
         from recipes.io import open_any
         from recipes import pprint as pp
@@ -435,14 +448,105 @@ test_refactor = Expected(refactor, right_transform=source)({
         from ..functionals import negate
         from ..io import open_any, safe_write
         from ..string import replace_prefix, truncate
-        from ..logging import logging, get_module_logger
+        from ..logging import get_module_logger, logging
         '''
 
 })
 
 
-# test_relative_imports = Expected(tidy_source, right_transform=source)({
-#     mock(source('''
+def rewrite_multiline(code, **kws):
+    _, module = parse(code)
+    return rewrite(module.body[0], **kws)
+
+
+test_rewrite = Expected(
+    rewrite_multiline,
+    code='''
+        from recipes.introspect.imports import (Parentage, refactor, 
+                                    rewrite,
+                                    ImportCapture,
+                                    ImportFilter, NodeTypeFilter,
+                                    ImportRefactory,
+                                    ImportMerger,
+                                    rewrite, get_mod_name,
+                                    tidy,
+                                    ImportSplitter,
+                                    Parentage,
+                                    ImportRelativizer)
+        ''',
+        right_transform=dedent
+    )({
+        mock(hang=True):
+            '''
+            from recipes.introspect.imports import (
+                Parentage, refactor, rewrite, ImportCapture, ImportFilter, NodeTypeFilter,
+                ImportRefactory, ImportMerger, rewrite, get_mod_name, tidy, ImportSplitter,
+                Parentage, ImportRelativizer)
+            ''',
+
+            mock(hang=False):
+            '''
+            from recipes.introspect.imports import (Parentage, refactor, rewrite,
+                                                    ImportCapture, ImportFilter,
+                                                    NodeTypeFilter, ImportRefactory,
+                                                    ImportMerger, rewrite, get_mod_name,
+                                                    tidy, ImportSplitter, Parentage,
+                                                    ImportRelativizer)
+            ''',
+
+            mock(hang=False, one_per_line=True):
+            '''
+            from recipes.introspect.imports import (Parentage,
+                                                    refactor,
+                                                    rewrite,
+                                                    ImportCapture,
+                                                    ImportFilter,
+                                                    NodeTypeFilter,
+                                                    ImportRefactory,
+                                                    ImportMerger,
+                                                    rewrite,
+                                                    get_mod_name,
+                                                    tidy,
+                                                    ImportSplitter,
+                                                    Parentage,
+                                                    ImportRelativizer)
+            ''',
+
+            mock(hang=True, one_per_line=True):
+            '''
+            from recipes.introspect.imports import (
+                Parentage,
+                refactor,
+                rewrite,
+                ImportCapture,
+                ImportFilter,
+                NodeTypeFilter,
+                ImportRefactory,
+                ImportMerger,
+                rewrite,
+                get_mod_name,
+                tidy,
+                ImportSplitter,
+                Parentage,
+                ImportRelativizer)
+            '''
+    })
+
+
+# class Test_reformat:
+
+#     @expected(
+#         ,
+#         cases={
+            
+#         })
+#     def test_rewrite_multiline(self, code, hang, one_per_line, expected):
+#         _, module = parse(code)
+#         assert rewrite(module.body[0], 80, hang, 4, one_per_line) == dedent(expected)
+
+
+# test_relative_imports = Expected(tidy_dedent, right_transform=dedent)({
+#     mock(dedent('''
 #         from .. import shocCampaign, shocHDU
 #         from .calibrate import calibrate
 #         from . import logs, WELCOME_BANNER
@@ -456,7 +560,7 @@ test_refactor = Expected(refactor, right_transform=source)({
 # })
 
 # test_preserve_scope = Expected(
-#     tidy_source, right_transform=source, source=source('''
+#     tidy_dedent, right_transform=dedent, dedent=dedent('''
 #         def _():
 #             from foo import bar
 #             bar()
@@ -473,22 +577,22 @@ test_refactor = Expected(refactor, right_transform=source)({
 
 # def test_preserve_scope():
 #     # unscope=False
-#     code = source('''
+#     code = dedent('''
 #         def _():
 #             from foo import bar
 #             bar()
 #         ''')
-#     assert code == tidy_source(code, unscope=False)
+#     assert code == tidy_dedent(code, unscope=False)
 
 #     # unscope=True
-#     code = source('''
+#     code = dedent('''
 #     from foo import bar
 
 
 #     def _():
 #         bar()
 #     ''')
-#     assert code == tidy_source(code, unscope=True)
+#     assert code == tidy_dedent(code, unscope=True)
 
 
 # def test_capture_line_limit():
