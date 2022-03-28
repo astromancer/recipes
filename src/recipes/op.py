@@ -95,6 +95,9 @@ class ItemGetter:
     def __call__(self, target):  # -> Tuple or Any:
         return self.unpack(self._iter(target))
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.keys})'
+    
     def get_default(self, key):
         """Retrieve the default value of the `key` attribute"""
         # pylint: disable=method-hidden
