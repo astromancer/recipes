@@ -6,6 +6,8 @@ Extensions for buitlin property decorator.
 
 # std
 import threading
+import operator as op
+from collections import abc
 from types import FunctionType
 
 # third-party
@@ -18,21 +20,19 @@ class ForwardProperty:
     """
 
     def __init__(self, name):
-        self.parent_name = str(name).split('.', 1)
-        self.property_name = str(name)
+        self.parent_name, self.property_name = str(name).split('.', 1)
 
-    def __get__(self, instance, kls=None):
+    def __get__(self, obj, kls=None):
         # sourcery skip: assign-if-exp, reintroduce-else
         # get parent object
-        if instance is None:
+        if obj is None:
             # lookup from class
             return self
 
-        parent = getattr(instance, self.parent_name)
-        return op.attrgetter(parent)(self.property_name)
+        return op.attrgetter(self.property_name)(getattr(obj, self.parent_name))
 
-    def __set__(self, instance, value):
-        parent = getattr(instance, self.parent_name)
+    def __set__(self, obj, value):
+        parent = getattr(obj, self.parent_name)
         setattr(parent, self.property_name, value)
 
 
@@ -87,13 +87,17 @@ class lazyproperty(property):
             # Even though we should not?????!!!!!!!!!!
             return
 
-        if depends_on:
-            depends_on = (depends_on, *other_parents)
+        if not isinstance(depends_on, abc.Collection):
+            depends_on = (depends_on, )
+        depends_on = (*depends_on, *other_parents)
 
         self._depends_on = depends_on
         self._dependents = []
         # patch deletion for parent to also delete this property
         for parent in depends_on:
+            # if isinstance(parent, property):
+            #     parent.fset
+
             if not isinstance(parent, lazyproperty):
                 raise TypeError(
                     f'Parent object that this {(kls := self.__class__.__name__)} '
@@ -140,11 +144,11 @@ class lazyproperty(property):
         self._delete_dependents(obj)
 
     def __delete__(self, obj):
-        
+
         if self.fdel:
             self.fdel(obj)
         obj.__dict__.pop(self._key, None)    # Delete if present
-        
+
         self._delete_dependents(obj)
 
     def _delete_dependents(self, obj):
