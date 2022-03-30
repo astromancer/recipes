@@ -4,10 +4,10 @@ Recipes involving dictionaries
 
 
 # std
+import os
 import numbers
 import itertools as itt
 from pathlib import Path
-from collections.abc import Hashable
 from collections import OrderedDict, UserDict, abc, defaultdict
 
 # third-party
@@ -25,7 +25,7 @@ from .functionals import Emit
 
 
 def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
-            brackets='{}', hang=False, tabsize=4):
+            brackets='{}', hang=False, tabsize=4, newline=os.linesep):
     """
     pformat (nested) dict types
 
@@ -68,7 +68,7 @@ def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
             f'Brackets should be a pair of strings, not {brackets!r}'
         )
 
-    string = _pformat(mapping, lhs, equals, rhs, sep, brackets, hang, tabsize)
+    string = _pformat(mapping, lhs, equals, rhs, sep, brackets, hang, tabsize, newline)
     ispace = 0 if hang else len(name)
     string = indent(string, ispace)  # f'{" ": <{pre}}
     if name:
@@ -77,7 +77,7 @@ def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
 
 
 def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
-             hang=False, tabsize=4):
+             hang=False, tabsize=4, newline=os.linesep):
 
     # if isinstance(mapping, dict): # abc.MutableMapping
     #     raise TypeError(f'Object of type: {type(mapping)} is not a '
@@ -89,8 +89,8 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
 
     string, close = brackets
     if hang:
-        string += '\n'
-        close = '\n' + close
+        string += newline
+        close = newline + close
     else:
         tabsize = len(string)
 
@@ -100,7 +100,7 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
     width = max(map(len, keys))  # + post_sep_space
     indents = mit.padded([hang * tabsize], tabsize)
     separators = itt.chain(
-        itt.repeat(sep + '\n', len(mapping) - 1),
+        itt.repeat(sep + newline, len(mapping) - 1),
         [close]
     )
     for pre, key, val, post in zip(indents, keys, mapping.values(), separators):
