@@ -19,8 +19,8 @@ def pol2cart(r, theta):
     -------
 
     """
-    return (r * np.cos(theta),
-            r * np.sin(theta))
+    return (r * np.cos(theta), # x
+            r * np.sin(theta)) # y
 
 
 def cart2pol(x, y):
@@ -104,9 +104,9 @@ def rigid(xy, p):
     Parameters
     ----------
     xy: np.ndarray
-         shape (n_samples, 2)
+        Data array shape (n, 2)
     p: np.ndarray
-         δx, δy, θ
+        Parameter array (δx, δy, θ)
 
     Returns
     -------

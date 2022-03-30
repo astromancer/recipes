@@ -65,7 +65,7 @@ def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
     brackets = brackets or ('', '')
     if len(brackets) != 2:
         raise ValueError(
-            f'Brackets should be a pair of strings, not {brackets!r}'
+            f'Brackets should be a pair of strings, not {brackets!r}.'
         )
 
     string = _pformat(mapping, lhs, equals, rhs, sep, brackets, hang, tabsize, newline)
@@ -135,16 +135,22 @@ def dump(mapping, filename, **kws):
     Path(filename).write_text(pformat(mapping, **kws))
 
 
-def invert(d, convertion={list: tuple}):
+def invert(d, conversion=None):
+    if conversion is None:
+        conversion = {list: tuple}
+
     inverted = type(d)()
     for key, val in d.items():
         kls = type(val)
-        if kls in convertion:
-            val = convertion[kls](val)
+        if kls in conversion:
+            val = conversion[kls](val)
 
-        if not isinstance(val, Hashable):
+        if not isinstance(val, abc.Hashable):
             raise ValueError(
-                f'Cannot invert dictionary with non-hashable item: {val} of type {type(val)}. You may wish to pass a convertion mapping to this function to aid invertion of dicts containing non-hashable items.')
+                f'Cannot invert dictionary with non-hashable item: {val} of '
+                f'type {type(val)}. You may wish to pass a conversion mapping '
+                f'to this function to aid invertion of dicts containing non-'
+                f'hashable items.')
 
         inverted[val] = key
     return inverted
@@ -290,15 +296,12 @@ class AttrReadItem(AttrBase):
 
     """
 
-    def __getattr__(self, attr):
+    def __getattr__(self, key):
         """
-        Try to get the value in the dict associated with key `attr`. If `attr`
-        is not a key, try get the attribute from the parent class.
+        Try to get the value in the dict associated with key `key`. If `key`
+        is not a key in the dict, try get the attribute from the parent class.
         """
-        if attr in self:
-            return self[attr]
-
-        return super().__getattribute__(attr)
+        return self[key] if key in self else super().__getattribute__(key)
 
     # def __setattr__(self, name: str, value):
     # TODO maybe warn once instead
@@ -630,7 +633,7 @@ class DefaultOrderedDict(OrderedDict):
         if not (default_factory is None or callable(default_factory)):
             raise TypeError(
                 'First argument to {self.__class__.__name__} must be callable.'
-                )
+            )
 
         OrderedDict.__init__(self, mapping, **kws)
         self.default_factory = default_factory
@@ -664,9 +667,8 @@ class DefaultOrderedDict(OrderedDict):
                           copy.deepcopy(self.items()))
 
     def __repr__(self):
-        return '%s(%s, %s)' % (self.__class__.__name__,
-                               self.default_factory,
-                               OrderedDict.__repr__(self))
+        return (f'{self.__class__.__name__}({self.default_factory}, '
+                f'{OrderedDict.__repr__(self)})')
 
 
 # alias

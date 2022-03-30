@@ -149,10 +149,9 @@ class Cached(Decorator, LoggingMixin):
             called to get the cache key for that parameter. The final key for
             the cache entry is a tuple of the individual parameter keys,
             including any keywords passed to the function. Parameters can be
-            given in the `typed` by their name, or position (int) for
+            given in the `typed` by their name (string), or position (int) for
             position-only or positional-or-keyword parameters. If a parameter is
-            not found in the `typed`, we default to the builtin hash
-            mechanism.
+            not found in the `typed`, we default to the builtin hash mechanism.
 
         Examples
         --------

@@ -9,7 +9,7 @@ import numpy as np
 
 # relative
 from ..string import sub
-from ..language import unicode
+from .. import unicode
 from ..dicts import AttrReadItem
 from ..misc import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
@@ -564,19 +564,25 @@ class FractionOf:
 
     templates = dict(
         ascii=('{n}{symbol}', '{n}{symbol}/{d}'),
-        latex=('{n}{symbol}', r'\frac{{{n}{symbol}}}{{{d}}}')
+        latex=('${n}{symbol}$', r'$\frac{{{n}{symbol}}}{{{d}}}$')
     )
 
     def __init__(self, symbols=(), **kws):
         symbols = {k: str(v) for k, v in dict(symbols, **kws).items()}
         assert symbols.keys() == {'ascii', 'unicode', 'latex'}
-
         self.symbols = AttrReadItem(symbols)
 
     def __call__(self, f, style='ascii'):
         return self.format(f, style)
 
+    
     def format(self, f, style='ascii'):
+        s = self._format(f, style)
+        if (style == 'latex') and s[0] != s[-1] != '$':
+            return s.join('$$')
+        return s
+        
+    def _format(self, f, style='ascii'):
 
         if f == 0:
             return '0'
@@ -604,9 +610,7 @@ class FractionOf:
         return self.format(f, 'ascii')
 
     def latex(self, f, _pos=None):
-        if f == 0:
-            return self.format(f, 'latex')
-        return self.format(f, 'latex').join('$$')
+        return self.format(f, 'latex')#.join('$$')
 
     def unicode(self, f, _pos=None):
         return self.format(f, 'unicode')

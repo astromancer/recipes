@@ -24,7 +24,7 @@ import docsplice as doc
 from .. import op
 from ..functionals import echo0
 from ..array.misc import vectorize
-from ..language import unicode as uni
+from .. import unicode as uni
 from ..misc import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 
@@ -134,12 +134,12 @@ def get_significant_digits(x, n=3):
         Any scalar number.
     n: int
         Number of significant digits to return
-        
+
     Examples
     --------
     >>> get_significant_digits(1238488290, 3)
     (124, 9)
-    
+
     Returns
     -------
     nrs: int
@@ -472,7 +472,7 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
 
     out = ''
     fun = echo0
-    for _, (n, p, s) in enumerate(zip(sexa, precision, sep)):
+    for n, p, s in zip(sexa, precision, sep):
         if short and not n:
             continue
         short = False  # only first number can be truncated

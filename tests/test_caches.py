@@ -5,7 +5,7 @@
 import tempfile
 import itertools as itt
 from pathlib import Path
-from collections import OrderedDict as odict, defaultdict
+from collections import defaultdict, OrderedDict as odict
 
 # third-party
 import pytest
@@ -13,12 +13,8 @@ import numpy as np
 
 # local
 from recipes.caching.manager import CacheManager as Cache
-from recipes.caching.decor import (CacheRejectionWarning,
-                                  check_hashable_defaults,
-                                  Ignore,
-                                  Reject,
-                                  cached,
-                                  to_file)
+from recipes.caching.decor import (CacheRejectionWarning, Ignore, Reject,
+                                   cached, check_hashable_defaults, to_file)
 
 
 # TODO: Test inheritance with decorated methods!
@@ -103,15 +99,19 @@ class _CheckIfCalled:
 
 
 class CaseNonHashableDefaults:
+
     def foo(self, a, b=[1], *c, **kws):
+        # sourcery skip: default-mutable-arg
         pass
 
     @classmethod
     def bar(cls, a, b=[1], *c,  **kws):
+        # sourcery skip: default-mutable-arg
         pass
 
 
 def case_func_non_hash(a, b=[1], *c, **kws):
+    # sourcery skip: default-mutable-arg
     pass
 
 
