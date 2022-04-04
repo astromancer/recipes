@@ -3,7 +3,6 @@ Some object oriented code patterns.
 """
 
 
-
 def iter_subclasses(cls, _seen=None):
     """
     Generator over all subclasses of a given class, in depth first order.
@@ -49,7 +48,6 @@ def list_subclasses(cls):
     return list(iter_subclasses(cls))
 
 # ---------------------------------------------------------------------------- #
-
 
 class SelfAwareness(type):
     """
@@ -102,57 +100,10 @@ class AttributeAutoComplete:  # AttributeAutocomplete
         try:
             return super().__getattribute__(key)
         except AttributeError as err:
-            maybe = [_ for _ in self.__dict__ if _.startswith(key)]
-            real, *others = maybe or (None, ())
+            candidates = [_ for _ in self.__dict__ if _.startswith(key)]
+            real, *others = candidates or (None, ())
             if others or not real:
-                # ambiguous or non-existant
+                # ambiguous or non-existent
                 raise err from None
+
             return super().__getattribute__(real)
-
-
-class ClassProperty(property):
-    """
-    Allows properties to be accessed from class or instance
-
-    Examples
-    --------
-
-    >>> class Example:
-    ...
-    ...    _name = None  # optional name.
-    ...    # Optional name. Defaults to class name if not over-written by 
-    ...    # inheritors.
-    ...
-    ...    @ClassProperty
-    ...    @classmethod
-    ...    def name(cls):
-    ...        return cls._name or cls.__name__
-    ...
-    ...    @name.setter
-    ...    def name(self, name):
-    ...        self.set_name(name)
-    ...
-    ...    @classmethod
-    ...    def set_name(cls, name):
-    ...        assert isinstance(name, str)
-    ...        cls._name = name
-    ...
-    ... obj = Example()
-    ... obj.name
-    'Example'
-    >>> obj.name = 'New'
-    ... (obj.name, Example.name)
-    ('New', 'New')
-    
-    NOTE:FIXME Class level assignment OVERWRITES `name` - doesn't go through
-    setter
-    >>> Example.name = 'zzz'
-    ... obj.name, Example.name
-    ('zzz', 'zzz')
-
-    """
-
-    def __get__(self, instance, kls):
-        return self.fget.__get__(None, kls)()
-
-
