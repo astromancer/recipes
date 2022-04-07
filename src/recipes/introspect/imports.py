@@ -33,6 +33,8 @@ from ..pprint.callers import describe
 from ..string import remove_prefix, remove_suffix, truncate
 
 
+# TODO: don't relativize for scripts -> look for hashbang, executable
+
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
 
@@ -45,6 +47,9 @@ from ..string import remove_prefix, remove_suffix, truncate
 # TODO: convert wildcard imports
 # TODO: sort by submodule width?
 
+# TODO: merge these
+# from collections.abc import Hashable
+# from collections import OrderedDict, UserDict, abc, defaultdict
 
 # ---------------------------------------------------------------------------- #
 CONFIG = AttrReadItem(
@@ -99,8 +104,12 @@ STYLES = ('alphabetic', 'aesthetic')
 F_NAMEMAX = os.statvfs('.').f_namemax
 
 
+# object that finds system location of module from name
+# pathFinder = PathFinder()
+
 # ---------------------------------------------------------------------------- #
 # Functions for sorting / rewriting import nodes
+
 def is_import(node):
     return isinstance(node,  ast.Import)
 
@@ -149,9 +158,11 @@ def relative_sorter(node):
 
 
 @ftl.singledispatch
-def get_mod_name(_):
+def get_mod_name(node):
     """Get the full (dot separated) module name from various types."""
-    raise TypeError()
+    raise TypeError(
+        f'No default dispatch method for type {type(node).__name__!r}.'
+    )
 
 
 @get_mod_name.register(ast.Import)
@@ -195,7 +206,7 @@ def _(path):
         # convert to dot.separated.name
         path = path.relative_to(trial.parent)
         name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
-        return name.replace('/', '.')
+        return name.rstrip('/').replace('/', '.')
 
     wrn.warn(f'Could not find package for \'{path}\'.')
 
@@ -774,18 +785,12 @@ tidy = refactor
 class ImportRefactory(LoggingMixin):
     """
     Tidy up import statements that might lie scattered throughout hastily
-    written source code. Sort them, filter unused, group them, re-write them in
-    the document header or write to a new file or just print the prettified code
-    to stdout.
-
-
-    Parameters
-    ----------
-    filename: str or Path
-        input filename
-    up_to_line: int
-        line number for last line in input file that will be processed
+    written source code. Sort them, filter unused imports, group them by type,
+    re-write them in the document header or write to a new file or just print
+    the prettified code to stdout.
     """
+    # up_to_line: int
+    #     line number for last line in input file that will be processed
 
     @property
     def path(self):
@@ -793,6 +798,18 @@ class ImportRefactory(LoggingMixin):
             return Path(self.filename)
 
     def __init__(self, file_or_source):
+        """
+        Initialize the refactory for filename or source code.
+
+        Parameters
+        ----------
+        file_or_source : str or Path
+            Input filename or raw source code string.
+
+        Examples
+        --------
+        >>> 
+        """
 
         with open_any(get_stream(file_or_source)) as file:
             self.source = file.read()
@@ -807,6 +824,11 @@ class ImportRefactory(LoggingMixin):
     def __call__(self, *args, **kws):
         module = self.refactor(*args, **kws)
         return self.write(module)
+
+    def __repr__(self):
+        if path := self.path:
+            return f'{self.__class__.__name__}({path.name!r})'
+        return f'{self.__class__.__name__}(<SourceCodeString>)'
 
     def refactor(self,
                  sort=CONFIG.style,
@@ -834,6 +856,11 @@ class ImportRefactory(LoggingMixin):
         """
 
         module = self.module
+
+        # check if there are any import statements
+        if not self.captured.line_nrs:
+            self.logger.info('No import statements in {}.', self.path or 'source code')
+            return module
 
         # if unscope:
         #     module = self.unscope(module)
@@ -876,6 +903,7 @@ class ImportRefactory(LoggingMixin):
             # reorder the groups
             modules = groups.values()
             typecodes, *_ = zip(*groups.keys())
+
             group_order = (map(f, modules) for f in GROUP_SORTERS)
             _, (module, *modules) = cosort(zip(typecodes, *group_order), modules)
 
@@ -974,8 +1002,13 @@ class ImportRefactory(LoggingMixin):
                 wrn.warn('This looks like a test file. Skipping relativize.')
                 return module
 
+            #
             module_name = get_mod_name(self.filename)
-            parent_module_name, _ = module_name.rsplit('.', 1)
+            if module_name is None:
+                return module
+
+            parent_module_name, *_ = module_name.rsplit('.', 1)
+
             self.logger.debug('Using parent module: {}', parent_module_name)
 
         # if not level:
@@ -1072,11 +1105,9 @@ class ImportRefactory(LoggingMixin):
         # overwrite input file if `filename` not given
         filename = filename or self.filename
 
-        if len(module.body) == 0:
-            # no imports - nothing to do
-            if filename:
-                return self
-            return self.source
+        if (len(module.body) == 0) or (module is self.module):
+            # no statements in module, or unchange module- nothing to write
+            return self if filename else self.source
 
         # line generator
         lines = self._iter_lines(module, headers)
@@ -1085,6 +1116,7 @@ class ImportRefactory(LoggingMixin):
         if filename:
             safe_write(filename, lines)
             return self
+
         return '\n'.join(lines)
 
 
