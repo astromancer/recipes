@@ -2,6 +2,7 @@
 Sort import statements in python source code.
 """
 
+
 # std
 import os
 import io
@@ -9,6 +10,7 @@ import ast
 import sys
 import math
 import pkgutil
+import contextlib
 import warnings as wrn
 import functools as ftl
 import itertools as itt
@@ -175,12 +177,9 @@ def _(path):
         if trial in stop:
             break
 
-        try:
+        with contextlib.suppress(ImportError):
             if pkgutil.get_loader(trial.name):
                 candidates.append(trial)
-        except ImportError:
-            pass
-
         trial = trial.parent
 
     # This next bit is needed since a module may have the same name as a builtin
