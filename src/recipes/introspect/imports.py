@@ -23,6 +23,7 @@ from stdlib_list import stdlib_list
 # relative
 from .. import cosort, op, pprint as pp
 from ..iter import unduplicate
+from ..dicts import AttrReadItem
 from ..functionals import negate
 from ..logging import LoggingMixin
 from ..io import open_any, safe_write
@@ -66,6 +67,18 @@ CONFIG = AttrReadItem(
 # LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
 LOCAL_MODULES = CONFIG.local_modules_db.read_text().splitlines()
 
+
+# warning control
+if CONFIG.log_warnings:
+    # _original_showwarning = wrn.showwarning
+
+    def showwarning(message, *args, **kwargs):
+        logger.warning(message)
+        # _original_showwarning(message, *args, **kwargs)
+
+    wrn.showwarning = showwarning
+
+# ---------------------------------------------------------------------------- #
 # list of builtin modules
 BUILTIN_MODULE_NAMES = [
     # builtins
