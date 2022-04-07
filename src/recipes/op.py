@@ -1,21 +1,27 @@
 """
-Some drop-in replacements for the cool builtin operator classes, but with added
-support for default values 
+Some drop-in replacements for the very cool builtin operator classes, but with
+added support for default values. Along with some additional related operational
+workhorses.
 """
 
 # pylint: disable=redefined-builtin
+# pylint: disable=function-redefined
 # pylint: disable=invalid-name
+# pylint: disable=wildcard-import, unused-wildcard-import
 
 
-# std libs
+# std
 import builtins
-import warnings
 import functools as ftl
+import operator as _op
 from operator import *
+from collections import abc
 
-# local libs
+# local
 import docsplice as doc
-from recipes.decor import raises
+
+# relative
+from .functionals import echo0, raises
 
 
 class NULL:
@@ -44,7 +50,7 @@ def any(itr, test=bool):
 
     Examples
     --------
-    >>> any(('U', 'X'), str.isupper)
+    >>> any(('U', 'x'), str.isupper)
     True
     """
     return builtins.any(map(test, itr))
@@ -63,40 +69,116 @@ def append(obj, suffix):
     return obj + suffix
 
 
-class itemgetter:
+class ItemGetter:
     """
-    Itemgetter
+    (Multi-)Item getter with optional default substitution.
     """
+    _worker = staticmethod(getitem)
+    _excepts = (KeyError, IndexError)
+    _raises = KeyError
 
-    def __init__(self, *keys, default=KeyError, **defaults):
+    def __init__(self, *keys, default=NULL, defaults=None):
         self.keys = keys
-        self.defaults = defaults
-        typo = set(self.defaults.keys()) - set(self.keys)
-        if typo:
-            warnings.warn(f'Superfluous defaults: {typo}')
+        self.defaults = defaults or {}
+        self.unpack = tuple if len(self.keys) > 1 else next
+
+        # FAILS for slices: TypeError: unhashable type: 'slice'
+        # typo = set(self.defaults.keys()) - set(self.keys)
+        # if typo:
+        #     warnings.warn(f'Invalid keys in `defaults` mapping: {typo}')
+
         self.default = default
+        if default is NULL:
+            # intentionally override the `get_default` method
+            self.get_default = raises(self._raises)
 
-        if default is KeyError:
-            self.get_default = raises(KeyError)
+    def __call__(self, target):  # -> Tuple or Any:
+        return self.unpack(self._iter(target))
 
-    def __call__(self, obj):  # -> List:
-        unpack = list if len(self.keys) > 1 else next
-        return unpack(self.iter(obj))
-
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.keys})'
+    
     def get_default(self, key):
-        # # pylint: disable=method-hidden
+        """Retrieve the default value of the `key` attribute"""
+        # pylint: disable=method-hidden
         return self.defaults.get(key, self.default)
 
-    def iter(self, obj):
+    def _iter(self, target):
         for i in self.keys:
             try:
-                yield obj[i]
-            except (KeyError, IndexError):
+                yield self._worker(target, i)
+            except self._excepts:
+                # note. Next line will raise KeyError if no default provided at init
                 yield self.get_default(i)
 
 
-# alias #
-getitem = itemgetter
+class AttrGetter(ItemGetter):
+    """
+    (Multi-)Attribute getter with optional default substitution and chained
+    lookup support for lookup on nested objects.
+    """
+    _excepts = (AttributeError, )
+
+    @staticmethod
+    def _worker(target, key):
+        return _op.attrgetter(key)(target)
+
+
+class AttrSetter:
+    """
+    (Multi-)Attribute setter with chained lookup support for setting attributes
+    on nested objects.
+    """
+    # this is valuable when vectorizing attribute lookup
+
+    def __init__(self, *keys):
+        self.keys = []
+        self.getters = []
+        for key in keys:
+            *chained, attr = key.rsplit('.', 1)
+            self.keys.append(attr)
+            self.getters.append(AttrGetter(*chained) if chained else echo0)
+
+    def __call__(self, target, values):
+        keys = self.keys
+        if isinstance(values, dict):
+            keys = values.keys()
+            values = values.values()
+
+        assert len(values) == len(keys)
+        for get_obj, attr, value in zip(self.getters, keys, values):
+            # logger.debug(get_obj(target), attr, value)
+            setattr(get_obj(target), attr, value)
+
+
+class AttrDict(AttrGetter):
+    """
+    Like attrgetter, but returns a dict keyed on requested attributes. 
+    """
+
+    def __call__(self, target):
+        return dict(zip(self.keys, super().__call__(target)))
+
+
+class VectorizeMixin:
+    def __call__(self, target):
+        return list(self.map(target))
+
+    def map(self, target):
+        assert isinstance(target, abc.Iterable)
+        return map(super().__call__, target)
+
+    def filter(self, *args):
+        *test, target = args
+        return filter(test or None, self.map(target))
+
+
+class ItemVector(VectorizeMixin, ItemGetter):
+    """Vectorized ItemGetter"""
+
+
+class AttrVector(VectorizeMixin, AttrGetter):  # AttrTable!
+    """Vectorized AttrGetter"""
 
 
 class MethodCaller:
@@ -114,12 +196,12 @@ class MethodCaller:
     """
     __slots__ = ('_name', '_args', '_kwargs')
 
-    def __init__(*args, **kwargs):
+    def __init__(*args, **kwargs):  # pylint: disable=no-method-argument
         if len(args) < 2:
             msg = ("%s needs at least one argument, the method name"
                    % args[0].__class__.__name__)
             raise TypeError(msg)
-        
+
         self = args[0]
         self._name = args[1]
         if not isinstance(self._name, str):
@@ -128,7 +210,7 @@ class MethodCaller:
         self._kwargs = kwargs
 
     def __call__(self, obj):
-        return attrgetter(self._name)(obj)(*self._args, **self._kwargs)
+        return _op.attrgetter(self._name)(obj)(*self._args, **self._kwargs)
 
     def __repr__(self):
         args = [repr(self._name),
@@ -144,25 +226,29 @@ class MethodCaller:
                     self._args)
 
         return self.__class__, (self._name,) + self._args
-# update c
-# MethodCaller.__doc__ += op.methodcaller.__doc__.replace('methodcaller', 'MethodCaller')
 
 
-def index(obj, item, start=0, test=eq, default=NULL):
+class MethodVector(MethodCaller):
+    def __call__(self, target):
+        assert isinstance(target, abc.Iterable)
+        return list(map(super().__call__, target))
+
+
+def index(collection, item, start=0, test=eq, default=NULL):
     """
-    Find the index position of `item` in list `l`, or if a test function is
-    provided, the first index position for which the test evaluates as true. If
+    Find the index position of `item` in `collection`, or if a test function is
+    provided, the first index position for which the test evaluates True. If
     the item is not found, or no items test positive, return the provided
     default value.
 
     Parameters
     ----------
-    obj : list or str
-        The items to be searched
+    collection : list or str
+        The items to be searched.
     item : object
-        item to be found
+        Item to be found.
     start : int, optional
-        optional starting index for the search, by default 0
+        Optional starting index for the search, by default 0.
     test : callable, optional
         Function used to identify the item. Calling sequence of this function is
         `test(x, item)`, where `x` is an item from the input list. The function
@@ -171,7 +257,7 @@ def index(obj, item, start=0, test=eq, default=NULL):
         tests each item for equality with input `item`.
     default : object, optional
         The default to return if `item` was not found in the input list, by
-        default None
+        default None.
 
     Returns
     -------
@@ -183,7 +269,7 @@ def index(obj, item, start=0, test=eq, default=NULL):
     #     l = list(l)
 
     test = test or eq
-    for i, x in enumerate(obj[start:], start):
+    for i, x in enumerate(collection[start:], start):
         if test(x, item):
             return i
 
@@ -191,22 +277,37 @@ def index(obj, item, start=0, test=eq, default=NULL):
     #  -> only if default parameter was explicitly given do we return that
     #   instead of raising a ValueError
     if default is NULL:
-        raise ValueError(f'{item} is not in {type(obj)}')
+        raise ValueError(f'{item} is not in {type(collection)}')
 
     return default
 
 
 class contained:  # pylint: disable=invalid-name
     """
-    Helper class for condition testing presence of items in sequences
+    Helper class for condition testing presence of items in sequences.
 
     Example
     >>> [*map(contained('*').within, ['', '**', '..'])]
     [False, True, False]
     """
+    def __new__(cls, *args):
+        if len(args) == 2:
+            return (args[0] in args[1])
+
+        return super().__new__(cls)
 
     def __init__(self, item):
         self.item = item
 
+    # def __call__(self, item, container):
+    #     """ item in container"""
+    #     return item in container
+
     def within(self, container):
         return self.item in container
+
+
+# aliases
+itemgetter = ItemGetter
+attrgetter = AttrGetter
+has = contained

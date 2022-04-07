@@ -10,6 +10,19 @@ from .. import pprint as pp
 from .base import Decorator
 
 
+
+def preprint(text):
+    def wrapper(func):
+        print(text)
+        return func
+    return wrapper
+
+# def postprint(text):
+#     def wrapper(func):
+#         result = func
+#         print(text)
+#     return wrapper
+
 def get_inner(func, args=(), kws=None):
     """"""
     kws = kws or {}
@@ -29,7 +42,7 @@ class show(Decorator):
     Examples
     --------
 
-    >>> from recipes.decor import expose
+    >>> from recipes.decorators import expose
     >>> @expose.show()
     ... def foo(a, b, c, **kw):
     ...     return a

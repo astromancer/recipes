@@ -1,10 +1,10 @@
+"""
+Introspction utilities.
+"""
+
 import inspect
-from types import FrameType
 from typing import cast
-
-
-# from importlib.machinery import all_suffixes
-# SUFFIXES = all_suffixes()
+from types import FrameType, MethodType
 
 
 def get_caller_frame(back=1):
@@ -25,7 +25,7 @@ def get_caller_frame(back=1):
 
 def get_caller_name(back=1):
     """
-    Return the calling function or module name
+    Return the calling function or module name.
     """
     # Adapted from: https://stackoverflow.com/a/57712700/
 
@@ -42,7 +42,9 @@ def get_caller_name(back=1):
 
 
 def get_module_name(obj=None, depth=None):
-    #
+    """
+    Get fully qualified module name of an object up to namespace depth `depth`.
+    """
     if obj is None:
         obj = get_caller_frame(2)
 
@@ -113,7 +115,41 @@ def get_module_name(obj=None, depth=None):
 #     return name.split('.', name.count('.') - depth)[-1]
 
 
-def get_class_that_defined_method(method):
+def get_class_name(obj, depth=None):
+    """
+    Get the fully (or partially) qualified (dot-separated) name of an object and
+    its parent (sub)modules and/or package.
+
+    Parameters
+    ----------
+    obj : object
+        The object to be named
+    depth : int, optional
+        Namespace depth, by default None.
+        # eg:. foo.sub.Klass #for depth of 2
+
+    Examples
+    --------
+    >>> 
+    """
+    kls = obj if isinstance(obj, type) else type(obj)
+    return '.'.join((get_module_name(kls, depth), kls.__name__))
+
+
+def get_class_that_defined_method(method: MethodType):
+    """
+    Get the class that defined a method.
+
+    Parameters
+    ----------
+    method : types.MethodType
+        The method for which the defining class will be retrieved.
+
+    Returns
+    -------
+    type
+        Class that defined the method.
+    """
     # source: https://stackoverflow.com/questions/3589311/#25959545
 
     # handle bound methods

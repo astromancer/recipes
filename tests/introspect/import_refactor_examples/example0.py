@@ -11,6 +11,23 @@ import itertools as itt
 from collections import namedtuple, OrderedDict
 from typing import Union, ClassVar
 
+
+
+
+
+
+
+
+
+from example import this_should_become_relative
+
+
+
+
+
+
+
+
 from dataclasses import dataclass, field
 
 # WARNING: THESE IMPORT ARE MEGA SLOW!! ~10s  (localize to mitigate?)
@@ -20,6 +37,7 @@ import astropy.io.fits as pyfits
 from astropy.io.fits.hdu import HDUList, PrimaryHDU
 import more_itertools as mit
 
+import recipes.introspect.imports
 import recipes.iter as itr
 from recipes.io import warn
 from recipes.set import OrderedSet

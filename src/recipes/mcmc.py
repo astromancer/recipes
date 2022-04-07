@@ -1,9 +1,9 @@
 
-# third-party libs
+# third-party
 import numpy as np
 import matplotlib.pyplot as plt
 
-# local libs
+# local
 from recipes import pprint
 
 

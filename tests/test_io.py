@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 
 from recipes import io
-from recipes.testing import Expect, mock
+from recipes.testing import Expected, mock
 
 # ---------------------------------------------------------------------------- #
 # Helper functions
@@ -58,7 +58,7 @@ def filename(tmp_path_factory):
 #     assert type(fixture1) == type(fixture2)
 
 
-test_iter_lines = Expect(io.iter_lines)(
+test_iter_lines = Expected(io.iter_lines)(
     {mock.iter_lines(filename, 5):                      srange(5),
      mock.iter_lines(filename, 5, 10):                  srange(5, 10),
      mock.iter_lines(filename, 3, mode='rb'):           brange(3),
@@ -67,7 +67,7 @@ test_iter_lines = Expect(io.iter_lines)(
 )
 
 
-# test_iter_files = Expect(io.iter_files)(
+# test_iter_files = Expected(io.iter_files)(
 #     ()
 # )
 

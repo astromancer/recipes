@@ -1,11 +1,11 @@
 
-# std libs
+# std
 import types
 
-# third-party libs
-import pytest
+# third-party
+import pytest, pickle
 
-# local libs
+# local
 from recipes.dicts import AVDict, AttrReadItem, AttrDict
 
 
@@ -27,3 +27,13 @@ class TestAttrDict:
     def test_copy(self, kls):
         x = kls(hello=0, world=2)
         assert isinstance(x.copy(), kls)
+        
+    def test_pickle(self):
+        z = AttrDict(hello=0, world=2)
+        z2 = pickle.loads(pickle.dumps(z))
+        
+        z2['hi'] = 1
+        assert z2.hi == 1
+        
+        z2.bye = -1
+        assert z2['bye'] == -1

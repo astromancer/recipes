@@ -1,5 +1,5 @@
 
-# builtin libs
+# std
 import os
 import re
 import mmap
@@ -11,17 +11,17 @@ import antigravity
 import itertools as itt
 from copy import copy
 from typing import Union, ClassVar
+from dataclasses import dataclass, field
 from collections import namedtuple, OrderedDict
 
-# third-party libs
+# third-party
 import numpy as np
 import more_itertools as mit
 import astropy.io.fits as pyfits
 from astropy.io.fits.hdu import HDUList, PrimaryHDU
 from IPython import embed
-from dataclasses import dataclass, field
 
-# local libs
+# local
 import recipes.iter as itr
 from recipes.io import warn
 from recipes.list import sorter
@@ -32,9 +32,10 @@ from recipes.parallel.synced import SyncedArray, SyncedCounter
 import motley
 from motley.table import Table as sTable
 from motley.profiler.timers import timer
-from motley.profiler.imports import ImportFinder, ModuleExtractor, ImportExtractor
+from motley.profiler.imports import (ImportFinder, ModuleExtractor,
+                                     ImportExtractor)
 
-# relative libs
+# relative
 from .header import shocHeader
 from .filenaming import NamingConvention
 from .utils import retrieve_coords, convert_skycooords
@@ -47,7 +48,6 @@ from .timing import timingFactory, Time, get_updated_iers_table, fmt_hms
 # import matplotlib.pyplot as plt
 
 
-
 # TODO: choose which to use for timing: spice or astropy
 # from .io import InputCallbackLoop
 
@@ -55,6 +55,6 @@ from .timing import timingFactory, Time, get_updated_iers_table, fmt_hms
 
 
 def whatwhat():
-    import your.fat.mother
+    import some.nested.local
 
 

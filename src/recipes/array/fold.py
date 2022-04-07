@@ -1,44 +1,56 @@
-# std libs
+"""
+Fold arrays along a given dimension without duplicating elements in memory
+"""
+
+# std
 import warnings
 
-# third-party libs
+# third-party
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 
 
-def _checks(wsize, overlap, n, axis):
+def _check_window_overlap(wsize, overlap, n, axis):
     # checks
     if n < wsize < 0:
         raise ValueError(f'Window size ({wsize}) should be greater than 0 and '
-                         f'smaller than array size ({n}) along axis {axis}')
+                         f'smaller than array size ({n}) along axis {axis}.')
+
     if wsize <= overlap < 0:
         raise ValueError(f'Overlap ({overlap}) should be greater equal 0 and '
-                         f'smaller than window size ({wsize})')
+                         f'smaller than window size ({wsize}).')
 
-
-# FIXME: does not always pad out to the correct length!
 
 def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     """
-    Fold (window) an array along a given `axis` at given `size`, with successive
-    windows overlapping each previous by `overlap` elements.  This method
-    works on masked arrays as well and will fold the mask identically to the
-    data. By default the array is padded out with masked elements so that the
-    step size evenly divides the array along the given axis.
+    Fold (window) an array along a given `axis` at given `wsize`, with
+    successive windows overlapping each previous window by `overlap` number of
+    elements. This method works on masked arrays as well and will fold the mask
+    identically to the data. By default the array is padded out with masked
+    elements so that the step size evenly divides the array along the given
+    axis.
 
     Parameters
     ----------
-    a
-    wsize
-    overlap
-    axis
-    pad
-    kws
+    a : array-like
+        The array to be folded.
+    wsize : int
+        Window size in number of elements.
+    overlap : int, optional
+        Number of overlapping elements in each window, by default 0.
+    axis : int, optional
+        Axis along which to fold, by default 0.
+    pad : str, optional
+        Mode for padding, by default 'masked'.
+
+    kws :
         Keywords are passed to `np.pad` which pads up the array to the required
         length.
 
     Returns
     -------
+    np.ndarray or np.ma.MaskedArray
+        The folded / windowed array.
 
     Notes
     -----
@@ -47,18 +59,25 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
     doing inplace arithmetic operations on the returned array.
     eg.:
     >>> n, size, overlap = 100, 10, 5
-    >>> q = fold(np.arange(n), size, overlap)
+    ... q = fold.fold(np.arange(n), size, overlap, pad=False)
+    ... q
+    array([[0, 1],
+           [1, 2]])
+
     >>> k = 0
-    >>> q[0, overlap + k] *= 10
-    >>> q[1, k] == q[0, overlap + k]
-    True
+    ... q[0, overlap + k] *= 10
+    ... q
+    array([[ 0, 10],
+           [10,  2]])
 
     """
+
     a = np.asanyarray(a)
     shape = a.shape
     n = shape[axis]
 
-    _checks(wsize, overlap, n, axis)
+    # checks
+    _check_window_overlap(wsize, overlap, n, axis)
 
     # short circuits
     if (n == wsize) and (overlap == 0):
@@ -71,7 +90,7 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
 
     # pad out
     if pad:
-        a, n_seg = padder(a, wsize, overlap, axis, **kws)
+        a, _ = padder(a, wsize, overlap, axis, **kws)
     #
     sa = get_strided_array(a, wsize, overlap, axis)
 
@@ -86,16 +105,22 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
 
 
 def is_null(x):
+    """Check if an object is None or False."""
     return (x is None) or (x is False)
 
 
+# FIXME: does not always pad out to the correct length!
+
 def padder(a, wsize, overlap=0, axis=0, pad_mode='masked', **kws):
-    """ """
+    """
+    Pad the array out to the required length so a uniform fold can be made with
+    no leftover elements.
+    """
     a = np.asanyarray(a)  # convert to (un-masked) array
     n = a.shape[axis]
 
     # checks
-    _checks(wsize, overlap, n, axis)
+    _check_window_overlap(wsize, overlap, n, axis)
 
     #
     mask = a.mask if np.ma.is_masked(a) else None
@@ -154,19 +179,17 @@ def get_strided_array(a, size, overlap, axis=0):
         axis += a.ndim
 
     step = size - overlap
-    # if padded:
-    # note line below relies on the array already being padded out
-    n_segs = (a.shape[axis] - overlap) // step  # number of segments
+    # note lines below relies on the array already being padded out
     new_shape = np.insert(a.shape, axis + 1, size)
-    new_shape[axis] = n_segs
+    new_shape[axis] = (a.shape[axis] - overlap) // step  # number of segments
     # new shape is (..., n_seg, size, ...)
 
     # byte steps
     new_strides = np.insert(a.strides, axis, step * a.strides[axis])
-    return as_strided(a, new_shape, new_strides)
+    return as_strided(a, new_shape, new_strides, subok=True)
 
 
-def gen(a, size, overlap=0, axis=0, **kw):
+def ifold(a, size, overlap=0, axis=0, **kw):
     """
     Generator version of fold.
     """
@@ -185,7 +208,7 @@ def gen(a, size, overlap=0, axis=0, **kw):
 def rebin(x, binsize, t=None, e=None):
     """
     Rebin time series data. Assumes data are evenly sampled in time (constant
-     time steps).
+    time steps).
     """
     xrb = fold(x, binsize).mean(1)
     returns = (xrb,)
@@ -203,7 +226,7 @@ def rebin(x, binsize, t=None, e=None):
     return returns
 
 
-def get_nocc(n, wsize, overlap):
+def get_n_repeats(n, wsize, overlap):
     """
     Return an array of length N, with elements representing the number of
     times that the index corresponding to that element would be repeated in
@@ -215,5 +238,4 @@ def get_nocc(n, wsize, overlap):
     if np.ma.is_masked(indices):
         indices = indices[~indices.mask]
 
-    _, noc = cosort(*zip(*tally(indices).items()))
-    return noc
+    return cosort(*zip(*tally(indices).items()))[1]

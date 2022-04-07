@@ -2,22 +2,44 @@
 Utilities for operations on strings
 """
 
-import os
+
+# std
+
 import re
 import numbers
+import warnings as wrn
+import itertools as itt
+from collections import abc
 
+# third-party
 import numpy as np
+import more_itertools as mit
+
+# relative
+from .. import op
+from ..iter import where
+from ..misc import duplicate_if_scalar
 
 
 # regexes
 REGEX_SPACE = re.compile(r'\s+')
 
+# justification
+JUSTIFY_MAP = {'r': '>',
+               'l': '<',
+               'c': '^',
+               's': ' '}
 
-class Percentage(object):
+
+class Percentage:
+    """
+    An object representing a percentage of something (usually a number) that
+    computes the actual percentage value when called.
+    """
 
     regex = re.compile(r'([\d.,]+)\s*%')
 
-    def __init__(self, s):
+    def __init__(self, string):
         """
         Convert a percentage string like '3.23494%' to a floating point number
         and retrieve the actual number (percentage of a total) that it
@@ -30,19 +52,18 @@ class Percentage(object):
         Examples
         --------
         >>> Percentage('1.25%').of(12345)
-
+        154.3125
 
         Raises
         ------
-        ValueError [description]
+        ValueError
+            If percentage could not be parsed from the string.
         """
-        mo = self.regex.search(s)
-        if mo:
+        if mo := self.regex.search(string):
             self.frac = float(mo.group(1)) / 100
         else:
-            raise ValueError(
-                f'Could not find a percentage value in the string {s!r}'
-                )
+            raise ValueError(f'Could not find anything resembling a percentage'
+                             f' in the string {string!r}.')
 
     def __repr__(self):
         return f'Percentage({self.frac:.2%})'
@@ -50,24 +71,206 @@ class Percentage(object):
     def __str__(self):
         return f'{self.frac:.2%}'
 
+    def __call__(self, number):
+        try:
+            if isinstance(number, numbers.Real):
+                return self.frac * number
+
+            if isinstance(number, abc.Collection):
+                return self.frac * np.asanyarray(number, float)
+        except ValueError:
+            raise TypeError('Not a valid number or numeric array type.') \
+                from None
+
     def of(self, total):
         """
         Get the number representing by the percentage as a total. Basically just
-        multiplies the parsed fraction with the number `total`
+        multiplies the parsed fraction with the number `total`.
 
         Parameters
         ----------
         total : number, array-like
-            Any number
+            Any number.
 
+        Returns
+        -------
+        float or np.ndarray
         """
-        if isinstance(total, (numbers.Real, np.ndarray)):
-            return self.frac * total
+        return self(total)
 
-        try:
-            return self.frac * np.asanyarray(total, float)
-        except ValueError:
-            raise TypeError('Not a valid number or numeric array') from None
+# ---------------------------------------------------------------------------- #
+# Helpers / Convenience
+
+
+def strings(items):
+    """Map collection to list of str"""
+    return [*map(str, items)]
+
+
+# ---------------------------------------------------------------------------- #
+# String pattern matching
+
+def similarity(a, b):
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, a, b).ratio()
+
+
+def most_similar(string, options, cutoff=0.5):
+    from recipes.lists import cosort
+
+    sims = [similarity(string, _) for _ in options]
+    sims, options = cosort(sims, options, order=-1)
+    # print('Similarities: {}', dict(zip(options, sims)))
+    # sims = sorted(sims, reverse=True)
+
+    potentials = where(sims, op.ge, cutoff)
+    first = next(potentials, None)
+
+    # at least one match above cutoff
+    if first is None:
+        return
+
+    # and top two matches not equally similar
+    second = next(potentials, None)
+    if second and sims[first] == sims[second]:
+        # ambiguous match
+        return
+
+    return options[first]
+
+
+# ---------------------------------------------------------------------------- #
+# Deletion / Substitution
+
+def delete(string, indices=()):
+    """
+    Remove characters at position `indices` from string.
+
+    Parameters
+    ----------
+    string : str
+        The string from which to remove characters.
+    indices : collection of int
+        Character index positions to delete. Negative indices are supported. 
+        Duplicated indices are filtered.
+
+    Examples
+    --------
+    >>> delete('0123456789', [0, 9])
+    '12345678'
+    >>> delete('0123456789', [0, -1, 9])
+    '12345678'
+    >>> delete('0123456789', [0, -1])
+    '12345678'
+
+    Returns
+    -------
+    str
+    """
+
+    if not indices:
+        return string
+
+    return ''.join(_delete(string, indices))
+
+# def _intervals_from_slices(slices, n):
+#     from recipes.lists import cosort
+
+#     intervals = zip(*cosort(*zip(s.indices(n) for s in slices)))
+#     start, stop = next(intervals)
+#     start, stop = [start], [stop]
+#     for begin, end in intervals:
+#         if begin < stop[-1]:
+#             stop[-1] = end
+#         else:
+#             start.append(begin)
+#             stop.append(end)
+#     return start, stop
+
+
+def _integers_from_slices(slices, n):
+    integers = set()
+    for s in slices:
+        integers |= set(range(*s.indices(n)))
+    return integers
+
+
+def ensure_list(obj):
+    if isinstance(obj, abc.Iterator):
+        return list(obj)
+    return duplicate_if_scalar(obj, 1, raises=False)
+
+
+def _delete(string, indices):
+    from recipes.dicts import groupby
+
+    n = len(string)
+
+    # ensure list
+    indices = groupby(ensure_list(indices), type)
+    integers = _integers_from_slices(indices.pop(slice, ()), n)
+    for kls, idx in indices.items():
+        if not issubclass(kls, numbers.Integral):
+            raise TypeError(f'Invalid index type {kls}.')
+        integers = integers.union(idx)
+
+    # remove duplicate indices accounting for wrapping
+    i = prev = -1
+    for i in sorted({(i + n) % n for i in integers}):
+        yield string[prev + 1:i]
+        prev = i
+
+    if i < n - 1:
+        yield string[i + 1:]
+
+    # BELOW ONLY WORKS FOR ASCII!!
+    # z = bytearray(string.encode())
+    # indices = filter_duplicates(indices, lambda i: (i + n) % n)
+    # for i in sorted(indices, key=abs, reverse=True):
+    #     del z[i]
+    # return z#.decode()
+
+
+def backspaced(string):
+    """
+    Resolve backspace control sequence "\b" by remove them and the characters
+    that immediately preceed them. 
+
+    Parameters
+    ----------
+    string : str
+
+    Examples
+    --------
+    >>> backspaced('.?!\b\b')
+    '.'
+    """
+    if '\b' not in string:
+        return string
+
+    return backspaced(delete(string, [i := string.index('\b'), max(i - 1, 0)]))
+
+
+def insert(sub, string, index):
+    """
+    Insert a substring `sub` into `string` immediately before `index` position.
+
+    Parameters
+    ----------
+    sub, string : str
+        Any string.
+    index : int
+        Index position before which to insert `sub`. Index of 0 prepends, while
+        -1 appends.
+
+
+    Returns
+    -------
+    string
+        Modified string
+    """
+    index = int(min((n := len(string), (index + n) % n)))
+    return string[:index] + sub + string[index:]
 
 
 def sub(string, mapping=(), **kws):
@@ -109,6 +312,7 @@ def sub(string, mapping=(), **kws):
     s: str
 
     """
+
     mapping = {**dict(mapping), **kws}
     if not mapping:
         return string
@@ -117,8 +321,13 @@ def sub(string, mapping=(), **kws):
         # simple replace
         return string.replace(*next(iter(mapping.items())))
 
+    # character permutations with str.translate are an efficient way of doing
+    # single character permutations
+    # if set(map(len, mapping.keys())) == {1}:
+    #     return string.translate(str.maketrans(mapping))
+
     from recipes import cosort
-    from recipes import op
+    # from recipes import op
 
     # check if any keys are contained within another key. If this is true,
     # we have to substitute the latter before the former
@@ -126,7 +335,7 @@ def sub(string, mapping=(), **kws):
     okeys, ovals = cosort(
         *zip(*mapping.items()),
         key=lambda x: op.any(keys - {x}, op.contained(x).within)
-        )
+    )
     good = dict(zip(okeys, ovals))
     tmp = {}
     for key in okeys:
@@ -153,6 +362,10 @@ def _rreplace(string, mapping):
     return string
 
 
+# ---------------------------------------------------------------------------- #
+# Casing
+
+
 def title(string, ignore=()):
     """
     Title case string with optional ignore patterns.
@@ -172,6 +385,23 @@ def title(string, ignore=()):
     return sub(string.title(), subs)
 
 
+def snake_case(string):
+    new, _ = re.subn('([A-Z])', r'_\1', string)
+    return new.lstrip('_').lower()
+
+
+def pascal_case(string):
+    return string.replace('_', ' ').title().replace(' ', '')
+
+
+def camel_case(string):
+    string = pascal_case(string)
+    return string[0].lower() + string[1:]
+
+# ---------------------------------------------------------------------------- #
+# Affixes
+
+
 def remove_affix(string, prefix='', suffix=''):
     for i, affix in enumerate((prefix, suffix)):
         string = _replace_affix(string, affix, '', i)
@@ -179,6 +409,7 @@ def remove_affix(string, prefix='', suffix=''):
 
 
 def _replace_affix(string, affix, new, i):
+    # handles prefix and suffix replace. (i==0: prefix, i==1: suffix)
     if affix and (string.startswith, string.endswith)[i](affix):
         w = (1, -1)[i]
         return ''.join((new, string[slice(*(w * len(affix), None)[::w])])[::w])
@@ -195,12 +426,35 @@ def remove_suffix(string, suffix):
     return remove_affix(string, '', suffix)
 
 
-def replace_prefix(string, old_prefix, new_prefix):
-    return _replace_affix(string, old_prefix, new_prefix, 0)
+def replace_prefix(string, old, new):
+    """
+    Substitute a prefix string.
+
+    Parameters
+    ----------
+    string : [type]
+        [description]
+    old : [type]
+        [description]
+    new : [type]
+        [description]
+
+    Examples
+    --------
+    >>> 
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+    return _replace_affix(string, old, new, 0)
+
+# @doc.splice(replace_prefix)
 
 
-def replace_suffix(string, old_suffix, new_suffix):
-    return _replace_affix(string, old_suffix, new_suffix, 1)
+def replace_suffix(string, old, new):
+    return _replace_affix(string, old, new, 1)
 
 
 def shared_prefix(strings, stops=''):
@@ -227,14 +481,51 @@ def shared_affix(strings, pre_stops='', post_stops=''):
     suffix = shared_suffix([item[i0:] for item in strings], post_stops)
     return prefix, suffix
 
-
-def surround(string, wrappers):
-    left, right = wrappers
-    return left + string + right
+# ---------------------------------------------------------------------------- #
+# pluralization (experimental)
 
 
-def indent(string, width):
+def naive_plural(text):
+    return text + ('e' * text.endswith('s')) + 's'
+
+
+def plural(text, collection=(())):
+    """conditional plural"""
+    many = isinstance(collection, abc.Collection) and len(collection) != 1
+    return naive_plural(text) if many else text
+
+
+def numbered(collection, name):
+    return f'{len(collection):d} {plural(name, collection):s}'
+
+
+def named_items(name, collection, fmt=str):
+    return f'{plural(name, collection)}: {fmt(collection)}'
+
+# ---------------------------------------------------------------------------- #
+# Misc
+
+
+def surround(string, left, right=None, sep=''):
+    if not right:
+        right = left
+    return sep.join((left, string, right))
+
+
+def indent(string, width=4):
+    # indent `width` number of spaces
     return string.replace('\n', '\n' + ' ' * width)
+
+
+def truncate(string, size, dots=' … ', end=10):
+    n = len(string)
+    if n <= size:
+        return string
+
+    return f'{string[:(size - len(dots) - end)]}{dots}{string[-end:]}'
+
+# ---------------------------------------------------------------------------- #
+# Transformations
 
 
 def strip_non_ascii(string):
@@ -297,40 +588,41 @@ def monospaced(text):
 
 
 # TODO:
-# def decomment(string, mark='#', keep=()):
+# def uncomment(string, mark='#', keep=()):
 
 #     re.compile(rf'(?s)((?![\\]).){mark}([^\n]*)')
 
 
-def banner(text, swoosh='=', width=80, title=None, align='^'):
+def overlay(text, background='', align='^', width=None):
     """
+    Overlay `text` on `background` using given `alignment`.
 
     Parameters
     ----------
-    text
-    swoosh
-    width
-    title
-    align
+    text : [type]
+        [description]
+    background : str, optional
+        [description], by default ''
+    align : str, optional
+        [description], by default '^'
+    width : [type], optional
+        [description], by default None
+
+    Examples
+    --------
+    >>> 
 
     Returns
     -------
+    [type]
+        [description]
 
+    Raises
+    ------
+    ValueError
+        [description]
     """
-
-    swoosh = swoosh * width
-    if title is None:
-        pre = swoosh
-    else:
-        pre = overlay(' ', swoosh, align)
-
-    banner = os.linesep.join((pre, text, swoosh, ''))
-    return banner
-
-
-def overlay(text, background='', alignment='^', width=None):
-    """overlay text on background using given alignment."""
-
+    # TODO: drop width arg
     # TODO: verbose alignment name conversions. see motley.table.get_alignment
 
     if not (background or width):  # nothing to align on
@@ -344,21 +636,24 @@ def overlay(text, background='', alignment='^', width=None):
     if len(background) < len(text):  # pointless alignment
         return text
 
-    # do alignment
-    if alignment == '<':  # left aligned
-        overlaid = text + background[len(text):]
-    elif alignment == '>':  # right aligned
-        overlaid = background[:-len(text)] + text
-    elif alignment == '^':  # center aligned
+    # left aligned
+    if align == '<':
+        return text + background[len(text):]
+
+    # right aligned
+    if align == '>':
+        return background[:-len(text)] + text
+
+    # center aligned
+    if align == '^':
         div, mod = divmod(len(text), 2)
         pl, ph = div, div + mod
         # start and end indeces of the text in the center of the background
         idx = width // 2 - pl, width // 2 + ph
         # center text on background
-        overlaid = background[:idx[0]] + text + background[idx[1]:]
-    else:
-        raise ValueError('Alignment character %r not understood' % alignment)
-    return overlaid
+        return background[:idx[0]] + text + background[idx[1]:]
+
+    raise ValueError(f'Alignment character {align!r} not understood')
 
 
 # def centre(self, width, fill=' ' ):
@@ -369,6 +664,166 @@ def overlay(text, background='', alignment='^', width=None):
 # else:  #even window len
 # pl = ph = div
 
-# idx = width//2-pl, width//2+ph                    #start and end indeces of the text in the center of the progress indicator
+# idx = width//2-pl, width//2+ph
+# #start and end indeces of the text in the center of the progress indicator
 # s = fill*width
+
 # return s[:idx[0]] + self + s[idx[1]:]                #center text
+
+
+def resolve_justify(align):
+    align = JUSTIFY_MAP.get(align.lower()[0], align)
+    if align not in '<^> ':
+        raise ValueError(f'Unrecognised alignment {align!r}')
+    return align
+
+
+def justify(text, align='<', width=None, length_func=len, formatter=str.format):
+    """
+    Justify a paragraph of text.
+
+    Parameters
+    ----------
+    text : str
+        Text to justify.
+    align : str, optional
+        Alignment, by default '<'.
+    width : int, optional
+        Line width. The default is None, which uses the terminal width if
+        available, falling back to classic 80.
+
+    Returns
+    -------
+    str
+        Justified text.
+    """
+    return '\n'.join(_justify(text, align, width, length_func, formatter))
+
+
+def _justify(text, align, width, length_func, formatter):
+
+    align = resolve_justify(align)
+    lines = text.splitlines()
+    linewidths = list(map(length_func, lines))
+    widest = max(linewidths)
+    width = int(width or widest)
+    if widest > width:
+        wrn.warn(f'Requested paragraph width of {width} is less than the '
+                 f'length of widest line: {widest}.')
+
+    if align != ' ':
+        for lw, line in zip(linewidths, lines):
+            yield formatter('{: {}{}}', line, align, max(width, lw))
+        return
+
+    for w, line in zip(linewidths, lines):
+        delta = width - w
+        if delta < 0:
+            yield line
+
+        indices = list(where(line, ' '))
+        d, r = divmod(delta, len(indices))
+        for j, k in enumerate(indices[::-1]):
+            yield insert(' ' * d + (j < r), line, k)
+
+
+def width(string):
+    """
+    Find the width of a paragraph. Non-display chatacters are counted.
+
+    Parameters
+    ----------
+    string : str
+        A paragraph of text.
+
+
+    Returns
+    -------
+    int
+        Length of the longest line of text.
+    """
+    indices = [*where(string, '\n'), len(string)]
+
+    if len(indices) == 1:
+        return indices[0]
+
+    return -min(map(op.sub, *zip(*mit.pairwise(indices))))
+
+
+def _max_line_width(lines):
+    return max(map(len, lines))
+
+
+def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width):
+    """
+    Stick two or more multi-line strings together horizontally.
+
+    Parameters
+    ----------
+    strings
+    spacing : int
+        Number of horizontal spaces to be added as a column between the string
+        blocks.
+    offsets : Sequence of int
+        Vertical offsets in number of rows between string blocks.
+
+
+    Returns
+    -------
+    str
+        Horizontally stacked string
+    """
+
+    # short circuit
+    if isinstance(strings, str):
+        return strings
+
+    if len(strings) == 1:
+        return str(strings[0])
+
+    # get columns and trim trailing whitespace column
+    columns = _get_hstack_columns(strings, spacing, offsets, width_func)
+    columns = itt.islice(columns, 2 * len(strings) - 1)
+    return '\n'.join(map(''.join, zip(*columns)))
+
+
+def _get_hstack_columns(strings, spacing, offsets, width_func):
+
+    # resolve offsets
+    if isinstance(offsets, numbers.Integral):
+        offsets = [0] + [offsets] * (len(strings) - 1)
+
+    offsets = list(offsets)
+    assert len(offsets) <= len(strings)
+
+    # first we need to compute the widths
+    widths = []
+    lines_list = []
+    max_length = 0
+    for string, off in itt.zip_longest(strings, offsets, fillvalue=0):
+        lines = str(string).splitlines()
+        max_length = max(len(lines), max_length)
+        widths.append(width_func(lines))   # ansi.length_seen(lines[0])
+        lines_list.append(([''] * off) + lines)
+
+    # Intersperse columns with whitespace
+    for lines, width in zip(lines_list, widths):
+        # fill whitespace
+        yield mit.padded(lines, ' ' * (width), max_length)
+        yield itt.repeat(' ' * spacing, max_length)
+
+
+def vstack(strings,  justify_='<', width_=None, spacing=0):
+
+    s = list(filter(lambda s: s is not None, strings))
+    justify_ = duplicate_if_scalar(justify_, len(s))
+
+    if width_ is None:
+        width_ = max(map(width, s))
+
+    vspace = '\n'.join(itt.repeat(' ' * width_, spacing))
+    itr = itt.zip_longest(s, justify_, fillvalue=justify_)
+    itr = (justify(par, just, width_) for par, just in itr)
+    return '\n'.join(
+        mit.interleave_longest(itr, itt.repeat(vspace, len(s) - 1))
+    )

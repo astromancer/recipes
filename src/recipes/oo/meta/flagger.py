@@ -136,7 +136,7 @@ def altFactory(flag='_flagged', collection='_flagged'):
     assert isinstance(flag, str)
     assert isinstance(collection, str)
 
-    class FlaggedMixin(object):
+    class FlaggedMixin:
         """
         Mixin that binds the flagged classmethods to an instance of the class
         """

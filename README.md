@@ -10,14 +10,72 @@ TODO
 [![GitHub](https://img.shields.io/github/license/astromancer/recipes.svg?color=blue)](https://recipes.readthedocs.io/en/latest/license.html)
  -->
 
-This project contains a curated collection of coding recipes that I often use
-across many of my projects.
+This project contains a curated collection of convenient utility functions that
+are useful across many projects. The library extends the standard python
+library's functionality, and is therefore similarly structured. The following
+highlights the available modules and their functionality:
+
+### Extending functionality of builtins
+* string
+    : _substitution, affix editing, recasing, pluralization, bracket parsing, etc._
+* lists
+    : _cosorting, multi-indexing, conditional splitting, flattening, deduplication._
+* dicts
+    : _Attribute dicts, many-to-one maps, autovivification, tree-like mappings, ordered defaultdict and various other mapping utilities_
+* sets 
+    : _Ordered sets_
+* op 
+    : _Drop in replacement for builtin `operator` module with added support for default values. And then some.'_
+
+### Input / Output
+* io 
+    : _File tree iteration, context managers for safe input/output with file backups, flexible (de)serialization wrappers._
+* regex
+    : _Contract verbose style regexes._
+
+### Recipes involving iterators
+* iter
+:   _Missing iteration utilities: cofiltering, conditional indexing, ._
+
+### Various array functions
+* array
+
+### Functional programming
+<!-- * functionals
+    : _Functional decorator patterns_ -->
+* decorators
+    :_Extensible decorators for: Control flow (catching exceptions, fallback values), parameter/return value tracing, line profiling._
+* caches
+    : _Performant functional memoization._
+
+### API Development helpers
+* pprint : _Pretty Printing_
+* logging 
+* synonyms 
+    : _Parameter name translation decorator for building flexible APIs._
+* interactive
+* bash
+
+### Code Introspection
+* introspect
+    : _Refactor (sort, merge, split, relativize, (de)localize etc.) import statements in python source code._
+    
+ 
+### Object Oriented Tools
+* oo  
+
+
+### Miscellaneous
+* misc   
+  
+* transforms  
+
 
 
 # Install
 
 ```shell
-pip install recipes
+pip install https://github.com/astromancer/recipes.git
 ```
 
 # Use
@@ -61,7 +119,7 @@ Contributions are welcome!
 
 * e-mail: hannes@saao.ac.za
 
-<!-- ### Third party libraries
+<!-- ### Third party dependencies
  * see [LIBRARIES](https://github.com/username/sw-name/blob/master/LIBRARIES.md) files -->
 
 # License

@@ -1,29 +1,28 @@
 """
-Common patterns involving iterables
+Common patterns involving iterables.
 """
 
 
-
-# std libs
+# std
+import functools as ftl
 import numbers
+import textwrap as txw
 import itertools as itt
 from collections import abc
 
-# third-party libs
+# third-party
 import more_itertools as mit
 
-# relative libs
+# relative
 from . import op
 from .functionals import negate, echo0 as echo
 
+#
+SAFETY_LIMIT = 1e8
+#
+NULL = object()
 
 # ---------------------------------- helpers --------------------------------- #
-class null:
-    pass
-
-
-def not_none(x):
-    return x is not None
 
 
 # -------------------------------- decorators -------------------------------- #
@@ -66,26 +65,108 @@ as_sequence = as_iter
 # def where(iterable, test=bool):
 #     return nth_zip(0, *filter(on_first(test), enumerate(iterable)))
 
-def where(l, item, start=0, test=op.eq):
+def where(items, *args, start=0):
     """
-    Yield the indices at which the callable ``test'' evaluates True
+    Yield the indices at which items in a Iterable or Collection `items`
+    evaluate True. This function will consume the iterable, so take care not to
+    pass infinite iterables - the function will break out after the module
+    constant `SAFETY_LIMIT` (by default 10**8) number of iterations is reached.
+
+    Valid call signatures are:
+        >>> where(items)                # yield indices where items are truthy
+        >>> where(items, value)         # yield indices where items equal value
+        >>> where(items, func, value)   # conditionally on func(item, value)
+
+    Parameters
+    ----------
+    items : Iterable
+        Any iterable. Note that this function will consume the iterable.
+    args : ([test], rhs)
+        test : callable, optional
+            Function for testing, should return bool, by default op.eq.
+        rhs : object
+            Right hand side item for equality test.
+    start : int, optional
+        Starting index for search, by default 0.
+
+    Yields
+    -------
+    int
+        Index at which `item` was found or `test` evaluated True
+
+    Raises
+    ------
+    ValueError
+        On receiving invalid number of function arguments.
     """
+    nargs = len(args)
+    if nargs == 0:
+        for i, item in enumerate(items):
+            if item:
+                yield i
+        return
+
+    if nargs == 1:
+        test = op.eq
+        rhs, = args
+    elif nargs == 2:
+        test, rhs = args
+    else:
+        # print valid call signatures from docstring
+        raise ValueError(txw.dedent(where.__doc__.split('\n\n')[1]))
+
+    yield from multi_index(items, rhs, test, start)
+
+
+def windowed(obj, size, step=1):
+    assert isinstance(size, numbers.Integral)
+
+    if isinstance(obj, str):
+        for i in range(0, len(obj), step):
+            yield obj[i:i + size]
+        return
+
+    yield from mit.windowed(obj, size)
+
+
+@ftl.singledispatch
+def multi_index(obj, rhs, test=None, start=0):
+    """default dispatch for multi-indexing"""
+    raise TypeError(f'Object of type {type(obj)} is not an iterable.')
+
+
+@multi_index.register(str)
+def _(string, rhs, test=op.eq, start=0):
+    # ensure we are comparing to str
+    assert isinstance(rhs, str)
+    assert callable(test)
+
+    # if comparing to rhs substring with non-unit length
+    if (n := len(rhs) > 1):
+        yield from multi_index(windowed(string, n), rhs, test, start)
+        return
+
     i = start
-    n = len(l)
-    while i < n:
+    while i < len(string):
         try:
-            # pylint: disable=too-many-function-args
-            i = op.index(l, item, i, test)
+            i = string.index(rhs, i)
             yield i
         except ValueError:
             # done
             return
         else:
-            i += 1  # start next search one on
+            i += 1
 
 
-# def where_false(iterable, test=bool):
-#     return where(iterable, negate(test))
+@multi_index.register(abc.Iterable)
+def _(obj, rhs, test=op.eq, start=0):
+    mit.consume(obj, start)
+    for i, x in enumerate(obj, start):
+        if test(x, rhs):
+            yield i
+
+        if i >= SAFETY_LIMIT:
+            raise ValueError('Infinite iterable?')
 
 
 def split(l, idx):
@@ -94,12 +175,14 @@ def split(l, idx):
     if isinstance(idx, numbers.Integral):
         idx = [idx]
 
+    idx = sorted(idx)
     if idx:
-        idx = [0, *sorted(idx), len(l)]
+        idx = [0, *idx, len(l)]
         for i, j in mit.pairwise(idx):
             yield l[i:j]
     else:
         yield l
+
 
 # def split(l, idx):
 #     if isinstance(idx, numbers.Integral):
@@ -115,10 +198,16 @@ def split(l, idx):
 #     if j is not None:
 #         yield l[j:]
 
+def split_slices(indices):
+    """
+    Generate slices for splitting a collection at index positions `indices`.
+    """
+    return map(slice, *zip(*mit.pairwise(itt.chain([0], indices))))
+
 
 def non_unique(itr):
-    prev = next(itr, null)
-    if prev is null:
+    prev = next(itr, NULL)
+    if prev is NULL:
         return
 
     for item in itr:
@@ -243,16 +332,6 @@ def cofilter(func, *its):
 #     return cofilter(negate(func or bool), *its)
 
 
-def accumulate(a, start=0):
-    """
-    Generator that yields cumulative sum of elements of the input iterable
-    """
-    tot = int(start)
-    for item in a:
-        tot += item
-        yield tot
-
-
 def duplicates(l):
     """Yield tuples of item, indices pairs for duplicate values."""
     from recipes.lists import unique
@@ -260,3 +339,24 @@ def duplicates(l):
     for key, idx in unique(l).items():
         if len(idx) > 1:
             yield key, idx
+
+
+def filter_duplicates(l, test):
+    """Filter duplicate items based on condition `test`."""
+    results = set()
+    for item in l:
+        result = test(item)
+        if result not in results:
+            yield item
+
+        results.add(result)
+
+# aliases
+unduplicate = filter_duplicates
+
+def iter_repeat_last(it):
+    """
+    Yield items from the input iterable and repeat the last item indefinitely
+    """
+    it, it1 = itt.tee(mit.always_iterable(it))
+    return mit.padded(it, next(mit.tail(1, it1)))

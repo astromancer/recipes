@@ -8,4 +8,5 @@ numpy
 stdlib_list
 anytree
 matplotlib
-motley
+
+git+https://github.com/astromancer/motley

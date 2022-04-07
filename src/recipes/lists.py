@@ -3,16 +3,17 @@ Recipes involving lists.
 """
 
 
-# std libs
+# std
+import itertools as itt
 from collections import defaultdict
 
-# third-party libs
+# third-party
 import more_itertools as mit
 
-# local libs
+# local
 import docsplice as doc
 
-# relative libs
+# relative
 from . import op, iter as _iter
 from .dicts import DefaultOrderedDict
 from .functionals import always, echo0 as _echo
@@ -27,14 +28,7 @@ def lists(iters):
     return list(map(list, iters))
 
 
-def _make_key(master_key, funcs):
-    def sort_key(x):
-        values = ((f or _zero)(z) for f, z in zip(funcs, x))
-        return (master_key(*x),) + tuple(values)
-    return sort_key
-
-
-def cosort(*lists, **kws):
+def cosort(*lists, key=None, master_key=None, order=1):
     """
     Extended co-sorting of lists. Sort any number of lists simultaneously
     according to:
@@ -43,24 +37,26 @@ def cosort(*lists, **kws):
 
     Parameters
     ----------
-    One or more lists
-
-    Keywords
-    --------
+    lists:
+        One or more lists.
+    key: None or callable or tuple of callables
+        * If None (the default): Sorting done by value of first input list.
+        * If callable: Sorting is done by value of
+            >>> key(item)
+          for successive items from the first iterable.
+        * If tuple: Sorting done by value of
+              >>> key[0](item_0), ..., key[n](item_n)
+          for items in the first n iterables (where n is the length of the `key`
+          tuple) i.e. the first callable is the primary sorting criterion, and the
+          rest act as tie-breakers.
     master_key: callable
         Sort by evaluated value of some combination of all items in the lists
         (call signature of this function needs to be such that it accepts an
-        argument tuple of items from each list.
-        eg.: master_key = lambda *l: sum(l) will order all the lists by the
-        sum of the items from each list.
-        If not provided, revert to sorting by `key` function
-    key: callable or tuple of callables
-        If callble sorting done by value of key(item) for items in first
-        iterable If tuple sorting done by value of
-        (key[0](item_0), ..., key[n](item_n)) for items in the first n iterables
-        (where n is the length of the key tuple) i.e. the first callable is the
-        primary sorting criterion, and the rest act as tie-breakers.
-        If not provided sorting done by value of first input list. 
+        argument tuple of items - one from each list.
+        For example:
+        >>> master_key = lambda *l: sum(l)
+        will order all the lists by the sum of the items from each list. If not
+        provided, revert to sorting by `key` function.
 
     Returns
     -------
@@ -90,18 +86,14 @@ def cosort(*lists, **kws):
     lists = list(map(list, lists))
 
     # check that all lists have the same length
-    if len(set(map(len, lists))) != 1:
-        raise ValueError('Cannot co-sort raggedly shaped lists')
+    unique_sizes = set(map(len, lists))
+    if len(unique_sizes) != 1:
+        raise ValueError(f'Cannot co-sort lists with varying sizes: '
+                         f'{unique_sizes}')
 
     list0 = list(lists[0])
     if not list0:  # all lists are zero length
         return lists
-
-    master_key = kws.pop('master_key', None)
-    key = kws.pop('key', None)
-    order = kws.pop('order', 1)
-    if kws:
-        raise ValueError(f'Unrecognised keyword(s): {tuple(kws.keys())}')
 
     # enable default behaviour
     if key is None:
@@ -115,26 +107,34 @@ def cosort(*lists, **kws):
 
     # validity checks for sorting functions
     if not callable(master_key):
-        raise ValueError('master_key needs to be callable')
+        raise ValueError('Parameter `master_key` needs to be callable')
 
     if callable(key):
         key = (key, )
     if not isinstance(key, (tuple, list)):
-        raise KeyError("Keyword arg 'key' should be 'None', callable, or a"
-                       f"sequence of callables, not {type(key)}")
+        raise KeyError(
+            'Keyword-only parameter `key` should be `None`, callable, or a'
+            f'sequence of callables, not {type(key)}.')
 
-    res = sorted(zip(*lists), key=_make_key(master_key, key))
+    res = sorted(zip(*lists), key=_make_cosort_key(master_key, key))
     if order == -1:
         res = reversed(res)
 
     return tuple(map(list, zip(*res)))
 
 
+def _make_cosort_key(master_key, funcs):
+    def sort_key(x):
+        values = ((f or _zero)(z) for f, z in zip(funcs, x))
+        return (master_key(*x),) + tuple(values)
+    return sort_key
+
+
 @doc.splice(op.index, omit='Parameters[default]')
-def where(l, item, start=0, test=op.eq):
+def where(l, *args, start=0):
     """
     A multi-indexer for lists. Return index positions of all occurances of
-    `item` in a list `l`.  If a test function is given, return all indices at
+    `item` in a list `l`. If a test function is given, return all indices at
     which the test evaluates true.
 
     {Parameters}
@@ -142,19 +142,18 @@ def where(l, item, start=0, test=op.eq):
     Examples
     --------
     >>> l = ['ab', 'Ba', 'cb', 'dD']
-    >>> where(l, 'a', str.__contains__)
+    >>> where(l, op.contains, 'a')
     [0, 1]
-    >>> where(l, 'a', indexer=str.startswith)
+    >>> where(l, str.startswith, 'a')
     [0]
 
 
     Returns
     -------
     list of int or `default`
-        The index positions where test evaluates true
+        The index positions where test evaluates true.
     """
-    test = test or op.eq
-    return list(_iter.where(l, item, start, test))
+    return list(_iter.where(l, *args, start=start))
 
 
 def flatten(l):
@@ -175,8 +174,22 @@ def flatten(l):
 
 
 def split(l, idx):
-    """Split a list into sublists at the given indices"""
+    """Split a list `l` into sublists at the given indices."""
     return list(_iter.split(l, idx))
+
+
+def split_like(l, lists):
+    """
+    Split a list `l` into sublists, each with the same size as the sequence of
+    (raggedly sized) lists in `lists`.
+    """
+    *indices, total = itt.accumulate(map(len, lists))
+    assert len(l) == total
+    return split(l, indices)
+
+
+def sort_like(l, order):
+    return cosort(order, l)[1]
 
 
 def split_where(l, item, start=0, test=None):
@@ -191,7 +204,7 @@ def split_where(l, item, start=0, test=None):
     # if withlast:
     #     idx += [len(l) - 1]
 
-    return split(l, where(l, item, start, test))
+    return split(l, where(l, test, item, start=start))
 
 
 def missing_integers(l):

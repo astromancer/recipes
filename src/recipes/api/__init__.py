@@ -1,0 +1,2 @@
+
+from .synonyms import *

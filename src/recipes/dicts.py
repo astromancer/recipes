@@ -1,20 +1,21 @@
 """
-Recipes involving dictionaries
+Recipes involving dictionaries.
 """
 
 
-# std libs
-import re
-import types
+# std
+import os
 import numbers
-import warnings
 import itertools as itt
 from pathlib import Path
-from collections.abc import Hashable
-from collections import UserDict, OrderedDict, defaultdict
+from collections import OrderedDict, UserDict, abc, defaultdict
 
-# relative libs
-from .string import indent, brackets as bkt
+# third-party
+import more_itertools as mit
+
+# relative
+from .string import indent
+from .functionals import Emit
 
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
@@ -23,51 +24,92 @@ from .string import indent, brackets as bkt
 # lookup, indexability,
 
 
-def pformat(mapping, name=None, lhs=str, equals=': ', rhs=str, sep=',',
-            brackets='{}', hang=False, tabsize=4):
+def pformat(mapping, name=None,
+            lhs=repr, equals=': ', rhs=repr,
+            sep=',', brackets='{}',
+            align=None, hang=False,
+            tabsize=4, newline=os.linesep):
     """
-    pformat (nested) dict types
+    Pretty format (nested) dicts.
 
     Parameters
     ----------
-    mapping: dict
-        Mapping to convert to str
-    name
-    brackets
-    equals
-
-    sep
-    converter
+    mapping : MutableMapping
+        Mapping to represent as string.
+    name : str, optional
+        Name given to the object, the object class name is used by default. In
+        the case of `mapping` being a builtin `dict` type, the name is set to an
+        empty string in order to render them in a similar style to what builtin
+        produces.
+    lhs : Callable or dict of callable, optional
+        Function used to format dictionary keys, by default repr.
+    equals : str, optional
+        Symbol used for equal sign, by default ': '.
+    rhs : Callable or dict of callable, optional
+        Function used to format dictionary values, by default repr.
+    sep : str, optional
+        String used to separate successive key-value pairs, by default ','.
+    brackets : str or Sequence of length 2, optional
+        Characters used for enclosing brackets, by default '{}'.
+    align : bool, optional
+        Whether to align values (right hand side) in a column, by default True
+        if `newline` contains and actual newline character '\\n' else False.
+    hang : bool, optional
+        Whether to hang the first key-value pair on a new line, by default False.
+    tabsize : int, optional
+        Number of spaces to use for indentation, by default 4.
+    newline : str, optional
+        Newline character, by default os.linesep.
 
     Returns
     -------
     str
+        Pretty representation of the dict.
 
     Examples
     --------
     >>> pformat(dict(x='hello',
-                        longkey='w',
+                      longkey='w',
                         foo=dict(nested=1,
-                                what='?',
-                                x=dict(triple='nested'))))
+                                 what='?',
+                                 x=dict(triple='nested'))))
     {x      : hello,
      longkey: w,
      foo    : {nested: 1,
                what  : '?',
                x     : {triple: nested}}}
 
+    Raises
+    ------
+    TypeError
+        If the input is not a MutableMapping.
+    ValueError
+        _description_
     """
+    if not isinstance(mapping, abc.MutableMapping):
+        raise TypeError(f'Object of type: {type(mapping)} is not a '
+                        f'MutableMapping')
+
     if name is None:
-        kls = type(mapping)
-        name = '' if kls is dict else kls.__name__
+        name = ('' if (kls := type(mapping)) is dict else kls.__name__)
 
     brackets = brackets or ('', '')
     if len(brackets) != 2:
         raise ValueError(
-            f'Brackets should be a pair of strings, not {brackets!r}'
+            f'Brackets should be a pair of strings, not {brackets!r}.'
         )
 
-    string = _pformat(mapping, lhs, equals, rhs, sep, brackets, hang, tabsize)
+    # set default align flag
+    if align is None:
+        align = os.linesep in newline
+
+    # format
+    string = _pformat(mapping,
+                      # resolve formatting functions
+                      _get_formatters(lhs), equals, _get_formatters(rhs),
+                      sep, brackets,
+                      align, hang,
+                      tabsize, newline)
     ispace = 0 if hang else len(name)
     string = indent(string, ispace)  # f'{" ": <{pre}}
     if name:
@@ -75,12 +117,25 @@ def pformat(mapping, name=None, lhs=str, equals=': ', rhs=str, sep=',',
     return string
 
 
-def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
-             hang=False, tabsize=4):
+def _get_formatters(fmt):
+    if isinstance(fmt, abc.MutableMapping):
+        for key, func in fmt.items():
+            if not callable(func):
+                raise TypeError(f'Invalid formatter type {type(fmt)} for key '
+                                f'{key!r}. Key/value formatters should be '
+                                f'callable.')
 
-    # if isinstance(mapping, dict): # abc.MutableMapping
-    #     raise TypeError(f'Object of type: {type(mapping)} is not a '
-    #                     f'MutableMapping')
+        return defaultdict((lambda: repr), fmt)
+
+    if callable(fmt):
+        return defaultdict(lambda: fmt)
+
+    raise TypeError(f'Invalid formatter type {type(fmt)}. Key/value formatters'
+                    f' should be callable, or a mapping of callables.')
+
+
+def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
+             align, hang, tabsize, newline):
 
     if len(mapping) == 0:
         # empty dict
@@ -88,26 +143,41 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
 
     string, close = brackets
     if hang:
-        string += '\n'
-        close = '\n' + close
+        string += newline
+        close = newline + close
     else:
         tabsize = len(string)
 
-    # make sure we line up the values
     # note that keys may not be str, so first convert
-    keys = tuple(map(lhs, mapping.keys()))
-    width = max(map(len, keys))  # + post_sep_space
-    indents = itt.chain([hang * tabsize], itt.repeat(tabsize))
+    keys = tuple((lhs_func_dict[key](key) for key in mapping.keys()))
+    keys_size = list(map(len, keys))
+
+    if align:
+        # make sure we line up the values
+        leqs = len(equals)
+        width = max(keys_size)
+        widths = (width - w + leqs for w in keys_size)
+    else:
+        widths = itt.repeat(1)
+
+    indents = mit.padded([hang * tabsize], tabsize)
     separators = itt.chain(
-        itt.repeat(sep + '\n', len(mapping) - 1),
+        itt.repeat(sep + newline, len(mapping) - 1),
         [close]
     )
-    for pre, key, val, post in zip(indents, keys, mapping.values(), separators):
-        string += f'{"": <{pre}}{key: <{width}s}{equals}'
-        if isinstance(val, dict):  # abc.MutableMapping
-            part = _pformat(val, lhs, equals, rhs, sep, brackets)
+    for pre, key, (okey, val), width, post in \
+            zip(indents, keys, mapping.items(), widths, separators):
+        # THIS places ':' directly before value
+        # string += f'{"": <{pre}}{key: <{width}s}{equals}'
+        # WHILE this places it directly after key
+        # print(f'{pre=:} {key=:} {width=:}')
+        # print(repr(f'{"": <{pre}}{key}{equals: <{width}s}'))
+        string += f'{"": <{pre}}{key}{equals: <{width}s}'
+        if isinstance(val, abc.MutableMapping):
+            part = _pformat(val, lhs_func_dict, equals, rhs_func_dict, sep,
+                            brackets, align, hang, tabsize, newline)
         else:
-            part = rhs(val)
+            part = rhs_func_dict[okey](val)
 
         # objects with multi-line representations need to be indented
         string += indent(part, width + tabsize + 1)
@@ -131,22 +201,57 @@ def dump(mapping, filename, **kws):
     Path(filename).write_text(pformat(mapping, **kws))
 
 
-def invert(d, convertion={list: tuple}):
+def invert(d, conversion=None):
+    if conversion is None:
+        conversion = {list: tuple}
+
     inverted = type(d)()
     for key, val in d.items():
         kls = type(val)
-        if kls in convertion:
-            val = convertion[kls](val)
+        if kls in conversion:
+            val = conversion[kls](val)
 
-        if not isinstance(val, Hashable):
+        if not isinstance(val, abc.Hashable):
             raise ValueError(
-                f'Cannot invert dictionary with non-hashable item: {val} of type {type(val)}. You may wish to pass a convertion mapping to this function to aid invertion of dicts containing non-hashable items.')
+                f'Cannot invert dictionary with non-hashable item: {val} of '
+                f'type {type(val)}. You may wish to pass a conversion mapping '
+                f'to this function to aid invertion of dicts containing non-'
+                f'hashable items.')
 
         inverted[val] = key
     return inverted
 
 
+def groupby(items, func):
+    """Convert itt.groupby to a dict"""
+    return {group: list(itr) for group, itr in itt.groupby(items, func)}
+
+
+def merge(*mappings, **kws):
+    """
+    Merge an arbitrary number of dictionaries together by repeated update.
+
+    Examples
+    --------
+    >>> merge(*({f'{(l := case(letter))}': ord(l)} 
+    ...        for case in (str.upper, str.lower) for letter in 'abc'))
+    {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99}
+
+    Returns
+    -------
+    dict
+        Merged dict
+
+    """
+    out = {}
+    for mapping in mappings:
+        out.update(mapping)
+    out.update(kws)
+    return out
+
 # ---------------------------------------------------------------------------- #
+
+
 class Pprinter:
     """Mixin class that pretty prints dictionary content"""
 
@@ -177,11 +282,11 @@ class Invertible:
 
 class DefaultDict(defaultdict):
     """
-    Default dict that allows default factories which take the key as an 
+    Default dict that allows default factories which take the key as an
     argument.
     """
 
-    factory_takes_key = False
+    factory_takes_key = False  # TODO: can detect this by inspection
     default_factory = None
 
     def __init__(self, factory=None, *args, **kws):
@@ -218,6 +323,7 @@ class AutoVivify:
         if self._av:
             value = self[key] = type(self)()  # *self._factory
             return value
+
         return super().__missing__(key)
 
 
@@ -231,6 +337,7 @@ class AVDict(dict, AutoVivify):
 
 # class Tree(defaultdict, AutoVivify):
 #     _factory = (defaultdict.default_factory, )
+
 
 # TODO AttrItemWrite
 
@@ -260,15 +367,12 @@ class AttrReadItem(AttrBase):
 
     """
 
-    def __getattr__(self, attr):
+    def __getattr__(self, key):
         """
-        Try to get the value in the dict associated with key `attr`. If `attr`
-        is not a key, try get the attribute from the parent class.
+        Try to get the value in the dict associated with key `key`. If `key`
+        is not a key in the dict, try get the attribute from the parent class.
         """
-        if attr in self:
-            return self[attr]
-
-        return super().__getattribute__(attr)
+        return self[key] if key in self else super().__getattribute__(key)
 
     # def __setattr__(self, name: str, value):
     # TODO maybe warn once instead
@@ -278,14 +382,24 @@ class AttrReadItem(AttrBase):
 
 class AttrDict(AttrBase):
     """dict with key access through attribute lookup"""
+
+    # pros: IDE autocomplete works on keys
+    # cons: clobbers build in methods like `keys`, `items` etc...
+    #     : inheritance: have to init this superclass before all others
     # FIXME: clobbers build in methods like `keys`, `items` etc...
     # check: dict.__dict__
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
-        # pros: IDE autocomplete works on keys
-        # cons: clobbers build in methods like `keys`, `items` etc...
-        #     : inheritance: have to init this superclass before all others
+
+    def __setstate__(self, state):
+        self.__dict__ = self
+        return state
+
+    # def __reduce__(self):
+    #     print('REDUCE! ' * 20)
+    #     return dict, ()
 
 
 class OrderedAttrDict(OrderedDict, AttrBase):
@@ -295,6 +409,20 @@ class OrderedAttrDict(OrderedDict, AttrBase):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
 
+
+class TreeLike(AttrDict, AutoVivify):
+    def __init__(self, mapping=(), **kws):
+        super().__init__()
+        kws.update(mapping)
+        for a, v in kws.items():
+            self[a] = v
+
+    def __setitem__(self, key, val):
+        if '.' in key:
+            key, tail = key.split('.', 1)
+            self[key][tail] = val
+        else:
+            super().__setitem__(key, val)
 
 
 class Indexable:
@@ -331,37 +459,35 @@ class ListLike(Indexable, OrderedDict, Pprinter):
     list-like functionality: indexing by int and appending new data.
     Best of both worlds.
     """
-    _auto_name_fmt = 'item%i'
+    auto_key_template = 'item%i'
 
-    def __init__(self, items=None, **kws):
-        if items is None:
-            # construct from keywords
-            super().__init__(**kws)
-        elif isinstance(items, (list, tuple)):
-            # construct from sequence: make keys using `_auto_name_fmt`
+    def __init__(self, items=(), **kws):
+        if isinstance(items, (list, tuple, set)):
+            # construct from sequence: make keys using `auto_key_template`
             super().__init__()
-            for i, item in enumerate(items):
-                if self._allow_item(item):
-                    self[self._auto_name()] = self._convert_item(item)
+            for item in items:
+                self.append(item)
         else:
             # construct from mapping
-            super().__init__(items, **kws)
+            super().__init__(items or (), **kws)
 
     def __setitem__(self, key, item):
-        item = self._convert_item(item)
+        item = self.convert_item(item)
         OrderedDict.__setitem__(self, key, item)
 
-    def _allow_item(self, item):
+    def check_item(self, item):
         return True
 
-    def _convert_item(self, item):
+    def convert_item(self, item):
         return item
 
-    def _auto_name(self):
-        return self._auto_name_fmt % len(self)
+    def auto_key(self):
+        # auto-generate key
+        return self.auto_key_template % len(self)
 
     def append(self, item):
-        self[self._auto_name()] = self._convert_item(item)
+        self.check_item(item)
+        self[self.auto_key()] = self.convert_item(item)
 
 
 # class Indexable:
@@ -393,22 +519,22 @@ class ListLike(Indexable, OrderedDict, Pprinter):
 #         elif isinstance(groups, (list, tuple)):
 #             super().__init__()
 #             for i, item in enumerate(groups):
-#                 self[self._auto_name()] = self._convert_item(item)
+#                 self[self.auto_key()] = self.convert_item(item)
 #         else:
 #             super().__init__(groups, **kws)
 #
 #     def __setitem__(self, key, item):
-#         item = self._convert_item(item)
+#         item = self.convert_item(item)
 #         OrderedDict.__setitem__(self, key, item)
 #
-#     def _convert_item(self, item):
+#     def convert_item(self, item):
 #         return np.array(item, int)
 #
-#     def _auto_name(self):
+#     def auto_key(self):
 #         return 'group%i' % len(self)
 #
 #     def append(self, item):
-#         self[self._auto_name()] = self._convert_item(item)
+#         self[self.auto_key()] = self.convert_item(item)
 #
 #     # def rename(self, group_index, name):
 #     #     self[name] = self.pop(group_index)
@@ -427,9 +553,9 @@ class Record(Indexable, OrderedAttrDict):
 
 class TransDict(UserDict):
     """
-    A many to one mapping. Provides a generic way of translating keywords to
-    their intended meaning. Good for human coders with flaky memory. May be
-    confusing to the uninitiated, so use with discretion.
+    A many to one mapping via layered dictionaries. Provides a generic way of
+    translating keywords to their intended meaning. Good for human coders with
+    flaky memory. May be confusing to the uninitiated, so use with discretion.
 
     Examples
     --------
@@ -439,83 +565,116 @@ class TransDict(UserDict):
 
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
-        self._translated = {}
+        self.dictionary = {}
 
-    def add_translations(self, dic=None, **kwargs):
-        """enable on-the-fly shorthand translation"""
+    def add_mapping(self, dic=None, **kwargs):
+        """Add translation dictionary"""
         dic = dic or {}
-        self._translated.update(dic, **kwargs)
+        self.dictionary.update(dic, **kwargs)
 
-    # alias
-    add_trans = add_vocab = add_translations
+    # aliases
+    add_trans = add_vocab = add_translations = add_mapping
 
     def __contains__(self, key):
-        return super().__contains__(self._translated.get(key, key))
+        return super().__contains__(self.dictionary.get(key, key))
 
     def __missing__(self, key):
         """if key not in keywords, try translate"""
-        return self[self._translated[key]]
+        return self[self.dictionary[key]]
 
     # def allkeys(self):
     #     # TODO: Keysview**
-    #     return flatiter((self.keys(), self._translated.keys()))
+    #     return flatiter((self.keys(), self.dictionary.keys()))
 
-    def many2one(self, many2one):
+    def many_to_one(self, mapping):
+        """
+        Add many keys to the existing dict that all map to the same key
+
+        Parameters
+        ----------
+        mapping : dict or collection of 2-tuples
+            Keys are tuples of objects mapping to a single object.
+
+
+        Examples
+        --------
+        >>> d.many_to_one({'all', 'these', 'keys', 'will', 'map to':
+                           'THIS VALUE')
+        ... d['all'] == d['these'] == 'THIS VALUE'
+        True
+        """
         # self[one]       # error check
-        for many, one in many2one.items():
+        for many, one in dict(mapping).items():
             for key in many:
-                self._translated[key] = one
+                self.dictionary[key] = one
+
+    many2one = many_to_one
 
 
 class ManyToOneMap(TransDict):
     """
-    Expands on TransDict by adding equivalence mapping functions for keywords
+    Expands on TransDict by adding equivalence mapping functions for keywords.
     """
 
-    warn = True
+    emit = Emit(1)
 
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
-        # equivalence mappings - callables that return the desired item
+        # equivalence mappings - callables that return the desired item.
         self._mappings = []
 
     def __missing__(self, key):
         try:
-            # try translate with vocab
+            # try translate via `dictionary`
             return super().__missing__(key)
         except KeyError as err:
-            for resolved in self._loop_mappings(key):
+            # FIXME: does what `resolve` does??
+            for resolved in self._loop_translators(key):
                 if super().__contains__(resolved):
                     return self[resolved]
             raise err from None
 
-    def add_mapping(self, func):
+    def add(self, obj):
+        """Add translation function / dictionary dispatching on type"""
+        if isinstance(obj, abc.MutableMapping):
+            self.add_mapping(obj)
+        elif callable(obj):
+            self.add_func(obj)
+        else:
+            raise TypeError(
+                f'Invalid translation object {obj!r} of type {type(obj)!r}.'
+            )
+
+    def add_func(self, func):
         if not callable(func):
-            raise ValueError(f'{func} object is not callable')
+            raise ValueError(f'{func} object is not callable.')
         self._mappings.append(func)
 
-    def add_mappings(self, *funcs):
+    def add_funcs(self, *funcs):
         for func in funcs:
-            self.add_mapping(func)
+            self.add_func(func)
 
-    def _loop_mappings(self, key):
+    def _loop_translators(self, key):
         # try translate with equivalence maps
         for func in self._mappings:
+            # yield catch(func, message=message)(key)
             try:
                 yield func(key)
             except Exception as err:
-                if self.warn:
-                    warnings.warn(
-                        f'Equivalence mapping function failed with:\n{err!s}')
+                self.emit(
+                    f'{type(self).__name__}: Equivalence mapping function'
+                    f' failed with:\n{err!s}.'
+                )
 
     def resolve(self, key):
+        # FIXME: return sentinel as `None` can be a valid mapping value
         # try translate with vocab
-        resolved = self._translated.get(key, key)
+        resolved = self.dictionary.get(key, key)
         if resolved in self:
             return resolved
 
         # resolve by looping through mappings
-        for resolved in self._loop_mappings(key):
+        for resolved in self._loop_translators(key):
             if resolved in self:
                 return resolved
 
@@ -523,7 +682,7 @@ class ManyToOneMap(TransDict):
         if super().__contains__(key):
             return True  # no translation needed
 
-        for resolved in self._loop_mappings(key):
+        for resolved in self._loop_translators(key):
             return super().__contains__(resolved)
 
         return False
@@ -543,7 +702,9 @@ class DefaultOrderedDict(OrderedDict):
     # Note: dict order is gauranteed since pyhton 3.7
     def __init__(self, default_factory=None, mapping=(), **kws):
         if not (default_factory is None or callable(default_factory)):
-            raise TypeError('first argument must be callable')
+            raise TypeError(
+                'First argument to {self.__class__.__name__} must be callable.'
+            )
 
         OrderedDict.__init__(self, mapping, **kws)
         self.default_factory = default_factory
@@ -557,7 +718,7 @@ class DefaultOrderedDict(OrderedDict):
     def __missing__(self, key):
         if self.default_factory is None:
             raise KeyError(key)
-        
+
         self[key] = value = self.default_factory()
         return value
 
@@ -577,120 +738,9 @@ class DefaultOrderedDict(OrderedDict):
                           copy.deepcopy(self.items()))
 
     def __repr__(self):
-        return '%s(%s, %s)' % (self.__class__.__name__,
-                               self.default_factory,
-                               OrderedDict.__repr__(self))
+        return (f'{self.__class__.__name__}({self.default_factory}, '
+                f'{OrderedDict.__repr__(self)})')
 
 
-def SENTINEL():
-    pass
-
-
-class TerseKws:
-    """
-    Class to assist many-to-one keard mappings
-    """
-
-    def __init__(self, pattern, answer=None):
-        """
-
-        Parameters
-        ----------
-        pattern
-        answer
-        """
-        regex = ''
-        self.answer = ''
-        self.pattern = pattern
-        sub = pattern
-        while 1:
-            s, (i0, i1) = bkt.square.match(sub, return_index=True,
-                                           must_close=True)
-            # print(s, i0, i1)
-            if s is None:
-                regex += sub
-                break
-
-            regex += f'{sub[:i0]}[{s}]{{0,{len(s)}}}'
-            self.answer += sub[:i0]
-            sub = sub[i1 + 1:]
-
-            # print(sub, regex)
-            # i += 1
-        self.regex = re.compile(regex)
-
-        if answer:
-            self.answer = answer  # str(answer)
-
-    def __call__(self, s):
-        if self.regex.fullmatch(s):
-            return self.answer
-        # return SENTINEL singleton here instead of None since None
-        # could be a valid dict entry
-        return SENTINEL
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({self.pattern} --> {self.answer})'
-
-
-class KeywordResolver:
-    """Helper class for resolving terse keywords"""
-
-    # TODO: as a decorator!!
-    # TODO: detect ambiguous mappings
-    # TODO: expand to handle arbitrary (non-keyword) mappings
-
-    def __init__(self, mappings):
-        self.mappings = []
-        for k, v in mappings.items():
-            # if isinstance(k, str)
-
-            self.mappings.append(TerseKws(k, v))
-
-    def __repr__(self):
-        return repr(self.mappings)
-
-    # def __call__(self,func):
-    #     self.func = func
-
-    def resolve(self, func, kws, namespace=None):
-        """
-        map terse keywords in `kws` to their full form. 
-        If given, values from the `namespace` dict replace those in kws
-        if their corresponging keywords are valid parameter names for `func` 
-        and they are non-default values
-        """
-        # get arg names and defaults
-        # TODO: use inspect.signature here ?
-        code = func.__code__
-        defaults = func.__defaults__
-        arg_names = code.co_varnames[1:code.co_argcount]
-
-        # load the defaults / passed args
-        n_req_args = len(arg_names) - len(defaults)
-        # opt_arg_names = arg_names[n_req_args:]
-
-        args_dict = {}
-        # now get non-default arguments (those passed by user)
-        if namespace is not None:
-            for i, o in enumerate(arg_names[n_req_args:]):
-                v = namespace[o]
-                if v is not defaults[i]:
-                    args_dict[o] = v
-
-        # resolve terse kws and add to dict
-        for k, v in kws.items():
-            if k not in arg_names:
-                for m in self.mappings:
-                    if m(k) in arg_names:
-                        args_dict[m(k)] = v
-                        break
-                else:
-                    # get name
-                    name = func.__name__
-                    if isinstance(func, types.MethodType):
-                        name = f'{func.__self__.__class__.__name__}.{name}'
-                    raise KeyError(
-                        f'{k!r} is not a valid keyword for {name!r}')
-
-        return args_dict
+# alias
+OrderedDefaultDict = DefaultOrderedDict

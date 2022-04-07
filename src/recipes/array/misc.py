@@ -2,10 +2,10 @@
 Common algorithms involving arrays
 """
 
-# third-party libs
+# third-party
 import numpy as np
 
-# local libs
+# local
 from recipes.lists import flatten, where_duplicate
 
 

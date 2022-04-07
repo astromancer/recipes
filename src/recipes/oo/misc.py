@@ -10,21 +10,20 @@ def iter_subclasses(cls, _seen=None):
     >>> list(iter_subclasses(int)) == [bool]
     True
 
-    >>> class A(object): pass
+    >>> class A: pass
     >>> class B(A): pass
     >>> class C(A): pass
     >>> class D(B,C): pass
     >>> class E(D): pass
-    >>>
     >>> list(iter_subclasses(A))
     [__main__.B, __main__.D, __main__.E, __main__.C]
 
     >>> # get ALL (new-style) classes currently defined
-    >>> [cls.__name__ for cls in iter_subclasses(object)] #doctest: +ELLIPSIS
-    ['type', ...'tuple', ...]
+    >>> [cls.__name__ for cls in iter_subclasses] #doctest: +ELLIPSIS
+    ['type', ... 'tuple', ...]
     """
 
-    # recipe from:
+    # recipe adapted from:
     # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
 
     if not isinstance(cls, type):
@@ -42,52 +41,22 @@ def iter_subclasses(cls, _seen=None):
         if sub not in _seen:
             _seen.add(sub)
             yield sub
-
-            for sub in iter_subclasses(sub, _seen):
-                yield sub
+            yield from iter_subclasses(sub, _seen)
 
 
 def list_subclasses(cls):
     return list(iter_subclasses(cls))
 
-
-class Singleton(object):
-    class __Singleton:
-        def __str__(self):
-            return repr(self)
-
-    instance = None
-
-    def __init__(self):
-        if Singleton.instance is None:
-            Singleton.instance = Singleton.__Singleton()
-
-    def __getattr__(self, name):
-        return getattr(self.instance, name)
-
-
-#
-# Singleton/BorgSingleton.py
-# Alex Martelli's 'Borg'
-
-# class Borg:
-#     _shared_state = {}
-#
-#     def __init__(self):
-#         self.__dict__ = self._shared_state
-#
-#
-# class Singleton(Borg):
-#     def __init__(self, arg):
-#         Borg.__init__(self)
-#         self.val = arg
-#
-#     def __str__(self):
-#         return self.val
-
+# ---------------------------------------------------------------------------- #
 
 class SelfAwareness(type):
-    """SelfAware type class"""
+    """
+    Meta class for SelfAware objects. When initializing a `SelfAware` class (by
+    calling this metaclass) with an instance of the same class as the first
+    parameter, that same instance is returned instead of initializing a new
+    object. This allows an optimization for objects with heavy initialization
+    overhead.
+    """
     def __call__(cls, instance=None, *args, **kws):
         # this is here to handle initializing the object from an already
         # existing instance of the class
@@ -101,53 +70,40 @@ class SelfAware(metaclass=SelfAwareness):
     """"
     A class which is aware of members of its own class. When initializing with
     an already existing instance, `__init__` is skipped and the original object
-    is returned
+    is returned.
 
     Examples
     --------
     >>> class A(SelfAware): 
-            def __init__(self, a): 
-                self.a = a 
-
-    >>> a = A(1)
-    >>> a is A(A(A(a)))  # True
+    ...     def __init__(self, a): 
+    ...         self.a = a
+    ...
+    ... a = A(1)
+    ... a is A(A(A(a)))
+    True
     """
 
 
-class ClassProperty(property):
+class AttributeAutoComplete:  # AttributeAutocomplete
     """
-    Allows properties to be accessed from class or instance
+    Attribute lookup that returns if the lookup key matches the start of the
+    attribute name and the match is one-to-one. Raises AttributeError otherwise.
 
-    Examples
-    --------
-
-    class Foo(object):
-
-        _name = None  # optional name.
-         # Will default to class name if not over-written in inheritors
-
-        @ClassProperty
-        @classmethod
-        def name(cls):
-            return cls._name or cls.__name__
-
-        @name.setter
-        def name(self, name):
-            self.set_name(name)
-
-        @classmethod
-        def set_name(cls, name):
-            assert isinstance(name, str)
-            cls._name = name
-
-    >>> foo = Foo()
-    >>> print(foo.name) # 'Foo'
-    >>> foo.name = 'Yo'
-    >>> print((foo.name, Foo.name)) # ('Yo', 'Yo')
-    >>> Foo.name = 'zzz'
-    >>> print(foo.name, Foo.name) # ('zzz', 'zzz')
-
+    Example
+    >>> class SmartClass(AttributeAutoComplete):
+    ...     some_long_attribute_name_that_is_overly_tautologous = '!'
+    ... SmartClass().some
+    '!'
     """
 
-    def __get__(self, cls, owner):
-        return self.fget.__get__(None, owner)()
+    def __getattr__(self, key):
+        try:
+            return super().__getattribute__(key)
+        except AttributeError as err:
+            candidates = [_ for _ in self.__dict__ if _.startswith(key)]
+            real, *others = candidates or (None, ())
+            if others or not real:
+                # ambiguous or non-existent
+                raise err from None
+
+            return super().__getattribute__(real)

@@ -1,8 +1,8 @@
-# third-party libs
+# third-party
 import numpy as np
 
 
-# relative libs
+# relative
 from .misc import Grid
 
 ndgrid = Grid

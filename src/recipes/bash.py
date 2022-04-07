@@ -3,26 +3,26 @@ Emulate bash brace expansion
 """
 
 
-# std libs
+# std
 import re
 import math
-import itertools as itt
 
-# third-party libs
-from anytree import Node as _Node, RenderTree
-
-# local libs
+# local
 import docsplice as doc
-from recipes import op
-from recipes.lists import split_where
-from recipes.functionals import negate
-from recipes.string.brackets import braces, xsplit
-from recipes.string import remove_prefix, shared_affix
+
+# relative
+from . import op
+from .tree import Node
+from .lists import split_where
+from .functionals import negate
+from .string import shared_affix, strings
+from .string.brackets import BracketParser, csplit
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
 RGX_BASH_RANGE = re.compile(r'(\d+)[.]{2}(\d+)')
 
+braces = BracketParser('{}')
 
 # ---------------------------------------------------------------------------- #
 # utility functions
@@ -30,10 +30,6 @@ RGX_BASH_RANGE = re.compile(r'(\d+)[.]{2}(\d+)')
 
 def ints(items):
     return [*map(int, items)]
-
-
-def strings(items):
-    return [*map(str, items)]
 
 
 def unclosed(string, open_, close):
@@ -54,26 +50,21 @@ def brace_expand_iter(string, level=0):
     # detect bad patterns like the one above and refuse
 
     # handle special bash expansion syntax here  xx{12..15}.fits
-    inside = None
-    inside, (i, j) = braces.match(string)
-    if inside is None:
+    match = braces.match(string)
+    if match is None:
         yield string
         return
 
-    head, tail = string[:i], string[j + 1:]
+    head, tail = string[:match.start], string[match.end + 1:]
     # print(f'{inside=}, {head=}, {tail=}')
-    for new in _expander(inside, head, tail):
+    for new in _expander(match.enclosed, head, tail):
         yield from brace_expand_iter(new, level=level+1)
 
 
 def _expander(item, head='', tail=''):
     rng = RGX_BASH_RANGE.fullmatch(item)
-    if rng:
-        # bash expansion syntax implies an inclusive number interval
-        items = range(int(rng[1]), int(rng[2]) + 1)
-    else:
-        items = xsplit(item)
-
+    # bash expansion syntax implies an inclusive number interval
+    items = range(int(rng[1]), int(rng[2]) + 1) if rng else csplit(item)
     for x in items:
         yield f'{head}{x}{tail}'
 
@@ -98,42 +89,14 @@ def is_unary(node):
 
 
 def get_tree(items, depth=-1):
-    return Node.from_list(items, depth)
+    # NOTE that the depth parameter here does not refer to the depth of the
+    # returned tree, but rather the depth of brace nesting
+    # collapse the tree
+    return BraceExpressionNode.from_list(items).collapse(depth)
 
 
-class Node(_Node):
-    """Node representing a branching point in the brace expression"""
-
-    @classmethod
-    def from_list(cls, items, depth=-1):
-        # ensure list of strings
-        items = sorted(strings(items))
-
-        # build the tree
-        root = cls('')
-        root.make_branch(items)
-        # collapse the tree
-        # NOTE that the depth parameter here does not refer to the depth of the
-        # returned tree, but rather the depth of brace nesting
-        root.collapse(depth)
-        return root
-
-    def make_branch(self, words):
-        """
-        Build the tree by splitting the list of strings letter by letter and 
-        grouping when subsequent letters have the same prefix
-        """
-        for base, words in itt.groupby(filter(None, words), op.itemgetter(0)):
-            child = self.__class__(base, parent=self)
-            child.make_branch((remove_prefix(w, base) for w in words))
-
-    def __repr__(self):
-        return str(self.name)
-
-    def __getitem__(self, key):
-        if self.children:
-            return self.children[key]
-        raise ValueError('Node has no children.')
+class BraceExpressionNode(Node):  # pylint: disable=function-redefined
+    """Node representing a branching point in the brace expression."""
 
     def get_names(self, s=''):
         if self.is_leaf:
@@ -145,118 +108,6 @@ class Node(_Node):
 
     def to_list(self):
         return list(self.get_names())
-
-    # def append(self, name):
-    #     child = type(self)(name)
-    #     self.children = (*self.children, child)
-
-    def render(self):
-        """
-        Re-spaced rendering of the tree
-
-        For example:
-            └20
-              ├13061
-              │    ├6.003
-              │    │    ├0
-              │    │    └1
-              │    ├7.003
-              │    │    ├0
-              │    │    └1
-              │    └8.003
-              │         ├0
-              │         └1
-              └2130615.003
-                          ├0
-                          ├1
-                          └2
-        """
-        s = str(RenderTree(self))
-
-        pre = re.compile('([│├└ ])[─ ]{2} ')
-        first, *lines = s.splitlines()
-        new = first + '\n'
-        indents = [len(first) - 1] + [0] * self.height
-        for row in lines:
-            matches = [*pre.finditer(row)]
-            depth = len(matches)
-
-            if depth:
-                end = matches[-1].end()
-                indents[depth] = len(row) - end - 1
-                for m, i in zip(matches, indents):
-                    new += ' ' * i + m[1]
-                new += row[end:]  # + '┐'
-            else:
-                new += row
-            new += '\n'
-        return new
-
-    def pprint(self):
-        print(self.render())
-
-    def collapse_unary(self):
-        """
-        Collapse all unary branches of the node ie. If a node has only one child 
-        (branching factor 1), attach the grand child to the parent node and 
-        orphan the child node.
-
-        For example:
-            └── 2
-                └── 0
-                    └── 1
-                        └── 3
-                            └── 0
-                                └── 6
-                                    └── 1
-                                        ├── 6
-                                        │   └── .
-                                        │       └── 0
-                                        │           └── 0
-                                        │               └── 3
-                                        │                   ├── 0
-                                        │                   └── 1
-                                        ├── 7
-                                        │   └── .
-                                        │       └── 0
-                                        │           └── 0
-                                        │               └── 3
-                                        │                   ├── 0
-                                        │                   └── 1
-                                        └── 8
-                                            └── .
-                                                └── 0
-                                                    └── 0
-                                                        └── 3
-                                                            ├── 0
-                                                            └── 1
-
-        Becomes:
-            └── 20
-                └── 13061
-                    ├── 6.003
-                    │   ├── 0
-                    │   └── 1
-                    ├── 7.003
-                    │   ├── 0
-                    │   └── 1
-                    └── 8.003
-                        ├── 0
-                        └── 1
-
-        """
-        child = self
-        changed = False
-        while len(child.children) == 1:
-            child, = child.children
-            self.name += child.name
-            changed = True
-        self.children = child.children
-
-        for child in self.children:
-            changed |= child.collapse_unary()
-
-        return changed
 
     def collapse_leaves(self, max_nest=math.inf):
         """
@@ -325,7 +176,7 @@ class Node(_Node):
 
     def collapse(self, max_nest=-1):
         """
-        Collapse the name tree up to required level
+        Collapse the tree down to required level.
 
         Parameters
         ----------
@@ -338,7 +189,7 @@ class Node(_Node):
 
         Returns
         -------
-        [type]
+        bash.Node
             [description]
         """
         # collapse the tree
@@ -474,7 +325,7 @@ def brace_contract(items, depth=-1):
     if n == 1:
         # simply remove single items enclosed in brackets. NOTE this behaviour
         # is different from what bash does: it simply uses the name containing
-        # {x} elements verbatim
+        # {x} elements verbatim, which we don't want in this context.
         return braces.remove(items[0],
                              condition=negate(op.contained(',').within))
 
@@ -483,7 +334,7 @@ def brace_contract(items, depth=-1):
         return contract(items)
 
     #
-    tree = Node.from_list(items, depth)
+    tree = get_tree(items, depth)
     if tree.height:
         return tree.to_list()
 

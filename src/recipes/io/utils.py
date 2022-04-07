@@ -1,7 +1,9 @@
 
 
-# std libs
+# std
+import io
 import os
+import math
 import glob
 import json
 import mmap
@@ -10,22 +12,24 @@ import shutil
 import tempfile
 import fnmatch as fnm
 import itertools as itt
+import contextlib as ctx
 from pathlib import Path
-from contextlib import contextmanager
 
-# local libs
+# local
 import docsplice as doc
-from recipes.bash import brace_expand_iter
 from recipes.string import sub
-from recipes.string.brackets import braces
+from recipes.bash import brace_expand_iter
+from recipes.string.brackets import BracketParser
 
-# relative libs
+# relative
 from ..functionals import echo0
 
 
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
 FILEMODES = {pickle: 'b', json: ''}
+
+braces = BracketParser('{}')
 
 
 def guess_format(filename):
@@ -42,6 +46,9 @@ def guess_format(filename):
 
 def deserialize(filename, formatter=None, **kws):
     path = Path(filename)
+    if not path.exists():
+        raise FileNotFoundError
+
     formatter = formatter or guess_format(path)
     with path.open(f'r{FILEMODES[formatter]}') as fp:
         return formatter.load(fp, **kws)
@@ -88,18 +95,6 @@ def save_json(filename, data, **kws):
 
 
 def iter_files(path, extensions='*', recurse=False, ignore=()):
-    if isinstance(ignore, str):
-        ignore = (ignore, )
-        
-    for file in _iter_files(path, extensions, recurse):
-        for pattern in ignore:
-            if fnm.fnmatchcase(str(file), pattern):
-                break
-        else:
-            yield file
-
-
-def _iter_files(path, extensions='*', recurse=False):
     """
     Generator that yields all files in a directory tree with given file
     extension(s), optionally recursing down the directory tree. Brace expansion
@@ -129,7 +124,7 @@ def _iter_files(path, extensions='*', recurse=False):
     >>> iter_files()
 
     Yields
-    -------
+    ------
     pathlib.Path
         system path pointing to the file
 
@@ -138,11 +133,24 @@ def _iter_files(path, extensions='*', recurse=False):
     ValueError
         If the given base path does not exist
     """
+    if isinstance(ignore, str):
+        ignore = (ignore, )
+
+    for file in _iter_files(path, extensions, recurse):
+        for pattern in ignore:
+            if fnm.fnmatchcase(str(file), pattern):
+                break
+        else:
+            yield file
+
+
+def _iter_files(path, extensions='*', recurse=False):
+    
 
     path = str(path)
 
     # handle brace expansion first
-    special = bool(braces.match(path, False, must_close=True))
+    special = bool(braces.match(path, must_close=True))
     wildcard = glob.has_magic(path)  # handle glob patterns
     if special | wildcard:
         itr = (brace_expand_iter(path) if special else
@@ -163,7 +171,8 @@ def _iter_files(path, extensions='*', recurse=False):
         return
 
     if not path.exists():
-        raise ValueError(f"'{path!s}' is not a directory or a glob pattern")
+        raise ValueError(f"'{path!s}' is not a valid directory or a glob "
+                         f"pattern")
 
     # break the recurrence
     yield path
@@ -194,7 +203,7 @@ def iter_ext(files, extensions='*'):
             yield from file.parent.glob(f'{file.stem}.{ext.lstrip(".")}')
 
 
-def iter_lines(filename, *section, mode='r', strip=None):
+def iter_lines(filelike, *section, mode='r', strip=None):
     """
     File line iterator for text files. Optionally return only a section of the
     file. Trailing newline character are stripped by default.
@@ -205,8 +214,9 @@ def iter_lines(filename, *section, mode='r', strip=None):
 
     Parameters
     ----------
-    filename : str, Path
-        File system location of the file to read
+    filelike : str or Path or io.IOBase
+        File system location of the file to read, or potentially an already open
+        stream handler.
     *section
         The [start], stop, [step] lines.
     mode : str
@@ -229,7 +239,7 @@ def iter_lines(filename, *section, mode='r', strip=None):
         lines from the file
     """
 
-    # note python automatically translate system newlines to '\n' for files
+    # NOTE python automatically translate system newlines to '\n' for files
     # opened in text mode, but not in binary mode:
     #   https://stackoverflow.com/a/38075790/1098683
     if strip is None:
@@ -238,9 +248,23 @@ def iter_lines(filename, *section, mode='r', strip=None):
     if 'b' in mode and isinstance(strip, str):
         strip = strip.encode()
 
-    with open(str(filename), mode) as fp:
-        for s in itt.islice(fp, *(section or (None, ))):
+    # handle possible inf in section
+    section = tuple(None if _ == math.inf else _ for _ in section) or (None, )
+
+    with open_any(filelike, mode) as fp:
+        for s in itt.islice(fp, *section):
             yield s.strip(strip)
+
+
+def open_any(filelike, mode='r'):
+    # handle stream
+    if isinstance(filelike, io.IOBase):
+        return ctx.nullcontext(filelike)
+
+    if isinstance(filelike, (str, Path)):
+        return open(str(filelike), mode)
+
+    raise TypeError(f'Invalid file-like object of type {type(filelike)}.')
 
 
 @doc.splice(iter_lines)
@@ -322,7 +346,7 @@ def count_lines(filename):
 
 def write_lines(stream, lines, eol='\n'):
     """
-    Write multiple lines to a file-like output stream
+    Write multiple lines to a file-like output stream.
 
     Parameters
     ----------
@@ -340,7 +364,7 @@ def write_lines(stream, lines, eol='\n'):
         stream.write(append(line, eol))
 
 
-@contextmanager
+@ctx.contextmanager
 def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
     """
     Context manager for doing file operations under backup. This will backup
@@ -443,15 +467,15 @@ def write_replace(filename, replacements):
         fp.truncate()
 
 
-@contextmanager
+@ctx.contextmanager
 def working_dir(path):
     """
     Temporarily change working directory to the given `path` with this context
-    manager. 
+    manager.
 
     Parameters
     ----------
-    path : str or Path 
+    path : str or Path
         File system location of temporary work working directory
 
     Examples
@@ -459,41 +483,81 @@ def working_dir(path):
     >>> with working_dir('/path/to/folder/that/exists') as wd:
     ...     file = wd.with_name('myfile.txt')
     ...     file.touch()
-    After the context manager returns, we will be switched back to the original 
+    After the context manager returns, we will be switched back to the original
     working directory, even if an exception occured.
-    
+
     Raises
     ------
     ValueError
         If `path` is not a valid directory
-    
+
     """
     if not Path(path).is_dir():
         raise ValueError("Invalid directory: '{path!s}'")
-    
+
     original = os.getcwd()
     os.chdir(path)
     try:
         yield path
     except Exception as err:
         raise err
-        
-    finally :
+
+    finally:
         os.chdir(original)
 
-
-def walk_level(dir_, depth=1):
+def show_tree(folder, use_dynamic_spacing=False):
     """
-    Walk the system path, but only up to the given depth
+    Print the file system tree:
+
+    Parameters
+    ----------
+    folder : str or Path
+        File system directory.
+
+    Examples
+    --------
+    >>> show_tree('.')
+    .
+    ├── 20130615.ragged.dat
+    ├── 20130615.ragged.txt
+    ├── 20140703
+    │   ├── 20140703.010.ragged.txt
+    │   └── 20140703.011.ragged.txt
+    ├── 20140703.ragged.dat
+    ├── 20140703.ragged.txt
+    ├── 20140708.ragged.dat
+    ├── 20140708.ragged.txt
+    ├── 20160707.ragged.dat
+    ├── 20160707.ragged.txt
+    ├── 202130615
+    │   ├── 202130615.0020.ragged.txt
+    │   └── 202130615.0021.ragged.txt
+    ├── 202140708
+    │   └── 202140708.001.ragged.txt
+    └── SHA_20160707
+        └── SHA_20160707.0010.ragged.txt
     """
-    # http://stackoverflow.com/a/234329/1098683
+    
+    from ..tree import FileSystemNode
+    
+    tree = FileSystemNode.from_list(iter_files(folder))
+    tree.collapse_unary()
+    tree.use_dynamic_spacing = bool(use_dynamic_spacing)
+    return tree.render()
 
-    dir_ = dir_.rstrip(os.path.sep)
-    assert os.path.isdir(dir_)
+def walk(folder, depth=1):
+    """
+    Walk the system path, but only up to the given depth.
+    """
+    # adapted from: http://stackoverflow.com/a/234329/1098683
 
-    num_sep = dir_.count(os.path.sep)
-    for root, dirs, files in os.walk(dir_):
+    folder = folder.rstrip(os.path.sep)
+    assert os.path.isdir(folder)
+
+    n_sep = folder.count(os.path.sep)
+    for root, dirs, files in os.walk(folder):
         yield root, dirs, files
-        num_sep_here = root.count(os.path.sep)
-        if num_sep + depth <= num_sep_here:
+
+        level = root.count(os.path.sep)
+        if n_sep + depth <= level:
             del dirs[:]
