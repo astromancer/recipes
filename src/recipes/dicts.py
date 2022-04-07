@@ -1,5 +1,5 @@
 """
-Recipes involving dictionaries
+Recipes involving dictionaries.
 """
 
 
@@ -24,25 +24,47 @@ from .functionals import Emit
 # lookup, indexability,
 
 
-def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
-            brackets='{}', hang=False, tabsize=4, newline=os.linesep):
+def pformat(mapping, name=None,
+            lhs=repr, equals=': ', rhs=repr,
+            sep=',', brackets='{}',
+            align=None, hang=False,
+            tabsize=4, newline=os.linesep):
     """
-    pformat (nested) dict types
+    Pretty format (nested) dicts.
 
     Parameters
     ----------
-    mapping: dict
-        Mapping to convert to str
-    name
-    brackets
-    equals
-
-    sep
-    converter
+    mapping : MutableMapping
+        Mapping to represent as string.
+    name : str, optional
+        Name given to the object, the object class name is used by default. In
+        the case of `mapping` being a builtin `dict` type, the name is set to an
+        empty string in order to render them in a similar style to what builtin
+        produces.
+    lhs : Callable or dict of callable, optional
+        Function used to format dictionary keys, by default repr.
+    equals : str, optional
+        Symbol used for equal sign, by default ': '.
+    rhs : Callable or dict of callable, optional
+        Function used to format dictionary values, by default repr.
+    sep : str, optional
+        String used to separate successive key-value pairs, by default ','.
+    brackets : str or Sequence of length 2, optional
+        Characters used for enclosing brackets, by default '{}'.
+    align : bool, optional
+        Whether to align values (right hand side) in a column, by default True
+        if `newline` contains and actual newline character '\\n' else False.
+    hang : bool, optional
+        Whether to hang the first key-value pair on a new line, by default False.
+    tabsize : int, optional
+        Number of spaces to use for indentation, by default 4.
+    newline : str, optional
+        Newline character, by default os.linesep.
 
     Returns
     -------
     str
+        Pretty representation of the dict.
 
     Examples
     --------
@@ -57,10 +79,19 @@ def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
                what  : '?',
                x     : {triple: nested}}}
 
+    Raises
+    ------
+    TypeError
+        If the input is not a MutableMapping.
+    ValueError
+        _description_
     """
+    if not isinstance(mapping, abc.MutableMapping):
+        raise TypeError(f'Object of type: {type(mapping)} is not a '
+                        f'MutableMapping')
+
     if name is None:
-        kls = type(mapping)
-        name = '' if kls is dict else kls.__name__
+        name = ('' if (kls := type(mapping)) is dict else kls.__name__)
 
     brackets = brackets or ('', '')
     if len(brackets) != 2:
@@ -68,7 +99,17 @@ def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
             f'Brackets should be a pair of strings, not {brackets!r}.'
         )
 
-    string = _pformat(mapping, lhs, equals, rhs, sep, brackets, hang, tabsize, newline)
+    # set default align flag
+    if align is None:
+        align = os.linesep in newline
+
+    # format
+    string = _pformat(mapping,
+                      # resolve formatting functions
+                      _get_formatters(lhs), equals, _get_formatters(rhs),
+                      sep, brackets,
+                      align, hang,
+                      tabsize, newline)
     ispace = 0 if hang else len(name)
     string = indent(string, ispace)  # f'{" ": <{pre}}
     if name:
@@ -76,12 +117,25 @@ def pformat(mapping, name=None, lhs=repr, equals=': ', rhs=repr, sep=',',
     return string
 
 
-def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
-             hang=False, tabsize=4, newline=os.linesep):
+def _get_formatters(fmt):
+    if isinstance(fmt, abc.MutableMapping):
+        for key, func in fmt.items():
+            if not callable(func):
+                raise TypeError(f'Invalid formatter type {type(fmt)} for key '
+                                f'{key!r}. Key/value formatters should be '
+                                f'callable.')
 
-    # if isinstance(mapping, dict): # abc.MutableMapping
-    #     raise TypeError(f'Object of type: {type(mapping)} is not a '
-    #                     f'MutableMapping')
+        return defaultdict((lambda: repr), fmt)
+
+    if callable(fmt):
+        return defaultdict(lambda: fmt)
+
+    raise TypeError(f'Invalid formatter type {type(fmt)}. Key/value formatters'
+                    f' should be callable, or a mapping of callables.')
+
+
+def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
+             align, hang, tabsize, newline):
 
     if len(mapping) == 0:
         # empty dict
@@ -94,24 +148,36 @@ def _pformat(mapping, lhs=str, equals=': ', rhs=str, sep=',', brackets='{}',
     else:
         tabsize = len(string)
 
-    # make sure we line up the values
     # note that keys may not be str, so first convert
-    keys = tuple(map(lhs, mapping.keys()))
-    width = max(map(len, keys))  # + post_sep_space
+    keys = tuple((lhs_func_dict[key](key) for key in mapping.keys()))
+    keys_size = list(map(len, keys))
+
+    if align:
+        # make sure we line up the values
+        leqs = len(equals)
+        width = max(keys_size)
+        widths = (width - w + leqs for w in keys_size)
+    else:
+        widths = itt.repeat(1)
+
     indents = mit.padded([hang * tabsize], tabsize)
     separators = itt.chain(
         itt.repeat(sep + newline, len(mapping) - 1),
         [close]
     )
-    for pre, key, val, post in zip(indents, keys, mapping.values(), separators):
+    for pre, key, (okey, val), width, post in \
+            zip(indents, keys, mapping.items(), widths, separators):
         # THIS places ':' directly before value
         # string += f'{"": <{pre}}{key: <{width}s}{equals}'
         # WHILE this places it directly after key
-        string += f'{"": <{pre}}{key}{equals: <{width - len(key) + len(equals)}s}'
-        if isinstance(val, dict):  # abc.MutableMapping
-            part = _pformat(val, lhs, equals, rhs, sep, brackets)
+        # print(f'{pre=:} {key=:} {width=:}')
+        # print(repr(f'{"": <{pre}}{key}{equals: <{width}s}'))
+        string += f'{"": <{pre}}{key}{equals: <{width}s}'
+        if isinstance(val, abc.MutableMapping):
+            part = _pformat(val, lhs_func_dict, equals, rhs_func_dict, sep,
+                            brackets, align, hang, tabsize, newline)
         else:
-            part = rhs(val)
+            part = rhs_func_dict[okey](val)
 
         # objects with multi-line representations need to be indented
         string += indent(part, width + tabsize + 1)
