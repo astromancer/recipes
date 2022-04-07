@@ -6,6 +6,7 @@ Sort import statements in python source code.
 # std
 import os
 import io
+import re
 import ast
 import sys
 import math
@@ -106,6 +107,13 @@ F_NAMEMAX = os.statvfs('.').f_namemax
 
 # object that finds system location of module from name
 # pathFinder = PathFinder()
+
+# ---------------------------------------------------------------------------- #
+REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*==\s*__main__')
+
+
+def is_script(source: str):
+    return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
 
 # ---------------------------------------------------------------------------- #
 # Functions for sorting / rewriting import nodes
@@ -979,42 +987,56 @@ class ImportRefactory(LoggingMixin):
     def relativize(self, module=None, parent_module_name=None, level=None):
         module = module or self.module
 
-        if parent_module_name in (None, True):
-            # cannot relativize without filename
-            if ((self.filename is None) and (parent_module_name is True)):
-                wrn.warn(
-                    'Import relativization requested, but no parent module name'
-                    ' provided. Since we are running from raw input (source '
-                    'code string), you must provide the dot-separated name of '
-                    'the parent module of the source code via '
-                    '`relativize="my.package.name". Alternatively, if the '
-                    'source resides in a file, pass the `filename` parameter to'
-                    ' the `refactor` method to relativize import statements in-'
-                    'place.'
-                )
-                return module
+        if not self._should_relativize(parent_module_name):
+            return module
 
-            # get the package name so we can replace
-            # >>> from package.module import x
-            # with
-            # >>> from .module import x
-            if self.path.name.startswith('test_'):
-                wrn.warn('This looks like a test file. Skipping relativize.')
-                return module
+        # get the package name so we can replace
+        # >>> from package.module import x
+        # with
+        # >>> from .module import x
+        module_name = get_mod_name(self.filename)
+        if module_name is None:
+            return module
 
-            #
-            module_name = get_mod_name(self.filename)
-            if module_name is None:
-                return module
+        #
+        parent_module_name, *_ = module_name.rsplit('.', 1)
+        self.logger.debug('Using parent module: {}', parent_module_name)
 
-            parent_module_name, *_ = module_name.rsplit('.', 1)
+        if self._should_relativize(parent_module_name):
+            return ImportRelativizer(parent_module_name).visit(module)
 
-            self.logger.debug('Using parent module: {}', parent_module_name)
+        return module
 
-        # if not level:
+    def _should_relativize(self, parent_module_name):
+        if parent_module_name not in (None, True):
+            return False
 
-        # fullname = pkg_name
-        return ImportRelativizer(parent_module_name).visit(module)
+        # cannot relativize without filename
+        if ((self.filename is None) and (parent_module_name is True)):
+            wrn.warn(
+                'Import relativization requested, but no parent module name '
+                'provided. Since we are running from raw input (source code '
+                'string), you must provide the dot-separated name of the parent'
+                ' module of the source code via `relativize="my.package.name"`.'
+                ' Alternatively, if the source resides in a file, pass the '
+                '`filename` parameter to the `refactor` method to relativize '
+                'import statements in-place.'
+            )
+            return False
+
+        emit = wrn.warn if parent_module_name else logger.info
+        filetype = OK = object()
+        if self.path.name.startswith('test_'):
+            filetype = 'test file'
+
+        if is_script(self.source):
+            filetype = 'script'
+
+        if filetype is OK:
+            return True
+
+        emit(f'This looks like a {filetype}. Skipping relativize.')
+        return False
 
     def sort(self, module=None, how=CONFIG.style):
         logger.trace('Sorting imports in module {} using {!r} sorter.',
