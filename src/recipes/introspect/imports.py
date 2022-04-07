@@ -43,6 +43,29 @@ from ..string import remove_prefix, remove_suffix, truncate
 # TODO: sort by submodule width?
 
 
+# ---------------------------------------------------------------------------- #
+CONFIG = AttrReadItem(
+    log_warnings=True,
+
+    # sorting style
+    style='aesthetic',
+    # filter_unused=None,
+    # split=0,
+    # merge=1,
+    # relativize=None
+
+    # internal sorting codes
+    module_group_names=['std', 'third-party', 'local', 'relative'],
+    module_group_name_suffix='',  # libs
+
+    # list of local module names
+    local_modules_db=Path.home() / '.config/recipes/local_libs.txt'
+)
+
+
+# LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
+LOCAL_MODULES = CONFIG.local_modules_db.read_text().splitlines()
+
 # list of builtin modules
 BUILTIN_MODULE_NAMES = [
     # builtins
@@ -53,17 +76,8 @@ BUILTIN_MODULE_NAMES = [
     'keyword'
 ]
 
-# object that finds system location of module from name
-# pathFinder = PathFinder()
 
-# internal sorting codes
-MODULE_GROUP_NAMES = ['std', 'third-party', 'local', 'relative']
-GROUP_NAME_SUFFIX = ''  # libs
-
-# list of local module names
-LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
-LOCAL_MODULES = LOCAL_MODULES_DB.read_text().splitlines()
-
+# supported styles for sorting
 STYLES = ('alphabetic', 'aesthetic')
 
 # maximal filename size. Helps distinguish source code strings from filenames
@@ -231,7 +245,7 @@ def rewrite(node, width=80, hang=None, indent=4, one_per_line=False):
 
 
 def get_module_kind(module_name):
-    return MODULE_GROUP_NAMES[get_module_typecode(module_name)]
+    return CONFIG.module_group_names[get_module_typecode(module_name)]
 
 
 def get_module_typecode(module_name):
@@ -679,7 +693,9 @@ def _iter_lines(module, headers=None):
 
 
 class GroupHeaders:
-    def __init__(self, names=MODULE_GROUP_NAMES, suffix=GROUP_NAME_SUFFIX):
+    def __init__(self, names=CONFIG.module_group_names,
+                 suffix=CONFIG.module_group_name_suffix):
+
         self.names = dict(enumerate(names))
         self.suffix = str(suffix)
         self.newlines = mit.padded([''], '\n')
@@ -782,7 +798,7 @@ class ImportRefactory(LoggingMixin):
         return self.write(module)
 
     def refactor(self,
-                 sort='aesthetic',
+                 sort=CONFIG.style,
                  filter_unused=None,
                  split=0,
                  merge=1,
@@ -956,7 +972,7 @@ class ImportRefactory(LoggingMixin):
         # fullname = pkg_name
         return ImportRelativizer(parent_module_name).visit(module)
 
-    def sort(self, module=None, how='aesthetic'):
+    def sort(self, module=None, how=CONFIG.style):
         logger.trace('Sorting imports in module {} using {!r} sorter.',
                      module, how)
         module = module or self.module
@@ -1106,7 +1122,7 @@ def excision_flagger(lines, line_nrs):
 
 
 def is_group_header_comment(line):
-    # RGX = re.compile(rf'# ({"|".join(MODULE_GROUP_NAMES)}) {GROUP_NAME_SUFFIX}')
+    # RGX = re.compile(rf'# ({"|".join(CONFIG.module_group_names)}) {CONFIG.module_group_name_suffix}')
     return (line.startswith('# ') and
-            line[2:].startswith(tuple(MODULE_GROUP_NAMES)) and
-            line.strip().endswith(GROUP_NAME_SUFFIX))
+            line[2:].startswith(tuple(CONFIG.module_group_names)) and
+            line.strip().endswith(CONFIG.module_group_name_suffix))
