@@ -316,6 +316,17 @@ def get_group_size(module):
     return len(module.body)
 
 
+def alias_sorter(alias):
+    """
+    Aliases are sorted in case-sensitive alphabetical order.
+    UPPERCASE preceeds TitleCase preceeds lowercase.
+    """
+    return (alias.asname is not None,  # "import x as y" after "import whatever"
+            not alias.name.isupper(),
+            alias.name,
+            alias.name.islower())
+
+
 # Group import statements
 GROUPERS = (get_module_typecode,
             get_package_name,
@@ -343,18 +354,6 @@ NODE_SORTERS = {
                    )
 }
 
-
-def ALIAS_SORTER(alias):
-    """
-    Aliases are sorted in case-sensitive alphabetical order.
-    UPPERCASE preceeds TitleCase preceeds lowercase.
-    """
-    return (alias.asname is not None,  # "import x as y" after "import whatever"
-            not alias.name.isupper(),
-            alias.name,
-            alias.name.islower())
-
-# list(NODE_SORTERS[''])
 
 # ---------------------------------------------------------------------------- #
 # Node Transformers
@@ -661,7 +660,7 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
 
     def visit_any_import(self, node):
         node.order = self(node)
-        node.names = sorted(node.names, key=ALIAS_SORTER)
+        node.names = sorted(node.names, key=alias_sorter)
         return node
     #
     visit_Import = visit_ImportFrom = visit_any_import
