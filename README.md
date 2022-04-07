@@ -11,64 +11,78 @@ TODO
  -->
 
 This project contains a curated collection of convenient utility functions that
-are useful across many projects. The library extends the standard python
-library's functionality, and is therefore similarly structured. The following
-highlights the available modules and their functionality:
+are useful across many projects. The library extends many of the standard python
+module's functionalities, and is therefore similarly structured.
+
+Here are some highlights of the available modules and their functionality:
+
 
 ### Extending functionality of builtins
-* string
-    : _substitution, affix editing, recasing, pluralization, bracket parsing, etc._
-* lists
+* [`string`](https://github.com/astromancer/recipes/tree/main/src/recipes/string)
+    : _substitution, character deletion, affix editing, recasing, pluralization,
+    bracket parsing, similarity matching, etc._
+* [`lists`](https://github.com/astromancer/recipes/tree/main/src/recipes/lists)
     : _cosorting, multi-indexing, conditional splitting, flattening, deduplication._
-* dicts
-    : _Attribute dicts, many-to-one maps, autovivification, tree-like mappings, ordered defaultdict and various other mapping utilities_
-* sets 
+* [`dicts`](https://github.com/astromancer/recipes/tree/main/src/recipes/dicts)
+    : _Attribute dicts, many-to-one maps, autovivification, tree-like mappings,
+    ordered defaultdict, pretty printing, and various other mapping utilities._
+* [`sets`](https://github.com/astromancer/recipes/tree/main/src/recipes/sets) 
     : _Ordered sets_
-* op 
-    : _Drop in replacement for builtin `operator` module with added support for default values. And then some.'_
+* [`op`](https://github.com/astromancer/recipes/tree/main/src/recipes/op) 
+    : _Drop in replacement for the builtin `operator` module with added support
+     for default values. And then some._
 
 ### Input / Output
-* io 
-    : _File tree iteration, context managers for safe input/output with file backups, flexible (de)serialization wrappers._
-* regex
+* [`io`](https://github.com/astromancer/recipes/tree/main/src/recipes/io) 
+    : _File tree iteration, context managers for safe input/output with file
+     backups, flexible (de)serialization wrappers._
+* [`regex`](https://github.com/astromancer/recipes/tree/main/src/recipes/regex)
     : _Contract verbose style regexes._
 
-### Recipes involving iterators
-* iter
-:   _Missing iteration utilities: cofiltering, conditional indexing, ._
+### Iterators / Generators
+* [`iter`](https://github.com/astromancer/recipes/tree/main/src/recipes/iter)
+:   _Additional iteration utilities: cofiltering, conditional indexing._
 
-### Various array functions
-* array
+### Arrays
+* [`array`](https://github.com/astromancer/recipes/tree/main/src/recipes/array)
+    : _array folding (windowing) without memory duplication._
 
 ### Functional programming
 <!-- * functionals
     : _Functional decorator patterns_ -->
-* decorators
-    :_Extensible decorators for: Control flow (catching exceptions, fallback values), parameter/return value tracing, line profiling._
-* caches
+* [`decorators`](https://github.com/astromancer/recipes/tree/main/src/recipes/decorators)
+    : _Extensible decorators for: Control flow (catching exceptions, fallback
+    values), parameter/return value tracing, line profiling._
+* [`caches`](https://github.com/astromancer/recipes/tree/main/src/recipes/caches)
     : _Performant functional memoization._
 
 ### API Development helpers
-* pprint : _Pretty Printing_
-* logging 
-* synonyms 
-    : _Parameter name translation decorator for building flexible APIs._
-* interactive
-* bash
+* [`pprint`](https://github.com/astromancer/recipes/tree/main/src/recipes/pprint)
+     : _pretty printing!_
+* [`logging`](https://github.com/astromancer/recipes/tree/main/src/recipes/logging) 
+    : _logging mixin for explicitly tracing class functionality._
+* [`synonyms`](https://github.com/astromancer/recipes/tree/main/src/recipes/synonyms) 
+    : _Intelligent parameter name autocorrect decorator for building flexible APIs._
+* [`interactive`](https://github.com/astromancer/recipes/tree/main/src/recipes/interactive)
+* [`bash`](https://github.com/astromancer/recipes/tree/main/src/recipes/bash)
+    : _bash style brace expansion and contraction._
 
 ### Code Introspection
-* introspect
-    : _Refactor (sort, merge, split, relativize, (de)localize etc.) import statements in python source code._
+* [`introspect`](https://github.com/astromancer/recipes/tree/main/src/recipes/introspect)
+    : _Refactor (sort, merge, split, relativize, (de)localize etc.) import 
+      statements in python source code._
     
  
 ### Object Oriented Tools
-* oo  
+* [`oo`](https://github.com/astromancer/recipes/tree/main/src/recipes/oo)
+    : _singleton and null classes, context manager for temporary attributes,
+    cached `property` decorator with optional dependencies, property forwarding
+    for nested objects._
 
 
-### Miscellaneous
-* misc   
-  
-* transforms  
+### Math
+* [`transforms`](https://github.com/astromancer/recipes/tree/main/src/recipes/transforms) 
+    : _Transforms to and from Cartesian, Spherical, Cylindrical coordinates._
 
 
 
