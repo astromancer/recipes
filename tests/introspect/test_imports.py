@@ -144,27 +144,31 @@ class TestImportFilter(TestNodeTransformer):
     @expected({
         mock(code0, remove=['zz']):
         dedent('''
-                import re, os
-                import operator as op
-            '''),
+               import re, os
+               import operator as op
+               '''),
 
         mock(code0, remove=['zz', 're']):
         dedent('''
-                import os
-                import operator as op
-            '''),
+               import os
+               import operator as op
+               '''),
 
         mock(code0, remove=['op']):
         dedent('''
-                from xx.yy import zz
-                import re, os
-            '''),
+               from xx.yy import zz
+               import re, os
+               import operator
+               '''),
 
+        mock('from xx.yy.zz import pp, rr, qq as ww', remove=['qq']):
+        'from xx.yy.zz import pp, rr',
+        
         mock('from xx.yy.zz import pp, rr, qq as ww', remove=['ww', 'pp']):
-        'from xx.yy.zz import rr',
+        'from xx.yy.zz import rr, qq',
 
         mock('from xx.yy import zz as qq, qq as pp', remove=['qq']):
-        'from xx.yy import qq as pp',
+        'from xx.yy import zz',
     })
     def test_filter_alias(self, code, remove, expected):
         _, module = self.parse(code, remove)

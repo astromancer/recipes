@@ -482,10 +482,16 @@ class ImportFilter(ast.NodeTransformer):  #
 
     def visit_alias(self, node):
         node = self.generic_visit(node)
-        name = node.asname or node.name
-        if name in self.remove:
-            logger.debug('Removing import: {:s}', name)
-            return
+
+        if node.name in self.remove:
+            logger.debug('Removing import: {:s}', node.name)
+            return  # entire node filtered
+
+        if node.asname in self.remove:
+            logger.debug('Removing alias {:s} to imported name {:s}',
+                         node.asname, node.name)
+            node.asname = None
+
         return node
 
     #     # if self.up_to_line < math.inf:
