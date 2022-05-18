@@ -15,6 +15,7 @@ import contextlib
 import warnings as wrn
 import functools as ftl
 import itertools as itt
+from typing import Union
 from pathlib import Path
 from collections import defaultdict
 
@@ -118,6 +119,7 @@ def is_script(source: str):
 # ---------------------------------------------------------------------------- #
 # Functions for sorting / rewriting import nodes
 
+
 def is_import(node):
     return isinstance(node,  ast.Import)
 
@@ -148,8 +150,8 @@ def get_mod_name_list(node):
     return get_mod_name(node).split('.')
 
 
-def get_package_name(node):
-    fullname = get_mod_name(node)
+def get_package_name(node_or_path: Union[str, Path, ast.Import]):
+    fullname = get_mod_name(node_or_path)
     # if fullname.startswith('.'):
     #     return '.' * node.level
 
@@ -166,7 +168,7 @@ def relative_sorter(node):
 
 
 @ftl.singledispatch
-def get_mod_name(node):
+def get_mod_name(node):  # rename get_qualname
     """Get the full (dot separated) module name from various types."""
     raise TypeError(
         f'No default dispatch method for type {type(node).__name__!r}.'
@@ -186,7 +188,7 @@ def _(node):
 
 @get_mod_name.register(str)
 @get_mod_name.register(Path)
-def _(path):
+def _(path):                    # TODO: move to .utils
     # get full module name from path
     path = Path(path)
     candidates = []
@@ -216,7 +218,7 @@ def _(path):
         name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
         return name.rstrip('/').replace('/', '.')
 
-    wrn.warn(f'Could not find package for \'{path}\'.')
+    wrn.warn(f'Could not find package name for \'{path}\'.')
 
 
 # ---------------------------------------------------------------------------- #
@@ -924,6 +926,10 @@ class ImportRefactory(LoggingMixin):
             for mod in modules:
                 module.body.extend(mod.body)
 
+        if module is self.module:
+            logger.info('Import statements are already well sorted for \'{}\''
+                        ' style!', sort)
+
         return module
 
     # def parse(self, stream):
@@ -1107,10 +1113,9 @@ class ImportRefactory(LoggingMixin):
                 yield line
 
     def write(self, module, filename=None, headers=None):
-        # module=None,
         """
 
-        write new source code with import statements refactored
+        Write new source code with import statements refactored
 
         filename: str or Path
             output filename
@@ -1135,6 +1140,7 @@ class ImportRefactory(LoggingMixin):
 
         if (len(module.body) == 0) or (module is self.module):
             # no statements in module, or unchange module- nothing to write
+            logger.info('File contents left unchanged.')
             return self if filename else self.source
 
         # line generator
