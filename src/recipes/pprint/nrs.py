@@ -25,7 +25,7 @@ from .. import op
 from ..functionals import echo0
 from ..array.misc import vectorize
 from .. import unicode as uni
-from ..misc import duplicate_if_scalar
+from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 
 

@@ -19,43 +19,6 @@ from .interactive import is_interactive
 ZERO_DEPTH_BASES = (str, bytes, Number, range, bytearray)
 
 
-def duplicate_if_scalar(a, n=2, raises=True):  # TODO: severity
-    """
-    Ensure object size or duplicate if necessary.
-
-    Parameters
-    ----------
-    a : number or array-like
-
-    Returns
-    -------
-
-    """
-    # if isinstance(a, numbers.Number):
-    #     return [a] * n
-
-    if not isinstance(a, abc.Sized):
-        return [a] * n
-
-    size = len(a)
-    if size == 0:
-        return [a] * n
-
-    if size == 1:
-        return list(a) * n
-
-    # if np.size(a) == 1:
-    #     # preserves duck type arrays
-    #     return np.asanyarray([a] * n).squeeze()
-
-    if (size != n) and raises:
-        raise ValueError(f'Input object of type {type(a)} has incorrect size. '
-                         f'Expected either a scalar type object, or a Container'
-                         f' with length in {{1, {n}}}.')
-
-    return a
-
-
 def get_terminal_size(fallback=(80, 24)):
     """Returns the initial terminal size."""
 
@@ -80,8 +43,7 @@ def get_terminal_size(fallback=(80, 24)):
     with config_file.open() as fp:
         raw = fp.read()
         for j, s in enumerate(('width', 'height')):
-            mo = re.search(rf'c.ConsoleWidget.console_{s} = (\d+)', raw)
-            if mo:
+            if mo := re.search(rf'c.ConsoleWidget.console_{s} = (\d+)', raw):
                 w_h = int(mo.group(1))
             else:
                 # fallback

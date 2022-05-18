@@ -11,7 +11,7 @@ import numpy as np
 from ..string import sub
 from .. import unicode
 from ..dicts import AttrReadItem
-from ..misc import duplicate_if_scalar
+from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 from .callers import describe
 

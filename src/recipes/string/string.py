@@ -18,8 +18,7 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..iter import where
-from ..misc import duplicate_if_scalar
-
+from ..utils import duplicate_if_scalar, _delete
 
 # regexes
 REGEX_SPACE = re.compile(r'\s+')
@@ -168,10 +167,7 @@ def delete(string, indices=()):
     str
     """
 
-    if not indices:
-        return string
-
-    return ''.join(_delete(string, indices))
+    return ''.join(_delete(string, indices)) if indices else string
 
 # def _intervals_from_slices(slices, n):
 #     from recipes.lists import cosort
@@ -188,40 +184,6 @@ def delete(string, indices=()):
 #     return start, stop
 
 
-def _integers_from_slices(slices, n):
-    integers = set()
-    for s in slices:
-        integers |= set(range(*s.indices(n)))
-    return integers
-
-
-def ensure_list(obj):
-    if isinstance(obj, abc.Iterator):
-        return list(obj)
-    return duplicate_if_scalar(obj, 1, raises=False)
-
-
-def _delete(string, indices):
-    from recipes.dicts import groupby
-
-    n = len(string)
-
-    # ensure list
-    indices = groupby(ensure_list(indices), type)
-    integers = _integers_from_slices(indices.pop(slice, ()), n)
-    for kls, idx in indices.items():
-        if not issubclass(kls, numbers.Integral):
-            raise TypeError(f'Invalid index type {kls}.')
-        integers = integers.union(idx)
-
-    # remove duplicate indices accounting for wrapping
-    i = prev = -1
-    for i in sorted({(i + n) % n for i in integers}):
-        yield string[prev + 1:i]
-        prev = i
-
-    if i < n - 1:
-        yield string[i + 1:]
 
     # BELOW ONLY WORKS FOR ASCII!!
     # z = bytearray(string.encode())
