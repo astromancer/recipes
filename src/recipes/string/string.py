@@ -4,7 +4,6 @@ Utilities for operations on strings
 
 
 # std
-
 import re
 import numbers
 import warnings as wrn
@@ -18,7 +17,8 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..iter import where
-from ..utils import duplicate_if_scalar, _delete
+from ..utils import _delete, duplicate_if_scalar
+
 
 # regexes
 REGEX_SPACE = re.compile(r'\s+')
@@ -182,8 +182,6 @@ def delete(string, indices=()):
 #             start.append(begin)
 #             stop.append(end)
 #     return start, stop
-
-
 
     # BELOW ONLY WORKS FOR ASCII!!
     # z = bytearray(string.encode())
@@ -447,22 +445,45 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 # pluralization (experimental)
 
 
-def naive_plural(text):
-    return text + ('e' * text.endswith('s')) + 's'
+def naive_english_plural(text):
+    if text.endswith('s'):
+        return f'{text}es'
+
+    elif text.endswith('eus'):
+        return remove_suffix(text, 'us') + 'i'
+
+    elif text.endswith('um'):
+        return remove_suffix(text, 'um') + 'a'
+
+    elif text.endswith('y') and (text[-2] not in 'ae'):  # eg: agency not array
+        return remove_suffix(text, 'y') + 'ies'
+
+    return f'{text}s'
 
 
-def plural(text, collection=(())):
-    """conditional plural"""
-    many = isinstance(collection, abc.Collection) and len(collection) != 1
-    return naive_plural(text) if many else text
+def pluralise(text, collection=(()), plural=None):
+    """Conditional plural of `text` based on size of `collection`."""
+    if isinstance(collection, abc.Collection) and (len(collection) != 1):
+        return plural or naive_english_plural(text)
+    return text
 
 
-def numbered(collection, name):
-    return f'{len(collection):d} {plural(name, collection):s}'
+# alias
+pluralize = pluralise
 
 
-def named_items(name, collection, fmt=str):
-    return f'{plural(name, collection)}: {fmt(collection)}'
+def numbered(collection, name, plural=None):
+    return f'{len(collection):d} {pluralise(name, collection, plural):s}'
+
+
+def named_items(collection, name, plural=None, fmt=str, **kws):
+    from recipes import pprint as pp
+
+    if isinstance(collection, abc.Collection) and (len(collection) != 1):
+        return (f'{plural or naive_english_plural(name)}: '
+                f'{pp.collection(collection, fmt=fmt)}')
+
+    return f'{name}: {fmt(collection[0])}'
 
 # ---------------------------------------------------------------------------- #
 # Misc

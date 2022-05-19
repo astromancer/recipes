@@ -267,7 +267,7 @@ class Cached(Decorator, LoggingMixin):
         invalid = set(mapping.keys()) - set(names)
         if invalid:
             raise ValueError(f'{describe(self.__wrapped__).title()} takes no '
-                             f'{named_items("parameter", invalid)}.')
+                             f'{named_items(invalid, "parameter")}.')
 
     def _gen_hash_key(self, args, kws):
         """
