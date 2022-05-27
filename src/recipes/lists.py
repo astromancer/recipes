@@ -17,7 +17,7 @@ import docsplice as doc
 from . import op, iter as _iter
 from .dicts import DefaultOrderedDict
 from .functionals import always, echo0 as _echo
-
+from .utils import _delete
 
 # function that always returns 0
 _zero = always(0)
@@ -250,3 +250,37 @@ def duplicates(l):
 def where_duplicate(l):
     """Return lists of indices of duplicate entries"""
     return _iter.nth_zip(1, *_iter.duplicates(l))
+
+
+def delete(l, indices=()):
+    """
+    Remove characters at position `indices` from list. Items are deleted
+    in-place, and the function returns the original list.
+
+    Parameters
+    ----------
+    l : list
+        The list from which to remove characters.
+    indices : collection of int
+        Character index positions to delete. Duplicated indices are filtered.
+        Negative indices as well as slices, or a combination of both, are
+        supported.
+
+    Examples
+    --------
+    >>> delete(list('0123456789'), [0, 9])
+    ['1', '2', '3', '4', '5', '6', '7', '8']
+    >>> delete(list('0123456789'), [0, -1, 9])
+    ['1', '2', '3', '4', '5', '6', '7', '8']
+    >>> delete(list('0123456789'), [0, -1])
+    ['1', '2', '3', '4', '5', '6', '7', '8']
+    >>> delete(list('0123456789'), [0, -1, slice(0, 3)])
+    ['3', '4', '5', '6', '7', '8']
+
+    Returns
+    -------
+    list
+    """
+
+    _delete(l, indices)
+    return l

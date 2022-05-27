@@ -17,7 +17,7 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..iter import where
-from ..utils import _delete, duplicate_if_scalar
+from ..utils import _delete_immutable, duplicate_if_scalar
 
 
 # regexes
@@ -167,7 +167,7 @@ def delete(string, indices=()):
     str
     """
 
-    return ''.join(_delete(string, indices)) if indices else string
+    return ''.join(_delete_immutable(string, indices)) if indices else string
 
 # def _intervals_from_slices(slices, n):
 #     from recipes.lists import cosort
