@@ -564,6 +564,7 @@ class FractionOf:
 
     templates = dict(
         ascii=('{n}{symbol}', '{n}{symbol}/{d}'),
+        unicode=('{n}{symbol}', '{n}{symbol}/{d}'),
         latex=('${n}{symbol}$', r'$\frac{{{n}{symbol}}}{{{d}}}$')
     )
 

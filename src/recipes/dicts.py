@@ -118,20 +118,25 @@ def pformat(mapping, name=None,
 
 
 def _get_formatters(fmt):
-    if isinstance(fmt, abc.MutableMapping):
-        for key, func in fmt.items():
-            if not callable(func):
-                raise TypeError(f'Invalid formatter type {type(fmt)} for key '
-                                f'{key!r}. Key/value formatters should be '
-                                f'callable.')
-
-        return defaultdict((lambda: repr), fmt)
-
     if callable(fmt):
         return defaultdict(lambda: fmt)
 
-    raise TypeError(f'Invalid formatter type {type(fmt)}. Key/value formatters'
-                    f' should be callable, or a mapping of callables.')
+    if not isinstance(fmt, abc.MutableMapping):
+        raise TypeError(
+            f'Invalid formatter type {type(fmt)}. Key/value formatters should '
+            f'be callable, or a mapping of callables.'
+        )
+
+    for key, func in fmt.items():
+        if callable(func):
+            continue
+
+        raise TypeError(
+            f'Invalid formatter type {type(fmt)} for key {key!r}. Key/value '
+            f'formatters should be callable.'
+        )
+
+    return defaultdict((lambda: repr), fmt)
 
 
 def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
@@ -156,7 +161,7 @@ def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
         # make sure we line up the values
         leqs = len(equals)
         width = max(keys_size)
-        widths = (width - w + leqs for w in keys_size)
+        widths = [width - w + leqs for w in keys_size]
     else:
         widths = itt.repeat(1)
 
@@ -173,6 +178,7 @@ def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
         # print(f'{pre=:} {key=:} {width=:}')
         # print(repr(f'{"": <{pre}}{key}{equals: <{width}s}'))
         string += f'{"": <{pre}}{key}{equals: <{width}s}'
+
         if isinstance(val, abc.MutableMapping):
             part = _pformat(val, lhs_func_dict, equals, rhs_func_dict, sep,
                             brackets, align, hang, tabsize, newline)
@@ -295,10 +301,10 @@ class DefaultDict(defaultdict):
         super().__init__(factory or self.default_factory, *args, **kws)
 
     def __init__(self, factory=None, *args, **kws):
-        # have to do explicit init since class attribute alone doesn't seem to 
+        # have to do explicit init since class attribute alone doesn't seem to
         # work for specifying default_factory
         super().__init__(factory or self.default_factory, *args, **kws)
-    
+
     def __missing__(self, key):
         if self.default_factory is None:
             return super().__missing__(key)

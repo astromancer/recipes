@@ -169,8 +169,7 @@ class BracketPair:
     """
 
     brackets: Tuple[str]
-    """Characters or strings for opening and closing bracket. Must have length
-        of 2."""
+    """Characters or strings for opening and closing bracket. Must have length 2."""
     enclosed: str
     indices: List[int] = (None, None)
     """Indices of opening- and closing bracket pairs."""
@@ -207,8 +206,9 @@ def get_test(condition, string):
     """
     if not callable(condition):
         raise TypeError(
-            'Parameter `condition` should be a callable, or '
-            f'preferably a `Condition` object, not {type(condition)}')
+            'Parameter `condition` should be a callable, or preferably a '
+            f'`Condition` object, not {type(condition)}.'
+        )
 
     if isinstance(condition, Condition):
         return condition
@@ -308,8 +308,7 @@ class BracketParser:
             else:
                 o = self.pair_map[b]
                 open_[o] -= 1
-                pos = positions[o]
-                if pos:
+                if pos := positions[o]:
                     i = pos.pop(-1)
                     yield BracketPair((o, b), string[i + 1:j], (i, j),
                                       len(positions[o]))
@@ -318,7 +317,7 @@ class BracketParser:
 
                 elif must_close == 1:
                     raise ValueError(f'No opening bracket for: {b!r} at {j}.')
-                # must_close == -1 doesn't yield anything
+                    # must_close == -1 doesn't yield anything
         #
         if must_close and any(positions.values()):
             pos, open_ = cofilter(op.not_, positions.values(), positions.keys())

@@ -145,7 +145,6 @@ def iter_files(path, extensions='*', recurse=False, ignore=()):
 
 
 def _iter_files(path, extensions='*', recurse=False):
-    
 
     path = str(path)
 
@@ -505,6 +504,7 @@ def working_dir(path):
     finally:
         os.chdir(original)
 
+
 def show_tree(folder, use_dynamic_spacing=False):
     """
     Print the file system tree:
@@ -521,8 +521,8 @@ def show_tree(folder, use_dynamic_spacing=False):
     ├── 20130615.ragged.dat
     ├── 20130615.ragged.txt
     ├── 20140703
-    │   ├── 20140703.010.ragged.txt
-    │   └── 20140703.011.ragged.txt
+    │   ├── 20140703.010.ragged.txt
+    │   └── 20140703.011.ragged.txt
     ├── 20140703.ragged.dat
     ├── 20140703.ragged.txt
     ├── 20140708.ragged.dat
@@ -530,20 +530,21 @@ def show_tree(folder, use_dynamic_spacing=False):
     ├── 20160707.ragged.dat
     ├── 20160707.ragged.txt
     ├── 202130615
-    │   ├── 202130615.0020.ragged.txt
-    │   └── 202130615.0021.ragged.txt
+    │   ├── 202130615.0020.ragged.txt
+    │   └── 202130615.0021.ragged.txt
     ├── 202140708
-    │   └── 202140708.001.ragged.txt
+    │   └── 202140708.001.ragged.txt
     └── SHA_20160707
         └── SHA_20160707.0010.ragged.txt
     """
-    
+
     from ..tree import FileSystemNode
-    
+
     tree = FileSystemNode.from_list(iter_files(folder))
     tree.collapse_unary()
     tree.use_dynamic_spacing = bool(use_dynamic_spacing)
     return tree.render()
+
 
 def walk(folder, depth=1):
     """

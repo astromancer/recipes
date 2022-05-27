@@ -28,8 +28,8 @@ def test_match_brackets(string, pair, expected):
 
 test_brackets_must_close = Expected(match)({
     #
-    mock('foo{bla', '{}', must_close=False):     BracketPair('{}', None, (None, None)),
-    mock('open((((((', '()', must_close=False):  BracketPair('()', None, (None, None)),
+    #mock('foo{bla', '{}', must_close=False):     BracketPair('{}', None, (None, None)),
+    mock('open((((((', '()', must_close=False):  BracketPair('()', None, (9, None)),
     mock('((())', '()', must_close=False):       BracketPair('()', None, (None, None)),
     # #
     mock('foo{bla', '{}', must_close=-1):           BracketPair('{}', 'bla', (3, None)),
@@ -43,7 +43,7 @@ test_brackets_must_close = Expected(match)({
 # pytest.mark.skip(test_brackets_must_close)
 
 
-test_iter = Expected(braces.iter)(
+test_iter = Expected(braces.iterate)(
     {'{}{}{}{}':
         [BracketPair('{}', '', (0, 1)),
          BracketPair('{}', '', (2, 3)),
