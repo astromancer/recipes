@@ -7,7 +7,7 @@ from pathlib import Path
 from recipes.testing import ECHO, Expected, Warns, expected, mock
 from recipes.introspect.imports import (
     ImportCapture, ImportFilter, ImportMerger, ImportRelativizer,
-    ImportSplitter, NodeTypeFilter, Parentage, get_mod_name, refactor, rewrite)
+    ImportSplitter, NodeTypeFilter, Parentage, refactor, rewrite)
 
 
 TESTPATH = Path(__file__).parent.absolute()
@@ -362,11 +362,6 @@ class TestImportRelativizer(TestNodeTransformer):
         new = '\n'.join(map(rewrite, module.body))
         assert new == dedent(expected)
 
-
-test_get_module_name = Expected(get_mod_name)({
-    '/recipes/src/recipes/string/brackets.py': 'recipes.string.brackets',
-    '/recipes/src/recipes/oo/property.py': 'recipes.oo.property'
-})
 
 test_refactor = Expected(refactor, right_transform=dedent)({
     # case: Warn if asked to filter unused and no code in body (besides imports)

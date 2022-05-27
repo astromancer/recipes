@@ -2,9 +2,33 @@
 Introspction utilities.
 """
 
+# std
+import ast
+import sys
+import pkgutil
 import inspect
+import contextlib
+import warnings as wrn
+import functools as ftl
 from typing import cast
+from pathlib import Path
 from types import FrameType, MethodType
+
+# third-party
+from stdlib_list import stdlib_list
+
+# relative
+from ..string import remove_suffix
+
+# list of builtin modules
+BUILTIN_MODULE_NAMES = [  # TODO: generate at install time for version
+    # builtins
+    *stdlib_list(sys.version[:3]),
+    # python easter eggs
+    'this', 'antigravity'
+    # auto-generated module for builtin keywords
+    'keyword'
+]
 
 
 def get_caller_frame(back=1):
@@ -41,31 +65,47 @@ def get_caller_name(back=1):
         del frame
 
 
+# ---------------------------------------------------------------------------- #
+# Dispatcher for getting module name import node or path
+
+# @ftl.singledispatch
+# def get_module_name(node):  # rename get_qualname
+#     """Get the full (dot separated) module name from various types."""
+#     raise TypeError(
+#         f'No default dispatch method for type {type(node).__name__!r}.'
+#     )
+
 def get_module_name(obj=None, depth=None):
-    """
-    Get fully qualified module name of an object up to namespace depth `depth`.
-    """
+    # called without arguments => get current module name
     if obj is None:
         obj = get_caller_frame(2)
+
+    return _get_module_name(obj, depth)
+
+
+@ftl.singledispatch  # generic type implementation
+def _get_module_name(obj, depth=None):
+    """
+    Get full (or partial) qualified (dot-separated) name of an object's parent
+    (sub)modules and/or package, up to namespace depth `depth`.
+    """
 
     if depth == 0:
         return ''
 
-    mod = inspect.getmodule(obj)
-    name = mod.__name__
+    module = inspect.getmodule(obj)
+    name = module.__name__
 
     if name == '__main__':
         from pathlib import Path
 
-        # if mod has no '__file__' attribute, we are either
+        # if module has no '__file__' attribute, we are either
         # i)  running file as a script
         # ii) in an interactive session
-        if not hasattr(mod, '__file__'):
-            if depth is None:
-                return ''
-            return '__main__'
+        if not hasattr(module, '__file__'):
+            return ('' if depth is None else '__main__')
 
-        name = Path(mod.__file__).stem
+        name = Path(module.__file__).stem
 
     if (name == 'builtins') and (depth is None):
         return ''
@@ -95,6 +135,59 @@ def get_module_name(obj=None, depth=None):
         depth = 0
 
     return '.'.join(name.split('.')[-depth:])
+
+
+# @_get_module_name.register(type(None))
+# # called without arguments => get current module name
+# def _(obj, depth=None):
+#     obj = get_caller_frame(4)
+#     return get_module_name(obj, depth)
+
+
+@_get_module_name.register(ast.Import)
+def _(node, depth=None):
+    # assert len(node.names) == 1
+    return node.names[0].name
+
+
+@_get_module_name.register(ast.ImportFrom)
+def _(node, depth=None):
+    return f'{"." * node.level}{node.module or ""}'
+
+
+@_get_module_name.register(str)
+@_get_module_name.register(Path)
+def _(path, depth=None):
+    # get full module name from path
+    path = Path(path)
+    candidates = []
+    trial = path.parent
+    stop = (Path.home(), Path('/'))
+    for _ in range(5):
+        if trial in stop:
+            break
+
+        with contextlib.suppress(ImportError):
+            if pkgutil.get_loader(trial.name):
+                candidates.append(trial)
+        trial = trial.parent
+
+    # This next bit is needed since a module may have the same name as a builtin
+    # module, eg: "recipes.string". Here "string" would be incorrectly
+    # identified here as a "package" since it is importable. The real package
+    # may actually be higher up in the folder tree.
+    while candidates:
+        trial = candidates.pop(0)
+        if candidates and (trial.name in BUILTIN_MODULE_NAMES):
+            # candidates.append(trial)
+            continue
+
+        # convert to dot.separated.name
+        path = path.relative_to(trial.parent)
+        name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
+        return name.rstrip('/').replace('/', '.')
+
+    wrn.warn(f'Could not find package name for \'{path}\'.')
 
 
 # def get_module_name(filename, depth=1):

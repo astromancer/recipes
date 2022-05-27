@@ -8,10 +8,7 @@ import os
 import io
 import re
 import ast
-import sys
 import math
-import pkgutil
-import contextlib
 import warnings as wrn
 import functools as ftl
 import itertools as itt
@@ -22,7 +19,6 @@ from collections import defaultdict
 # third-party
 import more_itertools as mit
 from loguru import logger
-from stdlib_list import stdlib_list
 
 # relative
 from .. import cosort, op, pprint as pp
@@ -32,10 +28,10 @@ from ..functionals import negate
 from ..logging import LoggingMixin
 from ..io import open_any, safe_write
 from ..pprint.callers import describe
-from ..string import remove_prefix, remove_suffix, truncate
+from ..string import remove_prefix, truncate
+from .utils import BUILTIN_MODULE_NAMES, get_module_name
 
 
-# TODO: don't relativize for scripts -> look for hashbang, executable
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
@@ -89,14 +85,6 @@ if CONFIG.log_warnings:
 
 # ---------------------------------------------------------------------------- #
 # list of builtin modules
-BUILTIN_MODULE_NAMES = [
-    # builtins
-    *stdlib_list(sys.version[:3]),
-    # python easter eggs
-    'this', 'antigravity'
-    # auto-generated module for builtin keywords
-    'keyword'
-]
 
 
 # supported styles for sorting
@@ -110,7 +98,7 @@ F_NAMEMAX = os.statvfs('.').f_namemax
 # pathFinder = PathFinder()
 
 # ---------------------------------------------------------------------------- #
-REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*==\s*__main__')
+REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
 
 
 def is_script(source: str):
@@ -146,15 +134,17 @@ def get_length(node):
     return len(rewrite(node))
 
 
-def get_mod_name_list(node):
-    return get_mod_name(node).split('.')
+def get_module_name_list(node):
+    return get_module_name(node).split('.')
 
 
 def get_package_name(node_or_path: Union[str, Path, ast.Import]):
-    fullname = get_mod_name(node_or_path)
+    fullname = get_module_name(node_or_path)
     # if fullname.startswith('.'):
     #     return '.' * node.level
-
+    if fullname is None:
+        raise ValueError(f'Could not get package name for file {node_or_path!r}.')
+    
     return fullname.split('.', 1)[0]
 
 
@@ -162,63 +152,6 @@ def relative_sorter(node):
     # this prioritizes higher relatives '..' above '.'
     # also '..' above '..x'
     return (0.5 * bool(node.module) - node.level) if is_relative(node) else 0
-
-# ---------------------------------------------------------------------------- #
-# Dispatcher for getting module name import node or path
-
-
-@ftl.singledispatch
-def get_mod_name(node):  # rename get_qualname
-    """Get the full (dot separated) module name from various types."""
-    raise TypeError(
-        f'No default dispatch method for type {type(node).__name__!r}.'
-    )
-
-
-@get_mod_name.register(ast.Import)
-def _(node):
-    # assert len(node.names) == 1
-    return node.names[0].name
-
-
-@get_mod_name.register(ast.ImportFrom)
-def _(node):
-    return f'{"." * node.level}{node.module or ""}'
-
-
-@get_mod_name.register(str)
-@get_mod_name.register(Path)
-def _(path):                    # TODO: move to .utils
-    # get full module name from path
-    path = Path(path)
-    candidates = []
-    trial = path.parent
-    stop = (Path.home(), Path('/'))
-    for _ in range(5):
-        if trial in stop:
-            break
-
-        with contextlib.suppress(ImportError):
-            if pkgutil.get_loader(trial.name):
-                candidates.append(trial)
-        trial = trial.parent
-
-    # This next bit is needed since a module may have the same name as a builtin
-    # module, eg: "recipes.string". Here "string" would be incorrectly
-    # identified here as a "package" since it is importable. The real package
-    # may actually be higher up in the folder tree.
-    while candidates:
-        trial = candidates.pop(0)
-        if candidates and (trial.name in BUILTIN_MODULE_NAMES):
-            # candidates.append(trial)
-            continue
-
-        # convert to dot.separated.name
-        path = path.relative_to(trial.parent)
-        name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
-        return name.rstrip('/').replace('/', '.')
-
-    wrn.warn(f'Could not find package name for \'{path}\'.')
 
 
 # ---------------------------------------------------------------------------- #
@@ -365,12 +298,12 @@ NODE_SORTERS = {
                   is_import_from,
                   relative_sorter,
                   get_length,
-                  get_mod_name
+                  get_module_name
                   ),
     'alphabetic': (get_module_typecode,
                    is_import_from,
                    relative_sorter,
-                   get_mod_name,
+                   get_module_name,
                    get_length
                    )
 }
@@ -1006,7 +939,7 @@ class ImportRefactory(LoggingMixin):
         # >>> from package.module import x
         # with
         # >>> from .module import x
-        module_name = get_mod_name(self.filename)
+        module_name = get_module_name(self.filename)
         if module_name is None:
             return module
 
@@ -1039,10 +972,12 @@ class ImportRefactory(LoggingMixin):
         emit = wrn.warn if parent_module_name else logger.info
         filetype = OK = object()
         if self.path.name.startswith('test_'):
+            pre = ''
             filetype = 'test file'
 
         if is_script(self.source):
-            filetype = 'script'
+            pre
+            filetype = 'executable script'
 
         if filetype is OK:
             return True
@@ -1071,7 +1006,7 @@ class ImportRefactory(LoggingMixin):
         # is_init_file =
         if self.path and (self.path.name == '__init__.py'):
             self.logger.info('Not filtering unused statements for module '
-                             'initializer: \'{}\'', get_mod_name(self.path))
+                             'initializer: \'{}\'', get_module_name(self.path))
             return False
 
         if len(self.captured.used_names) == 0:
