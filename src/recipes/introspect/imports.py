@@ -32,7 +32,6 @@ from ..string import remove_prefix, truncate
 from .utils import BUILTIN_MODULE_NAMES, get_module_name
 
 
-
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
 
@@ -144,7 +143,7 @@ def get_package_name(node_or_path: Union[str, Path, ast.Import]):
     #     return '.' * node.level
     if fullname is None:
         raise ValueError(f'Could not get package name for file {node_or_path!r}.')
-    
+
     return fullname.split('.', 1)[0]
 
 
@@ -939,12 +938,20 @@ class ImportRefactory(LoggingMixin):
         # >>> from package.module import x
         # with
         # >>> from .module import x
-        module_name = get_module_name(self.filename)
-        if module_name is None:
-            return module
+        if parent_module_name is None:
+            if self.filename is None:
+                # warning was emitted above, now we can just return unaltered module
+                return module
+
+            try:
+                parent_module_name = get_package_name(self.filename)
+            except ValueError as err:
+                if (msg := str(err)).startswith('Could not get package name'):
+                    logger.warning(msg)
+                    return module
+                raise
 
         #
-        parent_module_name, *_ = module_name.rsplit('.', 1)
         self.logger.debug('Using parent module: {}', parent_module_name)
 
         if self._should_relativize(parent_module_name):
@@ -954,7 +961,12 @@ class ImportRefactory(LoggingMixin):
 
     def _should_relativize(self, parent_module_name):
         if parent_module_name not in (None, True):
-            return False
+            if not isinstance(parent_module_name, str):
+                raise TypeError(
+                    f'Invalid type for `parent_module_name`, expected str, '
+                    f'received {type(parent_module_name)}.'
+                )
+            return True
 
         # cannot relativize without filename
         if ((self.filename is None) and (parent_module_name is True)):
@@ -972,11 +984,11 @@ class ImportRefactory(LoggingMixin):
         emit = wrn.warn if parent_module_name else logger.info
         filetype = OK = object()
         if self.path.name.startswith('test_'):
-            pre = ''
+            # pre = ''
             filetype = 'test file'
 
         if is_script(self.source):
-            pre
+            # pre
             filetype = 'executable script'
 
         if filetype is OK:
