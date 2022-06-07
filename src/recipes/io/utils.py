@@ -11,6 +11,7 @@ import pickle
 import shutil
 import tempfile
 import fnmatch as fnm
+import warnings as wrn
 import itertools as itt
 import contextlib as ctx
 from pathlib import Path
@@ -25,11 +26,16 @@ from recipes.string.brackets import BracketParser
 from ..functionals import echo0
 
 
+# ---------------------------------------------------------------------------- #
+
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
-FILEMODES = {pickle: 'b', json: ''}
+FILEMODES = {pickle: 'b',
+             json: ''}
 
 braces = BracketParser('{}')
+
+# ---------------------------------------------------------------------------- #
 
 
 def guess_format(filename):
@@ -92,6 +98,8 @@ def load_json(filename, **kws):
 
 def save_json(filename, data, **kws):
     serialize(filename, data, json, **kws)
+
+# ---------------------------------------------------------------------------- #
 
 
 def iter_files(path, extensions='*', recurse=False, ignore=()):
@@ -201,6 +209,19 @@ def iter_ext(files, extensions='*'):
         for ext in extensions:
             yield from file.parent.glob(f'{file.stem}.{ext.lstrip(".")}')
 
+# ---------------------------------------------------------------------------- #
+
+
+def open_any(filelike, mode='r'):
+    # handle stream
+    if isinstance(filelike, io.IOBase):
+        return ctx.nullcontext(filelike)
+
+    if isinstance(filelike, (str, Path)):
+        return open(str(filelike), mode)
+
+    raise TypeError(f'Invalid file-like object of type {type(filelike)}.')
+
 
 def iter_lines(filelike, *section, mode='r', strip=None):
     """
@@ -253,17 +274,6 @@ def iter_lines(filelike, *section, mode='r', strip=None):
     with open_any(filelike, mode) as fp:
         for s in itt.islice(fp, *section):
             yield s.strip(strip)
-
-
-def open_any(filelike, mode='r'):
-    # handle stream
-    if isinstance(filelike, io.IOBase):
-        return ctx.nullcontext(filelike)
-
-    if isinstance(filelike, (str, Path)):
-        return open(str(filelike), mode)
-
-    raise TypeError(f'Invalid file-like object of type {type(filelike)}.')
 
 
 @doc.splice(iter_lines)
@@ -327,15 +337,15 @@ def _show_lines(filename, lines, n=10, dots='.\n' * 3):
 
 def count_lines(filename):
     """Fast line count for files"""
-    filename = str(filename)  # conver path objects
+    filename = str(filename)  # convert path objects
 
     if not os.path.exists(filename):
-        raise ValueError(f'No such file: {filename!r}')
+        raise ValueError(f'No such file: {filename!r}.')
 
     if os.path.getsize(filename) == 0:
         return 0
 
-    with open(str(filename), 'r+') as fp:
+    with open(filename, 'r+') as fp:
         count = 0
         buffer = mmap.mmap(fp.fileno(), 0)
         while buffer.readline():
@@ -343,24 +353,37 @@ def count_lines(filename):
         return count
 
 
-def write_lines(stream, lines, eol='\n'):
+def write_lines(stream, lines, eol='\n', eof=''):
     """
     Write multiple lines to a file-like output stream.
 
     Parameters
     ----------
-    stream : [type]
+    stream : str, Path, io.IOBase
         File-like object
     lines : iterable
         Sequence of lines to be written to the stream.
     eol : str, optional
         End-of-line character to be appended to each line, by default ''.
     """
-    assert isinstance(eol, str)
-    append = str.__add__ if eol else echo0
+    for what, end in (('line', eol), ('file', eof)):
+        if not isinstance(end, str):
+            raise TypeError(f'Invalid {what} end of type {type(end)}: {end}.')
 
-    for line in lines:
-        stream.write(append(line, eol))
+    itr = iter(lines)
+    with open_any(stream, 'w') as stream:
+        # write first line
+        try:
+            stream.write(next(itr))
+        except StopIteration:
+            wrn.warning(f'Empty lines or iterable. Nothing written to {stream!r}.')
+            return 
+        
+        # write remaining lines
+        for line in itr:
+            stream.write(eol)
+            stream.write(line)
+        stream.write(eof)
 
 
 @ctx.contextmanager
@@ -407,8 +430,10 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
     # backup and restore on error!
     path = Path(filename).resolve()
     backup_needed = path.exists()
+    # backup needed if file is not a new file
     if backup_needed:
         if backupfile is None:
+            # create tmp backup file if no filename given for backup
             bid, backupfile = tempfile.mkstemp(prefix='backup.',
                                                suffix=f'.{path.name}')
         else:
@@ -423,15 +448,21 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
             yield fp
         except Exception as err:
             if backup_needed:
+                # close files
                 fp.close()
                 os.close(bid)
+                # restore backup
                 shutil.copy(backupfile, filename)
+
+            # raise custom exception hook if provided
             if exception_hook:
                 raise exception_hook(err, filename) from err
+
             raise
 
 
-@doc.splice(backed_up, 'summary', omit='Parameters[backupfile]',
+@doc.splice(backed_up, 'summary',
+            omit='Parameters[backupfile]',
             replace={'operation': 'write',
                      'read / ': ''})  # FIXME: replace not working here
 def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
@@ -464,6 +495,8 @@ def write_replace(filename, replacements):
         fp.seek(0)
         fp.write(sub(text, replacements))
         fp.truncate()
+
+# ---------------------------------------------------------------------------- #
 
 
 @ctx.contextmanager
