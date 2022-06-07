@@ -313,18 +313,30 @@ first_true_idx = first_true_index
 first_false_idx = first_false_index
 
 
-def cofilter(func, *its):
+def cofilter(func_or_iter, *its):
     """
     Filter an arbitrary number of iterators based on the truth value of the
-    first iterable (as evaluated by function func).
+    first iterable. An optional the predicate function that determines the truth
+    value of elements can be passed as the first argument.
     """
-    func = func or bool
+    if isinstance(func_or_iter, abc.Iterable):
+        func = bool
+        its = (func_or_iter, *its)
+
+    # handle cofilter(None, ...)
+    func = func_or_iter or bool
+    if not callable(func):
+        raise TypeError(f'Predicate function should be a callable object, not '
+                        f'{type(func)}')
+    
+    # zip(*filter(lambda x: func(x[0]), zip(*its)))
+    
     it00, it0 = itt.tee(its[0])
     # note this consumes the iterator in position 0!!
     # find the indices where func evaluates to true
     tf = list(map(func, it00))
     # restore the original iterator sequence
-    its = (it0,) + its[1:]
+    its = (it0, *its[1:])
     return tuple(itt.compress(it, tf) for it in its)
 
 
@@ -351,8 +363,10 @@ def filter_duplicates(l, test):
 
         results.add(result)
 
+
 # aliases
 unduplicate = filter_duplicates
+
 
 def iter_repeat_last(it):
     """
