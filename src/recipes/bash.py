@@ -136,17 +136,15 @@ class BraceExpressionNode(Node):  # pylint: disable=function-redefined
                     └── 8.003
                         └── {0,1}
 
-        After running `collapse unary on this tree, the result would be:
-            └── 20
-                └── 13061
-                    ├── 6.003{0,1}
-                    ├── 7.003{0,1}
-                    └── 8.003{0,1}
+        After running `collapse_unary` on this tree, the result would be:
+            2013061
+                ├── 6.003{0,1}
+                ├── 7.003{0,1}
+                └── 8.003{0,1}
 
         Another run of `collapse_leaves` gives:
-            └── 20
-                └── 13061
-                    └── {6,7,8}.003{0,1}
+            2013061
+                └── {6,7,8}.003{0,1}
 
         """
         changed = False

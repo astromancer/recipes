@@ -2,6 +2,7 @@
 
 # std
 import re
+import math
 import itertools as itt
 
 # third-party
@@ -18,21 +19,75 @@ class Node(anytree.Node):
     Can be used to represent file system trees etc.
     """
 
-    # This function decides the names of the nodes. It will be called on each
-    # string in the input list, returning the name of the of that node parent
     get_prefix = op.itemgetter(0)
+    """This function decides the names of the nodes. It will be called on each
+    string in the input list, returning the name of the of that node parent."""
 
     # rendering option
     use_dynamic_spacing = True
 
     @classmethod
-    def from_list(cls, items):
+    def from_list(cls, items, collapse=True):
+        """
+        Create the tree from a list of input strings.
+
+        Parameters
+        ----------
+        items : list
+            _description_
+
+        Examples
+        --------
+        >>> fonts = Node.from_list(['Domitian-Bold.otf',
+        ...                         'Domitian-BoldItalic.otf',
+        ...                         'Domitian-Italic.otf',
+        ...                         'Domitian-Roman.otf',
+        ...                         'EBGaramond-Bold.otf',
+        ...                         'EBGaramond-BoldItalic.otf',
+        ...                         'EBGaramond-ExtraBold.otf',
+        ...                         'EBGaramond-ExtraBoldItalic.otf',
+        ...                         'EBGaramond-Initials.otf',
+        ...                         'EBGaramond-Italic.otf',
+        ...                         'EBGaramond-Medium.otf',
+        ...                         'EBGaramond-MediumItalic.otf',
+        ...                         'EBGaramond-Regular.otf',
+        ...                         'EBGaramond-SemiBold.otf',
+        ...                         'EBGaramond-SemiBoldItalic.otf'])
+        ... fonts.collapse(max_depth=2)
+        ... fonts.pprint()
+
+        ├Domitian-
+        │        ├Italic.otf
+        │        ├Roman.otf
+        │        ├Bold.otf
+        │        └BoldItalic.otf
+        └EBGaramond-
+                   ├Regular.otf
+                   ├Bold.otf
+                   ├BoldItalic.otf
+                   ├ExtraBold.otf
+                   ├ExtraBoldItalic.otf
+                   ├Initials.otf
+                   ├Italic.otf
+                   ├Medium.otf
+                   ├MediumItalic.otf
+                   ├SemiBold.otf
+                   └SemiBoldItalic.otf
+
+        Returns
+        -------
+        Node
+            The root node of the tree.
+        """
+
         # ensure list of strings
         items = sorted(strings(items))
 
         # build the tree
         root = cls('')
         root.make_branch(items)
+        if collapse:
+            root.collapse_unary()
         return root
 
     def make_branch(self, words):
@@ -59,11 +114,113 @@ class Node(anytree.Node):
     #     child = type(self)(name)
     #     self.children = (*self.children, child)
 
+    def collapse(self, max_depth=math.inf):
+        """
+        Collapse the nodes that are deeper than `max_depth`. Each child node
+        that is too deep becomes a new sibling node with `name` attribute
+        concatenated from parent and child's `name`. 
+
+        Parameters
+        ----------
+        max_depth : int, optional
+            Maximal depth of resulting tree, by default math.inf, which leaves
+            the tree unchanged.
+
+        Examples
+        --------
+        >>> fonts = Node.from_list(['Domitian-Bold.otf',
+        ...                         'Domitian-BoldItalic.otf',
+        ...                         'Domitian-Italic.otf',
+        ...                         'Domitian-Roman.otf',
+        ...                         'EBGaramond-Bold.otf',
+        ...                         'EBGaramond-BoldItalic.otf',
+        ...                         'EBGaramond-ExtraBold.otf',
+        ...                         'EBGaramond-ExtraBoldItalic.otf',
+        ...                         'EBGaramond-Initials.otf',
+        ...                         'EBGaramond-Italic.otf',
+        ...                         'EBGaramond-Medium.otf',
+        ...                         'EBGaramond-MediumItalic.otf',
+        ...                         'EBGaramond-Regular.otf',
+        ...                         'EBGaramond-SemiBold.otf',
+        ...                         'EBGaramond-SemiBoldItalic.otf'])
+        ... fonts.pprint()
+
+        ├Domitian-
+        │        ├Bold
+        │        │   ├.otf
+        │        │   └Italic.otf
+        │        ├Italic.otf
+        │        └Roman.otf
+        └EBGaramond-
+                ├Bold
+                │   ├.otf
+                │   └Italic.otf
+                ├ExtraBold
+                │        ├.otf
+                │        └Italic.otf
+                ├I
+                │├nitials.otf
+                │└talic.otf
+                ├Medium
+                │     ├.otf
+                │     └Italic.otf
+                ├Regular.otf
+                └SemiBold
+                        ├.otf
+                        └Italic.otf
+
+        >>> fonts.collapse(max_depth=2)
+        ... fonts.pprint()
+
+        ├Domitian-
+        │        ├Italic.otf
+        │        ├Roman.otf
+        │        ├Bold.otf
+        │        └BoldItalic.otf
+        └EBGaramond-
+                ├Regular.otf
+                ├Bold.otf
+                ├BoldItalic.otf
+                ├ExtraBold.otf
+                ├ExtraBoldItalic.otf
+                ├Initials.otf
+                ├Italic.otf
+                ├Medium.otf
+                ├MediumItalic.otf
+                ├SemiBold.otf
+                └SemiBoldItalic.otf
+
+        Returns
+        -------
+        changed: bool
+            Whether the tree was altered or not.
+        """
+
+        if self.is_leaf:
+            return False
+
+        changed = self.collapse_unary() if self.is_root else False
+
+        if self.depth >= max_depth:
+            # leaves become siblings with new names
+            for leaf in self.leaves:
+                leaf.name = self.name + leaf.name
+                leaf.parent = self.parent
+
+            if not self.children:
+                self.parent.children = self.siblings
+
+        # edit remaining children
+        for child in self.children:
+            changed |= child.collapse(max_depth)
+
+        return changed
+
     def collapse_unary(self):
         """
         Collapse all unary branches of the node ie. If a node has only one child 
         (branching factor 1), attach the grand child to the parent node and 
-        orphan the child node.
+        discard / orphan the child node.
 
         For example:
             └── 2
@@ -141,9 +298,9 @@ class Node(anytree.Node):
               │         ├0
               │         └1
               └2130615.003
-                          ├0
-                          ├1
-                          └2
+                         ├0
+                         ├1
+                         └2
         """
         s = str(anytree.RenderTree(self))
 
