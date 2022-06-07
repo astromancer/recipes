@@ -11,6 +11,7 @@ from ..dicts import pformat
 from ..string import overlay
 
 
+STD_BRACKETS = object()
 STD_BRACKET_TYPES = {set: '{}',
                      list: '[]',
                      tuple: '()'}
@@ -38,7 +39,8 @@ def mapping(dict_, name=None, **kws):
     print(pformat(dict_, name, **kws))
 
 
-def collection(obj, max_items=10, edge_items=1, sep=',', dots='...'):
+def collection(obj, max_items=10, edge_items=1, sep=',', dots='...', 
+               brackets=STD_BRACKETS, fmt=repr):
     """
     Print a pretty representation of a collection of items, trunctated
     at `max_items`.
@@ -55,16 +57,19 @@ def collection(obj, max_items=10, edge_items=1, sep=',', dots='...'):
 
     """
 
-    # if len(obj) <= max_items:
-    #     return repr(obj)
+    assert callable(fmt)
 
-    brackets = STD_BRACKET_TYPES.get(type(obj), '[]')
+    if brackets is STD_BRACKETS:
+        brackets = STD_BRACKET_TYPES.get(type(obj), '[]')
+    else:
+        assert len(brackets) == 2
+        
     if len(obj) <= max_items:
-        return sep.join(map(repr, obj)).join(brackets)
+        return sep.join(map(fmt, obj)).join(brackets)
 
     return f'{sep} {dots} '.join(
-        (sep.join(map(repr, obj[:edge_items])),
-         sep.join(map(repr, obj[-edge_items:])))
+        (sep.join(map(fmt, obj[:edge_items])),
+         sep.join(map(fmt, obj[-edge_items:])))
          ).join(brackets)
 
 
