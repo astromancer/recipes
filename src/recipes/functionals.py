@@ -4,6 +4,7 @@ Common decorators and simple helpers for functional code patterns.
 
 # pylint: disable=invalid-name
 
+import numbers
 import warnings
 
 
@@ -62,22 +63,34 @@ class Emit:
     """
     Helper class for emitting messages of variable severity.
     """
+    _action_ints = dict(enumerate(('ignore', 'warn', 'raise'), -1))
 
-    def __init__(self, severity=-1, exception=Exception):
-        self._actions = {-1: noop,              # silently ignore invalid types
-                         0: warnings.warn,      # emit warning
-                         1: raises(exception)}  # raise
-        self.severity = severity
+    def __init__(self, action='ignore', exception=Exception):
+        self._actions = {
+            'ignore':   noop,  # silently ignore
+            'warn':     warnings.warn,  # emit warning
+            'raise':    raises(exception)  # raise
+        }
+        self.action = self._resolve_action(action)
+
+    def _resolve_action(self, action):
+        if isinstance(action, numbers.Integral):
+            return self._action_ints[action]
+
+        if isinstance(action, str):
+            return action.rstrip('s')
+
+        raise TypeError(f'Invalid type for `action`: {action}')
 
     @property
-    def severity(self):
-        """set message severity"""
-        return self._severity
+    def action(self):
+        """set message action"""
+        return self._action
 
-    @severity.setter
-    def severity(self, val):
-        self._severity = int(val)
-        self.emit = self._actions[self._severity]
+    @action.setter
+    def action(self, val):
+        self._action = self._resolve_action(val)
+        self.emit = self._actions[self._action]
 
     def __call__(self, message):
         self.emit(message)
