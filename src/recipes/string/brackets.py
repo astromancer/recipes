@@ -3,16 +3,16 @@ Tools for parsing and editing strings containing (nested) brackets.
 """
 
 # std
-import operator as op
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from typing import Callable, Collection, List, Tuple, Union
 
 # relative
 from .. import op
-from ..functionals import always
 from ..iter import cofilter, where
+from ..functionals import always, echo0
 from . import delete
+
 
 # import docsplice as doc
 
@@ -542,6 +542,16 @@ parentheses = parens = round = BracketParser('()')
 square = hard = BracketParser('[]')
 chevrons = angles = BracketParser('<>')
 
+parsers = {
+    '{':  braces,
+    '{}': braces,
+    '[':  square,
+    '[]': square,
+    '(':  round,
+    '()': round,
+    '<':  chevrons,
+    '<>': chevrons
+}
 
 # pylint: disable=missing-function-docstring
 insert = {'Parameters[pair] as brackets': BracketParser}
