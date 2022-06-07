@@ -25,17 +25,33 @@ class catch(Decorator):
     """
     Catch an exception and log it, or raise an alternate exception.
     """
-    def __init__(self, exceptions=Exception, action=-1, alternate=Exception,
-                 message='Caught the following {err.__class__.__name__}: {err}'
-                 ):
+
+    _default_message_template = \
+        'Caught the following {err.__class__.__name__}: {err}'
+
+    def __init__(self, *, exceptions=Exception, action='ignore',
+                 alternate=None, message=None, raise_from=True):
+
         self.exceptions = exceptions
         self.emit = Emit(action, alternate)
-        self.template = str(message)
+        self.alternate = alternate
+        self.template = str(message or self._default_message_template)
+        self.raise_from = bool(raise_from)
 
     def __wrapper__(self, func, *args, **kws):
         try:
             return func(*args, **kws)
+        
         except self.exceptions as err:
+            if self.emit.action == 'raise':
+                if self.alternate is None:
+                    raise
+
+                if not self.raise_from:
+                    err = None
+
+                raise self.alternate from err
+
             self.emit(self.message(func, args, kws, err))
 
     def message(self, _func, args, kws,  err):
@@ -49,7 +65,7 @@ class fallback(Decorator):
     def __init__(self, value=None, exceptions=(Exception, ), warns=False):
         self.fallback = value
         if (not isinstance(exceptions, abc.Collection)
-            and issubclass(exceptions, BaseException)):
+                and issubclass(exceptions, BaseException)):
             exceptions = (exceptions,)
         self.excepts = tuple(exceptions)
         self.emit = Emit(warns - 1)
