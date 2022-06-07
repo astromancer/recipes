@@ -455,16 +455,21 @@ class BracketParser:
 
     #     return self.remove(string, condition=(level == 0))
 
-    def _ireplace(self, string, sub, condition=always_true):
+    def _ireplace(self, string, make_sub, condition, callable_args):
         start = 0
         for pair in self.iterate(string, condition=condition):
             yield string[start:pair.start]
-            yield sub
+            yield make_sub(pair.enclosed, *callable_args)
             start = pair.end + 1
         yield string[start:]
 
-    def replace(self, string, sub, condition=always_true):
-        return ''.join(self._ireplace(string, sub, condition))
+    def replace(self, string, sub, condition=always_true, callable_args=()):
+        if isinstance(sub, str):
+            sub = echo0
+        elif not callable(sub):
+            raise TypeError('Replacement value `sub` should be str or callable')
+
+        return ''.join(self._ireplace(string, sub, condition, callable_args))
 
     def remove(self, string, condition=always_true):
         return self.replace(string, '', condition)
