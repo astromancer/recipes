@@ -408,7 +408,7 @@ class Expected(LoggingMixin):
                     *kws.pop(self.var, ()))
 
             # single dispatch functions require positional arguments
-            if args == () and self.is_dispatch:
+            if not args and self.is_dispatch:
                 args = (kws.pop(self.pnames[0]), )
 
             self.logger.debug('passing to {:s}: {!s}; {!s}',
@@ -430,19 +430,19 @@ class Expected(LoggingMixin):
             # NOTE: explicitly assigning answer here so that pytest
             # introspection of locals in this scope works when producing the
             # failure report
-            if answer != expected:
-                message = '\n'.join((
-                    'Result from function '
-                    '{self.func.__name__:s|green}'
-                    ' is not equal to expected answer!',
-                    'RESULT:\n{answer!r}',
-                    'EXPECTED:\n{expected!r}'
-                ))
-                if isinstance(answer, str) and isinstance(expected, str):
-                    diff_string = show_diff(repr(answer), repr(expected))
-                    message += f'\nDIFF\n{diff_string}'
+            if answer == expected:
+                return
 
-                raise AssertionError(motley.format(message, **locals()))
+            message = motley.format(
+                'Result from function {func.__name__:s|green} is not equal'
+                ' to expected answer!', func=self.func
+            ) + (f'\nRESULT:\n{answer!s}'
+                 f'\nEXPECTED:\n{expected!s}')
+            if isinstance(answer, str) and isinstance(expected, str):
+                diff_string = show_diff(repr(answer), repr(expected))
+                message += f'\nDIFF\n{diff_string}'
+
+            raise AssertionError(message)
 
         # -------------------------------------------------------------------- #
         # Override signature to add `expected` parameter
