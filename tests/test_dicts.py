@@ -6,13 +6,12 @@ import types
 import pytest, pickle
 
 # local
-from recipes.dicts import AVDict, AttrReadItem, AttrDict
+from recipes.dicts import DictNode, AttrReadItem, AttrDict
 
 
-def test_avdict():
-    av = AVDict()
-    av['x']['y'] = 'z'
-
+def test_dict_node():
+    node = DictNode()
+    node['x']['y']['z'] = 1
 
 class TestAttrDict:
     def test_basic(self):

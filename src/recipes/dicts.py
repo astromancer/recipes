@@ -222,7 +222,8 @@ def invert(d, conversion=None):
                 f'Cannot invert dictionary with non-hashable item: {val} of '
                 f'type {type(val)}. You may wish to pass a conversion mapping '
                 f'to this function to aid invertion of dicts containing non-'
-                f'hashable items.')
+                f'hashable items.'
+            )
 
         inverted[val] = key
     return inverted
@@ -262,10 +263,13 @@ class Pprinter:
     """Mixin class that pretty prints dictionary content"""
 
     def __str__(self):
-        return pformat(self, self.__class__.__name__)
+        return pformat(self)  # self.__class__.__name__
 
     def __repr__(self):
-        return pformat(self, self.__class__.__name__)
+        return pformat(self)  # self.__class__.__name__
+
+    def pprint(self, **kws):
+        print(pformat(self, **kws))
 
 
 class Invertible:
@@ -291,61 +295,87 @@ class DefaultDict(defaultdict):
     Default dict that allows default factories which take the key as an
     argument.
     """
+    # default_factory = None
+    factory_uses_key = False  # TODO: can detect this by inspection
 
-    factory_takes_key = False  # TODO: can detect this by inspection
-    default_factory = None
-
-    def __init__(self, factory=None, *args, **kws):
-        # have to do explicit init since class attribute alone doesn't seem to
-        # work for specifying default_factory
-        super().__init__(factory or self.default_factory, *args, **kws)
-
-    def __init__(self, factory=None, *args, **kws):
-        # have to do explicit init since class attribute alone doesn't seem to
-        # work for specifying default_factory
-        super().__init__(factory or self.default_factory, *args, **kws)
+    # def __init__(self, factory=None, *args, **kws):
+    #     # have to do explicit init since class attribute alone doesn't seem to
+    #     # work for specifying default_factory
+    #     defaultdict.__init__(self, factory or self.default_factory, *args, **kws)
 
     def __missing__(self, key):
         if self.default_factory is None:
-            return super().__missing__(key)
+            # super handles / throws
+            return defaultdict.__missing__(self, key)
 
-        new = self[key] = self.default_factory(
-            *[key][:int(self.factory_takes_key)]
-        )
+        # construct default object
+        new = self[key] = self.default_factory(*[key][:int(self.factory_uses_key)])
         return new
 
 
-class AutoVivify:
-    """Mixin that implements auto-vivification for dictionary types."""
-    _av = True
-    # _factory = ()
+class AccessControl:
+    """
+    Mixin that toggles read/write access.
+    """
+
+    _readonly = False
+    _message = '{self.__class__.__name__}: write access disabled.'
+
+    @property
+    def readonly(self):
+        return self._readonly
+
+    @readonly.setter
+    def readonly(self, readonly):
+        self._readonly = bool(readonly)
+
+    def __missing__(self, key):
+        if self.readonly:
+            raise KeyError(self._message.format(self=self))
+
+        super().__missing__(key)
+
+
+class AutoVivify(AccessControl):
+    """
+    Mixin that implements auto-vivification for dictionary types.
+    """
 
     @classmethod
     def autovivify(cls, b):
         """Turn auto-vivification on / off"""
-        cls._av = bool(b)
+        cls._readonly = not bool(b)
 
     def __missing__(self, key):
-        if self._av:
-            value = self[key] = type(self)()  # *self._factory
-            return value
+        """
+        Lookup for missing keys in the dict creates a new empty object if not
+        readonly and returns it.
+        """
+        if self.readonly:
+            return super().__missing__(key)
 
-        return super().__missing__(key)
+        value = self[key] = type(self)()
+        return value
+
+
+class DictNode(AutoVivify, Pprinter, defaultdict):
+    """
+    A defaultdict that generates instances of itself.  Used to create arbitrary 
+    data trees without prior knowledge of final structure. 
+    """
+
+    def __init__(self, factory=None, *args, **kws):
+        defaultdict.__init__(self, factory or DictNode, *args, **kws)
+
 
 
 class AVDict(dict, AutoVivify):
     pass
 
-
-# class Node(defaultdict):
-#     def __init__(self, factory, *args, **kws):
-
-
-# class Tree(defaultdict, AutoVivify):
-#     _factory = (defaultdict.default_factory, )
-
+# ---------------------------------------------------------------------------- #
 
 # TODO AttrItemWrite
+
 
 class AttrBase(dict):
     def copy(self):
@@ -409,7 +439,7 @@ class AttrDict(AttrBase):
 
 
 class OrderedAttrDict(OrderedDict, AttrBase):
-    """dict with key access through attribute lookup"""
+    """OrderedDict with key access through attribute lookup."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
