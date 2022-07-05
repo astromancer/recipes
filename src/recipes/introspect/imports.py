@@ -34,7 +34,6 @@ from .utils import BUILTIN_MODULE_NAMES, get_module_name
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
-# FIXME: can still remove std imports in __init__?
 
 # TODO: comment directives to keep imports
 # TODO: split_modules
@@ -901,12 +900,29 @@ class ImportRefactory(LoggingMixin):
         imports_only = self.filter_imports()
         return set(map(get_package_name, imports_only))
 
+    def _should_filter(self):
+        if len(self.captured.used_names) == 0:
+            self.logger.info('Not filtering unused statements for import-only '
+                             'script, as this would leave an empty file.')
+            return False
+        return True
+
     def filter_unused(self, module=None):
         module = module or self.module
         imported_names = self.captured.imported_names[module]
         used_names = set().union(*self.captured.used_names.values())
         # used_names = self.captured.used_names[module]
         unused = set.difference(imported_names, used_names)
+
+        # is_init_file =
+        if self.path and (self.path.name == '__init__.py'):
+            self.logger.info(
+                "This file is an initializer for a module: '{}'\n"
+                "Only imports from the standard library will be filtered.",
+                get_module_name(self.path)
+            )
+            # {u for u in unused if get_module_typecode(u) == 0}
+            unused = set(filter(negate(get_module_typecode), unused))
 
         if imported_names and not self.captured.used_names:
             wrn.warn(
@@ -1013,19 +1029,6 @@ class ImportRefactory(LoggingMixin):
 
     def delocalize(self):
         raise NotImplementedError
-
-    def _should_filter(self):
-        # is_init_file =
-        if self.path and (self.path.name == '__init__.py'):
-            self.logger.info('Not filtering unused statements for module '
-                             'initializer: \'{}\'', get_module_name(self.path))
-            return False
-
-        if len(self.captured.used_names) == 0:
-            self.logger.info('Not filtering unused statements for import-only '
-                             'script.')
-            return False
-        return True
 
     def _iter_lines(self, module=None, headers=None):  # keep_multiline=True
         # line generator to rewrite source code
