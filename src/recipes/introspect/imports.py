@@ -26,14 +26,15 @@ from ..iter import unduplicate
 from ..dicts import AttrReadItem
 from ..functionals import negate
 from ..logging import LoggingMixin
-from ..io import open_any, safe_write
 from ..pprint.callers import describe
 from ..string import remove_prefix, truncate
+from ..io import open_any, read_lines, safe_write
 from .utils import BUILTIN_MODULE_NAMES, get_module_name
 
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
+# FIXME: can still remove std imports in __init__?
 
 # TODO: comment directives to keep imports
 # TODO: split_modules
@@ -64,12 +65,12 @@ CONFIG = AttrReadItem(
     module_group_name_suffix='',  # libs
 
     # list of local module names
-    local_modules_db=Path.home() / '.config/recipes/local_libs.txt'
+    user_local_modules=Path.home() / '.config/recipes/local_libs.txt'
 )
 
 
 # LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
-LOCAL_MODULES = CONFIG.local_modules_db.read_text().splitlines()
+LOCAL_MODULES = read_lines(CONFIG.user_local_modules)
 
 
 # warning control
