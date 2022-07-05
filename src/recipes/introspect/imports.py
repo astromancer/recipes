@@ -600,9 +600,9 @@ class ImportGrouper(HandleFuncs, ast.NodeVisitor):
         self.groups = defaultdict(ftl.partial(ast.parse, ''))
 
     def visit_any_import(self, node):
-        gid = self(node)
+        gid = node.gid = self(node)
         self.groups[gid].body.append(node)
-        node.gid = gid
+
     #
     visit_Import = visit_ImportFrom = visit_any_import
 
@@ -820,8 +820,8 @@ class ImportRefactory(LoggingMixin):
         if filter_unused:
             module = self.filter(module)
 
-        if (relativize is None):
-            relativize = self.filename is not None
+        if relativize is None:
+            relativize = (self.filename is not None)
 
         if relativize:
             module = self.relativize(module, relativize)
@@ -931,6 +931,8 @@ class ImportRefactory(LoggingMixin):
     def relativize(self, module=None, parent_module_name=None, level=None):
         module = module or self.module
 
+        # check if we should try relativize. Excludes test files. Raise if
+        # running from str source and no package or module name given.
         if not self._should_relativize(parent_module_name):
             return module
 
@@ -938,21 +940,18 @@ class ImportRefactory(LoggingMixin):
         # >>> from package.module import x
         # with
         # >>> from .module import x
-        if parent_module_name is None:
+        if parent_module_name in (None, True):
             if self.filename is None:
                 # warning was emitted above, now we can just return unaltered module
                 return module
 
             try:
-                parent_module_name = get_package_name(self.filename)
+                parent_module_name = get_module_name(self.filename)
             except ValueError as err:
                 if (msg := str(err)).startswith('Could not get package name'):
                     logger.warning(msg)
                     return module
-                raise
-
-        #
-        self.logger.debug('Using parent module: {}', parent_module_name)
+                raise err from None
 
         if self._should_relativize(parent_module_name):
             return ImportRelativizer(parent_module_name).visit(module)
