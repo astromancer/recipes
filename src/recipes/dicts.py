@@ -118,6 +118,10 @@ def pformat(mapping, name=None,
 
 
 def _get_formatters(fmt):
+    # Check formatters are valid callables
+    # Retruns
+    # A defaultdict that returns `repr` as the default formatter
+
     if callable(fmt):
         return defaultdict(lambda: fmt)
 
@@ -146,38 +150,40 @@ def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
         # empty dict
         return brackets
 
-    string, close = brackets
-    if hang:
-        string += newline
-        close = newline + close
-    else:
-        tabsize = len(string)
-
     # note that keys may not be str, so first convert
     keys = tuple((lhs_func_dict[key](key) for key in mapping.keys()))
     keys_size = list(map(len, keys))
 
+    string, close = brackets
+    pos = len(string)
     if align:
         # make sure we line up the values
         leqs = len(equals)
         width = max(keys_size)
-        widths = [width - w + leqs for w in keys_size]
+        wspace = [width - w + leqs for w in keys_size]
     else:
-        widths = itt.repeat(1)
+        wspace = itt.repeat(1)
+
+    if hang:
+        string += newline
+        close = newline + close
+    else:
+        tabsize = pos
 
     indents = mit.padded([hang * tabsize], tabsize)
     separators = itt.chain(
         itt.repeat(sep + newline, len(mapping) - 1),
         [close]
     )
-    for pre, key, (okey, val), width, post in \
-            zip(indents, keys, mapping.items(), widths, separators):
+    for pre, key, (okey, val), wspace, end in \
+            zip(indents, keys, mapping.items(), wspace, separators):
         # THIS places ':' directly before value
         # string += f'{"": <{pre}}{key: <{width}s}{equals}'
         # WHILE this places it directly after key
         # print(f'{pre=:} {key=:} {width=:}')
         # print(repr(f'{"": <{pre}}{key}{equals: <{width}s}'))
-        string += f'{"": <{pre}}{key}{equals: <{width}s}'
+        # new = f'{"": <{pre}}{key}{equals: <{width}s}'
+        string += f'{"": <{pre}}{key}{equals: <{wspace}s}'
 
         if isinstance(val, abc.MutableMapping):
             part = _pformat(val, lhs_func_dict, equals, rhs_func_dict, sep,
@@ -186,9 +192,8 @@ def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
             part = rhs_func_dict[okey](val)
 
         # objects with multi-line representations need to be indented
-        string += indent(part, width + tabsize + 1)
-        # item sep / closing bracket
-        string += post
+        # `post` is item sep or closing bracket
+        string += f'{indent(part, tabsize + len(key) + wspace)}{end}'
 
     return string
 
@@ -268,8 +273,11 @@ class Pprinter:
     def __repr__(self):
         return pformat(self)  # self.__class__.__name__
 
+    def pformat(self, **kws):
+        return pformat(self, **kws)
+
     def pprint(self, **kws):
-        print(pformat(self, **kws))
+        print(self.pformat(**kws))
 
 
 class Invertible:
