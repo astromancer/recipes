@@ -16,6 +16,10 @@ import itertools as itt
 import contextlib as ctx
 from pathlib import Path
 
+# third-party
+import more_itertools as mit
+from loguru import logger
+
 # local
 import docsplice as doc
 from recipes.string import sub
@@ -102,19 +106,19 @@ def save_json(filename, data, **kws):
 # ---------------------------------------------------------------------------- #
 
 
-def iter_files(path, extensions='*', recurse=False, ignore=()):
+def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
     """
     Generator that yields all files in a directory tree with given file
     extension(s), optionally recursing down the directory tree. Brace expansion
-    syntax from bash is supported, aitrllowing multiple directory trees to be
+    syntax from bash is supported, allowing multiple directory trees to be
     traversed with a single statement.
 
     Parameters
     ----------
-    path : str or Path
+    path_or_pattern : str or Path
         Location of the root folder. Can also be a glob pattern of
         filenames to load eg: '/path/SHA_20200715.000[1-5].fits'
-        Pattern can also contain brace expansion patterns
+        Pattern can also contain brace expansion patterns eg:
         '/path/SHA_202007{15..18}.000[1-5].fits' in which case all valid
         files and directories in the range will be traversed.
     extensions : str or tuple or list
@@ -134,44 +138,57 @@ def iter_files(path, extensions='*', recurse=False, ignore=()):
     Yields
     ------
     pathlib.Path
-        system path pointing to the file
+        System path pointing to the file.
 
     Raises
     ------
     ValueError
-        If the given base path does not exist
+        If the given base path does not exist.
     """
     if isinstance(ignore, str):
         ignore = (ignore, )
 
-    for file in _iter_files(path, extensions, recurse):
-        for pattern in ignore:
-            if fnm.fnmatchcase(str(file), pattern):
+    ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
+
+    for file in _iter_files(path_or_pattern, extensions, recurse):
+        for ignored in ignore:
+            if fnm.fnmatchcase(str(file), ignored):
+                logger.debug("Ignoring '{!s}' matching pattern {!r}", file, ignored)
                 break
         else:
             yield file
 
 
-def _iter_files(path, extensions='*', recurse=False):
+def _iter_files(path_or_pattern, extensions='*', recurse=False):
 
-    path = str(path)
+    path_or_pattern = str(path_or_pattern)
+    recurse = bool(recurse)
 
     # handle brace expansion first
-    special = bool(braces.match(path, must_close=True))
-    wildcard = glob.has_magic(path)  # handle glob patterns
+    special = bool(braces.match(path_or_pattern, must_close=True))
+    wildcard = glob.has_magic(path_or_pattern)  # handle glob patterns
     if special | wildcard:
-        itr = (brace_expand_iter(path) if special else
-               glob.iglob(path, recursive=recurse))
+        logger.opt(lazy=True).debug(
+            'Special pattern detected: {!s}', 
+                     lambda: f'\n' * (len(s := path_or_pattern) > 40) + s
+                     )
+        itr = (brace_expand_iter(path_or_pattern) if special else
+               glob.iglob(path_or_pattern, recursive=recurse))
         for path in itr:
+            # recurse
+            # logger.trace('Recursing into: {!s}', path)
             yield from iter_files(path, extensions, recurse)
         return
 
-    path = Path(path)
+    # handle input strings without special patterns here. This can be a file or
+    # directory path
+    path = Path(path_or_pattern)
     if path.is_dir():
         # iterate all files with given extensions
         if isinstance(extensions, str):
             extensions = (extensions, )
 
+        # recurse
         extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
         yield from iter_files(f'{path!s}/{"**/" * recurse}*.{extensions}',
                               recurse=recurse)
@@ -181,7 +198,7 @@ def _iter_files(path, extensions='*', recurse=False):
         raise ValueError(f"'{path!s}' is not a valid directory or a glob "
                          f"pattern")
 
-    # break the recurrence
+    # Return the input if it is an existing file. This break the recurrence.
     yield path
 
 
