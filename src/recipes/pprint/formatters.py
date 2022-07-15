@@ -90,12 +90,18 @@ class Percentage:
     Format a number and append the percentage of a total between brackets.
     """
 
-    def __init__(self, total, fmt_nr, precision=0, brackets='()'):
+    def __init__(self, total, fmt_nr, precision=None, brackets='()'):
+        
         self.total = float(total)
         self.formatter = fmt_nr
-        self.precision = int(precision)  # for percentage value
+        
+        # precision for percentage value
+        self.precision = precision
+        if precision is None:
+            self.precision = getattr(fmt_nr, 'precision', 0)
+            
         # self.brackets = str(brackets)
-        fmt_p = f'{{f}}:.{self.precision}%'.join(brackets)
+        fmt_p = f'{{f:.{self.precision}%}}'.join(brackets)
         self._fmt = f'{{n}} {fmt_p}'
 
     def __call__(self, n):
@@ -188,8 +194,8 @@ class Decimal:
 
         # ensure we have a scalar
         if not isinstance(n, numbers.Real):
-            raise ValueError(f'Only scalars are accepted by this function, not'
-                             f' {type(n)}.')
+            raise ValueError(f'Only scalar numbers are accepted by this '
+                             f'function, but received {type(n)}.')
 
         # handle nans
         if math.isnan(n):
