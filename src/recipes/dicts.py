@@ -28,7 +28,8 @@ def pformat(mapping, name=None,
             lhs=repr, equals=': ', rhs=repr,
             sep=',', brackets='{}',
             align=None, hang=False,
-            tabsize=4, newline=os.linesep):
+            tabsize=4, newline=os.linesep,
+            ignore=()):
     """
     Pretty format (nested) dicts.
 
@@ -60,6 +61,8 @@ def pformat(mapping, name=None,
         Number of spaces to use for indentation, by default 4.
     newline : str, optional
         Newline character, by default os.linesep.
+    ignore : tuple of str
+        Keys that will be omitted in the representation of the mapping.
 
     Returns
     -------
@@ -88,7 +91,7 @@ def pformat(mapping, name=None,
     """
     if not isinstance(mapping, abc.MutableMapping):
         raise TypeError(f'Object of type: {type(mapping)} is not a '
-                        f'MutableMapping')
+                        'MutableMapping')
 
     if name is None:
         name = ('' if (kls := type(mapping)) is dict else kls.__name__)
@@ -109,7 +112,8 @@ def pformat(mapping, name=None,
                       _get_formatters(lhs), equals, _get_formatters(rhs),
                       sep, brackets,
                       align, hang,
-                      tabsize, newline)
+                      tabsize, newline,
+                      ignore)
     ispace = 0 if hang else len(name)
     string = indent(string, ispace)  # f'{" ": <{pre}}
     if name:
@@ -144,14 +148,20 @@ def _get_formatters(fmt):
 
 
 def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
-             align, hang, tabsize, newline):
+             align, hang, tabsize, newline, ignore):
 
     if len(mapping) == 0:
         # empty dict
         return brackets
 
+    # remove ignored keys
+    if remove_keys := set(mapping.keys()) & set(ignore):
+        mapping = mapping.copy()
+        for key in remove_keys:
+            mapping.pop(key)
+
     # note that keys may not be str, so first convert
-    keys = tuple((lhs_func_dict[key](key) for key in mapping.keys()))
+    keys = tuple(lhs_func_dict[key](key) for key in mapping.keys())
     keys_size = list(map(len, keys))
 
     string, close = brackets
@@ -187,7 +197,7 @@ def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
 
         if isinstance(val, abc.MutableMapping):
             part = _pformat(val, lhs_func_dict, equals, rhs_func_dict, sep,
-                            brackets, align, hang, tabsize, newline)
+                            brackets, align, hang, tabsize, newline, ignore)
         else:
             part = rhs_func_dict[okey](val)
 
