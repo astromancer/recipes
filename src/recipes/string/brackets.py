@@ -372,7 +372,7 @@ class BracketParser:
         return next(self.iterate(string, must_close, condition), None)
 
     def iterate(self, string, must_close=False, condition=always_true,
-                inside_out=True):
+                inside_out=False, outside_in=False):
         """
         Parse `string` by finding pairs of brackets.
 
@@ -397,23 +397,26 @@ class BracketParser:
         #              self.brackets, string, condition)
         itr = filter(test, self._iter(string, must_close))
 
-        if inside_out:
-            yield from itr
+        if inside_out or outside_in:
+            levels = defaultdict(list)
+            for match in itr:
+                levels[match.level].append(match)
+
+            for lvl in sorted(levels.keys(), reverse=inside_out):
+                yield from levels[lvl]
+
             return
 
-        levels = defaultdict(list)
-        for match in itr:
-            levels[match.level].append(match)
-
-        for lvl in sorted(levels.keys()):
-            yield from levels[lvl]
+        # This just yield pairs at any level from left to right in the string
+        yield from itr
 
     def findall(self, string, must_close=False, condition=always_true,
-                inside_out=True):
+                inside_out=False, outside_in=False):
         """
         List all BracketPairs
         """
-        return list(self.iterate(string, must_close, condition, inside_out))
+        return list(self.iterate(string, must_close, condition,
+                                 inside_out, outside_in))
 
     # def groupby(self, *attrs):
 
