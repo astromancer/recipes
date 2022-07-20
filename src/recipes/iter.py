@@ -121,6 +121,8 @@ def where(items, *args, start=0):
     yield from multi_index(items, rhs, test, start)
 
 
+def select(items, test=bool):
+    yield from filter(negate(test), items)
 
 
 @ftl.singledispatch

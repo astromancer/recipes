@@ -156,6 +156,10 @@ def where(l, *args, start=0):
     return list(_iter.where(l, *args, start=start))
 
 
+def select(l, test=bool):
+    return list(_iter.select(l, test))
+
+
 def flatten(l):
     """
     Flatten arbitrarily nested sequences
