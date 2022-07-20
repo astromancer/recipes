@@ -99,9 +99,12 @@ def where(items, *args, start=0):
     ValueError
         On receiving invalid number of function arguments.
     """
+    assert isinstance(start, numbers.Integral)
+
     nargs = len(args)
     if nargs == 0:
-        for i, item in enumerate(items):
+        mit.consume(items, start)
+        for i, item in enumerate(items, start):
             if item:
                 yield i
         return
@@ -118,15 +121,6 @@ def where(items, *args, start=0):
     yield from multi_index(items, rhs, test, start)
 
 
-def windowed(obj, size, step=1):
-    assert isinstance(size, numbers.Integral)
-
-    if isinstance(obj, str):
-        for i in range(0, len(obj), step):
-            yield obj[i:i + size]
-        return
-
-    yield from mit.windowed(obj, size)
 
 
 @ftl.singledispatch
@@ -160,7 +154,10 @@ def _(string, rhs, test=op.eq, start=0):
 
 @multi_index.register(abc.Iterable)
 def _(obj, rhs, test=op.eq, start=0):
-    mit.consume(obj, start)
+
+    if start:
+        mit.consume(obj, start)
+
     for i, x in enumerate(obj, start):
         if test(x, rhs):
             yield i
@@ -169,16 +166,25 @@ def _(obj, rhs, test=op.eq, start=0):
             raise ValueError('Infinite iterable?')
 
 
+def windowed(obj, size, step=1):
+    assert isinstance(size, numbers.Integral)
+
+    if isinstance(obj, str):
+        for i in range(0, len(obj), step):
+            yield obj[i:i + size]
+        return
+
+    yield from mit.windowed(obj, size)
+
+
 def split(l, idx):
     """Split a list into sub-lists at the given indices"""
 
     if isinstance(idx, numbers.Integral):
         idx = [idx]
 
-    idx = sorted(idx)
-    if idx:
-        idx = [0, *idx, len(l)]
-        for i, j in mit.pairwise(idx):
+    if idx := sorted(idx):
+        for i, j in mit.pairwise([0, *idx, len(l)]):
             yield l[i:j]
     else:
         yield l
@@ -328,9 +334,9 @@ def cofilter(func_or_iter, *its):
     if not callable(func):
         raise TypeError(f'Predicate function should be a callable object, not '
                         f'{type(func)}')
-    
+
     # zip(*filter(lambda x: func(x[0]), zip(*its)))
-    
+
     it00, it0 = itt.tee(its[0])
     # note this consumes the iterator in position 0!!
     # find the indices where func evaluates to true
