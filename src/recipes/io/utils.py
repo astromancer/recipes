@@ -295,20 +295,23 @@ def iter_lines(filelike, *section, mode='r', strip=None):
 
 @doc.splice(iter_lines)
 def read_lines(filename, *section, mode='r', strip=None, filtered=None,
-               echo=False):
+               log=False):
     """
     Read a subset of lines from a given file.
 
     {Extended Summary}
 
     {Parameters}
-    filtered : callable or None, optional
+    filtered : callable or bool or None, by default None
         A function that will be used to filter out unwnated lines. Filtering
         occurs after stripping unwanted characters. The default behaviour
-        (filtered=None) removed all blank lines from the results.
-    echo : bool, optional
+        (filtered=None) removed all blank lines from the results. Passing
+        `filtered=True` is equivalent to the default behaviour and can be
+        omitted.
+    log : callable or bool, optional
         Whether to print a summary of the read content to stdout,
-        by default False
+        by default False. Can also be a callable eg logger.info that will be 
+        used to log the read lines. 
 
     Returns
     -------
@@ -318,12 +321,17 @@ def read_lines(filename, *section, mode='r', strip=None, filtered=None,
     # Read file content
     content = iter_lines(filename, *section, mode=mode, strip=strip)
     if filtered is not False:
+        if filtered is True:
+            filtered = None
         content = filter(filtered, content)
     content = list(content)
 
     # Optionally print the content
-    if echo:
-        print(_show_lines(filename, content))
+    if log:
+        if not callable(log):
+            log = print
+        log(_show_lines(filename, content))
+        
     return content
 
 
@@ -394,8 +402,8 @@ def write_lines(stream, lines, eol='\n', eof=''):
             stream.write(next(itr))
         except StopIteration:
             wrn.warning(f'Empty lines or iterable. Nothing written to {stream!r}.')
-            return 
-        
+            return
+
         # write remaining lines
         for line in itr:
             stream.write(eol)
