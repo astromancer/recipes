@@ -227,15 +227,23 @@ class Node(PrintNode):  # StringNode
         return str(self.name)
 
     def __getitem__(self, key):
-        if self.children:
+        if self.is_leaf:
+            raise ValueError('Node has no children.')
+
+        if isinstance(key, numbers.Integral):
             return self.children[key]
-        raise ValueError('Node has no children.')
+
+        for child in self.children:
+            if key == child.name:
+                return child
+
+        raise KeyError(f'Could not get child node for index key {key}.')
 
     # def append(self, name):
     #     child = type(self)(name)
-    #     self.children = (*self.children, child)
+    #     child.parent = self.parent
 
-    def collapse(self, max_depth=math.inf):
+    def collapse(self, max_depth=math.inf, top_down=None, bottom_up=True):
         """
         Collapse the nodes that are deeper than `max_depth`. Each child node
         that is too deep becomes a new sibling node with `name` attribute
@@ -321,26 +329,87 @@ class Node(PrintNode):  # StringNode
         changed: bool
             Whether the tree was altered or not.
         """
+        if max_depth == -1:
+            max_depth = math.inf
 
-        if self.is_leaf:
-            return False
+        if not isinstance(max_depth, numbers.Integral) or max_depth < 1:
+            msg = '`max_depth` parameter should be a positive integer.'
+            if max_depth == 0:
+                msg += ('Use `list(node.descendants)` to get a fully collapse '
+                        'list of nodes.')
+            raise ValueError(msg)
 
+        changed = False
+        top_down = ~bottom_up if (top_down is None) else top_down
+        collapse = self.collapse_top_down if top_down else self.collapse_bottom_up
+        while True:
+            changed = collapse(max_depth)
+            if not changed:
+                break
+
+        return changed
+
+    def collapse_top_down(self, max_depth):
         changed = self.collapse_unary() if self.is_root else False
+        # root node is always at 0, so first items at depth 1, hence > not >=
+        if self.is_leaf and (self.depth > max_depth):
+            # reparent this child to the grand parent if it's a leaf node, and
+            # concatenate the names
+            self.grandparent_adopts()
 
-        if self.depth >= max_depth:
-            # leaves become siblings with new names
-            for leaf in self.leaves:
-                leaf.name = self.name + leaf.name
-                leaf.parent = self.parent
-
-            if not self.children:
-                self.parent.children = self.siblings
+            # self.parent.collapse(max_depth)
+            changed = True
 
         # edit remaining children
         for child in self.children:
             changed |= child.collapse(max_depth)
 
+        # logger.debug('{}: depth={}, changed {}', self.name, self.depth, changed)
+        # logger.debug('\n{}', self.root.render())
+
         return changed
+
+    def collapse_bottom_up(self, max_depth=math.inf):
+
+        # if self.depth > max_depth:
+
+        # changed = False
+        # if self.is_leaf:
+        #     return False
+        if self.depth <= max_depth:
+            return False
+
+        leaves = set(self.leaves)
+        while leaves:
+            # pick a starting leaf
+            leaf = leaves.pop()
+            siblings = set(leaf.parent.children)
+            # all these leaves can be re-parented
+            leaves -= siblings
+            # get siblings that are also leaf nodes
+            sibling_leaves = set(self.sibling_leaves)
+            # sibling_leaves = siblings.intersection(leaves) - {self}
+            # if len(sibling_leaves) < 2:
+            #     continue
+
+            # reparent this child to the grand parent and concatenate the names
+            for leaf in sibling_leaves:
+                leaf.grandparent_adopts()
+
+            changed = True
+
+        return changed
+
+    def grandparent_adopts(self):
+        # reparent this child to the grand parent and concatenate the names
+        parent = self.parent
+        self.name = parent.name + self.name
+        self.parent = parent.parent
+
+        # check if parent became a leaf node
+        if parent.is_leaf:
+            # orphan this leaf, since it is now redundant
+            self.parent.children = parent.siblings
 
     def collapse_unary(self):
         """

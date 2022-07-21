@@ -3,16 +3,21 @@ Tools for parsing and editing strings containing (nested) brackets.
 """
 
 # std
+import math
+import numbers
+import itertools as itt
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from typing import Callable, Collection, List, Tuple, Union
+
+# third-party
+import more_itertools as mit
 
 # relative
 from .. import op
 from ..iter import cofilter, where
 from ..functionals import always, echo0
 from . import delete
-
 
 # import docsplice as doc
 
@@ -27,6 +32,8 @@ SYMBOLS = {op.eq: '==',
            op.le: '≤',
            op.gt: '>',
            op.ge: '≥'}
+
+INFINT = 2 ** 32
 
 # ---------------------------------------------------------------------------- #
 # function that always returns True
@@ -46,7 +53,16 @@ class is_outer:
                 (match.end == self.n - match.level - 1))
 
 
+def _resolve_max_split(max_split):
+    if max_split in (-1, math.inf, None):
+        return INFINT
+
+    assert isinstance(max_split, numbers.Integral)
+    assert max_split >= 0
+    return int(max_split)  # copy
+
 # ---------------------------------------------------------------------------- #
+
 
 @dataclass
 class Condition:
@@ -480,31 +496,114 @@ class BracketParser:
     # def switch():
     # change bracket type
 
-    def split(self, string, must_close=False, condition=always_true):
-        return list(self.isplit(string, must_close, condition))
+    def split(self, string, max_split=None, must_close=False, condition=always_true):
+        return list(self.isplit(string, max_split, must_close, condition))
 
-    def isplit(self, string, must_close=False, condition=always_true):
-        for pair in self.split2(string, must_close, condition):
-            yield from filter(None, pair)
+    def isplit(self, string, max_split=None, must_close=False, condition=always_true):
+        return filter(None, self._isplit(string, max_split, must_close, condition))
 
-    def split2(self, string, must_close=False, condition=always_true):
+    def _isplit(self, string, max_split, must_close, condition):
+        # iterate sub strings for (pre-bracket, bracketed) parts of string
+        max_split = _resolve_max_split(max_split)
+        if max_split == 0:
+            yield string
+            return
 
-        start = 0
+        slices = self.isplit_slices(string, must_close, condition)
+        for sec in itt.islice(slices, max_split - 1):
+            yield string[sec]
+
+        yield string[sec.stop:]
+
+    def isplit_indices(self, string,  must_close=False, condition=always_true):
+
+        yield 0
+
         j = -1
         for match in self.iterate(string, must_close, condition, False):
             i, j = match.indices
-            yield string[start:i], string[i:j+1]
-            start = j + 1
+            yield i
+            yield j + 1
+
+        if (j + 1) != (n := len(string)):
+            yield n
+
+    def _isplit_index_pairs(self, string, must_close, condition):
+        # for building slices to split the string
+        indices = self.isplit_indices(string, must_close, condition)
+        index_pairs = mit.pairwise(indices)
+        if (first := next(index_pairs, None)) is None:
+            yield (0, None)
+            return
+
+        yield from itt.chain([first], index_pairs)
+
+    def isplit_slices(self, string,  must_close=False, condition=always_true):
+        indices = self.isplit_indices(string, must_close, condition)
+        index_pairs = mit.pairwise(indices)
+        if (first := next(index_pairs, None)) is None:
+            yield slice(len(string))
+            return
+
+        yield from itt.starmap(slice, itt.chain([first], index_pairs))
+
+    def _isplit_slice_pairs(self, string, must_close, condition):
+        # for splitting like (pre-bracket, bracketed)
+        slices = self.isplit_slices(string, must_close, condition)
+        # we know there will always be 1 slice from isplit_slices
+        first = next(slices)
+        if (second := next(slices, None)) is None:
+            yield (first, slice(len(string), None))
+            return
+        
+        yield (first, second)
+        yield from mit.chunked(slices, 2)
+
+    def csplit(self, string, delimiter=',',  max_split=None):
+        """
+        Conditional splitter. Split on `delimiter` only if it is not enclosed by
+        `brackets`. Does not go deeper than level 0, so enclosed delimited
+        substrings are ignored.
+
+        Parameters
+        ----------
+        string : str
+            [description]
+        brackets : str, optional
+            [description], by default '{}'
+        delimiter : str, optional
+            [description], by default ','
+
+        Examples
+        --------
+        >>> 
+
+        Returns
+        -------
+        list
+            [description]
+        """
+        max_split = _resolve_max_split(max_split)
+        if max_split == 0:
+            return [string]
+
+        # iterate slices for (pre-bracket, bracketed) parts of string
+        collected = ['']
+        for pre, bracketed in self._isplit_slice_pairs(string, True, (level == 0)):
+            pre, *parts = string[pre].split(delimiter, max_split - len(collected))
+            collected[-1] += pre
+            collected.extend(parts)
+            collected[-1] += string[bracketed]
+
+            if len(collected) > max_split:
+                collected[-1] += string[bracketed.stop:]
+                return collected
+
+        if collected:
+            return collected
 
         # no brackets
-        if start == 0:
-            yield (string, '')
-
-        elif (j + 1) != len(string):
-            yield (string[j + 1:], '')
-
-    # alias
-    split_paired = split2
+        return string.split(delimiter, max_split)
 
     # def encloses
 
@@ -557,7 +656,7 @@ parsers = {
 }
 
 # pylint: disable=missing-function-docstring
-insert = {'Parameters[pair] as brackets': BracketParser}
+# insert = {'Parameters[pair] as brackets': BracketParser}
 
 
 # @doc.splice(BracketParser.match, insert)
@@ -585,53 +684,24 @@ def depth(string, brackets):
     return BracketParser(brackets).depth(string)
 
 
-def csplit(string, brackets='{}', delimeter=','):
-    """
-    Conditional splitter. Split on `delimeter` only if it is not enclosed by
-    `brackets`. Enclosed delimited substrings are ignored.
-
-    Parameters
-    ----------
-    string : str
-        [description]
-    brackets : str, optional
-        [description], by default '{}'
-    delimeter : str, optional
-        [description], by default ','
-
-    Examples
-    --------
-    >>> 
-
-    Returns
-    -------
-    list
-        [description]
-    """
+# @doc.splice(BracketParser.depth, csplit)
+def csplit(string, brackets='{}', delimiter=',', max_split=None):
     # need this for bash brace expansion for nested braces
 
     # short circuit
     if brackets is None:
-        return string.split(delimeter)
+        return string.split(delimiter)
 
-    #
-    itr = BracketParser(brackets).split2(string, condition=(level == 0))
-    collected = _csplit_worker(*next(itr), delimeter)
-    for pre, enclosed in itr:
-        first, *parts = _csplit_worker(pre, enclosed, delimeter)
-        collected[-1] += first
-        collected.extend(parts)
-    return collected
+    return BracketParser(brackets).csplit(string, delimiter, max_split)
 
 
 # alias
 xsplit = csplit
 
 
-def _csplit_worker(pre, enclosed, delimeter):
-    parts = pre.split(delimeter)
-    parts[-1] += enclosed
-    return parts
+# def _csplit_worker(pre, bracketed, delimiter, max_split):
+#     parts = pre.split(delimiter, max_split)
+#     parts[-1] += bracketed
+#     return parts
 
-
-del insert
+# del insert

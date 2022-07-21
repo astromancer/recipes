@@ -5,9 +5,10 @@ import pytest
 # local
 from recipes import op
 from recipes.functionals import negate
-from recipes.testing import Expected, Throws, mock, expected
-from recipes.string.brackets import (match, remove, Condition, level, braces,
-                                     csplit, BracketPair, is_outer)
+from recipes.testing import Expected, Throws, expected, mock
+from recipes.string.brackets import (BracketPair, BracketParser, Condition,
+                                     braces, csplit, is_outer, level, match,
+                                     remove)
 
 
 # @pytest.mark.skip()
@@ -28,17 +29,21 @@ def test_match_brackets(string, pair, expected):
 
 test_brackets_must_close = Expected(match)({
     #
-    #mock('foo{bla', '{}', must_close=False):     BracketPair('{}', None, (None, None)),
-    mock('open((((((', '()', must_close=False):  BracketPair('()', None, (9, None)),
-    mock('((())', '()', must_close=False):       BracketPair('()', None, (None, None)),
-    # #
-    mock('foo{bla', '{}', must_close=-1):           BracketPair('{}', 'bla', (3, None)),
-    mock('open((((((', '()', must_close=-1):        BracketPair('()', '(((((', (4, None)),
-    mock('((())', '()', must_close=-1):             BracketPair('()', '(())', (0, None)),
+    mock('open((((((', '()', must_close=0):     BracketPair('()', None, (4, None)),
+    mock('((())', '()', must_close=0):          BracketPair('()', None, (0, None)),
     #
-    mock('(', '()', must_close=True):               Throws(ValueError),
-    mock('also_open((((((', '()', must_close=True): Throws(ValueError),
-    mock('((())', '()', must_close=True):           Throws(ValueError)
+    mock('foo{bla', '{}', must_close=0):        BracketPair('{}', None, (3, None)),
+    mock('foo{bla', '{}', must_close=-1):       None,
+
+    mock('open((((((', '()', must_close=0):     BracketPair('()', None, (4, None)),
+    mock('open((((((', '()', must_close=-1):    None,
+    mock('open((((((', '()', must_close=1):     Throws(ValueError),
+
+    mock('((())', '()', must_close=0):          BracketPair('()', None, (0, None)),
+    mock('((())', '()', must_close=-1):         BracketPair('()', '', (2, 3), level=2),
+    mock('((())', '()', must_close=1):          Throws(ValueError),
+    #
+    mock('(', '()', must_close=1):              Throws(ValueError),
 })
 # pytest.mark.skip(test_brackets_must_close)
 
@@ -92,16 +97,15 @@ test_unbracket = Expected(remove)({
 # pytest.mark.skip(test_unbracket)
 
 # test splitter
-test_split = Expected(braces.split2)(
-    {'':                    [('', '')],
-     '...':                 [('...', '')],
-     '{}':                  [('', '{}')],
-     'x{}':                 [('x', '{}')],
-     'x{}x':                [('x', '{}'), ('x', '')],
-     '{}{}{}{}':            [('', '{}'), ('', '{}'), ('', '{}'), ('', '{}')],
+test_split = Expected(braces.split)(
+    {'':                    [''],
+     '...':                 ['...'],
+     '{}':                  ['{}'],
+     'x{}':                 ['x', '{}'],
+     'x{}x':                ['x', '{}', 'x'],
+     '{}{}{}{}':            ['{}', '{}', '{}', '{}'],
      'ch{1,2,{4..6}}...{,},xxx':
-        [('ch', '{1,2,{4..6}}'), ('...', '{,}'), (',xxx', '')],
-
+        ['ch', '{1,2,{4..6}}', '...', '{,}', ',xxx'],
      },
     transform=list)
 
