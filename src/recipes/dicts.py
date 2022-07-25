@@ -347,6 +347,9 @@ class AccessControl:
     def readonly(self, readonly):
         self._readonly = bool(readonly)
 
+    def freeze(self):
+        self.readonly = True
+
     def __missing__(self, key):
         if self.readonly:
             raise KeyError(self._message.format(self=self))
@@ -382,13 +385,14 @@ class DictNode(AutoVivify, Pprinter, defaultdict):
     data trees without prior knowledge of final structure. 
     """
 
+    # def attr_lookup
+
     def __init__(self, factory=None, *args, **kws):
         defaultdict.__init__(self, factory or DictNode, *args, **kws)
 
 
-
-class AVDict(dict, AutoVivify):
-    pass
+# alias
+NodeDict = DictNode
 
 # ---------------------------------------------------------------------------- #
 
@@ -464,19 +468,19 @@ class OrderedAttrDict(OrderedDict, AttrBase):
         self.__dict__ = self
 
 
-class TreeLike(AttrDict, AutoVivify):
-    def __init__(self, mapping=(), **kws):
-        super().__init__()
-        kws.update(mapping)
-        for a, v in kws.items():
-            self[a] = v
+# class TreeLike(AttrDict, AutoVivify):
+#     def __init__(self, mapping=(), **kws):
+#         super().__init__()
+#         kws.update(mapping)
+#         for a, v in kws.items():
+#             self[a] = v
 
-    def __setitem__(self, key, val):
-        if '.' in key:
-            key, tail = key.split('.', 1)
-            self[key][tail] = val
-        else:
-            super().__setitem__(key, val)
+#     def __setitem__(self, key, val):
+#         if '.' in key:
+#             key, tail = key.split('.', 1)
+#             self[key][tail] = val
+#         else:
+#             super().__setitem__(key, val)
 
 
 class Indexable:
