@@ -477,11 +477,12 @@ def numbered(collection, name, plural=None):
 
 
 def named_items(collection, name, plural=None, fmt=str, **kws):
-    from recipes import pprint as pp
 
     if isinstance(collection, abc.Collection) and (len(collection) != 1):
+        from recipes import pprint
+
         return (f'{plural or naive_english_plural(name)}: '
-                f'{pp.collection(collection, fmt=fmt)}')
+                f'{pprint.collection(collection, fmt=fmt)}')
 
     return f'{name}: {fmt(collection[0])}'
 

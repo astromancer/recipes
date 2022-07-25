@@ -169,9 +169,9 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
     wildcard = glob.has_magic(path_or_pattern)  # handle glob patterns
     if special | wildcard:
         logger.opt(lazy=True).debug(
-            'Special pattern detected: {!s}', 
-                     lambda: f'\n' * (len(s := path_or_pattern) > 40) + s
-                     )
+            'Special pattern detected: {!s}',
+            lambda: f'\n' * (len(s := path_or_pattern) > 40) + s
+        )
         itr = (brace_expand_iter(path_or_pattern) if special else
                glob.iglob(path_or_pattern, recursive=recurse))
         for path in itr:
@@ -331,7 +331,7 @@ def read_lines(filename, *section, mode='r', strip=None, filtered=None,
         if not callable(log):
             log = print
         log(_show_lines(filename, content))
-        
+
     return content
 
 

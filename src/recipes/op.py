@@ -74,7 +74,7 @@ class ItemGetter:
     (Multi-)Item getter with optional default substitution.
     """
     _worker = staticmethod(getitem)
-    _excepts = (KeyError, IndexError)
+    _excepts = LookupError # (KeyError, IndexError)
     _raises = KeyError
 
     def __init__(self, *keys, default=NULL, defaults=None):
@@ -97,7 +97,7 @@ class ItemGetter:
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.keys})'
-    
+
     def get_default(self, key):
         """Retrieve the default value of the `key` attribute"""
         # pylint: disable=method-hidden
@@ -147,8 +147,8 @@ class AttrSetter:
 
         assert len(values) == len(keys)
         for get_obj, attr, value in zip(self.getters, keys, values):
-            # logger.debug(get_obj(target), attr, value)
             setattr(get_obj(target), attr, value)
+
 
 
 class AttrDict(AttrGetter):

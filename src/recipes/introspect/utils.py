@@ -20,6 +20,7 @@ from stdlib_list import stdlib_list
 # relative
 from ..string import remove_suffix
 
+
 # list of builtin modules
 BUILTIN_MODULE_NAMES = [  # TODO: generate at install time for version
     # builtins
@@ -76,7 +77,8 @@ def get_caller_name(back=1):
 #     )
 
 def get_module_name(obj=None, depth=None):
-    # called without arguments => get current module name
+    # called without arguments => get current module name by inspecting the call
+    # stack
     if obj is None:
         obj = get_caller_frame(2)
 
@@ -187,7 +189,7 @@ def _(path, depth=None):
         name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
         return name.rstrip('/').replace('/', '.')
 
-    wrn.warn(f'Could not find package name for \'{path}\'.')
+    wrn.warn(f"Could not find package name for '{path}'.")
 
 
 # def get_module_name(filename, depth=1):

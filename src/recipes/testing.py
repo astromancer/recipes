@@ -340,7 +340,7 @@ class Expected(LoggingMixin):
         params = bound.arguments
 
         if self.is_method:
-            params.pop('self')
+            params.pop('self', None)
 
         return params
 
@@ -434,10 +434,11 @@ class Expected(LoggingMixin):
                 return
 
             message = motley.format(
-                'Result from function {func.__name__:s|green} is not equal'
-                ' to expected answer!', func=self.func
-            ) + (f'\nRESULT:\n{answer!s}'
-                 f'\nEXPECTED:\n{expected!s}')
+                '{end}Result from function {func.__name__:s|green}'
+                ' is not equal to expected answer!',
+                func=self.func, end=motley.codes.END
+            ) + (f'\nRESULT:\n{answer!r}'
+                 f'\nEXPECTED:\n{expected!r}')
             if isinstance(answer, str) and isinstance(expected, str):
                 diff_string = show_diff(repr(answer), repr(expected))
                 message += f'\nDIFF\n{diff_string}'

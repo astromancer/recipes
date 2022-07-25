@@ -35,9 +35,11 @@ def duplicate_if_scalar(a, n=2, raises=True):  # TODO: severity
     #     return np.asanyarray([a] * n).squeeze()
 
     if (size != n) and raises:
-        raise ValueError(f'Input object of type {type(a)} has incorrect size. '
-                         f'Expected either a scalar type object, or a Container'
-                         f' with length in {{1, {n}}}.')
+        raise ValueError(
+            f'Input object of type {type(a)} has incorrect size. Expected '
+            f'either a scalar type object, or a Container with length in {{1, '
+            f'{n}}}.'
+        )
 
     return a
 

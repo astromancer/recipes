@@ -130,11 +130,11 @@ class LoggingMixin:
 
         # @staticmethod
         # def get_name(fname, parent):
-            
-        
+
         @staticmethod
         def add_parent(record, parent):
             """Prepend the class name to the function name in the log record."""
+            # TODO: profile this function to see how much overhead you are adding
             fname = record['function']
             parent = get_class_that_defined_method(getattr(parent, fname))
             parent = '' if parent is None else parent.__name__
@@ -205,10 +205,9 @@ class RepeatMessageHandler(MemoryHandler):
         previous.repeats += 1
 
     def is_repeat(self, record):
-        if not self.buffer:
-            return False
-
-        return (self._get_record_atr(record) == self._get_record_atr(self.buffer[-1]))
+        if self.buffer:
+            return (self._get_record_atr(record) == self._get_record_atr(self.buffer[-1]))
+        return False
 
     def flush(self):
         if not self.buffer:
@@ -216,6 +215,6 @@ class RepeatMessageHandler(MemoryHandler):
 
         previous = self.buffer[-1]
         if previous.repeats > 1:
-            previous.msg += ' [Message repeats ×{}]'.format(previous.repeats)
+            previous.msg += f' [Message repeats ×{previous.repeats}]'
 
         super().flush()

@@ -264,8 +264,7 @@ class Cached(Decorator, LoggingMixin):
             raise ValueError(f'Hash map key has incorrect types {key_types}.')
 
         # all keys are now str
-        invalid = set(mapping.keys()) - set(names)
-        if invalid:
+        if invalid := (set(mapping.keys()) - set(names)):
             raise ValueError(f'{describe(self.__wrapped__).title()} takes no '
                              f'{named_items(invalid, "parameter")}.')
 

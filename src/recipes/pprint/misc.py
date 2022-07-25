@@ -74,6 +74,7 @@ def collection(obj, max_items=10, edge_items=1, sep=',', dots='...',
 
 
 def banner(text, swoosh='=', width=80, title=None, align='^'):
+    # TODO move to string module
     """
 
     Parameters
@@ -90,5 +91,5 @@ def banner(text, swoosh='=', width=80, title=None, align='^'):
     """
 
     swoosh = swoosh * width
-    pre = swoosh if title is None else overlay(' ', swoosh, align)
+    pre = swoosh if title is None else overlay(title, swoosh, align)
     return os.linesep.join((pre, text, swoosh, ''))
