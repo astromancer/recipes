@@ -358,6 +358,10 @@ def camel_case(string):
     string = pascal_case(string)
     return string[0].lower() + string[1:]
 
+
+def kebab_case(string):
+    return string.replace(' ', '-').replace('_', '-')
+
 # ---------------------------------------------------------------------------- #
 # Affixes
 
