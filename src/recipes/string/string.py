@@ -390,6 +390,19 @@ def remove_suffix(string, suffix):
     return remove_affix(string, '', suffix)
 
 
+def remove_suffixes(string, suffixes, repeat=False):
+    """Remove any of the suffixes"""
+    for suffix in suffixes:
+        new = remove_affix(string, '', suffix)
+        if new != string:
+            if repeat:
+                string = new
+            else:
+                return new
+
+    return new
+
+
 def replace_prefix(string, old, new):
     """
     Substitute a prefix string.
