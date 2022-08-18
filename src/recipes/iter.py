@@ -4,9 +4,9 @@ Common patterns involving iterables.
 
 
 # std
-import functools as ftl
 import numbers
 import textwrap as txw
+import functools as ftl
 import itertools as itt
 from collections import abc
 
@@ -14,8 +14,9 @@ from collections import abc
 import more_itertools as mit
 
 # relative
-from . import op
+from . import oo, op
 from .functionals import negate, echo0 as echo
+
 
 #
 SAFETY_LIMIT = 1e8
@@ -324,8 +325,9 @@ first_false_idx = first_false_index
 def cofilter(func_or_iter, *its):
     """
     Filter an arbitrary number of iterators based on the truth value of the
-    first iterable. An optional the predicate function that determines the truth
-    value of elements can be passed as the first argument.
+    first iterable. An optional predicate function that determines the truth
+    value of elements can be passed as the first argument, followed by the
+    iterables.
     """
     if isinstance(func_or_iter, abc.Iterable):
         func = bool
@@ -382,3 +384,7 @@ def iter_repeat_last(it):
     """
     it, it1 = itt.tee(mit.always_iterable(it))
     return mit.padded(it, next(mit.tail(1, it1)))
+
+
+def coerced(itr, to, wrap):
+    yield from map(oo.coerce, itr, itt.repeat(to), itt.repeat(wrap))

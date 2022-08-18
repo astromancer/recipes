@@ -23,6 +23,10 @@ from .utils import _delete
 _zero = always(0)
 
 
+def coerced(itr, to=list, wrap=str):
+    return list(_iter.coerced(itr, to, wrap))
+
+
 def lists(iters):
     """Create a sequence of lists from a mapping / iterator / generator."""
     return list(map(list, iters))
