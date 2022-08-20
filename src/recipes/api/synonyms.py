@@ -217,7 +217,8 @@ class Synonyms(Decorator):
 
         for func in self.resolvers:
             if (trial := func(key)) in self._param_names:
-                self.emit(f'Keyword translated: {key!r} --> {trial!r}')
+                logger.debug(msg := f'Keyword translated: {key!r} --> {trial!r}')
+                self.emit(msg)
                 return trial
 
         return key
