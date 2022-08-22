@@ -64,8 +64,10 @@ class Emit:
     Helper class for emitting messages of variable severity.
     """
     _action_ints = dict(enumerate(('ignore', 'warn', 'raise'), -1))
+    _equivalence = {'error': 'raise'}
 
     def __init__(self, action='ignore', exception=Exception):
+        
         self._actions = {
             'ignore':   noop,  # silently ignore
             'warn':     warnings.warn,  # emit warning
@@ -78,8 +80,8 @@ class Emit:
             return self._action_ints[action]
 
         if isinstance(action, str):
-            return action.rstrip('s')
-
+            return self._equivalence.get(action, action).rstrip('s')
+            
         raise TypeError(f'Invalid type for `action`: {action}')
 
     @property
@@ -92,5 +94,5 @@ class Emit:
         self._action = self._resolve_action(val)
         self.emit = self._actions[self._action]
 
-    def __call__(self, message):
-        self.emit(message)
+    def __call__(self, message, **kws):
+        self.emit(message, **kws)
