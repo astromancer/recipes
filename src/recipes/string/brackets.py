@@ -600,26 +600,21 @@ class BracketParser:
 
         yield from itt.chain([first], index_pairs)
 
-    def isplit_slices(self, string,  must_close=False, condition=always_true):
-        indices = self.isplit_indices(string, must_close, condition)
-        index_pairs = mit.pairwise(indices)
-        if (first := next(index_pairs, None)) is None:
-            yield slice(len(string))
-            return
-
-        yield from itt.starmap(slice, itt.chain([first], index_pairs))
+    def isplit_slices(self, string, must_close=False, condition=always_true):
+        yield from itt.starmap(
+            slice, self._isplit_index_pairs(string, must_close, condition))
 
     def _isplit_slice_pairs(self, string, must_close, condition):
         # for splitting like (pre-bracket, bracketed)
         slices = self.isplit_slices(string, must_close, condition)
-        # we know there will always be 1 slice from isplit_slices
-        first = next(slices)
-        if (second := next(slices, None)) is None:
-            yield (first, slice(len(string), None))
-            return
-        
-        yield (first, second)
-        yield from mit.chunked(slices, 2)
+        yield from mit.grouper(slices, 2, slice(len(string), None))
+
+    def isplit_pairs(self, string, must_close=False, condition=always_true):
+        for pre, bracketed in self._isplit_slice_pairs(string, must_close, condition):
+            yield string[pre], string[bracketed]
+
+    def split_pairs(self, string, must_close=False, condition=always_true):
+        return list(self.isplit_pairs(string, must_close, condition))
 
     def csplit(self, string, delimiter=',',  max_split=None):
         """
@@ -652,13 +647,14 @@ class BracketParser:
         # iterate slices for (pre-bracket, bracketed) parts of string
         collected = ['']
         for pre, bracketed in self._isplit_slice_pairs(string, True, (level == 0)):
-            pre, *parts = string[pre].split(delimiter, max_split - len(collected))
+            pre, *parts = string[pre].split(delimiter, max_split - len(collected) + 1)
             collected[-1] += pre
             collected.extend(parts)
             collected[-1] += string[bracketed]
 
             if len(collected) > max_split:
-                collected[-1] += string[bracketed.stop:]
+                if bracketed.stop:  # not at the end of the string yet!
+                    collected[-1] += string[bracketed.stop:]
                 return collected
 
         if collected:
@@ -667,7 +663,23 @@ class BracketParser:
         # no brackets
         return string.split(delimiter, max_split)
 
-    # def encloses
+    def rcsplit(self, string, delimiter=',',  max_split=None):
+        # HACK
+        from recipes.string import sub
+
+        inverses = dict((*zip(braces.open, braces.close),
+                         *zip(braces.close, braces.open)))
+        reversed_ = self.csplit(sub(string[::-1], inverses), delimiter, max_split)
+        return [sub(rev[::-1], inverses) for rev in reversed(reversed_)]
+
+    # ------------------------------------------------------------------------ #
+
+    def has_unclosed(self, string):
+        return any((None in match.indices)
+                   for match in self._iter(string, must_close=False))
+
+    def encloses(self, string):
+        return string.startswith(self.open) and string.endswith(self.close)
 
     def depth(self, string):
         """
@@ -698,10 +710,6 @@ class BracketParser:
             return depth.pop(tuple(self.pairs[0]), 0)
 
         return dict(depth)
-
-    def has_unclosed(self, string):
-        return any((None in match.indices)
-                   for match in self._iter(string, must_close=False))
 
 
 # predifined parsers for specific pairs

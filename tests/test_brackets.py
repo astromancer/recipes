@@ -117,7 +117,17 @@ test_csplit = Expected(csplit)(
      '{}{}{}{}':            ['{}{}{}{}'],
      'a,b':                 ['a', 'b'],
      'ch{1,2,{4..6}}...{}': ['ch{1,2,{4..6}}...{}'],
-     'a,b,c{d,e{f,g}}':     ['a', 'b', 'c{d,e{f,g}}']
+     'a,b,c{d,e{f,g}}':     ['a', 'b', 'c{d,e{f,g}}'],
+
+     mock.csplit('!{!r::^11s}!', '{}', '!'):
+         ['', '{!r::^11s}', ''],
+
+     mock.csplit('::', ':', 1):
+        '::'.split(':', 1),  # ['', ':']
+
+     mock.csplit('::', ':'):
+        '::'.split(':'),    # ['', '', '']
+
      },
     transform=list)
 
@@ -129,6 +139,7 @@ test_depth = Expected(braces.depth)({
     '{{{{{99dmckkcmmm/ {}}}}}}':            6,
     '{{{{{99dmckkcmmm/ {}{}}}}}{}}':        6
 })
+
 
 def test_new_parser():
     BracketParser()._index('[this(nested{set<of>[brackets]})]')
