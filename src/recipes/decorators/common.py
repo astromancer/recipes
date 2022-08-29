@@ -30,7 +30,8 @@ class catch(Decorator):
         'Caught the following {err.__class__.__name__}: {err}'
 
     def __init__(self, *, exceptions=Exception, action='ignore',
-                 alternate=None, message=None, raise_from=True, warn=None):
+                 alternate=None, message=None, raise_from=True, warn=None,
+                 **kws):
 
         if isinstance(warn, str):
             action = 'warn'
@@ -46,6 +47,7 @@ class catch(Decorator):
         self.alternate = alternate
         self.template = str(message or self._default_message_template)
         self.raise_from = bool(raise_from)
+        self.kws = dict(kws)
 
     def __wrapper__(self, func, *args, **kws):
         try:
@@ -56,7 +58,9 @@ class catch(Decorator):
 
     def message(self, _func=None, args=(), kws=None, err=None):
         """format the message template"""
-        return self.template.format(*(args or ()), **(kws or {}), err=err)
+        return self.template.format(*(args or ()),
+                                    **{**self.kws, **(kws or {})},
+                                    err=err)
 
     def __enter__(self):
         pass
