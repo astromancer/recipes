@@ -27,15 +27,15 @@ from . import delete
 # # __all__ = ['BracketParser', 'braces', 'square', 'round', 'chevrons']
 
 ALL_BRACKET_PAIRS = ('()', '[]', '{}', '<>')
-
-SYMBOLS = {op.eq: '==',
-           op.lt: '<',
-           op.le: '≤',
-           op.gt: '>',
-           op.ge: '≥'}
+COMPARE_SYMBOLS = {op.eq: '==',
+                   op.lt: '<',
+                   op.le: '≤',
+                   op.gt: '>',
+                   op.ge: '≥'}
 
 INFINT = 2 ** 32
 CARET = '^'
+
 # ---------------------------------------------------------------------------- #
 # function that always returns True
 always_true = always(True)
@@ -63,7 +63,7 @@ def _resolve_max_split(max_split):
     return int(max_split)  # copy
 
 
-def show_unpaired(self, string, positions, caret=CARET):
+def show_unpaired(string, positions, caret=CARET):
 
     if len(string) >= 100:
         return ''
@@ -108,7 +108,7 @@ class Condition:
 # ---------------------------------------------------------------------------- #
 
 
-class Comparison:
+class FutureComparison:
     """
     A function factory that wraps the comparison operators for future
     excecution.
@@ -120,13 +120,13 @@ class Comparison:
 
     def __call__(self, rhs):
         """
-        Create `Compare` object for delayed comparison.
+        Create `Comparer` object for delayed comparison.
         """
-        return Compare(self.name, self.op, rhs)
+        return Comparer(self.name, self.op, rhs)
 
 
-class Compare:
-    """Comparison operator wrapper for comparing variable lhs with fixed rhs"""
+class Comparer:
+    """Comparison operator wrapper for comparing variable lhs with fixed rhs."""
 
     def __init__(self, name, op_, rhs):
         self.name = name
@@ -137,7 +137,7 @@ class Compare:
         return self.op(lhs, self.rhs)
 
     def __str__(self):
-        return f'({self.name}{SYMBOLS[self.op]}{self.rhs})'
+        return f'({self.name}{COMPARE_SYMBOLS[self.op]}{self.rhs})'
 
     __repr__ = __str__
 
@@ -147,7 +147,7 @@ class Compare:
             rhs.ops.append(op_)
             return rhs
 
-        if isinstance(rhs, Compare):
+        if isinstance(rhs, Comparer):
             return ChainedCompare((self, rhs), (op_,))
 
         raise TypeError(f'Invalid type {type(rhs)} encountered on right hand '
@@ -161,36 +161,98 @@ class Compare:
 
 
 class ChainedCompare:
-    def __init__(self, comps, ops):
-        self.comps = comps
-        self.ops = ops
+    def __init__(self, comparers, logicals):
+        self.comparers = comparers
+        self.logicals = logicals  # operators
 
     def __call__(self, obj):
-        # reduce
-        init, *comps = self.comps
-        result = init(getattr(obj, init.name))
-        for op_, cmp in zip(self.ops, comps):
+        # compute the sequence of comparisons
+        first, *comparers = self.comparers
+        #
+        result = first(getattr(obj, first.name))
+        for op_, cmp in zip(self.logicals, comparers):
             result = op_(result, cmp(getattr(obj, cmp.name)))
         return result
 
 
-def lazy(name):
-    class FutureComparisonAbstract:
-        """Abstraction layer for delayed evaluation of comparison operators."""
-        __eq__ = Comparison(name, op.eq)
-        __lt__ = Comparison(name, op.lt)
-        __le__ = Comparison(name, op.le)
-        __gt__ = Comparison(name, op.gt)
-        __ge__ = Comparison(name, op.ge)
+def conditional(name):
+    """
+    Create a conditional for future comparison of attribute `name` of an object.
 
-    return FutureComparisonAbstract()
+    Parameters
+    ----------
+    name : str
+        Attribute name of object, the value of which will be compared.
+
+    Returns
+    -------
+    AttributeFutureComparison
+        Object which supports comparison operations "<"  "<="  "=="  "=>"  ">".
+        Comparing this object with another (eg int) constructs a class which,
+        when called, will do the comparison between the value of the `name`
+        attribute of the object which was passed, with the other object (eg
+        int). 
+    """
+    class AttributeFutureComparison:
+        """
+        Abstraction layer for delayed evaluation of comparison operators on
+        object attribute `name`.
+        """
+        __eq__ = FutureComparison(name, op.eq)
+        __lt__ = FutureComparison(name, op.lt)
+        __le__ = FutureComparison(name, op.le)
+        __gt__ = FutureComparison(name, op.gt)
+        __ge__ = FutureComparison(name, op.ge)
+
+    return AttributeFutureComparison()
 
 
 # condition testing helpers
-brackets = lazy('brackets')
-string = lazy('string')
-indices = lazy('indices')
-level = lazy('level')
+brackets = conditional('brackets')
+enclosed = conditional('enclosed')
+indices = conditional('indices')
+level = conditional('level')
+
+
+# class conditions:
+#     # condition testing helpers
+#     brackets = brackets
+#     string = string
+#     indices = indices
+#     level = level
+
+
+def get_test(condition, string):
+    """
+    Function wrapper to support multiple call signatures for user defined
+    condition tests.
+    """
+    if not callable(condition):
+        raise TypeError(
+            'Parameter `condition` should be a callable, or preferably a '
+            f'`Condition` object, not {type(condition)}.'
+        )
+
+    if isinstance(condition, Condition):
+        return condition
+
+    if isinstance(condition, Comparer):
+        return Condition(**{condition.name: condition})
+
+    if condition is is_outer:
+        return is_outer(string)
+
+    return condition
+
+    # import inspect
+
+    # npar = len(inspect.signature(condition).parameters)
+    # if npar == 1:
+    #     return Condition(condition)
+
+    # from recipes import pprint as pp
+    # raise ValueError(f'Condition test function has incorrect signature: '
+    #                  f'{pp.caller(condition)}')
 
 
 # ---------------------------------------------------------------------------- #
@@ -233,68 +295,35 @@ class BracketPair:
         return self.enclosed.join(self.brackets)
 
 
-def get_test(condition, string):
-    """
-    Function wrapper to support multiple call signatures for user defined
-    condition tests.
-    """
-    if not callable(condition):
-        raise TypeError(
-            'Parameter `condition` should be a callable, or preferably a '
-            f'`Condition` object, not {type(condition)}.'
-        )
+# def _match(string, brackets, must_close=False):
 
-    if isinstance(condition, Condition):
-        return condition
+#     left, right = brackets
+#     if left not in string:
+#         return (None, (None, None))
 
-    if isinstance(condition, Compare):
-        return Condition(**{condition.name: condition})
+#     # logger.debug('Searching {!r} in {!r}', brackets, string)
 
-    if condition is is_outer:
-        return is_outer(string)
+#     # 'hello(world)()'
+#     pre, match = string.split(left, 1)
+#     # 'hello', 'world)()'
+#     open_ = 1  # current number of open brackets
+#     for i, m in enumerate(match):
+#         if m in brackets:
+#             open_ += (1, -1)[m == right]
 
-    return condition
+#         if open_ == 0:
+#             p = len(pre)
+#             return (match[:i], (p, p + i + 1))
 
-    # import inspect
+#     # land here if (outer) bracket unclosed
+#     if must_close == 1:
+#         raise ValueError(f'No closing bracket {right!r}.')
 
-    # npar = len(inspect.signature(condition).parameters)
-    # if npar == 1:
-    #     return Condition(condition)
+#     if must_close == -1:
+#         i = string.index(left)
+#         return (string[i + 1:], (i, None))
 
-    # from recipes import pprint as pp
-    # raise ValueError(f'Condition test function has incorrect signature: '
-    #                  f'{pp.caller(condition)}')
-
-
-def _match(string, brackets, must_close=False):
-
-    left, right = brackets
-    if left not in string:
-        return (None, (None, None))
-
-    # logger.debug('Searching {!r} in {!r}', brackets, string)
-
-    # 'hello(world)()'
-    pre, match = string.split(left, 1)
-    # 'hello', 'world)()'
-    open_ = 1  # current number of open brackets
-    for i, m in enumerate(match):
-        if m in brackets:
-            open_ += (1, -1)[m == right]
-
-        if open_ == 0:
-            p = len(pre)
-            return (match[:i], (p, p + i + 1))
-
-    # land here if (outer) bracket unclosed
-    if must_close == 1:
-        raise ValueError(f'No closing bracket {right!r}.')
-
-    if must_close == -1:
-        i = string.index(left)
-        return (string[i + 1:], (i, None))
-
-    return (None, (None, None))
+#     return (None, (None, None))
 
 
 # class ErrorStateHandler:
@@ -307,7 +336,7 @@ def _match(string, brackets, must_close=False):
 
 class BracketParser:
     """
-    Class for matching, iterating, splitting, filtering, replacing pairs of
+    Class for matching, iterating, splitting, filtering, replacing paired
     delimiters in strings.
     """
 
@@ -372,7 +401,7 @@ class BracketParser:
                 'No closing brackets for: '
                 + '\n'.join(f'{open_!r} at {pos}'
                             for open_, pos in positions.items())
-                + self.show_unpaired(string, positions)
+                + show_unpaired(string, positions)
             )
 
         if must_close == -1:
@@ -384,7 +413,8 @@ class BracketParser:
             for i in idx:
                 yield BracketPair(pair, None, (i, None), 0)
 
-    def match(self, string, must_close=False, condition=always_true):
+    def match(self, string, must_close=False, condition=always_true,
+              inside_out=False, outside_in=False):
         """
         Find a matching pair of closed brackets in the string `string` and
         return the encolsed string as well as, optionally, the indices of the
@@ -423,7 +453,9 @@ class BracketParser:
         bracket.
         """
 
-        return next(self.iterate(string, must_close, condition), None)
+        return next(self.iterate(string, must_close, condition,
+                                 inside_out, outside_in),
+                    None)
 
     def iterate(self, string, must_close=False, condition=always_true,
                 inside_out=False, outside_in=False):
@@ -461,6 +493,7 @@ class BracketParser:
 
             return
 
+        # NOTE:
         # Subtlety: The _iter method will not always yield brackets in left
         # right sequence if `must_close` is False:
         # eg: '(()'
@@ -469,16 +502,6 @@ class BracketParser:
         # Since we traverse left right, we can only know the first bracket is
         # unclosed once we reached the end of the string, so the
         # unclosed bracket at index 0 will be yielded *after* the inner bracket
-
-        # with ctx.suppress(RuntimeError):
-            # Iterable `itr` might be empty, in which case we can ignore the
-            # RuntimeError and just return
-
-        # try:
-        #     itr = next(itr)
-        # except RuntimeError as err:
-        #     from IPython import embed
-        #     embed(header="Embedded interpreter at 'src/recipes/string/brackets.py':446")
 
         if not must_close:
             itr = sorted(itr, key=op.attrgetter('indices'))
@@ -496,6 +519,7 @@ class BracketParser:
 
     # def groupby(self, *attrs):
 
+    # ------------------------------------------------------------------------ #
     def strip(self, string, condition=always_true):
         """
         Conditionally strip opening and closing brackets from the string.
@@ -555,7 +579,7 @@ class BracketParser:
 
     # def switch():
     # change bracket type
-
+    # ------------------------------------------------------------------------ #
     def split(self, string, max_split=None, must_close=False, condition=always_true):
         if string:
             return list(self.isplit(string, max_split, must_close, condition))

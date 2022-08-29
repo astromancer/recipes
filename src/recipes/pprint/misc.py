@@ -92,4 +92,4 @@ def banner(text, swoosh='=', width=80, title=None, align='^'):
 
     swoosh = swoosh * width
     pre = swoosh if title is None else overlay(title, swoosh, align)
-    return os.linesep.join((pre, text, swoosh, ''))
+    return os.linesep.join((pre, str(text), swoosh, ''))

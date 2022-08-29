@@ -1,8 +1,13 @@
+# std
 import pickle
-import pytest
-from recipes.decorators.base import decorator  # , Wrapper
 
-from pytest_cases import parametrize, fixture
+# third-party
+import pytest
+
+# local
+from recipes.decorators.base import decorator
+
+# from pytest_cases import parametrize, fixture
 
 # FUNC_TEMPLATE = """
 # @decorator{argspec}

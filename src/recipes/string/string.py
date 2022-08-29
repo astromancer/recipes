@@ -515,7 +515,7 @@ def surround(string, left, right=None, sep=''):
 
 def indent(string, width=4):
     # indent `width` number of spaces
-    return string.replace('\n', '\n' + ' ' * width)
+    return str(string).replace('\n', '\n' + ' ' * width)
 
 
 def truncate(string, size, dots=' … ', end=10):
