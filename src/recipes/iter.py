@@ -329,20 +329,20 @@ def cofilter(func_or_iter, *its):
     value of elements can be passed as the first argument, followed by the
     iterables.
     """
-    if isinstance(func_or_iter, abc.Iterable):
+    if (func_or_iter is None) or isinstance(func_or_iter, abc.Iterable):
+        # handle cofilter(None, ...) // cofilter((1, None), (2, 4))
         func = bool
         its = (func_or_iter, *its)
-
-    # handle cofilter(None, ...)
-    func = func_or_iter or bool
-    if not callable(func):
+    elif callable(func_or_iter):
+        func = func_or_iter
+    else:
         raise TypeError(f'Predicate function should be a callable object, not '
                         f'{type(func)}')
 
     # zip(*filter(lambda x: func(x[0]), zip(*its)))
 
     it00, it0 = itt.tee(its[0])
-    # note this consumes the iterator in position 0!!
+    # NOTE this consumes the iterator in position 0!!
     # find the indices where func evaluates to true
     tf = list(map(func, it00))
     # restore the original iterator sequence
