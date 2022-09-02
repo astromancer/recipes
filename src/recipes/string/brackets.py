@@ -5,6 +5,7 @@ Tools for parsing and editing strings containing (nested) brackets.
 # std
 import math
 import numbers
+import warnings as wrn
 import itertools as itt
 from collections import defaultdict
 from dataclasses import asdict, dataclass
@@ -17,7 +18,7 @@ import more_itertools as mit
 from .. import op
 from ..iter import where
 from ..functionals import always, echo0
-from . import delete
+from . import delete, named_items
 
 
 # import docsplice as doc
@@ -36,22 +37,10 @@ COMPARE_SYMBOLS = {op.eq: '==',
 INFINT = 2 ** 32
 CARET = '^'
 
+
 # ---------------------------------------------------------------------------- #
 # function that always returns True
 always_true = always(True)
-
-
-class is_outer:
-    """
-    Conditional to check if brackets are outermost enclosing pair.
-    """
-
-    def __init__(self, string):
-        self.n = len(string)
-
-    def __call__(self, match):
-        return ((match.start == match.level) and
-                (match.end == self.n - match.level - 1))
 
 
 def _resolve_max_split(max_split):
@@ -61,6 +50,40 @@ def _resolve_max_split(max_split):
     assert isinstance(max_split, numbers.Integral)
     assert max_split >= 0
     return int(max_split)  # copy
+
+
+def sort_match(match):
+    """Helper for sorting pairs of indices, either one of which may be None"""
+    return match.start if match.end is None else match.end
+    # if match.is_open():
+    #     #
+    #     o = (-1, 1)[match.indices.index(None)]
+
+    #     return (next(filter(None, match.indices)), INFINT)[::o]
+
+    # return match.indices
+
+# ---------------------------------------------------------------------------- #
+
+
+class UnpairedBracketError(ValueError):
+    """
+    Exception used when unpaired brackets encountered and `must_close=True`.
+    """
+
+    # def __init__(self, string, open_or_close, positions):
+    #     super().__init__(self, string, open_or_close, positions)
+
+    def __str__(self):
+        string, open_or_close, positions = self.args
+        return (f'No {open_or_close} bracket{"s" * (len(positions) > 1)} for: '
+                + '\n'.join(f'{open_!r} at {named_items(pos, "position")}'
+                            for open_, pos in positions.items())
+                + show_unpaired(string, positions))
+
+
+class UnpairedBracketWarning(Warning):
+    pass
 
 
 def show_unpaired(string, positions, caret=CARET):
@@ -103,9 +126,6 @@ class Condition:
                 self.indices(match.indices) and
                 self.level(match.level) and
                 self.brackets(match.brackets))
-
-
-# ---------------------------------------------------------------------------- #
 
 
 class FutureComparison:
@@ -222,6 +242,19 @@ level = conditional('level')
 #     level = level
 
 
+class is_outer:
+    """
+    Conditional to check if brackets are outermost enclosing pair.
+    """
+
+    def __init__(self, string):
+        self.n = len(string)
+
+    def __call__(self, match):
+        return ((match.start == match.level) and
+                (match.end == self.n - match.level - 1))
+
+
 def get_test(condition, string):
     """
     Function wrapper to support multiple call signatures for user defined
@@ -260,24 +293,32 @@ def get_test(condition, string):
 class BracketPair:
     """
     Object representing a pair of brackets at some position and nesting level in
-    a string.
+    a string, possibly enclosing some content.
     """
 
     brackets: Tuple[str]
-    """Characters or strings for opening and closing bracket. Must have length 2."""
+    """Characters or strings for opening and closing bracket. Must have length 2.
+    Opening and closing characters should be unique, but other than that can be
+    arbitrary strings."""
     enclosed: str
+    """The enclosed sting. May be empty, or None in the case of unclosed 
+    "pairs"."""
     indices: List[int] = (None, None)
-    """Indices of opening- and closing bracket pairs."""
+    """Integer indices of opening- and closing bracket pairs within the sample 
+    string. Either of the indices may be None."""
     level: int = 0
+    """Depth of nesting."""
 
     @classmethod
     def null(cls):
+        """Constructor for a non-existent BracketPair which may be used as a
+        sentinel."""
         return cls('{}', None, (None, None))
 
     def __post_init__(self):
         self.brackets = tuple(self.brackets)
-        self.open, self.close = self.brackets
-        self.start, self.end = self.indices
+        self.opening, self.closing = self.brackets
+        # self.start, self.end = self.indices
 
     def __iter__(self):
         yield self.enclosed
@@ -289,11 +330,24 @@ class BracketPair:
     def __bool__(self):
         return any((self.enclosed, *self.indices))
 
+    @property
+    def start(self):
+        return self.indices[0]
+
+    @property
+    def end(self):
+        return self.indices[1]
+
     # @ftl.cached_property
     @property
     def full(self):
         return self.enclosed.join(self.brackets)
 
+    def is_open(self):
+        return None in self.indices
+
+    def is_closed(self):
+        return not self.is_open()
 
 # def _match(string, brackets, must_close=False):
 
@@ -353,10 +407,12 @@ class BracketParser:
         if not pairs:
             pairs = ALL_BRACKET_PAIRS
         self.pairs = list(set(pairs))
-        self.open, self.close = zip(*self.pairs)
-        self._open_close = ''.join(self.open) + ''.join(self.close)
+        self.opening, self.closing = zip(*self.pairs)
+        self._open_close = ''.join(self.opening) + ''.join(self.closing)
         self.pair_map = pm = dict(pairs)
         self.pair_map.update(dict(zip(pm.values(), pm.keys())))
+        #
+        # self._unclosed_unordered = False
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.pairs})'
@@ -376,58 +432,158 @@ class BracketParser:
         positions = defaultdict(list)
         open_ = defaultdict(int)
         for j, b in self._index(string):
-            if b in self.open:
+            if b in self.opening:
+                # opening bracket
                 positions[b].append(j)
                 open_[b] += 1
                 # logger.debug('Opening bracket: {} at {}', b, j)
             else:
+                # closing bracket
                 o = self.pair_map[b]
                 open_[o] -= 1
                 if pos := positions[o]:
                     i = pos.pop(-1)
                     yield BracketPair((o, b), string[i + 1:j], (i, j),
                                       len(positions[o]))
+
                 elif must_close == 0:
                     yield BracketPair((o, b), None, (None, j), 0)
 
                 elif must_close == 1:
-                    raise ValueError(f'No opening bracket for: {b!r} at {j}.\n'
-                                     f'{show_unpaired(string, positions)}')
-                    # must_close == -1 doesn't yield anything
+                    raise UnpairedBracketError(string, 'opening', {b: j})
+
+                # NOTE: `must_close == -1` doesn't yield anything, just continue
 
         # Handle unclosed brackets
         if (must_close == 1) and any(positions.values()):
-            raise ValueError(
-                'No closing brackets for: '
-                + '\n'.join(f'{open_!r} at {pos}'
-                            for open_, pos in positions.items())
-                + show_unpaired(string, positions)
-            )
+            raise UnpairedBracketError(string, 'closing', positions)
 
         if must_close == -1:
             return
 
-        # Fill None for missing bracket indices
+        # If we're here `must_close == 0`: fill None for missing bracket indices
         for b, idx in positions.items():
+            # Check if b is opening, Items will be unordered, we have to keep
+            # track of the state if we want to deliver the pairs in a requested
+            # order
+            if b in self.opening and idx and idx != [len(string) + 1]:
+                wrn.warn('Unclosed opening brackets in string. Items will be '
+                         'out of order. Use the `findall` method for obtaining '
+                         'an index-ordered list braces.', UnpairedBracketWarning)
+
+            # opening, closing characters
             pair = tuple(sorted([b, self.pair_map[b]]))
             for i in idx:
                 yield BracketPair(pair, None, (i, None), 0)
 
-    def match(self, string, must_close=False, condition=always_true,
-              inside_out=False, outside_in=False):
+    def iterate(self, string, must_close=False, condition=always_true,
+                inside_out=False, outside_in=False):
         """
-        Find a matching pair of closed brackets in the string `string` and
-        return the encolsed string as well as, optionally, the indices of the
-        bracket pair.
-
-        Will return only the first (and outermost) closed pair if the input
-        string `string` contains multiple closed bracket pairs. To iterate over
-        bracket pairs, use `iter_brackets`.
+        Parse a string by finding (pairs of) (possibly nested) brackets.
 
         Parameters
         ----------
         string : str
+            The string to be parsed. May contain (pairs of) brackets  .
+        must_close : {-1, 0, 1}
+            Defines the behaviour when an unclosed of bracket is encountered:
+            -1          : Silently ignore
+             0 or False : Yield BracketPair with None at missing index
+             1 or True  : raises ValueError
+
+        Yields
+        -------
+        match : BracketPair
+        """
+
+        # logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
+        #              self.brackets, string, condition)
+        itr = self._iter(string, must_close)
+
+        # if self._unclosed_unordered:
+        #     itr = self._unclosed_reorder(itr) # pointless
+
+        # get condition test call signature
+        test = get_test(condition, string)
+        
+        # Check if condition requires `level`
+        if ((must_close == 0) and
+            (isinstance(test, is_outer) or
+             (isinstance(test, Condition) and (test.level is not always_true)))):
+            # User asked for filter on `level`. Since `level` may change due to
+            # unclosed braces, we have to unpack here if we have any unclosed.
+            with wrn.catch_warnings():
+                wrn.simplefilter('ignore', UnpairedBracketWarning)
+                itr = filter(test, list(self._unclosed_reorder(itr)))
+
+        else:
+            itr = filter(test, itr)
+
+        if inside_out or outside_in:
+            levels = defaultdict(list)
+            for match in itr:
+                levels[match.level].append(match)
+
+            for lvl in sorted(levels.keys(), reverse=inside_out):
+                yield from levels[lvl]
+
+            return
+
+        # This just yield pairs at any level in he order that they are closed
+        yield from itr
+
+    # alias
+    iter = iterate
+
+    def _unclosed_reorder(self, itr):
+        # NOTE:
+        # Subtlety: The _iter method will not always yield brackets in left
+        # right sequence if `must_close` is False:
+        # eg: '(()'
+        # In this case, it is ambiguous whether the first or middle bracket is
+        # unclosed.
+        # Since we traverse left right, we can only know the first bracket is
+        # unclosed once we reached the end of the string, so the unclosed
+        # bracket at index 0 will be yielded *after* the inner bracket
+
+        # In this case we also have to fix the levels
+
+        n_open = 0
+        for match in sorted(itr, key=sort_match):
+            if match.indices[1] is None: # Open bracket with missing closing 
+                n_open += 1
+            else:
+                match.level -= n_open
+
+            yield match
+
+    def match(self, string, must_close=False, condition=always_true,
+              inside_out=False, outside_in=True): 
+        """
+        Search the string for a single (pair of) bracket(s). With the default
+        parameters, this method returns the first (and outermost) bracket pair.
+        The remaining parameters can be used to control which bracket (pair) will
+        be matched, and whether unclosed brackets should be accepted.
+         
+        To iterate over multiple bracket pairs, use the `iterate` method.
+
+        Parameters
+        ----------
+        string : _type_
             The string to search for a bracket pair.
+        must_close : bool, optional
+            _description_, by default False
+        condition : _type_, optional
+            _description_, by default always_true
+        inside_out : bool, optional
+            _description_, by default False
+        outside_in : bool, optional
+            _description_, by default True
+        
+        Parameters
+        ----------
+        string : str
+            
         must_close : bool, optional
             Defines the behaviour for unclosed pairs of brackets:
             -1          : Silently ignore
@@ -457,69 +613,32 @@ class BracketParser:
                                  inside_out, outside_in),
                     None)
 
-    def iterate(self, string, must_close=False, condition=always_true,
-                inside_out=False, outside_in=False):
-        """
-        Parse `string` by finding pairs of brackets.
-
-        Parameters
-        ----------
-        string : str
-            A string potentially containing pairs of (possibly nested) brackets.
-        must_close : {-1, 0, 1}
-            Defines the behaviour when an unclosed of bracket is encountered:
-            -1          : Silently ignore
-             0 or False : Yield BracketPair with None at missing index
-             1 or True  : raises ValueError
-
-        Yields
-        -------
-        match : BracketPair
-        """
-
-        # get condition test call signature
-        test = get_test(condition, string)
-        # logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
-        #              self.brackets, string, condition)
-        itr = filter(test, self._iter(string, must_close))
-
-        if inside_out or outside_in:
-            levels = defaultdict(list)
-            for match in itr:
-                levels[match.level].append(match)
-
-            for lvl in sorted(levels.keys(), reverse=inside_out):
-                yield from levels[lvl]
-
-            return
-
-        # NOTE:
-        # Subtlety: The _iter method will not always yield brackets in left
-        # right sequence if `must_close` is False:
-        # eg: '(()'
-        # In this case, it is ambigous whether the first or middle bracket is
-        # unclosed.
-        # Since we traverse left right, we can only know the first bracket is
-        # unclosed once we reached the end of the string, so the
-        # unclosed bracket at index 0 will be yielded *after* the inner bracket
-
-        if not must_close:
-            itr = sorted(itr, key=op.attrgetter('indices'))
-
-        # This just yield pairs at any level from left to right in the string
-        yield from itr
-
     def findall(self, string, must_close=False, condition=always_true,
                 inside_out=False, outside_in=False):
         """
         List all BracketPairs
         """
-        return list(self.iterate(string, must_close, condition,
-                                 inside_out, outside_in))
+
+        with wrn.catch_warnings(record=True) as warnings:
+            wrn.simplefilter('always', UnpairedBracketWarning)
+
+            # Unclosed opening braces will be yield out of order when iterating,
+            # we have to keep track of the state if we want to deliver the pairs
+            # in a requested order
+
+            out = list(self.iterate(string, must_close, condition,
+                                    inside_out, outside_in))
+            # handle out of order unclosed
+            if warnings:
+                print(warnings)
+                return list(self._unclosed_reorder(out))
+
+        return out
 
     # def groupby(self, *attrs):
 
     # ------------------------------------------------------------------------ #
+
     def strip(self, string, condition=always_true):
         """
         Conditionally strip opening and closing brackets from the string.
@@ -691,8 +810,8 @@ class BracketParser:
         # HACK
         from recipes.string import sub
 
-        inverses = dict((*zip(braces.open, braces.close),
-                         *zip(braces.close, braces.open)))
+        inverses = dict((*zip(braces.opening, braces.closing),
+                         *zip(braces.closing, braces.opening)))
         reversed_ = self.csplit(sub(string[::-1], inverses), delimiter, max_split)
         return [sub(rev[::-1], inverses) for rev in reversed(reversed_)]
 
@@ -703,7 +822,7 @@ class BracketParser:
                    for match in self._iter(string, must_close=False))
 
     def encloses(self, string):
-        return string.startswith(self.open) and string.endswith(self.close)
+        return string.startswith(self.opening) and string.endswith(self.closing)
 
     def depth(self, string):
         """
