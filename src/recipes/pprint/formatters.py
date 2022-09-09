@@ -26,9 +26,9 @@ UNICODE_MULTIPLIERS = {'x':   '×',      # '\N{MULTIPLICATION SIGN}'
 # ⑽ Parenthesized Number Ten
 
 # LaTeX
-LATEX_TRANSLATIONS = {'inf':    r'\infty'}
-LATEX_MULTIPLIERS = {'x':      r'\times',
-                     '.':      r'\cdot'}
+LATEX_TRANSLATIONS = {'inf':   R'\infty'}
+LATEX_MULTIPLIERS = {'x':      R'\times',
+                     '.':      R'\cdot'}
 
 #
 MASKED_CONSTANT = '--'
@@ -145,7 +145,7 @@ class Decimal:
             if int:
                 Decimal precision (absolute) for format.
             if None, the default:
-                precision = 1 if the abs(number) is larger than 1. eg. 100.1
+                precision = 1 if the `abs(number)` is larger than 1. eg. 100.1
                 Otherwise it is chosen such that at least 3 significant digits
                 are shown: eg: 0.0000345 or 0.985
         significant : int, optional
@@ -571,7 +571,7 @@ class FractionOf:
     templates = dict(
         ascii=('{n}{symbol}', '{n}{symbol}/{d}'),
         unicode=('{n}{symbol}', '{n}{symbol}/{d}'),
-        latex=('${n}{symbol}$', r'$\frac{{{n}{symbol}}}{{{d}}}$')
+        latex=('${n}{symbol}$', R'$\frac{{{n}{symbol}}}{{{d}}}$')
     )
 
     def __init__(self, symbols=(), **kws):
@@ -627,7 +627,7 @@ class FractionOfPi(FractionOf):
     def __init__(self):
         super().__init__(ascii='pi',
                          unicode='π',
-                         latex=r'\pi')
+                         latex=R'\pi')
         
     def from_radian(self, n, _pos=None, style='latex'):
         return self.format(n / math.pi, style)

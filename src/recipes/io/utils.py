@@ -15,6 +15,7 @@ import warnings as wrn
 import itertools as itt
 import contextlib as ctx
 from pathlib import Path
+from warnings import warn
 
 # third-party
 import more_itertools as mit
@@ -22,11 +23,11 @@ from loguru import logger
 
 # local
 import docsplice as doc
-from recipes.string import sub
-from recipes.bash import brace_expand_iter
-from recipes.string.brackets import BracketParser
 
 # relative
+from ..string import sub
+from ..bash import brace_expand_iter
+from ..string.brackets import BracketParser
 from ..functionals import echo0
 
 
@@ -103,7 +104,14 @@ def load_json(filename, **kws):
 def save_json(filename, data, **kws):
     serialize(filename, data, json, **kws)
 
+
 # ---------------------------------------------------------------------------- #
+# def _unpack_braced(patterns):
+#     for pattern in patterns:
+#         if bool(braces.match(pattern, must_close=True)):
+#             yield from brace_expand_iter(pattern)
+#         else:
+#             yield pattern
 
 
 def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
@@ -159,6 +167,10 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
             yield file
 
 
+def _maybe_newline(string, width=40, indent=' ' * 2):
+    return f'\n{indent}{string}' if len(string) > width else string
+
+
 def _iter_files(path_or_pattern, extensions='*', recurse=False):
 
     path_or_pattern = str(path_or_pattern)
@@ -170,7 +182,7 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
     if special | wildcard:
         logger.opt(lazy=True).debug(
             'Special pattern detected: {!s}',
-            lambda: f'\n' * (len(s := path_or_pattern) > 40) + s
+            lambda: _maybe_newline(path_or_pattern)
         )
         itr = (brace_expand_iter(path_or_pattern) if special else
                glob.iglob(path_or_pattern, recursive=recurse))
@@ -347,7 +359,7 @@ def _show_lines(filename, lines, n=10, dots='.\n' * 3):
     n = min(n, n_lines)
     if n_lines and n:
         msg = (f'Read file {filename!r} containing:'
-               f'\n\t'.join([''] + lines[:n]))
+               f'\n    '.join([''] + lines[:n]))
         # Number of ellipsis dots (one per line)
         ndot = dots.count('\n')
         # TODO: tell nr omitted lines
@@ -401,7 +413,7 @@ def write_lines(stream, lines, eol='\n', eof=''):
         try:
             stream.write(next(itr))
         except StopIteration:
-            wrn.warning(f'Empty lines or iterable. Nothing written to {stream!r}.')
+            warn(f'Empty lines or iterable. Nothing written to {stream!r}.')
             return
 
         # write remaining lines

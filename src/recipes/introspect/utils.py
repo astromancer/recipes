@@ -8,10 +8,10 @@ import sys
 import pkgutil
 import inspect
 import contextlib
-import warnings as wrn
 import functools as ftl
 from typing import cast
 from pathlib import Path
+from warnings import warn
 from types import FrameType, MethodType
 
 # third-party
@@ -189,7 +189,7 @@ def _(path, depth=None):
         name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
         return name.rstrip('/').replace('/', '.')
 
-    wrn.warn(f"Could not find package name for '{path}'.")
+    warn(f"Could not find package name for '{path}'.")
 
 
 # def get_module_name(filename, depth=1):

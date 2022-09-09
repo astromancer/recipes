@@ -256,15 +256,16 @@ def merge(*mappings, **kws):
     Examples
     --------
     >>> merge(*({f'{(l := case(letter))}': ord(l)} 
-    ...        for case in (str.upper, str.lower) for letter in 'abc'))
-    {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99}
+    ...        for case in (str.upper, str.lower) for letter in 'abc'),
+    ...       z=100)
+    {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99, 'z': 100}
 
     Returns
     -------
     dict
-        Merged dict
-
+        Merged dictionary.
     """
+
     out = {}
     for mapping in mappings:
         out.update(mapping)

@@ -58,7 +58,6 @@ def sort_match(match):
     # if match.is_open():
     #     #
     #     o = (-1, 1)[match.indices.index(None)]
-
     #     return (next(filter(None, match.indices)), INFINT)[::o]
 
     # return match.indices

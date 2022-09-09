@@ -75,8 +75,8 @@ def show_diff(actual, expected):
     multiline strings.
     """
 
-    return ''.join(difflib.unified_diff(actual.splitlines(True),
-                                        expected.splitlines(True)))
+    return '\n'.join(difflib.ndiff(actual.splitlines(True),
+                                 expected.splitlines(True)))
 
 
 class WrapArgs:
@@ -227,6 +227,9 @@ class Expected(LoggingMixin):
         self.is_test = name.startswith('test_')
         # crude test for whether this function is defined in a class scope
         self.is_method = (name != func.__qualname__)
+        self.logger.opt(lazy=True).debug(
+            '{}', lambda: f'{self.is_method = }, {name = }, '
+                          f'{func.__qualname__ = }')
         self.is_dispatch = all(hasattr(func, _) for _ in
                                {'register', 'dispatch', 'registry'})
 
@@ -354,7 +357,6 @@ class Expected(LoggingMixin):
         for spec in items:
             # call signature emulation via mock handled here
             spec, result = spec
-
             if not isinstance(spec, WrapArgs):
                 # simple construction without use of mock function.
                 # ==> No keyword values in arg spec
@@ -437,7 +439,7 @@ class Expected(LoggingMixin):
                 '{end}Result from function {func.__name__:s|green}'
                 ' is not equal to expected answer!',
                 func=self.func, end=motley.codes.END
-            ) + (f'\nRESULT:\n{answer!r}'
+            ) + (f'\nRESULT:  \n{answer!r}'
                  f'\nEXPECTED:\n{expected!r}')
             if isinstance(answer, str) and isinstance(expected, str):
                 diff_string = show_diff(repr(answer), repr(expected))

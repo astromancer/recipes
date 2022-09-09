@@ -6,7 +6,7 @@ Say you have an API function:
 >>> def stamp(labeled=True, color='default', center=False):
 ...     'does a thing'
 
-Your users might attempt the following:
+Your users might reasonably attempt the following:
 >>> stamp(centre=True, colour='green', labelled='order 66')
 unwittingly having used a variant spelling of the parameter names that is
 natural to their local. This will of course lead to an error. Unless...
@@ -24,11 +24,12 @@ Now, like magic, our function will work with the alternatives we gave it via the
 regexes above at the cost of a small overhead for each misspelled parameter.
 """
 
-# Keyword translation on-the-fly for flexible APIs.
+# Keyword translation on-the-fly for flexible, typo tollerant APIs.
 # If you are like me, and often misremember keyword arguments for classes or
 # functions, (especially those with giant signatures [1,2,3]), this module will
 # help you! It matches your typo to the actual API keyword, and corrects your
-# mistake with an optional logged notification.
+# mistake with an optional logged notification. 
+# # TODO You can also issue deprecation notifications
 
 
 # std
@@ -209,11 +210,13 @@ class Synonyms(Decorator):
 
     def resolve(self, args, kws):  # namespace=None,
         """
-        Map the input keywords in `kws` to their correct form. If given, values
-        from the `namespace` dict replace those in kws if their corresponging
-        keywords are valid parameter names for `func` and they are non-default
-        values.
+        Translate the keys in `kws` dict to the correct one for the hard api.
         """
+        
+        # If given, values from the `namespace` dict replace those in kws if
+        # their corresponging keywords are valid parameter names for `func` and
+        # they are non-default values.
+        
         # get arg names and defaults
         # bound = self.signature.bind_partial(*args)
         params = self.signature.parameters.values()
@@ -240,7 +243,7 @@ class Synonyms(Decorator):
         #         if (val := namespace[argname]) is not defaults[i]:
         #             params[argname] = val
 
-        # resolve terse kws and add to dict
+        # resolve kws and add to dict
         kws = {**{p.name: val for val, p in groups.get(PKW, {})},
                **{self.resolve_key(key): val for key, val in kws.items()}}
         return args, kws

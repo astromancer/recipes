@@ -6,8 +6,8 @@ Utilities for operations on strings
 # std
 import re
 import numbers
-import warnings as wrn
 import itertools as itt
+from warnings import warn
 from collections import abc
 
 # third-party
@@ -709,7 +709,7 @@ def _justify(text, align, width, length_func, formatter):
     widest = max(linewidths)
     width = int(width or widest)
     if widest > width:
-        wrn.warn(f'Requested paragraph width of {width} is less than the '
+        warn(f'Requested paragraph width of {width} is less than the '
                  f'length of widest line: {widest}.')
 
     if align != ' ':
@@ -804,7 +804,7 @@ def _get_hstack_columns(strings, spacing, offsets, width_func):
     for string, off in itt.zip_longest(strings, offsets, fillvalue=0):
         lines = str(string).splitlines()
         max_length = max(len(lines), max_length)
-        widths.append(width_func(lines))   # ansi.length_seen(lines[0])
+        widths.append(width_func(lines))   # ansi.length(lines[0])
         lines_list.append(([''] * off) + lines)
 
     # Intersperse columns with whitespace
