@@ -28,7 +28,7 @@ regexes above at the cost of a small overhead for each misspelled parameter.
 # If you are like me, and often misremember keyword arguments for classes or
 # functions, (especially those with giant signatures [1,2,3]), this module will
 # help you! It matches your typo to the actual API keyword, and corrects your
-# mistake with an optional logged notification. 
+# mistake with an optional logged notification.
 # # TODO You can also issue deprecation notifications
 
 
@@ -36,16 +36,14 @@ regexes above at the cost of a small overhead for each misspelled parameter.
 import re
 import inspect
 import itertools as itt
-from typing import Type
 
 # third-party
 from loguru import logger
 
 # relative
-from ..dicts import groupby
+from ..functionals import Emit
 from ..decorators import Decorator
 from ..string.brackets import BracketParser
-from ..functionals import Emit
 
 
 def _ordered_group(word):
@@ -160,12 +158,11 @@ class Synonyms(Decorator):
     """
     Decorator for function parameter translation.
     """
-    # emit = Emit
-
     # TODO: detect ambiguous mappings
 
-    def __init__(self, mappings=(), /, mode='simple', emit='warn'):
-        self.emit = Emit(emit, TypeError)
+    def __init__(self, mappings=(), /, mode='regex', action='warn'):
+        # TODO **kws for simple mappings labels=label
+        self.emit = Emit(action, TypeError)
         self.resolvers = []
         self.update(mappings, mode)
         self.func = None
@@ -173,85 +170,69 @@ class Synonyms(Decorator):
 
     def __call__(self, func):
         self.func = func
-        self.signature = inspect.signature(func)
-        self._param_names = tuple(self.signature.parameters.keys())
+        self.signature = sig = inspect.signature(func)
+        self._param_names = tuple(sig.parameters.keys())
+        self._has_vkw = (inspect._ParameterKind.VAR_KEYWORD in
+                         {p.kind for p in sig.parameters.values()})
         return super().__call__(func)
 
     def __wrapper__(self, func, *args, **kws):
-        args, kws = self.resolve(args, kws)  
-        return func(*args, **kws)
+        if not self._has_vkw:
+            args, kws = self.resolve(args, kws)
+            return func(*args, **kws)
 
-        # except TypeError as err: # FIXME: only works if func has no var kws
-        #     if ((e := str(err)).startswith(func.__name__) and
-        #             ('unexpected keyword argument' in e)):
-        #         #
-        #         logger.debug('Caught {}\n. Attempting keyword translation.', err)
-        #         args, kws = self.resolve(args, kws)
-        #         logger.debug('Re-trying function call {}(...) with synonymous '
-        #                      'keywords.', func.__name__)
-        #         return func(*args, **kws)
+        try:
+            return func(*args, **kws)
+        except TypeError as err:  # NOTE: only works if func has no variadic kws
+            if ((e := str(err)).startswith(func.__name__) and
+                    ('unexpected keyword argument' in e)):
+                #
+                logger.debug('Caught {}\n. Attempting keyword translation.', err)
+                args, kws = self.resolve(args, kws)
+                logger.debug('Re-trying function call {}(...) with synonymous '
+                             'keywords.', func.__name__)
+                return func(*args, **kws)
 
-        #     raise
+            raise
 
     def __repr__(self):
         return repr(self.resolvers)
 
-    def update(self, mappings=(), /, _mode='simple'):
+    def update(self, mappings=(), /, _mode='regex'):
         """
         Update the translation map.
         """
 
         translator = {'simple': KeywordTranslate,
                       'regex': RegexTranslate}[_mode]
-        
+
         for directive, target in dict(mappings).items():
             # if isinstance(k, str)
             self.resolvers.append(translator(directive, target))
 
-    def resolve(self, args, kws):  # namespace=None,
+    def resolve(self, args, kws):    # namespace=None,
         """
         Translate the keys in `kws` dict to the correct one for the hard api.
         """
-        
-        # If given, values from the `namespace` dict replace those in kws if
-        # their corresponging keywords are valid parameter names for `func` and
-        # they are non-default values.
-        
-        # get arg names and defaults
-        # bound = self.signature.bind_partial(*args)
-        params = self.signature.parameters.values()
-        # _, args = cogroup(params, args, key=op.attrgetter('kind'))
-        groups = groupby(zip(args, params), lambda p: p[1].kind)
-        args = next(zip(*groups.get(POS, ()), *groups.get(VAR, ())), ())
+        sig = self.signature
+        param_types = {par.name: par.kind
+                       for par in sig.parameters.values()}
 
-        # for key, val in kws.items():
-        #     key = self.resolve_key(key)
+        # resolve kws
+        kws = {self.resolve_key(key): val
+               for key, val in kws.items()}
 
-        # func = self.func
-        # code = func.__code__
-        # defaults = func.__defaults__
-        # arg_names = code.co_varnames[1:code.co_argcount]
+        new = []
+        args = iter(args)
+        for (name, kind) in param_types.items():
+            if kind in (KWO, VKW):
+                break
 
-        # load the defaults / passed args
-        # n_req_args = len(arg_names) - len(defaults)
-        # opt_arg_names = arg_names[n_req_args:]
+            new.append(kws.pop(name) if name in kws else next(args, ()))
 
-        # params = {}
-        # now get non-default arguments (those passed by user)
-        # if namespace is not None:
-        #     for i, argname in enumerate(arg_names[n_req_args:]):
-        #         if (val := namespace[argname]) is not defaults[i]:
-        #             params[argname] = val
+        new.extend(args)
 
-        # resolve kws and add to dict
-        kws = {**{p.name: val for val, p in groups.get(PKW, {})},
-               **{self.resolve_key(key): val for key, val in kws.items()}}
-        return args, kws
-
-        # `params` now has keys which are the correct parameter names for
-        # self.func. `params` values are either the function default or user
-        # input value from namespace or kws.
-        # return params
+        return new, kws
 
     # @ftl.lru_cache()
     def resolve_key(self, key):
@@ -267,3 +248,7 @@ class Synonyms(Decorator):
         return key
 
         # raise KeyError(f'Invalid parameter {key!r} for {describe(self.func)}')
+
+
+# alias
+synonyms = Synonyms
