@@ -95,7 +95,7 @@ class Cached(Decorator, LoggingMixin):
 
     Features:
         : Keyword parameters fully supported.
-        : Works on any picklable callable.
+        : Works on any callable object that is picklable.
         : Optional type coercion of parameter values prior to caching (typing).
         : Conditionally ignore specific parameters, or entirely reject an entry,
           based on user specified conditionals.
@@ -109,11 +109,12 @@ class Cached(Decorator, LoggingMixin):
           non-hashable default arguments.
 
     TODOs:
-        not thread safe.
+        thread safety.
         some stats like ftl.lru_cache
         limit capacity in MB
         more serialization formats
         more cache types
+        telemetry to see if chache is amortising compute costs or not
 
     """
 
@@ -151,7 +152,8 @@ class Cached(Decorator, LoggingMixin):
             including any keywords passed to the function. Parameters can be
             given in the `typed` by their name (string), or position (int) for
             position-only or positional-or-keyword parameters. If a parameter is
-            not found in the `typed`, we default to the builtin hash mechanism.
+            not found in the `typed` mapping, we default to the builtin hash
+            mechanism.
 
         Examples
         --------
@@ -258,15 +260,16 @@ class Cached(Decorator, LoggingMixin):
         if key_types:
             for key in tuple(mapping.keys()):
                 if isinstance(key, numbers.Integral):
-                    mapping[key] = names.pop(key)
+                    mapping[names[key]] = mapping.pop(key)
                 key_types -= {type(key)}
+                
         if key_types:
             raise ValueError(f'Hash map key has incorrect types {key_types}.')
 
         # all keys are now str
         if invalid := (set(mapping.keys()) - set(names)):
-            raise ValueError(f'{describe(self.__wrapped__).title()} takes no '
-                             f'{named_items(invalid, "parameter")}.')
+            raise ValueError(f'{describe(self.__wrapped__)} takes no '
+                             f'{named_items(list(invalid), "parameter")}.')
 
     def _gen_hash_key(self, args, kws):
         """
