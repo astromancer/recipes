@@ -139,20 +139,26 @@ def _(string, rhs, test=op.eq, start=0):
     assert callable(test)
 
     # if comparing to rhs substring with non-unit length
-    if (n := len(rhs) > 1):
+    if (n := len(rhs)) > 1 and (test != op.contained):
         yield from multi_index(windowed(string, n), rhs, test, start)
         return
-
-    i = start
-    while i < len(string):
-        try:
-            i = string.index(rhs, i)
-            yield i
-        except ValueError:
-            # done
-            return
-        else:
-            i += 1
+    
+    yield from multi_index(iter(string), rhs, test, start)
+    return
+    
+    # if test is not op.eq:
+        
+        
+    # i = start
+    # while i < len(string):
+    #     try:
+    #         i = string.index(rhs, i)
+    #         yield i
+    #     except ValueError:
+    #         # done
+    #         return
+    #     else:
+    #         i += 1
 
 
 @multi_index.register(abc.Iterable)
@@ -166,7 +172,10 @@ def _(obj, rhs, test=op.eq, start=0):
             yield i
 
         if i >= SAFETY_LIMIT:
-            raise ValueError('Infinite iterable?')
+            raise ValueError('Infinite iterable? If this is wrong, please '
+                             'increase the `SAFETY_LIMIT`. eg: \n'
+                             '>>> import recipec.iter as itr\n'
+                             '... itr.SAFETY_LIMIT = 1e9')
 
 
 def windowed(obj, size, step=1):
