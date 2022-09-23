@@ -2,8 +2,12 @@
 A small API for persistent caching
 """
 
+from . import hashers
 from .caches import *
 from .decor import Cached, Ignore, Reject
+
+# import os
+# os.environ['PYTHONHASHSEED'] = 789
 
 
 # ---------------------------------------------------------------------------- #
