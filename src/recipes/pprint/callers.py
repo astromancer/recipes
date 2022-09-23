@@ -55,11 +55,11 @@ def describe(obj, sep=' ', repr=repr):
 
     if isinstance(obj, type):
         if obj.__module__ == 'builtins':
-            return 'class ' + repr(obj.__name__)
-            
+            return f'class {repr(obj.__name__)}'
+
         # obj is a class
         return 'class ' + repr(f'{obj.__module__}.{obj.__name__}')
-        # return str(obj).strip("<>")
+            # return str(obj).strip("<>")
 
     if hasattr(obj, '__qualname__'):
         # any function or method
@@ -75,8 +75,7 @@ def parameter(par, val_formatter=repr):
 
     # Add annotation and default value
     if par._annotation is not _empty:
-        formatted = '{}: {}'.format(formatted,
-                                    inspect.formatannotation(par._annotation))
+        formatted = f'{formatted}: {inspect.formatannotation(par._annotation)}'
 
     if par._default is not _empty:
         space = ' ' * (par._annotation is not _empty)
@@ -195,8 +194,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
               value_formatter=repr, pep570_marks=True):
 
     # format each parameter as 'param=value' pair
-    with_params = (args or kws)
-    if with_params:
+    if (args or kws):
         # with parameter values provided
         ba = sig.bind(*args, **(kws or {}))
         if show_defaults:
@@ -271,9 +269,9 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     if wrap:
         wrap -= indent
 
-    if widest > wrap:
-        # truncate!!
-        pass
+    # if widest > wrap:
+    #     # truncate!!
+    #     pass
 
     ppl = ppl or 100
 
@@ -296,11 +294,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     s += line
     s = txw.indent(s, ' ' * indent).lstrip('\n')
 
-    if hang:
-        s = f'\n{s}\n'
-    else:
-        s = s.lstrip()
-
+    s = f'\n{s}\n' if hang else s.lstrip()
     return s.join('()')
 
 # @docsplice

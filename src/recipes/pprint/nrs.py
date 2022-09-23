@@ -1193,12 +1193,12 @@ def decimal_u(x, u, precision=None, short=False,
     ur = decimal(u, precision, 0, '', short)
 
     if unicode:
-        return '%s ± %s' % (xr, ur)
+        return f'{xr} ± {ur}'
 
     if latex:
         return r'$%s \pm %s$' % (xr, ur)
 
-    return '%s +/- %s' % (xr, ur)
+    return f'{xr} +/- {ur}'
 
 
 # def vectorize():

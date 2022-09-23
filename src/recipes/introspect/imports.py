@@ -31,6 +31,24 @@ from ..string import remove_prefix, truncate
 from ..io import open_any, read_lines, safe_write
 from .utils import BUILTIN_MODULE_NAMES, get_module_name
 
+# FIXME:
+# # relative
+# from .. import ansi, codes, formatters
+# from .xlsx import XlsxWriter
+# from .column import resolve_column
+# from ..utils import resolve_alignment
+# from .utils import *
+# from ..formatter import stylize
+# 
+# BECOMES
+# 
+# # relative
+# from .. import ansi, codes, formatters
+# from ..formatter import stylize
+# from ..utils import *, resolve_alignment #<--FIXME THIS IS WRONG!!!!
+# from .xlsx import XlsxWriter
+# from .column import resolve_column
+
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed

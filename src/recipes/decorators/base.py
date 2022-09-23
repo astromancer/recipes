@@ -97,29 +97,32 @@ class Decorator:
     1) No explicit arguments provided to decorator.
     eg.:
     >>> @decorator
-    ... def fun(): ...
+    ... def fun():
+    ...     ...
 
     2) Explicit arguments and/or keywords provided to decorator.
     eg.:
     >>> @decorator('hello', foo='bar')
-    ... def baz(*args, **kws): ...
+    ... def baz(*args, **kws): 
+    ...     ...
 
-    The function is wrapped by running the `__call__` method of this class. The
-    actual decorator should be implemented by overriding `__wrapper__` method.
-    The `__call__` method assigns the original function to the `__wrapped__`
-    attribute of the `Decorator` instance, and updates the `__wrapper__` method
-    to mimic the call signature and documentation of the original function by
-    running `functools.update_wrapper`.
+    The function wrapper is created by running the `__call__` method of this
+    class, which uses the `decorate` function from the `decorator` library under
+    the hood. The actual decorator should be implemented by overriding
+    `__wrapper__` method. The `__call__` method assigns the original function to
+    the `__wrapped__` attribute of the `Decorator` instance, and updates the
+    `__wrapper__` method to mimic the call signature and documentation of the
+    original function by running `functools.update_wrapper`.
 
     Considering the usage patterns above:
     In the first case (no parameters to decorator), the wrapper will be built
-    upon construction by running `__call__` (with the function `foo` as the only
+    upon construction by running `__call__` (with the function `fun` as the only
     parameter) inside `__new__`. Initialization here is trivial.
 
     In the second use case, the `__init__` method should be implemented to
     handle the parameters ('hello', foo='bar') passed to the decorator
     constructor. As before, the `__call__` method creates the wrapper and
-    returns the `__wrapper__` method as the new decorated function.
+    returns the `__wrapper__` method as the new function.
 
     By default, this decorator does nothing besides call the original function. 
     Subclasses should implement the `__wrapper__` method to do the desired work.
@@ -129,9 +132,9 @@ class Decorator:
     ...         return self.func(*args, **kws) + 1
 
     NOTE: The use case above is identified based on the type of object the
-    constructor receives as the first argument. It is therefore not possible to
-    use this decorator if the first argument to the initializer is a some
-    callable. This will not work as expected:
+    constructor receives as the first argument. It is therefore impossible to
+    use this decorator if the first argument to the initializer is intended to
+    be some callable. This will not work as expected:
 
     >>> class coerce_first_param(decorator):
     ...     def __init__(self, new_type):
@@ -142,9 +145,10 @@ class Decorator:
     ...         return self.__wrapped__(self.new_type(obj))
     ...
     ... @coerce_first_param(str)    # NOPE!
-    ... def buz(): ...
+    ... def buz(): 
+    ...     ...
 
-    This can be fixed by passing your callable to the initializer as a
+    This can be remedied by passing your callable to the initializer as a
     keyword parameter:
     >>> @coerce_first_param(new_type=str)    # OK!
     ... def buz():
@@ -156,7 +160,8 @@ class Decorator:
     # Purists might argue that this class is an anti-pattern since it invites
     # less explicit constructs that are confusing to the uninitiateod.
     # Here it is. Use it. Don't use it. Up to you.
-    __wrapped__ = None
+    # __wrapped__ = None
+    __slots__ = '__wrapped__'
 
     def __new__(cls, maybe_func=None, *_, **__):
         # create class
@@ -191,7 +196,7 @@ class Decorator:
         """
         assert callable(func)
         self.__wrapped__ = func
-        # func.__wrapper__ = self.__wrapper__
+        func.__wrapper__ = self.__wrapper__
         # print('__wrapped__', self.__wrapped__, type(func), inclass(func))
         return decorate(func, self.__wrapper__)
         # ftl.update_wrapper(decorated, func)
@@ -209,4 +214,4 @@ class Decorator:
 
 
 # alias
-decorator = Decorator  # pylint: disable=invalid-name
+decorator = Decorator

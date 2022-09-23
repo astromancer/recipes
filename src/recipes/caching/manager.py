@@ -24,10 +24,8 @@ from . import Cache, DEFAULT_CAPACITY
 
 
 def lists_to_tuples(item):
-    if isinstance(item, list):
-        # recurse
-        return tuple(map(lists_to_tuples, item))
-    return item
+    # recurse
+    return tuple(map(lists_to_tuples, item)) if isinstance(item, list) else item
 
 
 class JSONCacheEncoder(json.JSONEncoder):

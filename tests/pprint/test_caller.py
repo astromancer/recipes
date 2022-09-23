@@ -33,12 +33,13 @@ PKIND = POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 # pylint: disable-all
 # Make a bunch of function definitions for testing
 #
-# 'a', 'a=0'
-# '/',
-# 'b', 'c=2'
-# '*args', '*'
-# 'd=3'
-# '**kws'
+# a, b=0,   # positional only
+# /,          
+# c, d=2,   # positional or kw
+# *args,    # variadic positional
+# *,
+# e=3,      # keyword-only
+# **kws     # variadic keywords
 
 
 # TODO: generate function from choices from below
@@ -297,11 +298,7 @@ class ArgValGen:
         if par.name == 'self':
             return
 
-        if par.kind == POS:
-            args.append(next(self.arg_pool))
-
-        elif par.kind == PKW:
-            # kws[par.name] = next(self.arg_pool)
+        if par.kind in [POS, PKW]:
             args.append(next(self.arg_pool))
 
         elif par.kind == VAR:

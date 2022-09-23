@@ -89,9 +89,11 @@ class SelfAware(metaclass=SelfAwareness):
     ... a is A(A(A(a)))
     True
     """
+    
+# ---------------------------------------------------------------------------- #
 
 
-class AttributeAutoComplete:  # AttributeAutocomplete
+class AttributeAutoComplete:
     """
     Attribute lookup that returns if the lookup key matches the start of the
     attribute name and the match is one-to-one. Raises AttributeError otherwise.
@@ -114,3 +116,7 @@ class AttributeAutoComplete:  # AttributeAutocomplete
                 raise err from None
 
             return super().__getattribute__(real)
+
+
+# alias
+AttributeAutocomplete = AttributeAutoComplete
