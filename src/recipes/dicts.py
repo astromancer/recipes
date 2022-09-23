@@ -675,7 +675,7 @@ class ManyToOneMap(TransDict):
     Expands on TransDict by adding equivalence mapping functions for keywords.
     """
 
-    emit = Emit(1)
+    emit = Emit('raise')
 
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
@@ -721,8 +721,8 @@ class ManyToOneMap(TransDict):
                 yield func(key)
             except Exception as err:
                 self.emit(
-                    f'{type(self).__name__}: Equivalence mapping function'
-                    f' failed with:\n{err!s}.'
+                    f'{type(self).__name__}: Equivalence mapping function '
+                    f'failed with:\n{err!s}.'
                 )
 
     def resolve(self, key):
