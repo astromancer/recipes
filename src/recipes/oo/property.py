@@ -116,6 +116,9 @@ class ClassProperty(property):
     def __get__(self, instance, kls):
         return self.fget.__get__(None, kls)()
 
+# alias
+classproperty = ClassProperty
+
 
 # extended from astropy.utils.decorators.lazyproperty
 class CachedProperty(property):
