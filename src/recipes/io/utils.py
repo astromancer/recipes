@@ -9,9 +9,9 @@ import json
 import mmap
 import pickle
 import shutil
+import hashlib
 import tempfile
 import fnmatch as fnm
-import warnings as wrn
 import itertools as itt
 import contextlib as ctx
 from pathlib import Path
@@ -39,6 +39,18 @@ FILEMODES = {pickle: 'b',
              json: ''}
 
 braces = BracketParser('{}')
+
+# ---------------------------------------------------------------------------- #
+
+
+def md5sum(filename):
+    h = hashlib.md5()
+    b = bytearray(128*1024)
+    mv = memoryview(b)
+    with open(filename, 'rb', buffering=0) as f:
+        while n := f.readinto(mv):
+            h.update(mv[:n])
+    return h.hexdigest()
 
 # ---------------------------------------------------------------------------- #
 
