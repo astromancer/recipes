@@ -152,6 +152,9 @@ disable=print-statement,
         redefined-outer-name,
         redefined-argument-from-local
         misplaced-comparison-constant
+        consider-using-fstring,
+        invalid-name,
+        redefined-outer-name
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

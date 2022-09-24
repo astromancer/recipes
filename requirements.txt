@@ -1,6 +1,5 @@
 more_itertools
 pytest
-six
 psutil
 scipy
 astropy
@@ -8,5 +7,6 @@ numpy
 stdlib_list
 anytree
 matplotlib
+six
 
 git+https://github.com/astromancer/motley
