@@ -13,6 +13,8 @@ from recipes.introspect.imports import (
 from loguru import logger
 
 logger.enable('recipes.introspect')
+logger.enable('recipes.introspect.imports')
+
 
 TESTPATH = Path(__file__).parent.absolute()
 EXAMPLES = TESTPATH / 'import_refactor_examples'
@@ -242,28 +244,28 @@ class TestImportSplitter(TestNodeTransformer):
         cases={
             # package / builtin level split
             mock(level=0):
-            '''
-            import os
-            import re
-            import this
-            from xx import yy as uu, zz as vv
-            ''',
+                '''
+                import os
+                import re
+                import this
+                from xx import yy as uu, zz as vv
+                ''',
             # (sub)module level split
             mock(level=1):
-            '''
-            import os, re, this
-            from xx import yy as uu
-            from xx import zz as vv
-            ''',
+                '''
+                import os, re, this
+                from xx import yy as uu
+                from xx import zz as vv
+                ''',
 
             mock(level=(0, 1)):
-            '''
-            import os
-            import re
-            import this
-            from xx import yy as uu
-            from xx import zz as vv
-            '''
+                '''
+                import os
+                import re
+                import this
+                from xx import yy as uu
+                from xx import zz as vv
+                '''
         })
     def test_split(self, code, level, expected):
         _, module = self.parse(code, level=level)
@@ -348,7 +350,8 @@ class TestImportRelativizer(TestNodeTransformer):
         (dedent('''
         from recipes.pprint.nrs import xx
         from recipes.string import yy
-        '''), 'recipes.other'):
+        '''),
+         'recipes.other'):
             '''
             from ..pprint.nrs import xx
             from ..string import yy
@@ -360,7 +363,7 @@ class TestImportRelativizer(TestNodeTransformer):
         from .mosaic import MosaicPlotter
         from .segmentation import SegmentedImage
         '''),
-        'recipes.image'):
+         'recipes.image'):
         # FIXME: ECHO
             '''
             from .image import SkyImage, ImageContainer
@@ -379,12 +382,12 @@ test_refactor = Expected(refactor, right_transform=dedent)({
     mock('import this', filter_unused=True):            Warns(),
     #
     mock(dedent('''
-            import logging
-            import logging.config
+        import logging
+        import logging.config
 
-            logging.config.dictConfig({})
-            '''),
-         filter_unused=True):                            ECHO,
+        logging.config.dictConfig({})
+        '''),
+         filter_unused=True, merge=False):                           ECHO,
 
     # case
     mock(dedent('''
@@ -426,7 +429,7 @@ test_refactor = Expected(refactor, right_transform=dedent)({
         from recipes.functionals import negate
         from recipes.string import replace_prefix, truncate
         from recipes.logging import logging, get_module_logger
-        from ..io import safe_write
+        from .io import safe_write
         '''),
          relativize='recipes'):
         '''
@@ -452,8 +455,25 @@ test_refactor = Expected(refactor, right_transform=dedent)({
         from ..io import open_any, safe_write
         from ..string import replace_prefix, truncate
         from ..logging import get_module_logger, logging
-        '''
+        ''',
 
+    mock(dedent('''
+        from .. import ansi, codes, formatters
+        from .xlsx import XlsxWriter
+        from .column import resolve_column
+        from ..utils import resolve_alignment
+        from .utils import *
+        from ..formatter import stylize
+        '''),
+         relativize='motley.table.table'):
+        '''
+        from .. import ansi, codes, formatters
+        from ..formatter import stylize
+        from ..utils import resolve_alignment
+        from .utils import *
+        from .xlsx import XlsxWriter
+        from .column import resolve_column
+        '''
 })
 
 

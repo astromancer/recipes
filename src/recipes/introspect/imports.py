@@ -31,24 +31,6 @@ from ..string import remove_prefix, truncate
 from ..io import open_any, read_lines, safe_write
 from .utils import BUILTIN_MODULE_NAMES, get_module_name
 
-# FIXME:
-# # relative
-# from .. import ansi, codes, formatters
-# from .xlsx import XlsxWriter
-# from .column import resolve_column
-# from ..utils import resolve_alignment
-# from .utils import *
-# from ..formatter import stylize
-# 
-# BECOMES
-# 
-# # relative
-# from .. import ansi, codes, formatters
-# from ..formatter import stylize
-# from ..utils import *, resolve_alignment #<--FIXME THIS IS WRONG!!!!
-# from .xlsx import XlsxWriter
-# from .column import resolve_column
-
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
@@ -126,11 +108,11 @@ def is_script(source: str):
 
 
 def is_import(node):
-    return isinstance(node,  ast.Import)
+    return isinstance(node, ast.Import)
 
 
 def is_import_from(node):
-    return isinstance(node,  ast.ImportFrom)
+    return isinstance(node, ast.ImportFrom)
 
 
 def is_any_import_node(node):
@@ -353,7 +335,11 @@ class NodeScopeFilter(ast.NodeTransformer):
 
 
 class Parentage(ast.NodeTransformer):
-    # for consistency, module parent is None
+    """
+    Sets node `parent` attribute. For consistency, module parent is set to
+    `None`.
+    """
+
     parent = None
 
     def visit(self, node):
@@ -414,7 +400,7 @@ class ImportCapture(Parentage):
 
 
 class ImportFilter(ast.NodeTransformer):  #
-    def __init__(self, names=()):
+    def __init__(self, names=(), ):
         self.remove = set(names)
 
     def visit_Module(self, node):
@@ -424,13 +410,16 @@ class ImportFilter(ast.NodeTransformer):  #
         node = self.generic_visit(node)
         if node.names:
             return node
+
         # if all aliases were removed, import node is filtered from tree
 
-    def visit_Import(self, node):
-        return self._visit_any_import(node)
+    visit_Import = visit_ImportFrom = _visit_any_import
 
-    def visit_ImportFrom(self, node):
-        return self._visit_any_import(node)
+    # def visit_Import(self, node):
+    #     return self._visit_any_import(node)
+
+    # def visit_ImportFrom(self, node):
+    #     return self._visit_any_import(node)
 
     def visit_alias(self, node):
         node = self.generic_visit(node)
@@ -466,37 +455,57 @@ class ImportFilter(ast.NodeTransformer):  #
         # next filter stuff we don't want
 
 
-class ImportMerger(Parentage):
+class ImportMerger(Parentage, ImportFilter):
     # combine separate statements that import from the same module
     # >>> from x import y
     # >>> from x import z
     # becomes
     # >>> from x import y, z
 
-    def __init__(self, level=1):  #
-        # [scope][module_name]{node}
-        # ftl.partial(defaultdict, ast.ImportFrom)
+    def __init__(self, level=1):
+        super().__init__()
         self.aliases = defaultdict(dict)
 
-    def visit_ImportFrom(self, node):
-        self.generic_visit(node)
+    def visit_Module(self, node):
+        return self.generic_visit(node)
 
-        scoped = self.aliases[node.parent]
-        module_name = node.module or '.' * node.level
-        existing_node = scoped.setdefault(module_name, node)
-        if existing_node is node:
-            return node
+    def _visit_any_import(self, node):
+        logger.debug('{}', node)
+        # filter empty (all aliases removed) import nodes here
+        if not super()._visit_any_import(node):
+            logger.opt(lazy=True).debug('Filtering node: {!r}', lambda: rewrite(node))
+            return
+
+    def visit_alias(self, node):
+        parent = node.parent  # import node
+        scope = parent.parent
+
+        # get_module_name(parent)
+        module_name = get_module_name(parent) if is_import_from(parent) else node.name
 
         # avoid duplicates >>> from x import y, y
-        aliases = unduplicate(existing_node.names + node.names,
-                              op.attrgetter('name'))
-        existing_node.names = list(aliases)
-        # we are about to visit the aliases, so ensure that Parentage sets those
-        # parents to the previously existing import node which we just extended.
-        # This is also important for correctly scoping the imports at module
-        # level.
-        self.parent = existing_node.parent
-        # dont return anything => filter this node
+        existing_parent = self.aliases[scope].setdefault(module_name, parent)
+        if existing_parent is parent:
+            # new module encountered
+            return node
+
+        # Existing module: extend aliases for that node, and filter the current
+
+        existing_parent.names.append(node)
+        existing_parent.names = list(
+            unduplicate([*existing_parent.names, node],
+                        op.attrgetter('name', 'asname'))
+        )
+        logger.opt(lazy=True).debug('Merged imports with same module {!r}',
+                                    lambda: rewrite(existing_parent))
+
+        # we are about to visit the aliases, so ensure that `Parentage` sets the
+        # alias parents to the previously `existing_parent` import node which we
+        # just extended. This is also important for correctly scoping the
+        # imports at module level.
+        node.parent = existing_parent
+        # dont return anything => filter this `node` since we have a previously
+        # `existing_node`
 
 
 class ImportSplitter(ImportMerger):
@@ -750,10 +759,10 @@ tidy = refactor
 
 class ImportRefactory(LoggingMixin):
     """
-    Tidy up import statements that might lie scattered throughout hastily
-    written source code. Sort them, filter unused imports, group them by type,
-    re-write them in the document header or write to a new file or just print
-    the prettified code to stdout.
+    Tidy up import statements that might be scattered throughout hastily written
+    source code. Sort them, filter unused or duplicate imports, group them by
+    type, re-write them in the document header or write to a new file or just
+    print the prettified code to stdout.
     """
     # up_to_line: int
     #     line number for last line in input file that will be processed
@@ -786,6 +795,7 @@ class ImportRefactory(LoggingMixin):
 
         self.captured = ImportCapture()  # TODO: move inside filter_unused
         self.module = self.captured.visit(ast.parse(self.source))
+        self._original = ast.dump(self.module)
 
     def __call__(self, *args, **kws):
         module = self.refactor(*args, **kws)
@@ -844,10 +854,11 @@ class ImportRefactory(LoggingMixin):
         if relativize:
             module = self.relativize(module, relativize)
 
-        if split is not None:
+         # sourcery skip: de-morgan
+        if not (split is None or split is False):
             module = self.split(module, split)
 
-        if merge is not None:
+        if not (merge is None or merge is False):
             module = self.merge(module, merge)
 
         delocalize = False
@@ -856,29 +867,36 @@ class ImportRefactory(LoggingMixin):
         else:
             module = NodeScopeFilter(0).visit(module)
 
-        if sort is not None:
-            if not module.body:
-                return module
-
-            # group and sort
-            grouper = ImportGrouper(*GROUPERS)
-            grouper.visit(module)
-            groups = {g: self.sort(mod, sort)
-                      for g, mod in grouper.groups.items()}
-
-            # reorder the groups
-            modules = groups.values()
-            typecodes, *_ = zip(*groups.keys())
-
-            group_order = (map(f, modules) for f in GROUP_SORTERS)
-            _, (module, *modules) = cosort(zip(typecodes, *group_order), modules)
-
-            for mod in modules:
-                module.body.extend(mod.body)
+        if sort not in (None, False):
+            module = self.sort(module, sort)
 
         if module is self.module:
             logger.info('Import statements are already well sorted for \'{}\''
                         ' style!', sort)
+
+        return module
+
+    def sort(self, module=None, style=CONFIG.style):
+
+        module = module or self.module
+        if not module.body:
+            return module
+
+        # group and sort
+        grouper = ImportGrouper(*GROUPERS)
+        grouper.visit(module)
+        groups = {g: self.sort(mod, style)
+                  for g, mod in grouper.groups.items()}
+
+        # reorder the groups
+        modules = groups.values()
+        typecodes, *_ = zip(*groups.keys())
+
+        group_order = (map(f, modules) for f in GROUP_SORTERS)
+        _, (module, *modules) = cosort(zip(typecodes, *group_order), modules)
+
+        for mod in modules:
+            module.body.extend(mod.body)
 
         return module
 
@@ -950,6 +968,7 @@ class ImportRefactory(LoggingMixin):
                 'you intended. Please use `filter_unused=False` if you only '
                 'wish to sort existing import statements.'
             )
+
         return ImportFilter(unused).visit(module)
 
     # alias
@@ -1082,19 +1101,22 @@ class ImportRefactory(LoggingMixin):
 
     def write(self, module, filename=None, headers=None):
         """
+        Write new source code with import statements refactored.
 
-        Write new source code with import statements refactored
+        Parameters
+        ----------
+        module : _type_
+            _description_
+        filename: str or Path, optional
+            The output filename.
+        headers : _type_, optional
+            _description_, by default None
 
-        filename: str or Path
-            output filename
-        dry_run: bool
-            if True, don't edit any files, instead return the refactored source
-            as a string.
 
         Returns
         -------
-        sourceCode: str
-            Reformatted source code as a str.
+        source_code: str
+            Reformatted source code.
         """
 
         # at this point the import statements should be grouped and sorted
@@ -1106,7 +1128,8 @@ class ImportRefactory(LoggingMixin):
         # overwrite input file if `filename` not given
         filename = filename or self.filename
 
-        if (len(module.body) == 0) or (module is self.module):
+        # check for changes
+        if (len(module.body) == 0) or (ast.dump(module) == self._original):
             # no statements in module, or unchange module- nothing to write
             logger.info('File contents left unchanged.')
             return self if filename else self.source
