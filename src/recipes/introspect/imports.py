@@ -1,5 +1,5 @@
 """
-Sort import statements in python source code.
+Refactor import statements in python source code.
 """
 
 
@@ -21,12 +21,15 @@ import more_itertools as mit
 from loguru import logger
 
 # relative
-from .. import cosort, op, pprint as pp
+from .. import api, cosort, op, pprint as pp
+from ..io import open_any
 from ..iter import unduplicate
 from ..dicts import AttrReadItem
 from ..functionals import negate
 from ..logging import LoggingMixin
+from ..string import remove_prefix
 from ..pprint.callers import describe
+from .utils import BUILTIN_MODULE_NAMES
 from ..string import remove_prefix, truncate
 from ..io import open_any, read_lines, safe_write
 from .utils import BUILTIN_MODULE_NAMES, get_module_name
@@ -47,6 +50,11 @@ from .utils import BUILTIN_MODULE_NAMES, get_module_name
 # TODO: merge these
 # from collections.abc import Hashable
 # from collections import OrderedDict, UserDict, abc, defaultdict
+
+# ---------------------------------------------------------------------------- #
+api_synonyms = api.synonyms({'filter':          'filter_unused',
+                             'relative(_to)?':  'relativize',
+                             'module_name':     'relativize'})
 
 # ---------------------------------------------------------------------------- #
 CONFIG = AttrReadItem(
@@ -102,6 +110,21 @@ REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
 
 def is_script(source: str):
     return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
+
+# ---------------------------------------------------------------------------- #
+
+
+def is_null(obj):
+    return (obj is None) or (obj is False)
+
+
+def not_null(obj):
+    return not is_null(obj)
+
+
+# alias
+isnull = is_null
+notnull = not_null
 
 # ---------------------------------------------------------------------------- #
 # Functions for sorting / rewriting import nodes
@@ -343,12 +366,13 @@ class Parentage(ast.NodeTransformer):
     parent = None
 
     def visit(self, node):
+        logger.trace('\n{} parent set to {}', node, self.parent)
         node.parent = self.parent
         self.parent = node
-        node = super().visit(node)
-        if isinstance(node, ast.AST):
-            self.parent = node.parent
-        return node
+        new = super().visit(node)
+        self.parent = new.parent if isinstance(new, ast.AST) else node.parent
+        logger.trace('\nParentage is now {}', self.parent)
+        return new
 
 
 class ImportCapture(Parentage):
@@ -367,7 +391,7 @@ class ImportCapture(Parentage):
     #     # all the  imported names and used names
     #     return self.generic_visit(node)
 
-    def _visit_any_import(self, node):
+    def visit_Import(self, node):
         node = self.generic_visit(node)
         if not self._should_capture(node):
             return node
@@ -376,11 +400,7 @@ class ImportCapture(Parentage):
         self.line_nrs.append(node.lineno - 1)
         return node
 
-    def visit_Import(self, node):
-        return self._visit_any_import(node)
-
-    def visit_ImportFrom(self, node):
-        return self._visit_any_import(node)
+    visit_ImportFrom = visit_Import
 
     def visit_alias(self, node):
         name = node.asname or node.name
@@ -399,27 +419,20 @@ class ImportCapture(Parentage):
         return node
 
 
-class ImportFilter(ast.NodeTransformer):  #
+class ImportFilter(Parentage):
     def __init__(self, names=(), ):
         self.remove = set(names)
 
-    def visit_Module(self, node):
-        return self.generic_visit(node) if self.remove else node
-
-    def _visit_any_import(self, node):
+    def visit_Import(self, node):
         node = self.generic_visit(node)
         if node.names:
             return node
 
         # if all aliases were removed, import node is filtered from tree
+        logger.debug('Filtering empty import node (all aliases filtered).')
 
-    visit_Import = visit_ImportFrom = _visit_any_import
-
-    # def visit_Import(self, node):
-    #     return self._visit_any_import(node)
-
-    # def visit_ImportFrom(self, node):
-    #     return self._visit_any_import(node)
+    #
+    visit_ImportFrom = visit_Import
 
     def visit_alias(self, node):
         node = self.generic_visit(node)
@@ -455,7 +468,7 @@ class ImportFilter(ast.NodeTransformer):  #
         # next filter stuff we don't want
 
 
-class ImportMerger(Parentage, ImportFilter):
+class ImportMerger(ImportFilter):
     # combine separate statements that import from the same module
     # >>> from x import y
     # >>> from x import z
@@ -466,46 +479,43 @@ class ImportMerger(Parentage, ImportFilter):
         super().__init__()
         self.aliases = defaultdict(dict)
 
-    def visit_Module(self, node):
-        return self.generic_visit(node)
-
-    def _visit_any_import(self, node):
-        logger.debug('{}', node)
-        # filter empty (all aliases removed) import nodes here
-        if not super()._visit_any_import(node):
-            logger.opt(lazy=True).debug('Filtering node: {!r}', lambda: rewrite(node))
+    def visit_Import(self, node):
+        if super().visit_Import(node) is None:
             return
 
-    def visit_alias(self, node):
-        parent = node.parent  # import node
-        scope = parent.parent
-
-        # get_module_name(parent)
-        module_name = get_module_name(parent) if is_import_from(parent) else node.name
+        scope = node.parent  # Module or FunctionDef etc containing import
+        module_name = get_module_name(node)
+        logger.debug(f'\n{self.__class__}\n{module_name = }; {node = }; {scope = }')
+        #  f'\n{os.linesep.join(map(rewrite, scope.body))}')
 
         # avoid duplicates >>> from x import y, y
-        existing_parent = self.aliases[scope].setdefault(module_name, parent)
-        if existing_parent is parent:
+        if module_name not in self.aliases[scope]:
             # new module encountered
+            self.aliases[scope][module_name] = node
             return node
 
-        # Existing module: extend aliases for that node, and filter the current
+        existing_node = self.aliases[scope][module_name]
 
-        existing_parent.names.append(node)
-        existing_parent.names = list(
-            unduplicate([*existing_parent.names, node],
-                        op.attrgetter('name', 'asname'))
-        )
-        logger.opt(lazy=True).debug('Merged imports with same module {!r}',
-                                    lambda: rewrite(existing_parent))
+        # Existing module: extend aliases for that node, and filter the current
+        # existing_node.names.append(node)
+        aliases = list(unduplicate([*existing_node.names, *node.names],
+                                   op.attrgetter('name', 'asname')))
+
+        if aliases != existing_node.names:
+            existing_node.names = aliases
+            logger.opt(lazy=True).debug('Merged imports with same module {!r}',
+                                        lambda: rewrite(existing_node))
 
         # we are about to visit the aliases, so ensure that `Parentage` sets the
-        # alias parents to the previously `existing_parent` import node which we
+        # alias parents to the previously `existing_node` import node which we
         # just extended. This is also important for correctly scoping the
         # imports at module level.
-        node.parent = existing_parent
+        node.parent = existing_node.parent
         # dont return anything => filter this `node` since we have a previously
         # `existing_node`
+
+    #
+    visit_ImportFrom = visit_Import
 
 
 class ImportSplitter(ImportMerger):
@@ -580,8 +590,7 @@ class ImportRelativizer(ast.NodeTransformer):
             return node
 
         if node.level > len(self.parts):
-            wrn.warn(f'Attempted relative import beyond top level: '
-                     f'{rewrite(node)!r}')
+            wrn.warn(f'Relative import beyond top level: {rewrite(node)!r}')
             return node
 
         if node.level:
@@ -626,12 +635,12 @@ class ImportGrouper(HandleFuncs, ast.NodeVisitor):
         super().__init__(*functions)
         self.groups = defaultdict(ftl.partial(ast.parse, ''))
 
-    def visit_any_import(self, node):
+    def visit_Import(self, node):
         gid = node.gid = self(node)
         self.groups[gid].body.append(node)
 
     #
-    visit_Import = visit_ImportFrom = visit_any_import
+    visit_ImportFrom = visit_Import
 
     def pprint(self):
         return pp.mapping(self.groups, '', brackets='', hang=True,
@@ -644,12 +653,12 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
     #     keep=(ast.Module, ast.Import, ast.ImportFrom, ast.alias)
     # )
 
-    def visit_any_import(self, node):
+    def visit_Import(self, node):
         node.order = self(node)
         node.names = sorted(node.names, key=alias_sorter)
         return node
     #
-    visit_Import = visit_ImportFrom = visit_any_import
+    visit_ImportFrom = visit_Import
 
     def visit_Module(self, node):
         node = self.generic_visit(node)
@@ -661,12 +670,12 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
 #     def __init__(self):
 #         self.lines = []
 
-#     def visit_any_import(self, node):
+#     def visit_Import(self, node):
 #         self.generic_visit(node)
 #         self.text += f'\n{rewrite(node)}'
 #         return node
 # #
-#     visit_Import = visit_ImportFrom = visit_any_import
+#      visit_ImportFrom = visit_Import
 
 def _iter_lines(module, headers=None):
     # generate source code lines from ast.Module, including import group header
@@ -736,14 +745,15 @@ def get_stream(file_or_source):
     )
 
 
+@api_synonyms
 def refactor(file_or_source,
-             sort='aesthetic',
+             sort=CONFIG.style,
              filter_unused=None,
              split=0,
              merge=1,
              relativize=None,
              #  unscope=False,
-             headers=None,
+             headers=None
              ):
 
     # up_to_line=math.inf,
@@ -806,6 +816,7 @@ class ImportRefactory(LoggingMixin):
             return f'{self.__class__.__name__}({path.name!r})'
         return f'{self.__class__.__name__}(<SourceCodeString>)'
 
+    @api_synonyms
     def refactor(self,
                  sort=CONFIG.style,
                  filter_unused=None,
@@ -814,22 +825,81 @@ class ImportRefactory(LoggingMixin):
                  relativize=None,
                  #  delocalize=False,
                  ):
+        """
+        Refactor import statements in python source code.
+
+        Parameters
+        ----------
+        sort : str, {'aesthetic', 'alphabetically'}, optional
+            The sorting rules are as follow: # TODO
+        filter_unused : bool, optional
+            Filter import statements for names that were not used in the source
+            code. Default action is to filter only when the input source has
+            some code beyond the import block, and is not a module initializer
+            `__init__.py` script.
+        split : {None, False, 0, 1}, optional
+            Whether to split import statements:
+            * Case `False` or `None`, do not
+              split any import lines. * Case `0`, the default: Split single-line
+              import statements involving multiple modules eg:
+              >>> import os, re
+                becomes
+              >>> import os
+              ... import re
+            * Case `1`: Split single-line import statements involving any sub
+              modules eg: 
+              >>> from collections.abc import Sized, Collection
+                becomes
+              >>> from collections.abc import Sized
+              ... from collections.abc import Collection
+        merge : int, optional
+            How to merge multiple import statements if at all, by default 1.
+            This performs the inverse operation of `split`.
+            * Case `False` or `None`, do not merge any import lines. 
+            * Case `0`, the default: Merge multi-line import statements from the
+              standard library: 
+              >>> import os ... import re
+                becomes
+              >>> import os, re
+            * Case `1`: Merge multiple import statements involving the same
+              (sub)modules eg: 
+              >>> from collections.abc import Sized
+              ... from collections.abc import Collection
+                becomes
+              >>> from collections.abc import Sized, Collection
+        relativize : str, optional
+            The name of the module containing the import statements. Providing
+            this will convert absolute module names to '.' where appropriate for
+            the provided name. The default is None, which does relativization
+            only if the parent module name can be discovered automatically, ie.
+            if the class was initialized from a file and not a source code
+            string, and that file is not a test or an executable script.
+
+
+        Examples
+        --------
+        >>> ImportRefactory('import this, antigravity').refactor()
+        import this
+        import antigravity
+
+
+        Returns
+        -------
+        ast.Module
+            The refactored module.
+        """
 
         # keep_multiline=True,
         #  up_to_line=math.inf,
-        """
+        # sort
 
-        sort: str, {'aesthetic', 'alphabetically'}
-            The sorting rules are as follow:
-            # TODO
-        unscope: bool
-            Whether or not to move the import statements that are in a local scope
-        headers: bool or None
-            whether to print comment labels eg 'third-party libs' above different
-            import groups.  If None (the default) this will only be done if there
-            are imports from multiple groups.
-
-        """
+        # unscope: bool
+        #     Whether or not to move the import statements that are in a local
+        #     scope
+        # headers: bool or None
+        #     whether to print comment labels eg 'third-party' above different
+        #     import groups. If None (the default) this will only be done if there
+        #     are imports from multiple groups.
 
         module = self.module
 
@@ -848,18 +918,21 @@ class ImportRefactory(LoggingMixin):
         if filter_unused:
             module = self.filter(module)
 
+        if not_null(merge):
+            module = self.merge(module, merge)
+
+        if not_null(split):
+            module = self.split(module, split)
+
         if relativize is None:
             relativize = (self.filename is not None)
 
         if relativize:
             module = self.relativize(module, relativize)
-
-         # sourcery skip: de-morgan
-        if not (split is None or split is False):
-            module = self.split(module, split)
-
-        if not (merge is None or merge is False):
-            module = self.merge(module, merge)
+            # need to merge again in case some imports relativized to an
+            # existing module
+            if not_null(merge):
+                module = self.merge(module, merge)
 
         delocalize = False
         if delocalize:
@@ -867,8 +940,8 @@ class ImportRefactory(LoggingMixin):
         else:
             module = NodeScopeFilter(0).visit(module)
 
-        if sort not in (None, False):
-            module = self.sort(module, sort)
+        if sort:
+            module = self.sort_and_group(module, sort)
 
         if module is self.module:
             logger.info('Import statements are already well sorted for \'{}\''
@@ -876,9 +949,10 @@ class ImportRefactory(LoggingMixin):
 
         return module
 
-    def sort(self, module=None, style=CONFIG.style):
-
+    def sort_and_group(self, module=None, style=CONFIG.style):
+        """Sort and group"""
         module = module or self.module
+
         if not module.body:
             return module
 
@@ -939,7 +1013,7 @@ class ImportRefactory(LoggingMixin):
     def _should_filter(self):
         if len(self.captured.used_names) == 0:
             self.logger.info('Not filtering unused statements for import-only '
-                             'script, as this would leave an empty file.')
+                             'script, since this would leave an empty file.')
             return False
         return True
 
@@ -996,11 +1070,14 @@ class ImportRefactory(LoggingMixin):
         # >>> from .module import x
         if parent_module_name in (None, True):
             if self.filename is None:
-                # warning was emitted above, now we can just return unaltered module
+                # warning was emitted above, now we can just return unaltered
+                # module
                 return module
 
             try:
-                parent_module_name = get_module_name(self.filename)
+                parent_module_name, script_name = get_module_name(self.filename).rsplit('.', 1)
+                logger.debug("Discovered parent module name: {!r} for file '{}.py'.",
+                             parent_module_name, script_name)
             except ValueError as err:
                 if (msg := str(err)).startswith('Could not get package name'):
                     logger.warning(msg)
@@ -1027,7 +1104,7 @@ class ImportRefactory(LoggingMixin):
                 'Import relativization requested, but no parent module name '
                 'provided. Since we are running from raw input (source code '
                 'string), you must provide the dot-separated name of the parent'
-                ' module of the source code via `relativize="my.package.name"`.'
+                ' module of the source code via `relative="my.package.name"`.'
                 ' Alternatively, if the source resides in a file, pass the '
                 '`filename` parameter to the `refactor` method to relativize '
                 'import statements in-place.'

@@ -61,7 +61,6 @@ class TestNodeTransformer:
     Transformer = ast.NodeVisitor  # null transformer
 
     def parse(self, code, *args, **kws):
-        #Transformer = eval(remove_prefix(type(self).__name__, 'Test'))
         return parse(code, self.Transformer, *args, **kws)
 
 
@@ -225,12 +224,17 @@ class TestImportMerger(TestNodeTransformer):
             from .. import shocCampaign, shocHDU
             from .calibrate import calibrate
             from . import logs, WELCOME_BANNER, FolderTree
-            '''
+            ''',
+            
+        '''
+        from .. import api
+        from .. import cosort, op, pprint as pp
+        ''':
+            'from .. import api, cosort, op, pprint as pp'
     })
     def test_merge(self, code, expected):
         _, module = self.parse(code)
-        new = '\n'.join(map(rewrite, module.body))
-        assert new == dedent(expected)
+        assert dedent(expected) == '\n'.join(map(rewrite, module.body))
 
 
 class TestImportSplitter(TestNodeTransformer):
@@ -473,6 +477,32 @@ test_refactor = Expected(refactor, right_transform=dedent)({
         from .utils import *
         from .xlsx import XlsxWriter
         from .column import resolve_column
+        ''',
+            
+    mock(dedent('''
+        from recipes import api
+        from recipes import api
+        from .. import cosort, op, pprint as pp
+        from ..iter import unduplicate
+        from ..dicts import AttrReadItem
+        from ..functionals import negate
+        from ..logging import LoggingMixin
+        from ..pprint.callers import describe
+        from ..string import remove_prefix, truncate
+        from ..io import open_any, read_lines, safe_write
+        from .utils import BUILTIN_MODULE_NAMES, get_module_name
+        '''), 
+         relativize='recipes.pprint'):
+        '''
+        from .. import api, cosort, op, pprint as pp
+        from ..iter import unduplicate
+        from ..dicts import AttrReadItem
+        from ..functionals import negate
+        from ..logging import LoggingMixin
+        from ..string import remove_prefix, truncate
+        from ..io import open_any, read_lines, safe_write
+        from .callers import describe
+        from .utils import BUILTIN_MODULE_NAMES, get_module_name
         '''
 })
 
