@@ -25,7 +25,7 @@ from .functionals import Emit
 
 
 def pformat(mapping, name=None,
-            lhs=repr, equals=': ', rhs=repr,
+            lhs=repr, equal=': ', rhs=repr,
             sep=',', brackets='{}',
             align=None, hang=False,
             tabsize=4, newline=os.linesep,
@@ -44,7 +44,7 @@ def pformat(mapping, name=None,
         produces.
     lhs : Callable or dict of callable, optional
         Function used to format dictionary keys, by default repr.
-    equals : str, optional
+    equal  : str, optional
         Symbol used for equal sign, by default ': '.
     rhs : Callable or dict of callable, optional
         Function used to format dictionary values, by default repr.
@@ -109,7 +109,7 @@ def pformat(mapping, name=None,
     # format
     string = _pformat(mapping,
                       # resolve formatting functions
-                      _get_formatters(lhs), equals, _get_formatters(rhs),
+                      _get_formatters(lhs), equal, _get_formatters(rhs),
                       sep, brackets,
                       align, hang,
                       tabsize, newline,
@@ -147,7 +147,7 @@ def _get_formatters(fmt):
     return defaultdict((lambda: repr), fmt)
 
 
-def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
+def _pformat(mapping, lhs_func_dict, equal, rhs_func_dict, sep, brackets,
              align, hang, tabsize, newline, ignore):
 
     if len(mapping) == 0:
@@ -168,7 +168,7 @@ def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
     pos = len(string)
     if align:
         # make sure we line up the values
-        leqs = len(equals)
+        leqs = len(equal)
         width = max(keys_size)
         wspace = [width - w + leqs for w in keys_size]
     else:
@@ -188,15 +188,15 @@ def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
     for pre, key, (okey, val), wspace, end in \
             zip(indents, keys, mapping.items(), wspace, separators):
         # THIS places ':' directly before value
-        # string += f'{"": <{pre}}{key: <{width}s}{equals}'
+        # string += f'{"": <{pre}}{key: <{width}s}{equal }'
         # WHILE this places it directly after key
         # print(f'{pre=:} {key=:} {width=:}')
-        # print(repr(f'{"": <{pre}}{key}{equals: <{width}s}'))
-        # new = f'{"": <{pre}}{key}{equals: <{width}s}'
-        string += f'{"": <{pre}}{key}{equals: <{wspace}s}'
+        # print(repr(f'{"": <{pre}}{key}{equal: <{width}s}'))
+        # new = f'{"": <{pre}}{key}{equal: <{width}s}'
+        string += f'{"": <{pre}}{key}{equal: <{wspace}s}'
 
         if isinstance(val, abc.MutableMapping):
-            part = _pformat(val, lhs_func_dict, equals, rhs_func_dict, sep,
+            part = _pformat(val, lhs_func_dict, equal, rhs_func_dict, sep,
                             brackets, align, hang, tabsize, newline, ignore)
         else:
             part = rhs_func_dict[okey](val)

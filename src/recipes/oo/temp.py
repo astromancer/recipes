@@ -17,7 +17,7 @@ def temporarily(obj, **kws):
     original = {atr: getattr(obj, atr) for atr in kws}
     try:
         for atr, val in kws.items():
-            logger.debug('Setting attribute values for context: {} = {}',
+            logger.debug('Setting attribute values for context: {} = {!r}.',
                          atr, val)
             setattr(obj, atr, val)
         yield obj

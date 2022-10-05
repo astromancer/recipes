@@ -1,6 +1,6 @@
 """
-Pretty formatting of floats, arrays (with uncertainties) in various human
-readable forms.
+Pretty formatting of numbers and numeric arrays (with uncertainties) in various
+human readable forms.
 """
 
 # This module designed for convenience and is *not* speed tested (yet)
@@ -29,11 +29,12 @@ from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 
 
+# ---------------------------------------------------------------------------- #
 # note: unicode literals below python3 only!
 # see: https://docs.python.org/3/howto/unicode.html
 
 HMS = namedtuple('HMS', list('hms'))
-DIVISORS = list(itt.accumulate((1, 60, 60, 24, 30, 12), op.mul))[::-1]
+TIME_DIVISORS = list(itt.accumulate((1, 60, 60, 24, 30, 12), op.mul))[::-1]
 
 REGEX_YMDHMS_PRECISION = re.compile(r'([yMdhms])\.?(\d)?')
 REGEX_YMDHMS_SPEC = re.compile(r'''(?x)
@@ -56,29 +57,21 @@ REGEX_YMDHMS_SPEC = re.compile(r'''(?x)
 # UNI_PWR = dict(enumerate('²³⁴⁵⁶⁷⁸⁹', 2))  # '¹²³⁴⁵⁶⁷⁸⁹'
 # UNI_NEG_PWR = '⁻'  # '\N{SUPERSCRIPT MINUS}'
 # UNI_PM = '±'
-SEP_ASCII = ('y', 'M', 'd ', 'h', 'm', 's')
-SEP_SUPER = ('ʸ', 'ᴹ', 'ᵈ ', 'ʰ', 'ᵐ', 'ˢ')  # uni.superscripts.translate(SEP_ASCII)
+YMDHMS_ASCII = ('y', 'M', 'd ', 'h', 'm', 's')
+YMDHMS_SUPER = ('ʸ', 'ᴹ', 'ᵈ ', 'ʰ', 'ᵐ', 'ˢ')
+# uni.superscripts.translate(YMDHMS_ASCII)
 
-UNI_MULT = {'x': '×',
-            '.': '·'}
-UNI_HMS = 'ʰᵐˢ'
+PRODUCT_SYMBOLS = {'x': '\N{MULTIPLICATION SIGN}',  # '×' # u'\u00D7'
+                   '.': '\N{MIDDLE DOT}'}           # '·' # u'\u00B7'
+PRODUCT_SYMBOLS_LATEX = {'x': R'\times',
+                         '.': R'\cdot'}
+INFINITY_SYMBOLS = dict(latex=R'\infty',
+                        unicode='\N{INFINITY}',     # '∞' # u'\u221E'
+                        ascii='inf')
 
-# UNI_INF = '∞'
-# '−'
 # '\N{MINUS SIGN}'              '−'     u'\u2212'
 # '\N{PLUS-MINUS SIGN}'         '±'
-# '\N{MULTIPLICATION SIGN}'     '×' 	u'\u00D7'
-# '\N{MIDDLE DOT}'              '·'     u'\u00B7'
-# '\N{INFINITY}                 '∞'     u'\u221E'
-# convert unicode to hex-16: '%x' % ord('⁻')
 
-INFINITY_STYLES = dict(latex=r'\infty',
-                       unicode='\N{INFINITY}',
-                       ascii='inf')
-
-# LaTeX
-LATEX_MULT = {'x': r'\times',
-              '.': r'\cdot'}
 
 # The SI metric prefixes
 METRIC_PREFIXES = {
@@ -90,7 +83,7 @@ METRIC_PREFIXES = {
     -9:  'n',
     -6:  'µ',
     -3:  'm',
-    0:   '',
+    0:  '',
     +3:  'k',
     +6:  'M',
     +9:  'G',
@@ -108,6 +101,7 @@ METRIC_PREFIXES = {
 # SCI_SRE = re.compile('[+-]?\d\.?\d?e[+-]?(\d\d)', re.ASCII)
 # DECIMAL_SRE = re.compile('[+-]?\d+\.(0*)[1-9][\d]?', re.ASCII)
 
+# ---------------------------------------------------------------------------- #
 
 def leading_decimal_zeros(n):
     """
@@ -209,6 +203,7 @@ def to_sexagesimal(t, base_unit='h', precision='s'):
     # h, m = divmod(m, 60)
     # return HMS(h, m, s)
 
+
 # alias
 sexagesimal = to_sexagesimal
 
@@ -248,7 +243,7 @@ def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
 
     # generator that computes ydmhms representation
     mag = 'yMdhms'
-    v = mag.index(base_unit) if base_unit else op.index(DIVISORS, t, test=op.le)
+    v = mag.index(base_unit) if base_unit else op.index(TIME_DIVISORS, t, test=op.le)
     w = mag.index(mo['tail_unit'])
     if v >= w:
         raise ValueError(f'Base unit ({mag[v]!r}) must have greater magnitude '
@@ -256,7 +251,7 @@ def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
 
     # sep = kws.pop('sep') or sep
     if sep is None:
-        sep = (SEP_SUPER, SEP_ASCII)[ascii]
+        sep = (YMDHMS_SUPER, YMDHMS_ASCII)[ascii]
     # sep = SEP_SPEC.get(sep, sep)
     nsep = len(sep)
     assert nsep in {0, 1, 5, 6}
@@ -270,15 +265,15 @@ def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
         yield ('\N{MINUS SIGN}', '-')[ascii]
 
     r = abs(t)
-    for i in range(v, w):  # for d in DIVISORS[v:w]:
-        d = DIVISORS[i]
+    for i in range(v, w):  # for d in TIME_DIVISORS[v:w]:
+        d = TIME_DIVISORS[i]
         # print(r, d)
         t, r = divmod(r, d)
         yield f'{int(t):{fill[i]}{width[i]}d}'
         yield next(sep, '')
 
     p = mo['precision'] or 0
-    r /= DIVISORS[w]
+    r /= TIME_DIVISORS[w]
     s = f'{r:{fill[i]}{width[i]}.{p}f}'
     if mo['short'] and p:
         s = s.rstrip('0').rstrip('.')
@@ -346,7 +341,7 @@ def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
 #         self.t = t
 #         mag = self.__slots__[:6]
 #         self._v = v = (mag.index(base_unit) if base_unit else
-#                        op.index(DIVISORS, t, test=op.le))
+#                        op.index(TIME_DIVISORS, t, test=op.le))
 #         self._w = w = mag.index(tail_unit)
 #         # print(v, w)
 #         assert v < w, 'Base unit must have greater magnitude than precision unit.'
@@ -354,13 +349,13 @@ def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
 #         # compute parts and round
 #         s = [1, -1][int(t < 0)]
 #         r = t
-#         for i in range(v, w):  # for d in DIVISORS[v:w]:
-#             d = DIVISORS[i]
+#         for i in range(v, w):  # for d in TIME_DIVISORS[v:w]:
+#             d = TIME_DIVISORS[i]
 #             # print(r, d)
 #             t, r = divmod(r, d)
 #             setattr(self, self.__slots__[i], s * int(t))
 
-#         r /= DIVISORS[w]
+#         r /= TIME_DIVISORS[w]
 #         yield setattr(self, self.__slots__[i], s * round(r, p))
 
 #     def __format__(self, spec='h^s9?'):
@@ -457,7 +452,7 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
 
     # resolve separator
     if unicode and is_hms:
-        sep = UNI_HMS
+        sep = YMDHMS_SUPER[3:]  # 'ʰᵐˢ'
     elif repeat_sep:
         base_unit = 'h'  #
 
@@ -485,13 +480,11 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
 
         out += pad(decimal(fun(n), p, unicode=unicode), left=(2, '0')) + s
         fun = abs
+
     return out
 
 #
 # def ymdhms(t):
-
-
-
 
 
 def eng(value, significant=None, base=10, unit=''):
@@ -767,7 +760,7 @@ class Decimal(Notation):
             return 'nan'
 
         if np.isinf(self.n):
-            return INFINITY_STYLES[style]
+            return INFINITY_SYMBOLS[style]
 
         sign_fmt = resolve_sign(sign)
 
@@ -869,7 +862,7 @@ class Sci:
             return 'nan'
 
         if np.isinf(self.n):
-            return INFINITY_STYLES[style]
+            return INFINITY_SYMBOLS[style]
 
         # first get the ×10ⁿ part
         times, base, exp = self.get_parts(style, times)
@@ -902,7 +895,7 @@ class Sci:
 
         base = '10'
         if style == 'unicode':
-            times = UNI_MULT.get(times, times)
+            times = PRODUCT_SYMBOLS.get(times, times)
             pwr_sgn = ['', '\N{SUPERSCRIPT MINUS}'][m < 0]
             exp = pwr_sgn + uni.superscript.translate(abs(m))
             return times, base, exp
@@ -912,7 +905,7 @@ class Sci:
             return times, base, exp
 
         # latex
-        times = LATEX_MULT.get(times, times)
+        times = PRODUCT_SYMBOLS_LATEX.get(times, times)
         return times, base, f'^{exp}'
 
     def ascii(self, significant=5, sign=False, times='x', short=False):
@@ -1002,14 +995,14 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
             unicode = False
 
         if unicode:
-            times = UNI_MULT.get(times, times)
+            times = PRODUCT_SYMBOLS.get(times, times)
             pwr_sgn = ['', '\N{SUPERSCRIPT MINUS}'][m < 0]
             exp = pwr_sgn + uni.superscript.translate(abs(m))
         else:
             pwrFmt = '%i'
             if latex:
                 pwrFmt = '^{%i}'
-                times = LATEX_MULT.get(times, times)
+                times = PRODUCT_SYMBOLS_LATEX.get(times, times)
             exp = '' if m == 1 else pwrFmt % m
 
     # if short:
@@ -1117,11 +1110,7 @@ def numeric_array(n, precision=2, significant=3, log_switch=5, sign=' ',
     """Pretty numeric representations for arrays of scalars"""
     # note default args slightly different:
     #   sign ' ' instead of '-'  for alignment
-    return vectorize(numeric)(n, precision=precision, significant=significant,
-                              log_switch=log_switch, sign=sign, times=times,
-                              short=short, thousands=thousands,
-                              unicode=unicode, latex=latex,
-                              engineering=engineering)
+    return vectorize(numeric)(**locals())
 
 
 # ------------------------------------------------------------------------------
@@ -1134,12 +1123,14 @@ def precision_rule_dpg(u):
     # http://pdg.lbl.gov/2010/reviews/rpp2010-rev-rpp-intro.pdf (section 5.4:
     #  Rounding, pg 13)
 
-    # ""The basic rule states that if the three highest order digits of the error(sic) lie between 100
-    # and 354, we round to two significant digits. If they lie between 355 and 949, we round
-    # to one significant digit. Finally, if they lie between 950 and 999, we round up to 1000
-    # and keep two significant digits. In all cases, the central value is given with a precision
-    # that matches that of the error (sic). So, for example, the result (coming from an average)
-    # 0.827 ± 0.119 would appear as 0.83 ± 0.12, while 0.827 ± 0.367 would turn into 0.8 ± 0.4.""
+    # "" The basic rule states that if the three highest order digits of the
+    # error [sic] lie between 100 and 354, we round to two significant digits.
+    # If they lie between 355 and 949, we round to one significant digit.
+    # Finally, if they lie between 950 and 999, we round up to 1000 and keep two
+    # significant digits. In all cases, the central value is given with a
+    # precision that matches that of the error [sic]. So, for example, the
+    # result (coming from an average) 0.827 ± 0.119 would appear as 0.83 ± 0.12,
+    # while 0.827 ± 0.367 would turn into 0.8 ± 0.4. ""
 
     nrs, m = get_significant_digits(u, 3)
     #
@@ -1149,7 +1140,7 @@ def precision_rule_dpg(u):
         r = 0  # round to one significant digit
     else:
         r = -1  # round up to 1000 and keep two significant digits
-    return -m + r  # precision
+    return r - m  # precision
 
 
 # def n_sig_dpg(u):
@@ -1166,7 +1157,7 @@ def precision_rule_dpg(u):
 
 
 def decimal_u(x, u, precision=None, short=False,
-              sign=False, unicode=True, latex=False):
+              sign=False, thousands='', unicode=True, latex=False):
     """
     Represent a number with associated standard deviation uncertainty as str.
 
@@ -1189,14 +1180,14 @@ def decimal_u(x, u, precision=None, short=False,
         precision = precision_rule_dpg(u)
     precision = int(precision)  # type enforcement
 
-    xr = decimal(x, precision, 0, sign, short)
-    ur = decimal(u, precision, 0, '', short)
+    xr = decimal(x, precision, 0, sign, short, thousands=thousands)
+    ur = decimal(u, precision, 0, '', short, thousands=thousands)
 
     if unicode:
         return f'{xr} ± {ur}'
 
     if latex:
-        return r'$%s \pm %s$' % (xr, ur)
+        return Rf'${xr} \pm {ur}$'
 
     return f'{xr} +/- {ur}'
 
@@ -1208,8 +1199,7 @@ def decimal_u(x, u, precision=None, short=False,
 
 
 def uarray(x, u, significant=None, switch=5, short=False, times='x',
-           sign='-', unicode=True, latex=False,
-           engineering=False):
+           sign='-', thousands='', unicode=True, latex=False, engineering=False):
     """
 
     Parameters
@@ -1283,11 +1273,11 @@ def uarray(x, u, significant=None, switch=5, short=False, times='x',
         # `significant` or we can fill trailing whitespace up to `significant`.
 
         # option 1
-        xr = vectorize(decimal_u)(x, u, precision=precision,
-                                  short=short, sign=sign,
-                                  unicode=unicode, latex=latex)
+        return vectorize(decimal_u)(x, u, precision=precision,
+                                    short=short, sign=sign, thousands=thousands,
+                                    unicode=unicode, latex=latex)
 
-        return xr
+        # return xr
 
         # option 2
 
@@ -1303,9 +1293,7 @@ def sci_array(n, significant=5, sign='-', times='x',  # x10='x' ?
     # masked data handled implicitly by vectorize
     # from recipes.array.misc import vectorize
 
-    return vectorize(sci)(n, significant=significant, sign=sign,
-                          times=times, short=short, unicode=unicode,
-                          latex=latex, engineering=engineering)
+    return vectorize(sci)(**locals())
 
 
 def matrix(a, precision=3):

@@ -48,7 +48,9 @@ class trace(Decorator):
                  pre='Tracing function call:\n >>> {signature}',
                  post='{func.__name__} returned result in {elapsed}:\n > {result}',
                  emit=logger.info,
-                 formatter=pp.caller, **options):
+                 formatter=None, **options):
+
+        formatter = formatter or pp.caller  # avoid circular import
 
         self.pre = pre
         self.post = post
@@ -64,8 +66,8 @@ class trace(Decorator):
     def __wrapper__(self, func, *args, **kws):
 
         try:
-            if '{signature}' in self.pre: 
-                signature = indent(self.formatter(self.func, args, kws, 
+            if '{signature}' in self.pre:
+                signature = indent(self.formatter(self.func, args, kws,
                                                   **self.options))
             self.emit(self.pre, **locals())
         except Exception as err:

@@ -438,11 +438,11 @@ class ImportFilter(Parentage):
         node = self.generic_visit(node)
 
         if node.name in self.remove:
-            logger.debug('Removing import: {:s}', node.name)
+            logger.info('Removing import: {:s}', node.name)
             return  # entire node filtered
 
         if node.asname in self.remove:
-            logger.debug('Removing alias {:s} to imported name {:s}',
+            logger.info('Removing alias {:s} to imported name {:s}',
                          node.asname, node.name)
             node.asname = None
 
@@ -485,7 +485,7 @@ class ImportMerger(ImportFilter):
 
         scope = node.parent  # Module or FunctionDef etc containing import
         module_name = get_module_name(node)
-        logger.debug(f'\n{self.__class__}\n{module_name = }; {node = }; {scope = }')
+        # logger.debug(f'\n{self.__class__}\n{module_name = }; {node = }; {scope = }')
         #  f'\n{os.linesep.join(map(rewrite, scope.body))}')
 
         # avoid duplicates >>> from x import y, y
@@ -1076,7 +1076,7 @@ class ImportRefactory(LoggingMixin):
 
             try:
                 parent_module_name, script_name = get_module_name(self.filename).rsplit('.', 1)
-                logger.debug("Discovered parent module name: {!r} for file '{}.py'.",
+                logger.info("Discovered parent module name: {!r} for file '{}.py'.",
                              parent_module_name, script_name)
             except ValueError as err:
                 if (msg := str(err)).startswith('Could not get package name'):

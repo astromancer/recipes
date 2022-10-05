@@ -109,14 +109,14 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
     Parameters
     ----------
     obj : object
-        The callable object
+        A callable object.
     args : tuple, optional
         Positional and variadic positional arguments for the function call, by
-        default ()
+        default ().
     kws : dict, optional
         Variadic keywords for the call, by default None
     wrap : int, optional
-        Line width for hard wrapping, by default 80
+        Line width for hard wrapping, by default 80.
     name_depth : int, optional
         Controls how the function's name is represented. This parameter gives
         the namespace depth, number of parent object names to include in the
@@ -127,7 +127,7 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
         For fully qualified names (up to (sub)module level), use
             `name_depth='module'`.
         For the full name spec up to the package level, use
-            `name_depth=-1` or `name_depth='package'`
+            `name_depth=-1` or `name_depth='package'`.
     params_per_line : ine, optional
         Number of parameters to print per line. If None (the default) a variable
         number of parameters are printed per line while respecting requested
@@ -136,7 +136,7 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
         Whether function parameters start on a new line. The default behaviour,
         `hang=None`, chooses to hang the parameter spec (if *params_per_line*
         not given) if the number of parameters in the call is greater than 7, or
-        if one of the parameters has a long repr
+        if one of the parameters has a long repr.
     show_defaults : bool, optional
         Whether or not to include parameters with default values, by default
         True.
@@ -302,7 +302,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
 
 def method(func, show_defining_class=True, **kws):
     """
-    Get a nice string representing the method.
+    Get a pretty string representation of the method with its parameters.
 
     Parameters
     ----------
