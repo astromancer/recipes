@@ -25,22 +25,62 @@ class catch(Decorator):
     """
     Catch an exception and log it, or raise an alternate exception.
     """
-    def __init__(self, exceptions=Exception, action=-1, alternate=Exception,
-                 message='Caught the following {err.__class__.__name__}: {err}'
-                 ):
+
+    _default_message_template = \
+        'Caught the following {err.__class__.__name__}: {err}'
+
+    def __init__(self, *, exceptions=Exception, action='ignore',
+                 alternate=None, message=None, raise_from=True, warn=None,
+                 **kws):
+
+        if isinstance(warn, str):
+            action = 'warn'
+            message = warn
+        elif isinstance(warn, Warning):
+            action = 'warn'
+            message = warn.args[0]
+        elif warn:
+            raise TypeError(f'Invalid type {type(warn)} for parameter `warn`.')
+
         self.exceptions = exceptions
         self.emit = Emit(action, alternate)
-        self.template = str(message)
+        self.alternate = alternate
+        self.template = str(message or self._default_message_template)
+        self.raise_from = bool(raise_from)
+        self.kws = dict(kws)
 
     def __wrapper__(self, func, *args, **kws):
         try:
             return func(*args, **kws)
-        except self.exceptions as err:
-            self.emit(self.message(func, args, kws, err))
 
-    def message(self, _func, args, kws,  err):
+        except self.exceptions as err:
+            self.__exit__(type(err), err, ())
+
+    def message(self, _func=None, args=(), kws=None, err=None):
         """format the message template"""
-        return self.template.format(*args, **kws, err=err)
+        return self.template.format(*(args or ()),
+                                    **{**self.kws, **(kws or {})},
+                                    err=err)
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, err, exc_tb):
+
+        if not err:
+            return
+
+        if self.emit.action != 'raise':
+            self.emit(self.message(None, None, None, err))
+            return True  # this suppresses the exception
+
+        if self.alternate is None:
+            raise
+
+        if not self.raise_from:
+            err = None
+
+        raise self.alternate from err
 
 
 class fallback(Decorator):
@@ -49,7 +89,7 @@ class fallback(Decorator):
     def __init__(self, value=None, exceptions=(Exception, ), warns=False):
         self.fallback = value
         if (not isinstance(exceptions, abc.Collection)
-            and issubclass(exceptions, BaseException)):
+                and issubclass(exceptions, BaseException)):
             exceptions = (exceptions,)
         self.excepts = tuple(exceptions)
         self.emit = Emit(warns - 1)

@@ -75,8 +75,8 @@ def show_diff(actual, expected):
     multiline strings.
     """
 
-    return ''.join(difflib.unified_diff(actual.splitlines(True),
-                                        expected.splitlines(True)))
+    return '\n'.join(difflib.ndiff(actual.splitlines(True),
+                                 expected.splitlines(True)))
 
 
 class WrapArgs:
@@ -227,6 +227,9 @@ class Expected(LoggingMixin):
         self.is_test = name.startswith('test_')
         # crude test for whether this function is defined in a class scope
         self.is_method = (name != func.__qualname__)
+        self.logger.opt(lazy=True).debug(
+            '{}', lambda: f'{self.is_method = }, {name = }, '
+                          f'{func.__qualname__ = }')
         self.is_dispatch = all(hasattr(func, _) for _ in
                                {'register', 'dispatch', 'registry'})
 
@@ -340,7 +343,7 @@ class Expected(LoggingMixin):
         params = bound.arguments
 
         if self.is_method:
-            params.pop('self')
+            params.pop('self', None)
 
         return params
 
@@ -354,7 +357,6 @@ class Expected(LoggingMixin):
         for spec in items:
             # call signature emulation via mock handled here
             spec, result = spec
-
             if not isinstance(spec, WrapArgs):
                 # simple construction without use of mock function.
                 # ==> No keyword values in arg spec
@@ -408,7 +410,7 @@ class Expected(LoggingMixin):
                     *kws.pop(self.var, ()))
 
             # single dispatch functions require positional arguments
-            if args == () and self.is_dispatch:
+            if not args and self.is_dispatch:
                 args = (kws.pop(self.pnames[0]), )
 
             self.logger.debug('passing to {:s}: {!s}; {!s}',
@@ -430,19 +432,20 @@ class Expected(LoggingMixin):
             # NOTE: explicitly assigning answer here so that pytest
             # introspection of locals in this scope works when producing the
             # failure report
-            if answer != expected:
-                message = '\n'.join((
-                    'Result from function '
-                    '{self.func.__name__:s|green}'
-                    ' is not equal to expected answer!',
-                    'RESULT:\n{answer!r}',
-                    'EXPECTED:\n{expected!r}'
-                ))
-                if isinstance(answer, str) and isinstance(expected, str):
-                    diff_string = show_diff(repr(answer), repr(expected))
-                    message += f'\nDIFF\n{diff_string}'
+            if answer == expected:
+                return
 
-                raise AssertionError(motley.format(message, **locals()))
+            message = motley.format(
+                '{end}Result from function {func.__name__:s|green}'
+                ' is not equal to expected answer!',
+                func=self.func, end=motley.codes.END
+            ) + (f'\nRESULT:  \n{answer!r}'
+                 f'\nEXPECTED:\n{expected!r}')
+            if isinstance(answer, str) and isinstance(expected, str):
+                diff_string = show_diff(repr(answer), repr(expected))
+                message += f'\nDIFF\n{diff_string}'
+
+            raise AssertionError(message)
 
         # -------------------------------------------------------------------- #
         # Override signature to add `expected` parameter

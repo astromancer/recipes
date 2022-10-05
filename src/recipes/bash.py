@@ -136,17 +136,15 @@ class BraceExpressionNode(Node):  # pylint: disable=function-redefined
                     └── 8.003
                         └── {0,1}
 
-        After running `collapse unary on this tree, the result would be:
-            └── 20
-                └── 13061
-                    ├── 6.003{0,1}
-                    ├── 7.003{0,1}
-                    └── 8.003{0,1}
+        After running `collapse_unary` on this tree, the result would be:
+            2013061
+                ├── 6.003{0,1}
+                ├── 7.003{0,1}
+                └── 8.003{0,1}
 
         Another run of `collapse_leaves` gives:
-            └── 20
-                └── 13061
-                    └── {6,7,8}.003{0,1}
+            2013061
+                └── {6,7,8}.003{0,1}
 
         """
         changed = False
@@ -159,17 +157,17 @@ class BraceExpressionNode(Node):  # pylint: disable=function-redefined
             siblings = set(leaf.parent.children)
             leaves -= siblings
             # get siblings that are also leaf nodes
-            sibleaves = {child for child in siblings if child.is_leaf}
-            # sibleaves = siblings.intersection(leaves)
-            if len(sibleaves) < 2:
+            sibling_leaves = set(self.sibling_leaves)
+            # sibling_leaves = siblings.intersection(leaves)
+            if len(sibling_leaves) < 2:
                 continue
 
-            nested = max(map(braces.depth, strings(sibleaves)))
+            nested = max(map(braces.depth, strings(sibling_leaves)))
             if nested >= max_nest:
                 continue
 
-            leaf.name = contract(sorted(map(str, sibleaves)))
-            leaf.parent.children = (leaf, *(siblings - sibleaves - {leaf}))
+            leaf.name = contract(sorted(map(str, sibling_leaves)))
+            leaf.parent.children = (leaf, *(siblings - sibling_leaves - {leaf}))
             changed = True
 
         return changed

@@ -55,11 +55,11 @@ def describe(obj, sep=' ', repr=repr):
 
     if isinstance(obj, type):
         if obj.__module__ == 'builtins':
-            return 'class ' + repr(obj.__name__)
-            
+            return f'class {repr(obj.__name__)}'
+
         # obj is a class
         return 'class ' + repr(f'{obj.__module__}.{obj.__name__}')
-        # return str(obj).strip("<>")
+            # return str(obj).strip("<>")
 
     if hasattr(obj, '__qualname__'):
         # any function or method
@@ -75,8 +75,7 @@ def parameter(par, val_formatter=repr):
 
     # Add annotation and default value
     if par._annotation is not _empty:
-        formatted = '{}: {}'.format(formatted,
-                                    inspect.formatannotation(par._annotation))
+        formatted = f'{formatted}: {inspect.formatannotation(par._annotation)}'
 
     if par._default is not _empty:
         space = ' ' * (par._annotation is not _empty)
@@ -110,14 +109,14 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
     Parameters
     ----------
     obj : object
-        The callable object
+        A callable object.
     args : tuple, optional
         Positional and variadic positional arguments for the function call, by
-        default ()
+        default ().
     kws : dict, optional
         Variadic keywords for the call, by default None
     wrap : int, optional
-        Line width for hard wrapping, by default 80
+        Line width for hard wrapping, by default 80.
     name_depth : int, optional
         Controls how the function's name is represented. This parameter gives
         the namespace depth, number of parent object names to include in the
@@ -128,7 +127,7 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
         For fully qualified names (up to (sub)module level), use
             `name_depth='module'`.
         For the full name spec up to the package level, use
-            `name_depth=-1` or `name_depth='package'`
+            `name_depth=-1` or `name_depth='package'`.
     params_per_line : ine, optional
         Number of parameters to print per line. If None (the default) a variable
         number of parameters are printed per line while respecting requested
@@ -137,7 +136,7 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
         Whether function parameters start on a new line. The default behaviour,
         `hang=None`, chooses to hang the parameter spec (if *params_per_line*
         not given) if the number of parameters in the call is greater than 7, or
-        if one of the parameters has a long repr
+        if one of the parameters has a long repr.
     show_defaults : bool, optional
         Whether or not to include parameters with default values, by default
         True.
@@ -195,8 +194,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
               value_formatter=repr, pep570_marks=True):
 
     # format each parameter as 'param=value' pair
-    with_params = (args or kws)
-    if with_params:
+    if (args or kws):
         # with parameter values provided
         ba = sig.bind(*args, **(kws or {}))
         if show_defaults:
@@ -271,9 +269,9 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     if wrap:
         wrap -= indent
 
-    if widest > wrap:
-        # truncate!!
-        pass
+    # if widest > wrap:
+    #     # truncate!!
+    #     pass
 
     ppl = ppl or 100
 
@@ -296,11 +294,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     s += line
     s = txw.indent(s, ' ' * indent).lstrip('\n')
 
-    if hang:
-        s = f'\n{s}\n'
-    else:
-        s = s.lstrip()
-
+    s = f'\n{s}\n' if hang else s.lstrip()
     return s.join('()')
 
 # @docsplice
@@ -308,7 +302,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
 
 def method(func, show_defining_class=True, **kws):
     """
-    Get a nice string representing the method.
+    Get a pretty string representation of the method with its parameters.
 
     Parameters
     ----------

@@ -74,7 +74,7 @@ class ItemGetter:
     (Multi-)Item getter with optional default substitution.
     """
     _worker = staticmethod(getitem)
-    _excepts = (KeyError, IndexError)
+    _excepts = LookupError # (KeyError, IndexError)
     _raises = KeyError
 
     def __init__(self, *keys, default=NULL, defaults=None):
@@ -97,7 +97,7 @@ class ItemGetter:
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.keys})'
-    
+
     def get_default(self, key):
         """Retrieve the default value of the `key` attribute"""
         # pylint: disable=method-hidden
@@ -147,8 +147,8 @@ class AttrSetter:
 
         assert len(values) == len(keys)
         for get_obj, attr, value in zip(self.getters, keys, values):
-            # logger.debug(get_obj(target), attr, value)
             setattr(get_obj(target), attr, value)
+
 
 
 class AttrDict(AttrGetter):
@@ -178,15 +178,14 @@ class ItemVector(VectorizeMixin, ItemGetter):
 
 
 class AttrVector(VectorizeMixin, AttrGetter):  # AttrTable!
-    """Vectorized AttrGetter"""
+    """Vectorized attribute getter a la AttrGetter."""
 
 
 class MethodCaller:
     """
-    This is adapted from `operator.methodcaller`. The code below is copied
-    verbatim from 'operator.py' (since you can't inherit from
-    `operator.methodcaller!`) with only the `__call__` method altered to support
-    chained attribute lookup like:
+    This is adapted from `operator.methodcaller`. The code below is taken from
+    'operator.py' (since you can't inherit from `operator.methodcaller!`) with
+    only the `__call__` method altered to support chained attribute lookup like:
     >>> MethodCaller('foo.bar.func', *args, **kws)(object)
 
     Return a callable object that calls the given method on its operand.
@@ -198,14 +197,16 @@ class MethodCaller:
 
     def __init__(*args, **kwargs):  # pylint: disable=no-method-argument
         if len(args) < 2:
-            msg = ("%s needs at least one argument, the method name"
-                   % args[0].__class__.__name__)
+            msg = (f'{args[0].__class__.__name__} needs at least one argument, '
+                   f'the method name')
+
             raise TypeError(msg)
 
         self = args[0]
         self._name = args[1]
         if not isinstance(self._name, str):
-            raise TypeError('method name must be a string')
+            raise TypeError(f'Method name must be a string, not '
+                            f'{type(self._name)}')
         self._args = args[2:]
         self._kwargs = kwargs
 
@@ -215,17 +216,16 @@ class MethodCaller:
     def __repr__(self):
         args = [repr(self._name),
                 *map(repr, self._args)]
-        args.extend('%s=%r' % (k, v) for k, v in self._kwargs.items())
-        return '%s.%s(%s)' % (self.__class__.__module__,
-                              self.__class__.__name__,
-                              ', '.join(args))
+        args.extend(f'{k}={v!r}' for k, v in self._kwargs.items())
+        return \
+            f"{(c:=self.__class__).__module__}.{c.__name__}({', '.join(args)})"
 
     def __reduce__(self):
         if self._kwargs:
             return (ftl.partial(self.__class__, self._name, **self._kwargs),
                     self._args)
 
-        return self.__class__, (self._name,) + self._args
+        return self.__class__, (self._name, *self._args)
 
 
 class MethodVector(MethodCaller):
@@ -291,10 +291,7 @@ class contained:  # pylint: disable=invalid-name
     [False, True, False]
     """
     def __new__(cls, *args):
-        if len(args) == 2:
-            return (args[0] in args[1])
-
-        return super().__new__(cls)
+        return (args[0] in args[1]) if len(args) == 2 else super().__new__(cls)
 
     def __init__(self, item):
         self.item = item

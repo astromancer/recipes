@@ -1,39 +1,39 @@
 """
-Sort import statements in python source code.
+Refactor import statements in python source code.
 """
 
 
 # std
 import os
 import io
+import re
 import ast
-import sys
 import math
-import pkgutil
-import contextlib
 import warnings as wrn
 import functools as ftl
 import itertools as itt
+from typing import Union
 from pathlib import Path
 from collections import defaultdict
 
 # third-party
 import more_itertools as mit
 from loguru import logger
-from stdlib_list import stdlib_list
 
 # relative
-from .. import cosort, op, pprint as pp
+from .. import api, cosort, op, pprint as pp
+from ..io import open_any
 from ..iter import unduplicate
 from ..dicts import AttrReadItem
 from ..functionals import negate
 from ..logging import LoggingMixin
-from ..io import open_any, safe_write
+from ..string import remove_prefix
 from ..pprint.callers import describe
-from ..string import remove_prefix, remove_suffix, truncate
+from .utils import BUILTIN_MODULE_NAMES
+from ..string import remove_prefix, truncate
+from ..io import open_any, read_lines, safe_write
+from .utils import BUILTIN_MODULE_NAMES, get_module_name
 
-
-# TODO: don't relativize for scripts -> look for hashbang, executable
 
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
@@ -52,6 +52,11 @@ from ..string import remove_prefix, remove_suffix, truncate
 # from collections import OrderedDict, UserDict, abc, defaultdict
 
 # ---------------------------------------------------------------------------- #
+api_synonyms = api.synonyms({'filter':          'filter_unused',
+                             'relative(_to)?':  'relativize',
+                             'module_name':     'relativize'})
+
+# ---------------------------------------------------------------------------- #
 CONFIG = AttrReadItem(
     log_warnings=True,
 
@@ -67,12 +72,12 @@ CONFIG = AttrReadItem(
     module_group_name_suffix='',  # libs
 
     # list of local module names
-    local_modules_db=Path.home() / '.config/recipes/local_libs.txt'
+    user_local_modules=Path.home() / '.config/recipes/local_libs.txt'
 )
 
 
 # LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
-LOCAL_MODULES = CONFIG.local_modules_db.read_text().splitlines()
+LOCAL_MODULES = read_lines(CONFIG.user_local_modules)
 
 
 # warning control
@@ -87,14 +92,6 @@ if CONFIG.log_warnings:
 
 # ---------------------------------------------------------------------------- #
 # list of builtin modules
-BUILTIN_MODULE_NAMES = [
-    # builtins
-    *stdlib_list(sys.version[:3]),
-    # python easter eggs
-    'this', 'antigravity'
-    # auto-generated module for builtin keywords
-    'keyword'
-]
 
 
 # supported styles for sorting
@@ -108,14 +105,37 @@ F_NAMEMAX = os.statvfs('.').f_namemax
 # pathFinder = PathFinder()
 
 # ---------------------------------------------------------------------------- #
+REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
+
+
+def is_script(source: str):
+    return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
+
+# ---------------------------------------------------------------------------- #
+
+
+def is_null(obj):
+    return (obj is None) or (obj is False)
+
+
+def not_null(obj):
+    return not is_null(obj)
+
+
+# alias
+isnull = is_null
+notnull = not_null
+
+# ---------------------------------------------------------------------------- #
 # Functions for sorting / rewriting import nodes
 
+
 def is_import(node):
-    return isinstance(node,  ast.Import)
+    return isinstance(node, ast.Import)
 
 
 def is_import_from(node):
-    return isinstance(node,  ast.ImportFrom)
+    return isinstance(node, ast.ImportFrom)
 
 
 def is_any_import_node(node):
@@ -136,14 +156,16 @@ def get_length(node):
     return len(rewrite(node))
 
 
-def get_mod_name_list(node):
-    return get_mod_name(node).split('.')
+def get_module_name_list(node):
+    return get_module_name(node).split('.')
 
 
-def get_package_name(node):
-    fullname = get_mod_name(node)
+def get_package_name(node_or_path: Union[str, Path, ast.Import]):
+    fullname = get_module_name(node_or_path)
     # if fullname.startswith('.'):
     #     return '.' * node.level
+    if fullname is None:
+        raise ValueError(f'Could not get package name for file {node_or_path!r}.')
 
     return fullname.split('.', 1)[0]
 
@@ -152,63 +174,6 @@ def relative_sorter(node):
     # this prioritizes higher relatives '..' above '.'
     # also '..' above '..x'
     return (0.5 * bool(node.module) - node.level) if is_relative(node) else 0
-
-# ---------------------------------------------------------------------------- #
-# Dispatcher for getting module name import node or path
-
-
-@ftl.singledispatch
-def get_mod_name(node):
-    """Get the full (dot separated) module name from various types."""
-    raise TypeError(
-        f'No default dispatch method for type {type(node).__name__!r}.'
-    )
-
-
-@get_mod_name.register(ast.Import)
-def _(node):
-    # assert len(node.names) == 1
-    return node.names[0].name
-
-
-@get_mod_name.register(ast.ImportFrom)
-def _(node):
-    return f'{"." * node.level}{node.module or ""}'
-
-
-@get_mod_name.register(str)
-@get_mod_name.register(Path)
-def _(path):
-    # get full module name from path
-    path = Path(path)
-    candidates = []
-    trial = path.parent
-    stop = (Path.home(), Path('/'))
-    for _ in range(5):
-        if trial in stop:
-            break
-
-        with contextlib.suppress(ImportError):
-            if pkgutil.get_loader(trial.name):
-                candidates.append(trial)
-        trial = trial.parent
-
-    # This next bit is needed since a module may have the same name as a builtin
-    # module, eg: "recipes.string". Here "string" would be incorrectly
-    # identified here as a "package" since it is importable. The real package
-    # may actually be higher up in the folder tree.
-    while candidates:
-        trial = candidates.pop(0)
-        if candidates and (trial.name in BUILTIN_MODULE_NAMES):
-            # candidates.append(trial)
-            continue
-
-        # convert to dot.separated.name
-        path = path.relative_to(trial.parent)
-        name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
-        return name.rstrip('/').replace('/', '.')
-
-    wrn.warn(f'Could not find package for \'{path}\'.')
 
 
 # ---------------------------------------------------------------------------- #
@@ -355,12 +320,12 @@ NODE_SORTERS = {
                   is_import_from,
                   relative_sorter,
                   get_length,
-                  get_mod_name
+                  get_module_name
                   ),
     'alphabetic': (get_module_typecode,
                    is_import_from,
                    relative_sorter,
-                   get_mod_name,
+                   get_module_name,
                    get_length
                    )
 }
@@ -393,16 +358,21 @@ class NodeScopeFilter(ast.NodeTransformer):
 
 
 class Parentage(ast.NodeTransformer):
-    # for consistency, module parent is None
+    """
+    Sets node `parent` attribute. For consistency, module parent is set to
+    `None`.
+    """
+
     parent = None
 
     def visit(self, node):
+        logger.trace('\n{} parent set to {}', node, self.parent)
         node.parent = self.parent
         self.parent = node
-        node = super().visit(node)
-        if isinstance(node, ast.AST):
-            self.parent = node.parent
-        return node
+        new = super().visit(node)
+        self.parent = new.parent if isinstance(new, ast.AST) else node.parent
+        logger.trace('\nParentage is now {}', self.parent)
+        return new
 
 
 class ImportCapture(Parentage):
@@ -421,7 +391,7 @@ class ImportCapture(Parentage):
     #     # all the  imported names and used names
     #     return self.generic_visit(node)
 
-    def _visit_any_import(self, node):
+    def visit_Import(self, node):
         node = self.generic_visit(node)
         if not self._should_capture(node):
             return node
@@ -430,11 +400,7 @@ class ImportCapture(Parentage):
         self.line_nrs.append(node.lineno - 1)
         return node
 
-    def visit_Import(self, node):
-        return self._visit_any_import(node)
-
-    def visit_ImportFrom(self, node):
-        return self._visit_any_import(node)
+    visit_ImportFrom = visit_Import
 
     def visit_alias(self, node):
         name = node.asname or node.name
@@ -453,31 +419,33 @@ class ImportCapture(Parentage):
         return node
 
 
-class ImportFilter(ast.NodeTransformer):  #
-    def __init__(self, names=()):
+class ImportFilter(Parentage):
+    def __init__(self, names=(), ):
         self.remove = set(names)
 
-    def visit_Module(self, node):
-        return self.generic_visit(node) if self.remove else node
-
-    def _visit_any_import(self, node):
+    def visit_Import(self, node):
         node = self.generic_visit(node)
         if node.names:
             return node
+
         # if all aliases were removed, import node is filtered from tree
+        logger.debug('Filtering empty import node (all aliases filtered).')
 
-    def visit_Import(self, node):
-        return self._visit_any_import(node)
-
-    def visit_ImportFrom(self, node):
-        return self._visit_any_import(node)
+    #
+    visit_ImportFrom = visit_Import
 
     def visit_alias(self, node):
         node = self.generic_visit(node)
-        name = node.asname or node.name
-        if name in self.remove:
-            logger.debug('Removing import: {:s}', name)
-            return
+
+        if node.name in self.remove:
+            logger.info('Removing import: {:s}', node.name)
+            return  # entire node filtered
+
+        if node.asname in self.remove:
+            logger.info('Removing alias {:s} to imported name {:s}',
+                         node.asname, node.name)
+            node.asname = None
+
         return node
 
     #     # if self.up_to_line < math.inf:
@@ -500,37 +468,54 @@ class ImportFilter(ast.NodeTransformer):  #
         # next filter stuff we don't want
 
 
-class ImportMerger(Parentage):
+class ImportMerger(ImportFilter):
     # combine separate statements that import from the same module
     # >>> from x import y
     # >>> from x import z
     # becomes
     # >>> from x import y, z
 
-    def __init__(self, level=1):  #
-        # [scope][module_name]{node}
-        # ftl.partial(defaultdict, ast.ImportFrom)
+    def __init__(self, level=1):
+        super().__init__()
         self.aliases = defaultdict(dict)
 
-    def visit_ImportFrom(self, node):
-        self.generic_visit(node)
+    def visit_Import(self, node):
+        if super().visit_Import(node) is None:
+            return
 
-        scoped = self.aliases[node.parent]
-        module_name = node.module or '.' * node.level
-        existing_node = scoped.setdefault(module_name, node)
-        if existing_node is node:
-            return node
+        scope = node.parent  # Module or FunctionDef etc containing import
+        module_name = get_module_name(node)
+        # logger.debug(f'\n{self.__class__}\n{module_name = }; {node = }; {scope = }')
+        #  f'\n{os.linesep.join(map(rewrite, scope.body))}')
 
         # avoid duplicates >>> from x import y, y
-        aliases = unduplicate(existing_node.names + node.names,
-                              op.attrgetter('name'))
-        existing_node.names = list(aliases)
-        # we are about to visit the aliases, so ensure that Parentage sets those
-        # parents to the previously existing import node which we just extended.
-        # This is also important for correctly scoping the imports at module
-        # level.
-        self.parent = existing_node.parent
-        # dont return anything => filter this node
+        if module_name not in self.aliases[scope]:
+            # new module encountered
+            self.aliases[scope][module_name] = node
+            return node
+
+        existing_node = self.aliases[scope][module_name]
+
+        # Existing module: extend aliases for that node, and filter the current
+        # existing_node.names.append(node)
+        aliases = list(unduplicate([*existing_node.names, *node.names],
+                                   op.attrgetter('name', 'asname')))
+
+        if aliases != existing_node.names:
+            existing_node.names = aliases
+            logger.opt(lazy=True).debug('Merged imports with same module {!r}',
+                                        lambda: rewrite(existing_node))
+
+        # we are about to visit the aliases, so ensure that `Parentage` sets the
+        # alias parents to the previously `existing_node` import node which we
+        # just extended. This is also important for correctly scoping the
+        # imports at module level.
+        node.parent = existing_node.parent
+        # dont return anything => filter this `node` since we have a previously
+        # `existing_node`
+
+    #
+    visit_ImportFrom = visit_Import
 
 
 class ImportSplitter(ImportMerger):
@@ -605,8 +590,7 @@ class ImportRelativizer(ast.NodeTransformer):
             return node
 
         if node.level > len(self.parts):
-            wrn.warn(f'Attempted relative import beyond top level: '
-                     f'{rewrite(node)!r}')
+            wrn.warn(f'Relative import beyond top level: {rewrite(node)!r}')
             return node
 
         if node.level:
@@ -651,12 +635,12 @@ class ImportGrouper(HandleFuncs, ast.NodeVisitor):
         super().__init__(*functions)
         self.groups = defaultdict(ftl.partial(ast.parse, ''))
 
-    def visit_any_import(self, node):
-        gid = self(node)
+    def visit_Import(self, node):
+        gid = node.gid = self(node)
         self.groups[gid].body.append(node)
-        node.gid = gid
+
     #
-    visit_Import = visit_ImportFrom = visit_any_import
+    visit_ImportFrom = visit_Import
 
     def pprint(self):
         return pp.mapping(self.groups, '', brackets='', hang=True,
@@ -669,12 +653,12 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
     #     keep=(ast.Module, ast.Import, ast.ImportFrom, ast.alias)
     # )
 
-    def visit_any_import(self, node):
+    def visit_Import(self, node):
         node.order = self(node)
         node.names = sorted(node.names, key=alias_sorter)
         return node
     #
-    visit_Import = visit_ImportFrom = visit_any_import
+    visit_ImportFrom = visit_Import
 
     def visit_Module(self, node):
         node = self.generic_visit(node)
@@ -686,12 +670,12 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
 #     def __init__(self):
 #         self.lines = []
 
-#     def visit_any_import(self, node):
+#     def visit_Import(self, node):
 #         self.generic_visit(node)
 #         self.text += f'\n{rewrite(node)}'
 #         return node
 # #
-#     visit_Import = visit_ImportFrom = visit_any_import
+#      visit_ImportFrom = visit_Import
 
 def _iter_lines(module, headers=None):
     # generate source code lines from ast.Module, including import group header
@@ -761,14 +745,15 @@ def get_stream(file_or_source):
     )
 
 
+@api_synonyms
 def refactor(file_or_source,
-             sort='aesthetic',
+             sort=CONFIG.style,
              filter_unused=None,
              split=0,
              merge=1,
              relativize=None,
              #  unscope=False,
-             headers=None,
+             headers=None
              ):
 
     # up_to_line=math.inf,
@@ -784,10 +769,10 @@ tidy = refactor
 
 class ImportRefactory(LoggingMixin):
     """
-    Tidy up import statements that might lie scattered throughout hastily
-    written source code. Sort them, filter unused imports, group them by type,
-    re-write them in the document header or write to a new file or just print
-    the prettified code to stdout.
+    Tidy up import statements that might be scattered throughout hastily written
+    source code. Sort them, filter unused or duplicate imports, group them by
+    type, re-write them in the document header or write to a new file or just
+    print the prettified code to stdout.
     """
     # up_to_line: int
     #     line number for last line in input file that will be processed
@@ -820,6 +805,7 @@ class ImportRefactory(LoggingMixin):
 
         self.captured = ImportCapture()  # TODO: move inside filter_unused
         self.module = self.captured.visit(ast.parse(self.source))
+        self._original = ast.dump(self.module)
 
     def __call__(self, *args, **kws):
         module = self.refactor(*args, **kws)
@@ -830,6 +816,7 @@ class ImportRefactory(LoggingMixin):
             return f'{self.__class__.__name__}({path.name!r})'
         return f'{self.__class__.__name__}(<SourceCodeString>)'
 
+    @api_synonyms
     def refactor(self,
                  sort=CONFIG.style,
                  filter_unused=None,
@@ -838,22 +825,81 @@ class ImportRefactory(LoggingMixin):
                  relativize=None,
                  #  delocalize=False,
                  ):
+        """
+        Refactor import statements in python source code.
+
+        Parameters
+        ----------
+        sort : str, {'aesthetic', 'alphabetically'}, optional
+            The sorting rules are as follow: # TODO
+        filter_unused : bool, optional
+            Filter import statements for names that were not used in the source
+            code. Default action is to filter only when the input source has
+            some code beyond the import block, and is not a module initializer
+            `__init__.py` script.
+        split : {None, False, 0, 1}, optional
+            Whether to split import statements:
+            * Case `False` or `None`, do not
+              split any import lines. * Case `0`, the default: Split single-line
+              import statements involving multiple modules eg:
+              >>> import os, re
+                becomes
+              >>> import os
+              ... import re
+            * Case `1`: Split single-line import statements involving any sub
+              modules eg: 
+              >>> from collections.abc import Sized, Collection
+                becomes
+              >>> from collections.abc import Sized
+              ... from collections.abc import Collection
+        merge : int, optional
+            How to merge multiple import statements if at all, by default 1.
+            This performs the inverse operation of `split`.
+            * Case `False` or `None`, do not merge any import lines. 
+            * Case `0`, the default: Merge multi-line import statements from the
+              standard library: 
+              >>> import os ... import re
+                becomes
+              >>> import os, re
+            * Case `1`: Merge multiple import statements involving the same
+              (sub)modules eg: 
+              >>> from collections.abc import Sized
+              ... from collections.abc import Collection
+                becomes
+              >>> from collections.abc import Sized, Collection
+        relativize : str, optional
+            The name of the module containing the import statements. Providing
+            this will convert absolute module names to '.' where appropriate for
+            the provided name. The default is None, which does relativization
+            only if the parent module name can be discovered automatically, ie.
+            if the class was initialized from a file and not a source code
+            string, and that file is not a test or an executable script.
+
+
+        Examples
+        --------
+        >>> ImportRefactory('import this, antigravity').refactor()
+        import this
+        import antigravity
+
+
+        Returns
+        -------
+        ast.Module
+            The refactored module.
+        """
 
         # keep_multiline=True,
         #  up_to_line=math.inf,
-        """
+        # sort
 
-        sort: str, {'aesthetic', 'alphabetically'}
-            The sorting rules are as follow:
-            # TODO
-        unscope: bool
-            Whether or not to move the import statements that are in a local scope
-        headers: bool or None
-            whether to print comment labels eg 'third-party libs' above different
-            import groups.  If None (the default) this will only be done if there
-            are imports from multiple groups.
-
-        """
+        # unscope: bool
+        #     Whether or not to move the import statements that are in a local
+        #     scope
+        # headers: bool or None
+        #     whether to print comment labels eg 'third-party' above different
+        #     import groups. If None (the default) this will only be done if there
+        #     are imports from multiple groups.
 
         module = self.module
 
@@ -872,17 +918,21 @@ class ImportRefactory(LoggingMixin):
         if filter_unused:
             module = self.filter(module)
 
-        if (relativize is None):
-            relativize = self.filename is not None
+        if not_null(merge):
+            module = self.merge(module, merge)
+
+        if not_null(split):
+            module = self.split(module, split)
+
+        if relativize is None:
+            relativize = (self.filename is not None)
 
         if relativize:
             module = self.relativize(module, relativize)
-
-        if split is not None:
-            module = self.split(module, split)
-
-        if merge is not None:
-            module = self.merge(module, merge)
+            # need to merge again in case some imports relativized to an
+            # existing module
+            if not_null(merge):
+                module = self.merge(module, merge)
 
         delocalize = False
         if delocalize:
@@ -890,25 +940,37 @@ class ImportRefactory(LoggingMixin):
         else:
             module = NodeScopeFilter(0).visit(module)
 
-        if sort is not None:
-            if not module.body:
-                return module
+        if sort:
+            module = self.sort_and_group(module, sort)
 
-            # group and sort
-            grouper = ImportGrouper(*GROUPERS)
-            grouper.visit(module)
-            groups = {g: self.sort(mod, sort)
-                      for g, mod in grouper.groups.items()}
+        if module is self.module:
+            logger.info('Import statements are already well sorted for \'{}\''
+                        ' style!', sort)
 
-            # reorder the groups
-            modules = groups.values()
-            typecodes, *_ = zip(*groups.keys())
+        return module
 
-            group_order = (map(f, modules) for f in GROUP_SORTERS)
-            _, (module, *modules) = cosort(zip(typecodes, *group_order), modules)
+    def sort_and_group(self, module=None, style=CONFIG.style):
+        """Sort and group"""
+        module = module or self.module
 
-            for mod in modules:
-                module.body.extend(mod.body)
+        if not module.body:
+            return module
+
+        # group and sort
+        grouper = ImportGrouper(*GROUPERS)
+        grouper.visit(module)
+        groups = {g: self.sort(mod, style)
+                  for g, mod in grouper.groups.items()}
+
+        # reorder the groups
+        modules = groups.values()
+        typecodes, *_ = zip(*groups.keys())
+
+        group_order = (map(f, modules) for f in GROUP_SORTERS)
+        _, (module, *modules) = cosort(zip(typecodes, *group_order), modules)
+
+        for mod in modules:
+            module.body.extend(mod.body)
 
         return module
 
@@ -948,12 +1010,29 @@ class ImportRefactory(LoggingMixin):
         imports_only = self.filter_imports()
         return set(map(get_package_name, imports_only))
 
+    def _should_filter(self):
+        if len(self.captured.used_names) == 0:
+            self.logger.info('Not filtering unused statements for import-only '
+                             'script, since this would leave an empty file.')
+            return False
+        return True
+
     def filter_unused(self, module=None):
         module = module or self.module
         imported_names = self.captured.imported_names[module]
         used_names = set().union(*self.captured.used_names.values())
         # used_names = self.captured.used_names[module]
         unused = set.difference(imported_names, used_names)
+
+        # is_init_file =
+        if self.path and (self.path.name == '__init__.py'):
+            self.logger.info(
+                "This file is an initializer for a module: '{}'\n"
+                "Only imports from the standard library will be filtered.",
+                get_module_name(self.path)
+            )
+            # {u for u in unused if get_module_typecode(u) == 0}
+            unused = set(filter(negate(get_module_typecode), unused))
 
         if imported_names and not self.captured.used_names:
             wrn.warn(
@@ -963,6 +1042,7 @@ class ImportRefactory(LoggingMixin):
                 'you intended. Please use `filter_unused=False` if you only '
                 'wish to sort existing import statements.'
             )
+
         return ImportFilter(unused).visit(module)
 
     # alias
@@ -979,42 +1059,73 @@ class ImportRefactory(LoggingMixin):
     def relativize(self, module=None, parent_module_name=None, level=None):
         module = module or self.module
 
+        # check if we should try relativize. Excludes test files. Raise if
+        # running from str source and no package or module name given.
+        if not self._should_relativize(parent_module_name):
+            return module
+
+        # get the package name so we can replace
+        # >>> from package.module import x
+        # with
+        # >>> from .module import x
         if parent_module_name in (None, True):
-            # cannot relativize without filename
-            if ((self.filename is None) and (parent_module_name is True)):
-                wrn.warn(
-                    'Import relativization requested, but no parent module name'
-                    ' provided. Since we are running from raw input (source '
-                    'code string), you must provide the dot-separated name of '
-                    'the parent module of the source code via '
-                    '`relativize="my.package.name". Alternatively, if the '
-                    'source resides in a file, pass the `filename` parameter to'
-                    ' the `refactor` method to relativize import statements in-'
-                    'place.'
+            if self.filename is None:
+                # warning was emitted above, now we can just return unaltered
+                # module
+                return module
+
+            try:
+                parent_module_name, script_name = get_module_name(self.filename).rsplit('.', 1)
+                logger.info("Discovered parent module name: {!r} for file '{}.py'.",
+                             parent_module_name, script_name)
+            except ValueError as err:
+                if (msg := str(err)).startswith('Could not get package name'):
+                    logger.warning(msg)
+                    return module
+                raise err from None
+
+        if self._should_relativize(parent_module_name):
+            return ImportRelativizer(parent_module_name).visit(module)
+
+        return module
+
+    def _should_relativize(self, parent_module_name):
+        if parent_module_name not in (None, True):
+            if not isinstance(parent_module_name, str):
+                raise TypeError(
+                    f'Invalid type for `parent_module_name`, expected str, '
+                    f'received {type(parent_module_name)}.'
                 )
-                return module
+            return True
 
-            # get the package name so we can replace
-            # >>> from package.module import x
-            # with
-            # >>> from .module import x
-            if self.path.name.startswith('test_'):
-                wrn.warn('This looks like a test file. Skipping relativize.')
-                return module
+        # cannot relativize without filename
+        if ((self.filename is None) and (parent_module_name is True)):
+            wrn.warn(
+                'Import relativization requested, but no parent module name '
+                'provided. Since we are running from raw input (source code '
+                'string), you must provide the dot-separated name of the parent'
+                ' module of the source code via `relative="my.package.name"`.'
+                ' Alternatively, if the source resides in a file, pass the '
+                '`filename` parameter to the `refactor` method to relativize '
+                'import statements in-place.'
+            )
+            return False
 
-            #
-            module_name = get_mod_name(self.filename)
-            if module_name is None:
-                return module
+        emit = wrn.warn if parent_module_name else logger.info
+        filetype = OK = object()
+        if self.path.name.startswith('test_'):
+            # pre = ''
+            filetype = 'test file'
 
-            parent_module_name, *_ = module_name.rsplit('.', 1)
+        if is_script(self.source):
+            # pre
+            filetype = 'executable script'
 
-            self.logger.debug('Using parent module: {}', parent_module_name)
+        if filetype is OK:
+            return True
 
-        # if not level:
-
-        # fullname = pkg_name
-        return ImportRelativizer(parent_module_name).visit(module)
+        emit(f'This looks like a {filetype}. Skipping relativize.')
+        return False
 
     def sort(self, module=None, how=CONFIG.style):
         logger.trace('Sorting imports in module {} using {!r} sorter.',
@@ -1032,19 +1143,6 @@ class ImportRefactory(LoggingMixin):
 
     def delocalize(self):
         raise NotImplementedError
-
-    def _should_filter(self):
-        # is_init_file =
-        if self.path and (self.path.name == '__init__.py'):
-            self.logger.info('Not filtering unused statements for module '
-                             'initializer: \'{}\'', get_mod_name(self.path))
-            return False
-
-        if len(self.captured.used_names) == 0:
-            self.logger.info('Not filtering unused statements for import-only '
-                             'script.')
-            return False
-        return True
 
     def _iter_lines(self, module=None, headers=None):  # keep_multiline=True
         # line generator to rewrite source code
@@ -1079,21 +1177,23 @@ class ImportRefactory(LoggingMixin):
                 yield line
 
     def write(self, module, filename=None, headers=None):
-        # module=None,
         """
+        Write new source code with import statements refactored.
 
-        write new source code with import statements refactored
+        Parameters
+        ----------
+        module : _type_
+            _description_
+        filename: str or Path, optional
+            The output filename.
+        headers : _type_, optional
+            _description_, by default None
 
-        filename: str or Path
-            output filename
-        dry_run: bool
-            if True, don't edit any files, instead return the refactored source
-            as a string.
 
         Returns
         -------
-        sourceCode: str
-            Reformatted source code as a str.
+        source_code: str
+            Reformatted source code.
         """
 
         # at this point the import statements should be grouped and sorted
@@ -1105,8 +1205,10 @@ class ImportRefactory(LoggingMixin):
         # overwrite input file if `filename` not given
         filename = filename or self.filename
 
-        if (len(module.body) == 0) or (module is self.module):
+        # check for changes
+        if (len(module.body) == 0) or (ast.dump(module) == self._original):
             # no statements in module, or unchange module- nothing to write
+            logger.info('File contents left unchanged.')
             return self if filename else self.source
 
         # line generator

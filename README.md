@@ -39,11 +39,11 @@ Here are some highlights of the available modules and their functionality:
 * [`regex`](https://github.com/astromancer/recipes/tree/main/src/recipes/regex)
     : _Contract verbose style regexes._
 
-### Recipes involving iterators
+### Iterators / Generators
 * [`iter`](https://github.com/astromancer/recipes/tree/main/src/recipes/iter)
-:   _Missing iteration utilities: cofiltering, conditional indexing, ._
+:   _Additional iteration utilities: cofiltering, conditional indexing._
 
-### Various array functions
+### Arrays
 * [`array`](https://github.com/astromancer/recipes/tree/main/src/recipes/array)
     : _array folding (windowing) without memory duplication._
 
@@ -52,8 +52,7 @@ Here are some highlights of the available modules and their functionality:
     : _Functional decorator patterns_ -->
 * [`decorators`](https://github.com/astromancer/recipes/tree/main/src/recipes/decorators)
     : _Extensible decorators for: Control flow (catching exceptions, fallback
-    values),
-     parameter/return value tracing, line profiling._
+    values), parameter/return value tracing, line profiling._
 * [`caches`](https://github.com/astromancer/recipes/tree/main/src/recipes/caches)
     : _Performant functional memoization._
 
@@ -66,7 +65,7 @@ Here are some highlights of the available modules and their functionality:
     : _Intelligent parameter name autocorrect decorator for building flexible APIs._
 * [`interactive`](https://github.com/astromancer/recipes/tree/main/src/recipes/interactive)
 * [`bash`](https://github.com/astromancer/recipes/tree/main/src/recipes/bash)
-    : _bash style brace expansion and contraction_
+    : _bash style brace expansion and contraction._
 
 ### Code Introspection
 * [`introspect`](https://github.com/astromancer/recipes/tree/main/src/recipes/introspect)
@@ -78,7 +77,7 @@ Here are some highlights of the available modules and their functionality:
 * [`oo`](https://github.com/astromancer/recipes/tree/main/src/recipes/oo)
     : _singleton and null classes, context manager for temporary attributes,
     cached `property` decorator with optional dependencies, property forwarding
-    to class members_
+    for nested objects._
 
 
 ### Math

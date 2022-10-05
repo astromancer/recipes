@@ -9,27 +9,50 @@ import json
 import mmap
 import pickle
 import shutil
+import hashlib
 import tempfile
 import fnmatch as fnm
 import itertools as itt
 import contextlib as ctx
 from pathlib import Path
+from warnings import warn
+
+# third-party
+import more_itertools as mit
+from loguru import logger
 
 # local
 import docsplice as doc
-from recipes.string import sub
-from recipes.bash import brace_expand_iter
-from recipes.string.brackets import BracketParser
 
 # relative
+from ..string import sub
+from ..bash import brace_expand_iter
+from ..string.brackets import BracketParser
 from ..functionals import echo0
 
 
+# ---------------------------------------------------------------------------- #
+
 FORMATS = {'json': json,
            'pkl': pickle}  # dill, sqlite
-FILEMODES = {pickle: 'b', json: ''}
+FILEMODES = {pickle: 'b',
+             json: ''}
 
 braces = BracketParser('{}')
+
+# ---------------------------------------------------------------------------- #
+
+
+def md5sum(filename):
+    h = hashlib.md5()
+    b = bytearray(128*1024)
+    mv = memoryview(b)
+    with open(filename, 'rb', buffering=0) as f:
+        while n := f.readinto(mv):
+            h.update(mv[:n])
+    return h.hexdigest()
+
+# ---------------------------------------------------------------------------- #
 
 
 def guess_format(filename):
@@ -94,19 +117,28 @@ def save_json(filename, data, **kws):
     serialize(filename, data, json, **kws)
 
 
-def iter_files(path, extensions='*', recurse=False, ignore=()):
+# ---------------------------------------------------------------------------- #
+# def _unpack_braced(patterns):
+#     for pattern in patterns:
+#         if bool(braces.match(pattern, must_close=True)):
+#             yield from brace_expand_iter(pattern)
+#         else:
+#             yield pattern
+
+
+def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
     """
     Generator that yields all files in a directory tree with given file
     extension(s), optionally recursing down the directory tree. Brace expansion
-    syntax from bash is supported, aitrllowing multiple directory trees to be
+    syntax from bash is supported, allowing multiple directory trees to be
     traversed with a single statement.
 
     Parameters
     ----------
-    path : str or Path
+    path_or_pattern : str or Path
         Location of the root folder. Can also be a glob pattern of
         filenames to load eg: '/path/SHA_20200715.000[1-5].fits'
-        Pattern can also contain brace expansion patterns
+        Pattern can also contain brace expansion patterns eg:
         '/path/SHA_202007{15..18}.000[1-5].fits' in which case all valid
         files and directories in the range will be traversed.
     extensions : str or tuple or list
@@ -126,45 +158,61 @@ def iter_files(path, extensions='*', recurse=False, ignore=()):
     Yields
     ------
     pathlib.Path
-        system path pointing to the file
+        System path pointing to the file.
 
     Raises
     ------
     ValueError
-        If the given base path does not exist
+        If the given base path does not exist.
     """
     if isinstance(ignore, str):
         ignore = (ignore, )
 
-    for file in _iter_files(path, extensions, recurse):
-        for pattern in ignore:
-            if fnm.fnmatchcase(str(file), pattern):
+    ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
+
+    for file in _iter_files(path_or_pattern, extensions, recurse):
+        for ignored in ignore:
+            if fnm.fnmatchcase(str(file), ignored):
+                logger.debug("Ignoring '{!s}' matching pattern {!r}", file, ignored)
                 break
         else:
             yield file
 
 
-def _iter_files(path, extensions='*', recurse=False):
-    
+def _maybe_newline(string, width=40, indent=' ' * 2):
+    return f'\n{indent}{string}' if len(string) > width else string
 
-    path = str(path)
+
+def _iter_files(path_or_pattern, extensions='*', recurse=False):
+
+    path_or_pattern = str(path_or_pattern)
+    recurse = bool(recurse)
 
     # handle brace expansion first
-    special = bool(braces.match(path, must_close=True))
-    wildcard = glob.has_magic(path)  # handle glob patterns
+    special = bool(braces.match(path_or_pattern, must_close=True))
+    wildcard = glob.has_magic(path_or_pattern)  # handle glob patterns
     if special | wildcard:
-        itr = (brace_expand_iter(path) if special else
-               glob.iglob(path, recursive=recurse))
+        logger.opt(lazy=True).debug(
+            'Special pattern detected: {!s}',
+            lambda: _maybe_newline(path_or_pattern)
+        )
+        itr = (brace_expand_iter(path_or_pattern) if special else
+               glob.iglob(path_or_pattern, recursive=recurse))
         for path in itr:
+            # recurse
+            # logger.trace('Recursing into: {!s}', path)
             yield from iter_files(path, extensions, recurse)
         return
 
-    path = Path(path)
+    # handle input strings without special patterns here. This can be a file or
+    # directory path
+    path = Path(path_or_pattern)
     if path.is_dir():
         # iterate all files with given extensions
         if isinstance(extensions, str):
             extensions = (extensions, )
 
+        # recurse
         extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
         yield from iter_files(f'{path!s}/{"**/" * recurse}*.{extensions}',
                               recurse=recurse)
@@ -174,7 +222,7 @@ def _iter_files(path, extensions='*', recurse=False):
         raise ValueError(f"'{path!s}' is not a valid directory or a glob "
                          f"pattern")
 
-    # break the recurrence
+    # Return the input if it is an existing file. This break the recurrence.
     yield path
 
 
@@ -201,6 +249,19 @@ def iter_ext(files, extensions='*'):
     for file in files:
         for ext in extensions:
             yield from file.parent.glob(f'{file.stem}.{ext.lstrip(".")}')
+
+# ---------------------------------------------------------------------------- #
+
+
+def open_any(filelike, mode='r'):
+    # handle stream
+    if isinstance(filelike, io.IOBase):
+        return ctx.nullcontext(filelike)
+
+    if isinstance(filelike, (str, Path)):
+        return open(str(filelike), mode)
+
+    raise TypeError(f'Invalid file-like object of type {type(filelike)}.')
 
 
 def iter_lines(filelike, *section, mode='r', strip=None):
@@ -256,33 +317,25 @@ def iter_lines(filelike, *section, mode='r', strip=None):
             yield s.strip(strip)
 
 
-def open_any(filelike, mode='r'):
-    # handle stream
-    if isinstance(filelike, io.IOBase):
-        return ctx.nullcontext(filelike)
-
-    if isinstance(filelike, (str, Path)):
-        return open(str(filelike), mode)
-
-    raise TypeError(f'Invalid file-like object of type {type(filelike)}.')
-
-
 @doc.splice(iter_lines)
 def read_lines(filename, *section, mode='r', strip=None, filtered=None,
-               echo=False):
+               log=False):
     """
     Read a subset of lines from a given file.
 
     {Extended Summary}
 
     {Parameters}
-    filtered : callable or None, optional
+    filtered : callable or bool or None, by default None
         A function that will be used to filter out unwnated lines. Filtering
         occurs after stripping unwanted characters. The default behaviour
-        (filtered=None) removed all blank lines from the results.
-    echo : bool, optional
+        (filtered=None) removed all blank lines from the results. Passing
+        `filtered=True` is equivalent to the default behaviour and can be
+        omitted.
+    log : callable or bool, optional
         Whether to print a summary of the read content to stdout,
-        by default False
+        by default False. Can also be a callable eg logger.info that will be 
+        used to log the read lines. 
 
     Returns
     -------
@@ -292,12 +345,17 @@ def read_lines(filename, *section, mode='r', strip=None, filtered=None,
     # Read file content
     content = iter_lines(filename, *section, mode=mode, strip=strip)
     if filtered is not False:
+        if filtered is True:
+            filtered = None
         content = filter(filtered, content)
     content = list(content)
 
     # Optionally print the content
-    if echo:
-        print(_show_lines(filename, content))
+    if log:
+        if not callable(log):
+            log = print
+        log(_show_lines(filename, content))
+
     return content
 
 
@@ -313,7 +371,7 @@ def _show_lines(filename, lines, n=10, dots='.\n' * 3):
     n = min(n, n_lines)
     if n_lines and n:
         msg = (f'Read file {filename!r} containing:'
-               f'\n\t'.join([''] + lines[:n]))
+               f'\n    '.join([''] + lines[:n]))
         # Number of ellipsis dots (one per line)
         ndot = dots.count('\n')
         # TODO: tell nr omitted lines
@@ -328,15 +386,15 @@ def _show_lines(filename, lines, n=10, dots='.\n' * 3):
 
 def count_lines(filename):
     """Fast line count for files"""
-    filename = str(filename)  # conver path objects
+    filename = str(filename)  # convert path objects
 
     if not os.path.exists(filename):
-        raise ValueError(f'No such file: {filename!r}')
+        raise ValueError(f'No such file: {filename!r}.')
 
     if os.path.getsize(filename) == 0:
         return 0
 
-    with open(str(filename), 'r+') as fp:
+    with open(filename, 'r+') as fp:
         count = 0
         buffer = mmap.mmap(fp.fileno(), 0)
         while buffer.readline():
@@ -344,24 +402,37 @@ def count_lines(filename):
         return count
 
 
-def write_lines(stream, lines, eol='\n'):
+def write_lines(stream, lines, eol='\n', eof=''):
     """
     Write multiple lines to a file-like output stream.
 
     Parameters
     ----------
-    stream : [type]
+    stream : str, Path, io.IOBase
         File-like object
     lines : iterable
         Sequence of lines to be written to the stream.
     eol : str, optional
         End-of-line character to be appended to each line, by default ''.
     """
-    assert isinstance(eol, str)
-    append = str.__add__ if eol else echo0
+    for what, end in (('line', eol), ('file', eof)):
+        if not isinstance(end, str):
+            raise TypeError(f'Invalid {what} end of type {type(end)}: {end}.')
 
-    for line in lines:
-        stream.write(append(line, eol))
+    itr = iter(lines)
+    with open_any(stream, 'w') as stream:
+        # write first line
+        try:
+            stream.write(next(itr))
+        except StopIteration:
+            warn(f'Empty lines or iterable. Nothing written to {stream!r}.')
+            return
+
+        # write remaining lines
+        for line in itr:
+            stream.write(eol)
+            stream.write(line)
+        stream.write(eof)
 
 
 @ctx.contextmanager
@@ -408,8 +479,10 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
     # backup and restore on error!
     path = Path(filename).resolve()
     backup_needed = path.exists()
+    # backup needed if file is not a new file
     if backup_needed:
         if backupfile is None:
+            # create tmp backup file if no filename given for backup
             bid, backupfile = tempfile.mkstemp(prefix='backup.',
                                                suffix=f'.{path.name}')
         else:
@@ -424,15 +497,21 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
             yield fp
         except Exception as err:
             if backup_needed:
+                # close files
                 fp.close()
                 os.close(bid)
+                # restore backup
                 shutil.copy(backupfile, filename)
+
+            # raise custom exception hook if provided
             if exception_hook:
                 raise exception_hook(err, filename) from err
+
             raise
 
 
-@doc.splice(backed_up, 'summary', omit='Parameters[backupfile]',
+@doc.splice(backed_up, 'summary',
+            omit='Parameters[backupfile]',
             replace={'operation': 'write',
                      'read / ': ''})  # FIXME: replace not working here
 def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
@@ -465,6 +544,8 @@ def write_replace(filename, replacements):
         fp.seek(0)
         fp.write(sub(text, replacements))
         fp.truncate()
+
+# ---------------------------------------------------------------------------- #
 
 
 @ctx.contextmanager
@@ -505,6 +586,7 @@ def working_dir(path):
     finally:
         os.chdir(original)
 
+
 def show_tree(folder, use_dynamic_spacing=False):
     """
     Print the file system tree:
@@ -521,8 +603,8 @@ def show_tree(folder, use_dynamic_spacing=False):
     ├── 20130615.ragged.dat
     ├── 20130615.ragged.txt
     ├── 20140703
-    │   ├── 20140703.010.ragged.txt
-    │   └── 20140703.011.ragged.txt
+    │   ├── 20140703.010.ragged.txt
+    │   └── 20140703.011.ragged.txt
     ├── 20140703.ragged.dat
     ├── 20140703.ragged.txt
     ├── 20140708.ragged.dat
@@ -530,20 +612,20 @@ def show_tree(folder, use_dynamic_spacing=False):
     ├── 20160707.ragged.dat
     ├── 20160707.ragged.txt
     ├── 202130615
-    │   ├── 202130615.0020.ragged.txt
-    │   └── 202130615.0021.ragged.txt
+    │   ├── 202130615.0020.ragged.txt
+    │   └── 202130615.0021.ragged.txt
     ├── 202140708
-    │   └── 202140708.001.ragged.txt
+    │   └── 202140708.001.ragged.txt
     └── SHA_20160707
         └── SHA_20160707.0010.ragged.txt
     """
-    
+
     from ..tree import FileSystemNode
-    
+
     tree = FileSystemNode.from_list(iter_files(folder))
-    tree.collapse_unary()
     tree.use_dynamic_spacing = bool(use_dynamic_spacing)
     return tree.render()
+
 
 def walk(folder, depth=1):
     """

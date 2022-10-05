@@ -2,37 +2,213 @@
 
 # std
 import re
+import math
+import numbers
 import itertools as itt
+from typing import MutableMapping
 
 # third-party
 import anytree
+from anytree import AbstractStyle, ContRoundStyle
+from anytree.render import RenderTree, Row, _is_last
+from loguru import logger
+
+# local
+from recipes.oo.temp import temporarily
 
 # relative
 from . import op
 from .string import remove_prefix, strings
 
 
-class Node(anytree.Node):
+# ---------------------------------------------------------------------------- #
+# for style in AbstractStyle.__subclasses__():
+#     style().end[0]
+
+RGX_TREE_PARSER = re.compile('([│├└ ])[─ ]{2} ')
+
+
+def _reindent(string, height):
+    # regex HACK
+    first, *lines = string.splitlines()
+    yield first + '\n'
+    indents = [len(first) - 1] + [0] * height
+    for row in lines:
+        matches = [*RGX_TREE_PARSER.finditer(row)]
+        if depth := len(matches):
+            end = matches[-1].end()
+            indents[depth] = len(row) - end - 1
+            for m, i in zip(matches, indents):
+                yield ' ' * i + m[1]
+            yield row[end:]  # + '┐'
+        else:
+            yield row
+        yield '\n'
+
+# ---------------------------------------------------------------------------- #
+
+
+# ---------------------------------------------------------------------------- #
+
+
+class DynamicIndentRender(RenderTree):
+
+    def __init__(self, node, style=ContRoundStyle(), childiter=list, maxlevel=None):
+        super().__init__(node, style, childiter, maxlevel)
+
+        self.attr = 'name'
+        self.widths = [0] * (node.height + 1)
+        # Adapt the style
+        # Use first character of vertical/branch/end strings eg "│", "├", "└"
+        style = self.style
+        self.style = AbstractStyle(*next(zip(style.vertical, style.cont, style.end)))
+
+    def __iter__(self):
+        return self.__next(self.node, tuple())
+
+    def __next(self, node, continues, level=0):
+        name = str(getattr(node, self.attr))
+        self.widths[(level - 1):] = [len(name), *([0] * (node.height + 1))]
+        # print(f'next {node=:}, {level=:}, {self.indents=:}, {continues=:}')
+
+        yield self.__item(node, continues, self.style, level)
+
+        children = node.children
+        level += 1
+        if children and (self.maxlevel is None or level < self.maxlevel):
+            children = self.childiter(children)
+            for child, is_last in _is_last(children):
+                yield from self.__next(child, continues + (not is_last, ), level=level)
+
+    def __item(self, node, continues, style, level):
+
+        if not continues:
+            return Row(u'', u'', node)
+        selection = (style.empty, style.vertical)
+        items = [f'{selection[c]: <{w}}' for w, c in zip(self.widths, continues)]
+        branch = f'{style.cont if continues[-1] else style.end: <{self.widths[level]}}'
+        indent = ''.join(items[:-1])
+        pre = indent + branch
+        fill = ''.join((indent, items[-1]))
+        # print(f'item {pre=:}, {fill=:}, {node=:}')
+        return Row(pre, fill, node)
+
+    def by_attr(self, attrname='name'):
+        with temporarily(self, attr=attrname):
+            return super().by_attr(attrname)
+
+class PrintNode(anytree.Node):
+
+    # rendering option
+    renderer = DynamicIndentRender
+
+    def render(self):
+        """
+        A re-spaced rendering of the tree where spacing between levels are set
+        dynamically based on the length of the string representation of the
+        parents.
+
+        For example:
+            └20
+              ├13061
+              │    ├6.003
+              │    │    ├0
+              │    │    └1
+              │    ├7.003
+              │    │    ├0
+              │    │    └1
+              │    └8.003
+              │         ├0
+              │         └1
+              └2130615.003
+                         ├0
+                         ├1
+                         └2
+        """
+        return str(self.renderer(self))
+
+    def pprint(self):
+        print(self.render())
+
+# ---------------------------------------------------------------------------- #
+
+
+class Node(PrintNode):  # StringNode
     """
     An `anytree.Node` that builds trees based on a list of input strings.
     Can be used to represent file system trees etc.
     """
 
-    # This function decides the names of the nodes. It will be called on each
-    # string in the input list, returning the name of the of that node parent
     get_prefix = op.itemgetter(0)
+    """This function decides the names of the nodes. It will be called on each
+    string in the input list, returning the name of the of that node parent."""
 
-    # rendering option
-    use_dynamic_spacing = True
+    @property
+    def sibling_leaves(self):
+        return tuple(child for child in self.siblings if child.is_leaf)
 
     @classmethod
-    def from_list(cls, items):
+    def from_list(cls, items, collapse=True):
+        """
+        Create the tree from a list of input strings.
+
+        Parameters
+        ----------
+        items : list
+            _description_
+
+        Examples 
+        --------
+        >>> fonts = Node.from_list(['Domitian-Bold.otf',
+        ...                         'Domitian-BoldItalic.otf',
+        ...                         'Domitian-Italic.otf',
+        ...                         'Domitian-Roman.otf',
+        ...                         'EBGaramond-Bold.otf',
+        ...                         'EBGaramond-BoldItalic.otf',
+        ...                         'EBGaramond-ExtraBold.otf',
+        ...                         'EBGaramond-ExtraBoldItalic.otf',
+        ...                         'EBGaramond-Initials.otf',
+        ...                         'EBGaramond-Italic.otf',
+        ...                         'EBGaramond-Medium.otf',
+        ...                         'EBGaramond-MediumItalic.otf',
+        ...                         'EBGaramond-Regular.otf',
+        ...                         'EBGaramond-SemiBold.otf',
+        ...                         'EBGaramond-SemiBoldItalic.otf'])
+        ... fonts.collapse(max_depth=2)
+        ... fonts.pprint()
+
+        ├Domitian-
+        │        ├Italic.otf
+        │        ├Roman.otf
+        │        ├Bold.otf
+        │        └BoldItalic.otf
+        └EBGaramond-
+                   ├Regular.otf
+                   ├Bold.otf
+                   ├BoldItalic.otf
+                   ├ExtraBold.otf
+                   ├ExtraBoldItalic.otf
+                   ├Initials.otf
+                   ├Italic.otf
+                   ├Medium.otf
+                   ├MediumItalic.otf
+                   ├SemiBold.otf
+                   └SemiBoldItalic.otf
+
+        Returns
+        -------
+        Node
+            The root node of the tree.
+        """
+
         # ensure list of strings
         items = sorted(strings(items))
 
         # build the tree
         root = cls('')
         root.make_branch(items)
+        if collapse:
+            root.collapse_unary()
         return root
 
     def make_branch(self, words):
@@ -51,19 +227,195 @@ class Node(anytree.Node):
         return str(self.name)
 
     def __getitem__(self, key):
-        if self.children:
+        if self.is_leaf:
+            raise ValueError('Node has no children.')
+
+        if isinstance(key, numbers.Integral):
             return self.children[key]
-        raise ValueError('Node has no children.')
+
+        for child in self.children:
+            if key == child.name:
+                return child
+
+        raise KeyError(f'Could not get child node for index key {key}.')
 
     # def append(self, name):
     #     child = type(self)(name)
-    #     self.children = (*self.children, child)
+    #     child.parent = self.parent
+
+    def collapse(self, max_depth=math.inf, top_down=None, bottom_up=True):
+        """
+        Collapse the nodes that are deeper than `max_depth`. Each child node
+        that is too deep becomes a new sibling node with `name` attribute
+        concatenated from parent and child's `name`. 
+
+        Parameters
+        ----------
+        max_depth : int, optional
+            Maximal depth of resulting tree, by default math.inf, which leaves
+            the tree unchanged.
+
+        Examples
+        --------
+        >>> fonts = Node.from_list(['Domitian-Bold.otf',
+        ...                         'Domitian-BoldItalic.otf',
+        ...                         'Domitian-Italic.otf',
+        ...                         'Domitian-Roman.otf',
+        ...                         'EBGaramond-Bold.otf',
+        ...                         'EBGaramond-BoldItalic.otf',
+        ...                         'EBGaramond-ExtraBold.otf',
+        ...                         'EBGaramond-ExtraBoldItalic.otf',
+        ...                         'EBGaramond-Initials.otf',
+        ...                         'EBGaramond-Italic.otf',
+        ...                         'EBGaramond-Medium.otf',
+        ...                         'EBGaramond-MediumItalic.otf',
+        ...                         'EBGaramond-Regular.otf',
+        ...                         'EBGaramond-SemiBold.otf',
+        ...                         'EBGaramond-SemiBoldItalic.otf'])
+        ... fonts.pprint()
+
+        ├Domitian-
+        │        ├Bold
+        │        │   ├.otf
+        │        │   └Italic.otf
+        │        ├Italic.otf
+        │        └Roman.otf
+        └EBGaramond-
+                   ├Bold
+                   │   ├.otf
+                   │   └Italic.otf
+                   ├ExtraBold
+                   │        ├.otf
+                   │        └Italic.otf
+                   ├I
+                   │├nitials.otf
+                   │└talic.otf
+                   ├Medium
+                   │     ├.otf
+                   │     └Italic.otf
+                   ├Regular.otf
+                   └SemiBold
+                           ├.otf
+                           └Italic.otf
+
+        >>> fonts.collapse(max_depth=2)
+        >>> fonts.pprint()
+
+        ├Domitian-
+        │        ├Italic.otf
+        │        ├Roman.otf
+        │        ├Bold.otf
+        │        └BoldItalic.otf
+        └EBGaramond-
+                   ├Regular.otf
+                   ├Bold.otf
+                   ├BoldItalic.otf
+                   ├ExtraBold.otf
+                   ├ExtraBoldItalic.otf
+                   ├Initials.otf
+                   ├Italic.otf
+                   ├Medium.otf
+                   ├MediumItalic.otf
+                   ├SemiBold.otf
+                   └SemiBoldItalic.otf
+
+        Note that, in this example, the root node's `name` attribute is
+        just an empty string '', which formats as a newline in string
+        representation above.
+
+
+        Returns
+        -------
+        changed: bool
+            Whether the tree was altered or not.
+        """
+        if max_depth == -1:
+            max_depth = math.inf
+
+        if not isinstance(max_depth, numbers.Integral) or max_depth < 1:
+            msg = '`max_depth` parameter should be a positive integer.'
+            if max_depth == 0:
+                msg += ('Use `list(node.descendants)` to get a fully collapse '
+                        'list of nodes.')
+            raise ValueError(msg)
+
+        changed = False
+        top_down = ~bottom_up if (top_down is None) else top_down
+        collapse = self.collapse_top_down if top_down else self.collapse_bottom_up
+        while True:
+            changed = collapse(max_depth)
+            if not changed:
+                break
+
+        return changed
+
+    def collapse_top_down(self, max_depth):
+        changed = self.collapse_unary() if self.is_root else False
+        # root node is always at 0, so first items at depth 1, hence > not >=
+        if self.is_leaf and (self.depth > max_depth):
+            # reparent this child to the grand parent if it's a leaf node, and
+            # concatenate the names
+            self.grandparent_adopts()
+
+            # self.parent.collapse(max_depth)
+            changed = True
+
+        # edit remaining children
+        for child in self.children:
+            changed |= child.collapse(max_depth)
+
+        # logger.debug('{}: depth={}, changed {}', self.name, self.depth, changed)
+        # logger.debug('\n{}', self.root.render())
+
+        return changed
+
+    def collapse_bottom_up(self, max_depth=math.inf):
+
+        # if self.depth > max_depth:
+
+        # changed = False
+        # if self.is_leaf:
+        #     return False
+        if self.depth <= max_depth:
+            return False
+
+        leaves = set(self.leaves)
+        while leaves:
+            # pick a starting leaf
+            leaf = leaves.pop()
+            siblings = set(leaf.parent.children)
+            # all these leaves can be re-parented
+            leaves -= siblings
+            # get siblings that are also leaf nodes
+            sibling_leaves = set(self.sibling_leaves)
+            # sibling_leaves = siblings.intersection(leaves) - {self}
+            # if len(sibling_leaves) < 2:
+            #     continue
+
+            # reparent this child to the grand parent and concatenate the names
+            for leaf in sibling_leaves:
+                leaf.grandparent_adopts()
+
+            changed = True
+
+        return changed
+
+    def grandparent_adopts(self):
+        # reparent this child to the grand parent and concatenate the names
+        parent = self.parent
+        self.name = parent.name + self.name
+        self.parent = parent.parent
+
+        # check if parent became a leaf node
+        if parent.is_leaf:
+            # orphan this leaf, since it is now redundant
+            self.parent.children = parent.siblings
 
     def collapse_unary(self):
         """
         Collapse all unary branches of the node ie. If a node has only one child 
         (branching factor 1), attach the grand child to the parent node and 
-        orphan the child node.
+        discard / orphan the child node.
 
         For example:
             └── 2
@@ -121,54 +473,6 @@ class Node(anytree.Node):
             changed |= child.collapse_unary()
 
         return changed
-
-    def render(self):
-        """
-        A re-spaced rendering of the tree where spacing between levels are set
-        dynamically based on the length of the string representation of the
-        parents.
-
-        For example:
-            └20
-              ├13061
-              │    ├6.003
-              │    │    ├0
-              │    │    └1
-              │    ├7.003
-              │    │    ├0
-              │    │    └1
-              │    └8.003
-              │         ├0
-              │         └1
-              └2130615.003
-                          ├0
-                          ├1
-                          └2
-        """
-        s = str(anytree.RenderTree(self))
-
-        if not self.use_dynamic_spacing:
-            return s
-
-        pre = re.compile('([│├└ ])[─ ]{2} ')
-        first, *lines = s.splitlines()
-        new = first + '\n'
-        indents = [len(first) - 1] + [0] * self.height
-        for row in lines:
-            matches = [*pre.finditer(row)]
-            if depth := len(matches):
-                end = matches[-1].end()
-                indents[depth] = len(row) - end - 1
-                for m, i in zip(matches, indents):
-                    new += ' ' * i + m[1]
-                new += row[end:]  # + '┐'
-            else:
-                new += row
-            new += '\n'
-        return new
-
-    def pprint(self):
-        print(self.render())
 
 
 class FileSystemNode(Node):

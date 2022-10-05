@@ -1,15 +1,15 @@
 """
-Parameter and Keyword name translation for understanding inexact human inputself.
+Parameter and Keyword name translation for understanding inexact human input.
 
 Say you have an API function:
 
 >>> def stamp(labeled=True, color='default', center=False):
 ...     'does a thing'
 
-Your users might attempt the following:
+Your users might reasonably attempt the following:
 >>> stamp(centre=True, colour='green', labelled='order 66')
 unwittingly having used a variant spelling of the parameter names that is
-natural to theor local. This will of course lead to an error. Unless...
+natural to their local. This will of course lead to an error. Unless...
 
 We can teach out function these alternatives like so:
 >>> @api.synonymns(dict(
@@ -24,11 +24,12 @@ Now, like magic, our function will work with the alternatives we gave it via the
 regexes above at the cost of a small overhead for each misspelled parameter.
 """
 
-# Keyword translation on-the-fly for flexible APIs.
+# Keyword translation on-the-fly for flexible, typo tollerant APIs.
 # If you are like me, and often misremember keyword arguments for classes or
 # functions, (especially those with giant signatures [1,2,3]), this module will
 # help you! It matches your typo to the actual API keyword, and corrects your
 # mistake with an optional logged notification.
+# # TODO You can also issue deprecation notifications
 
 
 # std
@@ -40,7 +41,7 @@ import itertools as itt
 from loguru import logger
 
 # relative
-from ..dicts import groupby
+from ..functionals import Emit
 from ..decorators import Decorator
 from ..string.brackets import BracketParser
 
@@ -57,49 +58,75 @@ OPTION_REGEX_BUILDERS = {'[]': _ordered_group,
                          '()': _unordered_group}
 
 
-class KeywordTranslator:
+class RegexTranslate:
     """
     Class to assist many-to-one keyword mappings via regex pattern matching.
     """
-    parser = BracketParser('[]', '()')
 
     def __init__(self, pattern, answer=''):  # ensure_order
-        """
-        Implements a basic pattern matching syntax to match incomplete words.
-        Optional characters that need to appear in order should be enclosed in
-        square brackets eg: "n[umbe]r". This pattern will match "number" as well
-        as "numr" and "nr", but not "nuber". Optional characters that can have
-        any order should be enclosed in round brackets eg: "frivol(ou)s".
 
-        Note that input patterns are translated to regex, so eg:
-            "n[umbe]r" --> "n(u|um|umb|umbe)r"
-            "n(umber)" --> "n[umber]{0,5}"
-        Any other regex syntax in the pattern will pass through unaltered. You 
-        can use this to your adbvantage. For example to match a single optional
-        optional character, either enclose it in round brackets, or append a "?"
-        eg: "col(_)head" and "col_?head" both work to match the optional
-        underscore.
+        # assert mode in {'simple', 'regex', None}, f'Invalid mode string: {mode!r}'
 
-        Parameters
-        ----------
-        pattern : str
-            Pattern for matching parameter / keyword names.
-        answer: str
-            The desired translation target.
-
-        Example
-        -------
-        >>> resolve = KeywordTranslator('n[umbe]r[_rows]', 'row_nrs')
-        >>> resolve('number_rows')
-        'row_nrs' 
-        >>> resolve('nr_rows')
-        'row_nrs'
-        >>> resolve('nrs')
-        'row_nrs'
-        """
-
-        self.pattern = pattern
         self.answer = str(answer)
+
+        if isinstance(pattern, str):
+            self.regex = re.compile(pattern)
+
+        elif isinstance(pattern, re.Pattern):
+            self.regex = pattern
+
+        else:
+            raise TypeError('Invalid pattern type: {}', type(pattern))
+
+    def __call__(self, s):
+        if self.regex.fullmatch(s):
+            return self.answer
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.regex.pattern} --> {self.answer})'
+
+
+class KeywordTranslate(RegexTranslate):
+    """
+    Implements a basic pattern matching syntax to match incomplete words.
+    Optional characters that need to appear in order should be enclosed in
+    square brackets eg: "n[umbe]r". This pattern will match "number" as well
+    as "numr" and "nr", but not "nuber". Optional characters that can have
+    any order should be enclosed in round brackets eg: "frivol(ou)s".
+
+    Note that input patterns are translated to regex, so eg:
+        "n[umber]" --> "n(u|um|umb|umbe|umber)" "n(u(m(b(e(r?)?)?)?)?)?"
+        "n(umbe)r" --> "n(umbe)?r"
+    Any other regex syntax in the pattern will pass through unaltered. You 
+    can use this to your advantage. For example to match a single optional
+    optional character, either enclose it in round brackets, or append a "?"
+    eg: "col(_)head" and "col_?head" both work to match the optional
+    underscore.
+
+    Parameters
+    ----------
+    pattern : str
+        Pattern for matching parameter / keyword names.
+    answer: str
+        The desired translation target.
+
+    Example
+    -------
+    >>> resolve = KeywordTranslate('n[umbe]r[_rows]', 'row_nrs')
+    >>> resolve('number_rows')
+    'row_nrs'
+    >>> resolve('nr_rows')
+    'row_nrs'
+    >>> resolve('nrs')
+    'row_nrs'
+    """
+
+    parser = BracketParser('[]', '()')
+
+    def __init__(self, pattern, answer=''):
+        super().__init__(self._build_regex(pattern), answer)
+
+    def _build_regex(self, pattern):
         sub = pattern
         regex = ''
         while 1:
@@ -116,18 +143,12 @@ class KeywordTranslator:
 
             regex += f'{sub[:i0]}{s}?'
             # self.answer += sub[:i0]
+            # FIXME: nesting?
             sub = sub[i1 + 1:]
 
             # print(sub, regex)
             # i += 1
-        self.regex = re.compile(regex)
-
-    def __call__(self, s):
-        if self.regex.fullmatch(s):
-            return self.answer
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({self.pattern} --> {self.answer})'
+        return regex
 
 
 POS, PKW, VAR, KWO, VKW = inspect._ParameterKind
@@ -137,78 +158,81 @@ class Synonyms(Decorator):
     """
     Decorator for function parameter translation.
     """
-    # emit = Emit
-
     # TODO: detect ambiguous mappings
 
-    def __init__(self, mappings=(), /, _emit=-1, **kws):
-        self.emit = logger.debug    # Emit(_emit)
+    def __init__(self, mappings=(), /, mode='regex', action='warn'):
+        # TODO **kws for simple mappings labels=label
+        self.emit = Emit(action, TypeError)
         self.resolvers = []
-        self.update(mappings, **kws)
+        self.update(mappings, mode)
         self.func = None
         self._param_names = ()
+
+    def __call__(self, func):
+        self.func = func
+        self.signature = sig = inspect.signature(func)
+        self._param_names = tuple(sig.parameters.keys())
+        self._has_vkw = (inspect._ParameterKind.VAR_KEYWORD in
+                         {p.kind for p in sig.parameters.values()})
+        return super().__call__(func)
+
+    def __wrapper__(self, func, *args, **kws):
+        if not self._has_vkw:
+            args, kws = self.resolve(args, kws)
+            return func(*args, **kws)
+
+        try:
+            return func(*args, **kws)
+        except TypeError as err:  # NOTE: only works if func has no variadic kws
+            if ((e := str(err)).startswith(func.__name__) and
+                    ('unexpected keyword argument' in e)):
+                #
+                logger.debug('Caught {}\n. Attempting keyword translation.', err)
+                args, kws = self.resolve(args, kws)
+                logger.debug('Re-trying function call {}(...) with synonymous '
+                             'keywords.', func.__name__)
+                return func(*args, **kws)
+
+            raise
 
     def __repr__(self):
         return repr(self.resolvers)
 
-    def __wrapper__(self, func, *args, **kws):
-        self.func = func
-        self.signature = inspect.signature(func)
-        self._param_names = tuple(self.signature.parameters.keys())
-
-        args, kws = self.resolve(args, kws)
-        return func(*args, **kws)
-
-    def update(self, mappings=(), **kws):
+    def update(self, mappings=(), /, _mode='regex'):
         """
         Update the translation map.
         """
-        for directive, target in dict(mappings, **kws).items():
+
+        translator = {'simple': KeywordTranslate,
+                      'regex': RegexTranslate}[_mode]
+
+        for directive, target in dict(mappings).items():
             # if isinstance(k, str)
-            self.resolvers.append(KeywordTranslator(directive, target))
+            self.resolvers.append(translator(directive, target))
 
-    def resolve(self, args, kws):  # namespace=None,
+    def resolve(self, args, kws):    # namespace=None,
         """
-        Map the input keywords in `kws` to their correct form. If given, values
-        from the `namespace` dict replace those in kws if their corresponging
-        keywords are valid parameter names for `func` and they are non-default
-        values.
+        Translate the keys in `kws` dict to the correct one for the hard api.
         """
-        # get arg names and defaults
-        # bound = self.signature.bind_partial(*args)
-        params = self.signature.parameters.values()
-        # _, args = cogroup(params, args, key=op.attrgetter('kind'))
-        groups = groupby(zip(args, params), lambda p: p[1].kind)
-        args = next(zip(*groups.get(POS, ()), *groups.get(VAR, ())), ())
+        sig = self.signature
+        param_types = {par.name: par.kind
+                       for par in sig.parameters.values()}
 
-        # for key, val in kws.items():
-        #     key = self.resolve_key(key)
+        # resolve kws
+        kws = {self.resolve_key(key): val
+               for key, val in kws.items()}
 
-        # func = self.func
-        # code = func.__code__
-        # defaults = func.__defaults__
-        # arg_names = code.co_varnames[1:code.co_argcount]
+        new = []
+        args = iter(args)
+        for (name, kind) in param_types.items():
+            if kind in (KWO, VKW):
+                break
 
-        # load the defaults / passed args
-        # n_req_args = len(arg_names) - len(defaults)
-        # opt_arg_names = arg_names[n_req_args:]
+            new.append(kws.pop(name) if name in kws else next(args, ()))
 
-        # params = {}
-        # now get non-default arguments (those passed by user)
-        # if namespace is not None:
-        #     for i, argname in enumerate(arg_names[n_req_args:]):
-        #         if (val := namespace[argname]) is not defaults[i]:
-        #             params[argname] = val
+        new.extend(args)
 
-        # resolve terse kws and add to dict
-        kws = {**{p.name: val for val, p in groups.get(PKW, {})},
-               **{self.resolve_key(key): val for key, val in kws.items()}}
-        return args, kws
-
-        # `params` now has keys which are the correct parameter names for
-        # self.func. `params` values are either the function default or user
-        # input value from namespace or kws.
-        # return params
+        return new, kws
 
     # @ftl.lru_cache()
     def resolve_key(self, key):
@@ -217,9 +241,14 @@ class Synonyms(Decorator):
 
         for func in self.resolvers:
             if (trial := func(key)) in self._param_names:
-                self.emit(f'Keyword translated: {key!r} --> {trial!r}')
+                logger.debug(msg := f'Keyword translated: {key!r} --> {trial!r}')
+                self.emit(msg)
                 return trial
 
         return key
 
         # raise KeyError(f'Invalid parameter {key!r} for {describe(self.func)}')
+
+
+# alias
+synonyms = Synonyms

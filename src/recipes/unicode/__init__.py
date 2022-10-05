@@ -190,3 +190,10 @@ class ScriptTranslate(dict):
 
 superscript = superscripts = ScriptTranslate(nrs.super, SUP_LATIN_ALPHA, SUP_SYMBOLS)
 subcript = subscripts = ScriptTranslate(nrs.sub, SUB_LATIN_ALPHA, SUB_SYMBOLS)
+
+
+def scriptcase(string, which):
+    dictionaries = {'sub': subscripts, 'super': superscripts}
+    return dictionaries[which](string)
+    
+    

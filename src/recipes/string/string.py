@@ -4,11 +4,10 @@ Utilities for operations on strings
 
 
 # std
-
 import re
 import numbers
-import warnings as wrn
 import itertools as itt
+from warnings import warn
 from collections import abc
 
 # third-party
@@ -18,7 +17,7 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..iter import where
-from ..misc import duplicate_if_scalar
+from ..utils import _delete_immutable, duplicate_if_scalar
 
 
 # regexes
@@ -168,10 +167,7 @@ def delete(string, indices=()):
     str
     """
 
-    if not indices:
-        return string
-
-    return ''.join(_delete(string, indices))
+    return ''.join(_delete_immutable(string, indices)) if indices else string
 
 # def _intervals_from_slices(slices, n):
 #     from recipes.lists import cosort
@@ -186,42 +182,6 @@ def delete(string, indices=()):
 #             start.append(begin)
 #             stop.append(end)
 #     return start, stop
-
-
-def _integers_from_slices(slices, n):
-    integers = set()
-    for s in slices:
-        integers |= set(range(*s.indices(n)))
-    return integers
-
-
-def ensure_list(obj):
-    if isinstance(obj, abc.Iterator):
-        return list(obj)
-    return duplicate_if_scalar(obj, 1, raises=False)
-
-
-def _delete(string, indices):
-    from recipes.dicts import groupby
-
-    n = len(string)
-
-    # ensure list
-    indices = groupby(ensure_list(indices), type)
-    integers = _integers_from_slices(indices.pop(slice, ()), n)
-    for kls, idx in indices.items():
-        if not issubclass(kls, numbers.Integral):
-            raise TypeError(f'Invalid index type {kls}.')
-        integers = integers.union(idx)
-
-    # remove duplicate indices accounting for wrapping
-    i = prev = -1
-    for i in sorted({(i + n) % n for i in integers}):
-        yield string[prev + 1:i]
-        prev = i
-
-    if i < n - 1:
-        yield string[i + 1:]
 
     # BELOW ONLY WORKS FOR ASCII!!
     # z = bytearray(string.encode())
@@ -398,6 +358,10 @@ def camel_case(string):
     string = pascal_case(string)
     return string[0].lower() + string[1:]
 
+
+def kebab_case(string):
+    return string.replace(' ', '-').replace('_', '-')
+
 # ---------------------------------------------------------------------------- #
 # Affixes
 
@@ -424,6 +388,19 @@ def remove_prefix(string, prefix):
 def remove_suffix(string, suffix):
     # str.removesuffix python 3.9:
     return remove_affix(string, '', suffix)
+
+
+def remove_suffixes(string, suffixes, repeat=False):
+    """Remove any of the suffixes"""
+    for suffix in suffixes:
+        new = remove_affix(string, '', suffix)
+        if new != string:
+            if repeat:
+                string = new
+            else:
+                return new
+
+    return new
 
 
 def replace_prefix(string, old, new):
@@ -485,22 +462,46 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 # pluralization (experimental)
 
 
-def naive_plural(text):
-    return text + ('e' * text.endswith('s')) + 's'
+def naive_english_plural(text):
+    if text.endswith('s'):
+        return f'{text}es'
+
+    elif text.endswith('eus'):
+        return remove_suffix(text, 'us') + 'i'
+
+    elif text.endswith('um'):
+        return remove_suffix(text, 'um') + 'a'
+
+    elif text.endswith('y') and (text[-2] not in 'ae'):  # eg: agency not array
+        return remove_suffix(text, 'y') + 'ies'
+
+    return f'{text}s'
 
 
-def plural(text, collection=(())):
-    """conditional plural"""
-    many = isinstance(collection, abc.Collection) and len(collection) != 1
-    return naive_plural(text) if many else text
+def pluralise(text, collection=(()), plural=None):
+    """Conditional plural of `text` based on size of `collection`."""
+    if isinstance(collection, abc.Collection) and (len(collection) != 1):
+        return plural or naive_english_plural(text)
+    return text
 
 
-def numbered(collection, name):
-    return f'{len(collection):d} {plural(name, collection):s}'
+# alias
+pluralize = pluralise
 
 
-def named_items(name, collection, fmt=str):
-    return f'{plural(name, collection)}: {fmt(collection)}'
+def numbered(collection, name, plural=None):
+    return f'{len(collection):d} {pluralise(name, collection, plural):s}'
+
+
+def named_items(collection, name, plural=None, fmt=str, **kws):
+
+    if isinstance(collection, abc.Collection) and (len(collection) != 1):
+        from recipes import pprint
+
+        return (f'{plural or naive_english_plural(name)}: '
+                f'{pprint.collection(collection, fmt=fmt)}')
+
+    return f'{name}: {fmt(collection[0])}'
 
 # ---------------------------------------------------------------------------- #
 # Misc
@@ -514,7 +515,7 @@ def surround(string, left, right=None, sep=''):
 
 def indent(string, width=4):
     # indent `width` number of spaces
-    return string.replace('\n', '\n' + ' ' * width)
+    return str(string).replace('\n', '\n' + ' ' * width)
 
 
 def truncate(string, size, dots=' … ', end=10):
@@ -708,7 +709,7 @@ def _justify(text, align, width, length_func, formatter):
     widest = max(linewidths)
     width = int(width or widest)
     if widest > width:
-        wrn.warn(f'Requested paragraph width of {width} is less than the '
+        warn(f'Requested paragraph width of {width} is less than the '
                  f'length of widest line: {widest}.')
 
     if align != ' ':
@@ -803,7 +804,7 @@ def _get_hstack_columns(strings, spacing, offsets, width_func):
     for string, off in itt.zip_longest(strings, offsets, fillvalue=0):
         lines = str(string).splitlines()
         max_length = max(len(lines), max_length)
-        widths.append(width_func(lines))   # ansi.length_seen(lines[0])
+        widths.append(width_func(lines))   # ansi.length(lines[0])
         lines_list.append(([''] * off) + lines)
 
     # Intersperse columns with whitespace

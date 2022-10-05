@@ -1,6 +1,6 @@
 """
-Pretty formatting of floats, arrays (with uncertainties) in various human
-readable forms.
+Pretty formatting of numbers and numeric arrays (with uncertainties) in various
+human readable forms.
 """
 
 # This module designed for convenience and is *not* speed tested (yet)
@@ -25,15 +25,16 @@ from .. import op
 from ..functionals import echo0
 from ..array.misc import vectorize
 from .. import unicode as uni
-from ..misc import duplicate_if_scalar
+from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 
 
+# ---------------------------------------------------------------------------- #
 # note: unicode literals below python3 only!
 # see: https://docs.python.org/3/howto/unicode.html
 
 HMS = namedtuple('HMS', list('hms'))
-DIVISORS = list(itt.accumulate((1, 60, 60, 24, 30, 12), op.mul))[::-1]
+TIME_DIVISORS = list(itt.accumulate((1, 60, 60, 24, 30, 12), op.mul))[::-1]
 
 REGEX_YMDHMS_PRECISION = re.compile(r'([yMdhms])\.?(\d)?')
 REGEX_YMDHMS_SPEC = re.compile(r'''(?x)
@@ -53,28 +54,24 @@ REGEX_YMDHMS_SPEC = re.compile(r'''(?x)
 
 
 # Unicode
-UNI_PWR = dict(enumerate('²³⁴⁵⁶⁷⁸⁹', 2))  # '¹²³⁴⁵⁶⁷⁸⁹'
+# UNI_PWR = dict(enumerate('²³⁴⁵⁶⁷⁸⁹', 2))  # '¹²³⁴⁵⁶⁷⁸⁹'
 # UNI_NEG_PWR = '⁻'  # '\N{SUPERSCRIPT MINUS}'
 # UNI_PM = '±'
-SEP_ASCII = ('y', 'M', 'd ', 'h', 'm', 's')
-SEP_SUPER = uni.superscripts.translate(SEP_ASCII)
-# ('ʸʳ', 'ᴹ', 'ᵈ ', 'ʰ', 'ᵐ', 'ˢ')
-UNI_MULT = {'x': '×',
-            '.': '·'}
-UNI_HMS = 'ʰᵐˢ'
+YMDHMS_ASCII = ('y', 'M', 'd ', 'h', 'm', 's')
+YMDHMS_SUPER = ('ʸ', 'ᴹ', 'ᵈ ', 'ʰ', 'ᵐ', 'ˢ')
+# uni.superscripts.translate(YMDHMS_ASCII)
 
-# UNI_INF = '∞'
-# '−'
+PRODUCT_SYMBOLS = {'x': '\N{MULTIPLICATION SIGN}',  # '×' # u'\u00D7'
+                   '.': '\N{MIDDLE DOT}'}           # '·' # u'\u00B7'
+PRODUCT_SYMBOLS_LATEX = {'x': R'\times',
+                         '.': R'\cdot'}
+INFINITY_SYMBOLS = dict(latex=R'\infty',
+                        unicode='\N{INFINITY}',     # '∞' # u'\u221E'
+                        ascii='inf')
+
 # '\N{MINUS SIGN}'              '−'     u'\u2212'
 # '\N{PLUS-MINUS SIGN}'         '±'
-# '\N{MULTIPLICATION SIGN}'     '×' 	u'\u00D7'
-# '\N{MIDDLE DOT}'              '·'     u'\u00B7'
-# '\N{INFINITY}                 '∞'     u'\u221E'
-# convert unicode to hex-16: '%x' % ord('⁻')
 
-# LaTeX
-LATEX_MULT = {'x': r'\times',
-              '.': r'\cdot'}
 
 # The SI metric prefixes
 METRIC_PREFIXES = {
@@ -86,7 +83,7 @@ METRIC_PREFIXES = {
     -9:  'n',
     -6:  'µ',
     -3:  'm',
-    0:   '',
+    0:  '',
     +3:  'k',
     +6:  'M',
     +9:  'G',
@@ -104,6 +101,7 @@ METRIC_PREFIXES = {
 # SCI_SRE = re.compile('[+-]?\d\.?\d?e[+-]?(\d\d)', re.ASCII)
 # DECIMAL_SRE = re.compile('[+-]?\d+\.(0*)[1-9][\d]?', re.ASCII)
 
+# ---------------------------------------------------------------------------- #
 
 def leading_decimal_zeros(n):
     """
@@ -206,6 +204,10 @@ def to_sexagesimal(t, base_unit='h', precision='s'):
     # return HMS(h, m, s)
 
 
+# alias
+sexagesimal = to_sexagesimal
+
+
 def _to_sexa(t, base_unit='h', precision='s'):
     # generator that computes sexagesimal representation, but in reverse order
     unit, p = resolve_precision(precision)
@@ -241,7 +243,7 @@ def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
 
     # generator that computes ydmhms representation
     mag = 'yMdhms'
-    v = mag.index(base_unit) if base_unit else op.index(DIVISORS, t, test=op.le)
+    v = mag.index(base_unit) if base_unit else op.index(TIME_DIVISORS, t, test=op.le)
     w = mag.index(mo['tail_unit'])
     if v >= w:
         raise ValueError(f'Base unit ({mag[v]!r}) must have greater magnitude '
@@ -249,7 +251,7 @@ def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
 
     # sep = kws.pop('sep') or sep
     if sep is None:
-        sep = (SEP_SUPER, SEP_ASCII)[ascii]
+        sep = (YMDHMS_SUPER, YMDHMS_ASCII)[ascii]
     # sep = SEP_SPEC.get(sep, sep)
     nsep = len(sep)
     assert nsep in {0, 1, 5, 6}
@@ -263,15 +265,15 @@ def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
         yield ('\N{MINUS SIGN}', '-')[ascii]
 
     r = abs(t)
-    for i in range(v, w):  # for d in DIVISORS[v:w]:
-        d = DIVISORS[i]
+    for i in range(v, w):  # for d in TIME_DIVISORS[v:w]:
+        d = TIME_DIVISORS[i]
         # print(r, d)
         t, r = divmod(r, d)
         yield f'{int(t):{fill[i]}{width[i]}d}'
         yield next(sep, '')
 
     p = mo['precision'] or 0
-    r /= DIVISORS[w]
+    r /= TIME_DIVISORS[w]
     s = f'{r:{fill[i]}{width[i]}.{p}f}'
     if mo['short'] and p:
         s = s.rstrip('0').rstrip('.')
@@ -339,7 +341,7 @@ def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
 #         self.t = t
 #         mag = self.__slots__[:6]
 #         self._v = v = (mag.index(base_unit) if base_unit else
-#                        op.index(DIVISORS, t, test=op.le))
+#                        op.index(TIME_DIVISORS, t, test=op.le))
 #         self._w = w = mag.index(tail_unit)
 #         # print(v, w)
 #         assert v < w, 'Base unit must have greater magnitude than precision unit.'
@@ -347,13 +349,13 @@ def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
 #         # compute parts and round
 #         s = [1, -1][int(t < 0)]
 #         r = t
-#         for i in range(v, w):  # for d in DIVISORS[v:w]:
-#             d = DIVISORS[i]
+#         for i in range(v, w):  # for d in TIME_DIVISORS[v:w]:
+#             d = TIME_DIVISORS[i]
 #             # print(r, d)
 #             t, r = divmod(r, d)
 #             setattr(self, self.__slots__[i], s * int(t))
 
-#         r /= DIVISORS[w]
+#         r /= TIME_DIVISORS[w]
 #         yield setattr(self, self.__slots__[i], s * round(r, p))
 
 #     def __format__(self, spec='h^s9?'):
@@ -389,8 +391,7 @@ def resolve_precision(precision):
         return 's', precision
 
     if isinstance(precision, str):
-        mo = REGEX_YMDHMS_PRECISION.fullmatch(precision)
-        if mo:
+        if mo := REGEX_YMDHMS_PRECISION.fullmatch(precision):
             unit, precision = mo.groups()
             precision = int(precision) if precision else None
             return unit, precision
@@ -401,7 +402,7 @@ def resolve_precision(precision):
 @doc.splice(to_sexagesimal)
 def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False):
     """
-    Convert time in seconds to sexagesimal representation. 
+    Create sexagesimal time representation string from input float seconds.
 
     This function can abe used get the representation of an input time in base
     units of minutes or hours (by specifying `base_unit`), and with unit
@@ -451,7 +452,7 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
 
     # resolve separator
     if unicode and is_hms:
-        sep = UNI_HMS
+        sep = YMDHMS_SUPER[3:]  # 'ʰᵐˢ'
     elif repeat_sep:
         base_unit = 'h'  #
 
@@ -479,14 +480,11 @@ def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False)
 
         out += pad(decimal(fun(n), p, unicode=unicode), left=(2, '0')) + s
         fun = abs
+
     return out
 
 #
 # def ymdhms(t):
-
-
-# alias
-sexagesimal = hms
 
 
 def eng(value, significant=None, base=10, unit=''):
@@ -702,12 +700,12 @@ def pad(s, left=None, right=None):
 
 
 def align_dot(data):
-    i, dot, dec = np.char.partition(np.array(data, 'U'), '.').T
+    int_, dot, dec = np.char.partition(np.array(data, 'U'), '.').T
     tail = list(map(''.join, zip(dot, dec)))
-    w0 = max(map(len, i))
-    w1 = max(map(len, tail))
-    return list(map(''.join, zip(np.char.rjust(i, w0),
-                                 np.char.ljust(tail, w1))))
+    # w0 = max(map(len, i))
+    # w1 = max(map(len, tail))
+    return list(map(''.join, zip(np.char.rjust(int_, max(map(len, int_))),
+                                 np.char.ljust(tail, max(map(len, tail))))))
 
 
 def decimal_with_percentage(n, total, precision=None, significant=3, sign='-',
@@ -720,6 +718,204 @@ def decimal_with_percentage(n, total, precision=None, significant=3, sign='-',
         (decimal(n, p0, significant, sign, short, unicode, thousands),
          f'{n / total:.{p1}%}'.join(brackets))
     )
+
+
+class Notation:
+    pass
+
+
+def resolve_sign(sign):
+    # get sign
+    if sign is None:
+        return '-'
+
+    if isinstance(sign, bool):
+        return '-+'[sign]
+
+    if (isinstance(sign, str) and (sign in ' -+')):
+        return sign
+
+    raise ValueError(f'Invalid sign {sign!r}. Use one of "+", "-", " ". Set '
+                     f'`unicode=True` if you want a unicode minus.')
+
+
+class Decimal(Notation):
+    def __init__(self, n):
+
+        # ensure we have a scalar
+        if not isinstance(n, numbers.Real):
+            raise ValueError('Only scalars are accepted by this function.')
+
+        self.n = float(n)
+
+    def __call__(self,  precision=None, significant=5, sign=False, short=False,
+                 thousands='', style='ascii'):
+
+        return self.format(precision, significant, sign, short, thousands, style)
+
+    def format(self,  precision=None, significant=5, sign=False, short=False,
+               thousands='', style='ascii'):
+
+        if np.isnan(self.n):
+            return 'nan'
+
+        if np.isinf(self.n):
+            return INFINITY_SYMBOLS[style]
+
+        sign_fmt = resolve_sign(sign)
+
+        # automatically decide on a precision value if not given
+        m = None
+        if (precision is None):  # or (left_pad > 0) or (right_pad > 0):
+            # order of magnitude and `significant` determines precision
+            m = order_of_magnitude(self.n)
+            if np.isinf(m):
+                m = 0
+
+            precision = int(significant) - min(m, 1) - 1
+
+        precision = max(precision, 0)
+        # TODO: precision < 0 do rounding
+
+        # format the number
+        _1000fmt = ',' if thousands else ''
+        s = f'{self.n:{sign_fmt}{_1000fmt}.{precision}f}'.replace(',', thousands)
+
+        # strip redundant zeros
+        # n_stripped = 0
+        # width = len(s)
+        if precision > 0 and short:
+            # remove redundant zeros
+            s = s.rstrip('0').rstrip('.')
+            # n_stripped = width - len(s)
+
+        # Right pad for when numbers are displayed to various precisions and the
+        # should form a block. eg. nrs followed by a 1σ uncertainty, and we want to
+        # line up with the '±'.
+        # eg.:
+        #   [-12   ± 1.2,
+        #      1.1 ± 0.2 ]
+
+        # if right_pad >= max(precision - n_stripped, 0):
+        #     # compute required width of formatted number string
+        #     m = m or order_of_magnitude(n)
+        #     w = sum((int(bool(sign) & (n < 0)),
+        #              max(left_pad, m + 1),  # width lhs of '.'
+        #              max(right_pad, precision),  # width rhs of '.'
+        #              int(precision > 0)))  # '.' expected in formatted str?
+
+        #     s = s.ljust(w, right_pad_char)
+
+        if style == 'unicode':
+            return s.replace('-', '\N{MINUS SIGN}')
+        return s
+
+
+class Sci:
+    """
+    Represent a number in scientific notation in various styles.
+    """
+
+    def __init__(self, n):
+
+        # ensure we have a scalar
+        if not isinstance(n, numbers.Real):
+            raise ValueError('Only scalars are accepted by this function.')
+
+        self.n = float(n)
+        self.m = m = order_of_magnitude(self.n)  # might be -inf
+        self.v = n * (10 ** -m)  # coefficient / mantissa / significand as float
+
+    def __call__(self, significant=5, sign=False, times='x', short=False,
+                 style='ascii'):
+
+        return self.format(significant, sign, times, short, style)
+
+    def format(self, significant=5, sign=False, times='x', short=False,
+               style='ascii'):
+        """
+        Format the number in scientific notation.
+
+        Parameters
+        ----------
+        significant : int, optional
+            [description], by default 5
+        sign : bool, optional
+            [description], by default False
+        times : str, optional
+            [description], by default 'x'
+        short : bool, optional
+            [description], by default False
+        style : str, optional
+            [description], by default 'ascii'
+
+        Examples
+        --------
+        >>> 
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        if np.isnan(self.n):
+            return 'nan'
+
+        if np.isinf(self.n):
+            return INFINITY_SYMBOLS[style]
+
+        # first get the ×10ⁿ part
+        times, base, exp = self.get_parts(style, times)
+
+        # mantissa string
+        mantis = decimal(self.v, None, significant, sign, short,
+                         style == 'unicode')
+
+        if short and self.m > 0 and mantis == '1':
+            mantis = times = ''
+
+        # concatenate
+        r = ''.join([mantis, times, base, exp])
+
+        if style == 'latex':
+            return f'${r}$'
+            # TODO: make this wrap optional. since decimal does not do this
+            #  integration within numeric is bad
+
+        return r
+
+    def get_parts(self, style, times):
+        m = self.m
+        if m == 0:
+            return '', '', ''
+
+        if times.lower() == 'e':
+            # implies style == 'ascii'
+            return '', times, str(m)
+
+        base = '10'
+        if style == 'unicode':
+            times = PRODUCT_SYMBOLS.get(times, times)
+            pwr_sgn = ['', '\N{SUPERSCRIPT MINUS}'][m < 0]
+            exp = pwr_sgn + uni.superscript.translate(abs(m))
+            return times, base, exp
+
+        exp = '' if m == 1 else str(m)
+        if style == 'ascii':
+            return times, base, exp
+
+        # latex
+        times = PRODUCT_SYMBOLS_LATEX.get(times, times)
+        return times, base, f'^{exp}'
+
+    def ascii(self, significant=5, sign=False, times='x', short=False):
+        return self.format(significant, sign, times, short, 'ascii')
+
+    def latex(self, significant=5, sign=False, times='x', short=False):
+        return self.format(significant, sign, times, short, 'latex')
+
+    def unicode(self, significant=5, sign=False, times='x', short=False):
+        return self.format(significant, sign, times, short, 'unicode')
 
 
 def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
@@ -799,17 +995,16 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
             unicode = False
 
         if unicode:
-            times = UNI_MULT.get(times, times)
+            times = PRODUCT_SYMBOLS.get(times, times)
             pwr_sgn = ['', '\N{SUPERSCRIPT MINUS}'][m < 0]
-            exp = pwr_sgn + UNI_PWR.get(abs(m), '')
+            exp = pwr_sgn + uni.superscript.translate(abs(m))
         else:
             pwrFmt = '%i'
             if latex:
                 pwrFmt = '^{%i}'
-                times = LATEX_MULT.get(times, times)
+                times = PRODUCT_SYMBOLS_LATEX.get(times, times)
             exp = '' if m == 1 else pwrFmt % m
 
-    #
     # if short:
     #     # short representation of number eg.: 10000  ---> 1e5  or 10⁵
     #     raise NotImplementedError
@@ -820,6 +1015,8 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
     mantis = decimal(v, None, significant, sign, short, unicode)
 
     # mantis = formatter(v)
+    if mantis == '1' and m > 0 and short:
+        mantis = times = ''
 
     # concatenate
     r = ''.join([mantis, times, base, exp])
@@ -904,7 +1101,7 @@ def numeric(n, precision=3, significant=3, log_switch=5, sign='-', times='x',
                engineering)
 
 
-nr = numeric
+nr = number = numeric
 
 
 def numeric_array(n, precision=2, significant=3, log_switch=5, sign=' ',
@@ -913,11 +1110,7 @@ def numeric_array(n, precision=2, significant=3, log_switch=5, sign=' ',
     """Pretty numeric representations for arrays of scalars"""
     # note default args slightly different:
     #   sign ' ' instead of '-'  for alignment
-    return vectorize(numeric)(n, precision=precision, significant=significant,
-                              log_switch=log_switch, sign=sign, times=times,
-                              short=short, thousands=thousands,
-                              unicode=unicode, latex=latex,
-                              engineering=engineering)
+    return vectorize(numeric)(**locals())
 
 
 # ------------------------------------------------------------------------------
@@ -930,12 +1123,14 @@ def precision_rule_dpg(u):
     # http://pdg.lbl.gov/2010/reviews/rpp2010-rev-rpp-intro.pdf (section 5.4:
     #  Rounding, pg 13)
 
-    # ""The basic rule states that if the three highest order digits of the error(sic) lie between 100
-    # and 354, we round to two significant digits. If they lie between 355 and 949, we round
-    # to one significant digit. Finally, if they lie between 950 and 999, we round up to 1000
-    # and keep two significant digits. In all cases, the central value is given with a precision
-    # that matches that of the error (sic). So, for example, the result (coming from an average)
-    # 0.827 ± 0.119 would appear as 0.83 ± 0.12, while 0.827 ± 0.367 would turn into 0.8 ± 0.4.""
+    # "" The basic rule states that if the three highest order digits of the
+    # error [sic] lie between 100 and 354, we round to two significant digits.
+    # If they lie between 355 and 949, we round to one significant digit.
+    # Finally, if they lie between 950 and 999, we round up to 1000 and keep two
+    # significant digits. In all cases, the central value is given with a
+    # precision that matches that of the error [sic]. So, for example, the
+    # result (coming from an average) 0.827 ± 0.119 would appear as 0.83 ± 0.12,
+    # while 0.827 ± 0.367 would turn into 0.8 ± 0.4. ""
 
     nrs, m = get_significant_digits(u, 3)
     #
@@ -945,7 +1140,7 @@ def precision_rule_dpg(u):
         r = 0  # round to one significant digit
     else:
         r = -1  # round up to 1000 and keep two significant digits
-    return -m + r  # precision
+    return r - m  # precision
 
 
 # def n_sig_dpg(u):
@@ -962,7 +1157,7 @@ def precision_rule_dpg(u):
 
 
 def decimal_u(x, u, precision=None, short=False,
-              sign=False, unicode=True, latex=False):
+              sign=False, thousands='', unicode=True, latex=False):
     """
     Represent a number with associated standard deviation uncertainty as str.
 
@@ -985,16 +1180,16 @@ def decimal_u(x, u, precision=None, short=False,
         precision = precision_rule_dpg(u)
     precision = int(precision)  # type enforcement
 
-    xr = decimal(x, precision, 0, sign, short)
-    ur = decimal(u, precision, 0, '', short)
+    xr = decimal(x, precision, 0, sign, short, thousands=thousands)
+    ur = decimal(u, precision, 0, '', short, thousands=thousands)
 
     if unicode:
-        return '%s ± %s' % (xr, ur)
+        return f'{xr} ± {ur}'
 
     if latex:
-        return r'$%s \pm %s$' % (xr, ur)
+        return Rf'${xr} \pm {ur}$'
 
-    return '%s +/- %s' % (xr, ur)
+    return f'{xr} +/- {ur}'
 
 
 # def vectorize():
@@ -1004,8 +1199,7 @@ def decimal_u(x, u, precision=None, short=False,
 
 
 def uarray(x, u, significant=None, switch=5, short=False, times='x',
-           sign='-', unicode=True, latex=False,
-           engineering=False):
+           sign='-', thousands='', unicode=True, latex=False, engineering=False):
     """
 
     Parameters
@@ -1079,11 +1273,11 @@ def uarray(x, u, significant=None, switch=5, short=False, times='x',
         # `significant` or we can fill trailing whitespace up to `significant`.
 
         # option 1
-        xr = vectorize(decimal_u)(x, u, precision=precision,
-                                  short=short, sign=sign,
-                                  unicode=unicode, latex=latex)
+        return vectorize(decimal_u)(x, u, precision=precision,
+                                    short=short, sign=sign, thousands=thousands,
+                                    unicode=unicode, latex=latex)
 
-        return xr
+        # return xr
 
         # option 2
 
@@ -1099,9 +1293,7 @@ def sci_array(n, significant=5, sign='-', times='x',  # x10='x' ?
     # masked data handled implicitly by vectorize
     # from recipes.array.misc import vectorize
 
-    return vectorize(sci)(n, significant=significant, sign=sign,
-                          times=times, short=short, unicode=unicode,
-                          latex=latex, engineering=engineering)
+    return vectorize(sci)(**locals())
 
 
 def matrix(a, precision=3):

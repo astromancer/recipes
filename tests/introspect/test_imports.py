@@ -7,7 +7,13 @@ from pathlib import Path
 from recipes.testing import ECHO, Expected, Warns, expected, mock
 from recipes.introspect.imports import (
     ImportCapture, ImportFilter, ImportMerger, ImportRelativizer,
-    ImportSplitter, NodeTypeFilter, Parentage, get_mod_name, refactor, rewrite)
+    ImportSplitter, NodeTypeFilter, Parentage, refactor, rewrite)
+
+
+from loguru import logger
+
+logger.enable('recipes.introspect')
+logger.enable('recipes.introspect.imports')
 
 
 TESTPATH = Path(__file__).parent.absolute()
@@ -55,7 +61,6 @@ class TestNodeTransformer:
     Transformer = ast.NodeVisitor  # null transformer
 
     def parse(self, code, *args, **kws):
-        #Transformer = eval(remove_prefix(type(self).__name__, 'Test'))
         return parse(code, self.Transformer, *args, **kws)
 
 
@@ -144,27 +149,31 @@ class TestImportFilter(TestNodeTransformer):
     @expected({
         mock(code0, remove=['zz']):
         dedent('''
-                import re, os
-                import operator as op
-            '''),
+               import re, os
+               import operator as op
+               '''),
 
         mock(code0, remove=['zz', 're']):
         dedent('''
-                import os
-                import operator as op
-            '''),
+               import os
+               import operator as op
+               '''),
 
         mock(code0, remove=['op']):
         dedent('''
-                from xx.yy import zz
-                import re, os
-            '''),
+               from xx.yy import zz
+               import re, os
+               import operator
+               '''),
+
+        mock('from xx.yy.zz import pp, rr, qq as ww', remove=['qq']):
+        'from xx.yy.zz import pp, rr',
 
         mock('from xx.yy.zz import pp, rr, qq as ww', remove=['ww', 'pp']):
-        'from xx.yy.zz import rr',
+        'from xx.yy.zz import rr, qq',
 
         mock('from xx.yy import zz as qq, qq as pp', remove=['qq']):
-        'from xx.yy import qq as pp',
+        'from xx.yy import zz',
     })
     def test_filter_alias(self, code, remove, expected):
         _, module = self.parse(code, remove)
@@ -177,22 +186,32 @@ class TestImportMerger(TestNodeTransformer):
 
     @expected({
         '''
+        import numpy as np
+        import numpy as np
+        ''':
+            'import numpy as np',
+        '''
+        from some.deep.thoughts import brainpower
+        from some.deep.thoughts import brainpower
+        ''':
+            'from some.deep.thoughts import brainpower',
+        '''
         from matplotlib.collections import LineCollection
         from matplotlib.collections import EllipseCollection
         ''':
-        "from matplotlib.collections import LineCollection, EllipseCollection",
+            'from matplotlib.collections import LineCollection, EllipseCollection',
         #
         '''
         from xx.yy import zz as qq
         from xx.yy import ww
         ''':
-        'from xx.yy import zz as qq, ww',
+            'from xx.yy import zz as qq, ww',
         #
         '''
         from xx.yy import zz as qq
         from xx.yy import qq as rr
         ''':
-        'from xx.yy import zz as qq, qq as rr',
+            'from xx.yy import zz as qq, qq as rr',
         #
         '''
         from .. import shocCampaign
@@ -201,16 +220,21 @@ class TestImportMerger(TestNodeTransformer):
         from . import logs, WELCOME_BANNER
         from . import FolderTree
         ''':
+            '''
+            from .. import shocCampaign, shocHDU
+            from .calibrate import calibrate
+            from . import logs, WELCOME_BANNER, FolderTree
+            ''',
+            
         '''
-        from .. import shocCampaign, shocHDU
-        from .calibrate import calibrate
-        from . import logs, WELCOME_BANNER, FolderTree
-        '''
+        from .. import api
+        from .. import cosort, op, pprint as pp
+        ''':
+            'from .. import api, cosort, op, pprint as pp'
     })
     def test_merge(self, code, expected):
         _, module = self.parse(code)
-        new = '\n'.join(map(rewrite, module.body))
-        assert new == dedent(expected)
+        assert dedent(expected) == '\n'.join(map(rewrite, module.body))
 
 
 class TestImportSplitter(TestNodeTransformer):
@@ -224,28 +248,28 @@ class TestImportSplitter(TestNodeTransformer):
         cases={
             # package / builtin level split
             mock(level=0):
-            '''
-            import os
-            import re
-            import this
-            from xx import yy as uu, zz as vv
-            ''',
+                '''
+                import os
+                import re
+                import this
+                from xx import yy as uu, zz as vv
+                ''',
             # (sub)module level split
             mock(level=1):
-            '''
-            import os, re, this
-            from xx import yy as uu
-            from xx import zz as vv
-            ''',
+                '''
+                import os, re, this
+                from xx import yy as uu
+                from xx import zz as vv
+                ''',
 
             mock(level=(0, 1)):
-            '''
-            import os
-            import re
-            import this
-            from xx import yy as uu
-            from xx import zz as vv
-            '''
+                '''
+                import os
+                import re
+                import this
+                from xx import yy as uu
+                from xx import zz as vv
+                '''
         })
     def test_split(self, code, level, expected):
         _, module = self.parse(code, level=level)
@@ -266,44 +290,42 @@ class TestImportRelativizer(TestNodeTransformer):
 
         # one level deep
         (dedent('''
-            from recipes import cosort, op
-            from recipes.io import open_any
-            from recipes import pprint as pp
-            from recipes.functionals import negate
-            from recipes.string import replace_prefix, truncate
-            from recipes.logging import logging, get_module_logger
-            from ..io import safe_write
-            '''),
-            'recipes'):
-        '''
-        from . import cosort, op
-        from .io import open_any
-        from . import pprint as pp
-        from .functionals import negate
-        from .string import replace_prefix, truncate
-        from .logging import logging, get_module_logger
+        from recipes import cosort, op
+        from recipes.io import open_any
+        from recipes import pprint as pp
+        from recipes.functionals import negate
+        from recipes.string import replace_prefix, truncate
+        from recipes.logging import logging, get_module_logger
         from ..io import safe_write
-        ''',
+        '''), 'recipes'):
+            '''
+            from . import cosort, op
+            from .io import open_any
+            from . import pprint as pp
+            from .functionals import negate
+            from .string import replace_prefix, truncate
+            from .logging import logging, get_module_logger
+            from ..io import safe_write
+            ''',
         # deeper relativity
         (dedent('''
-            from recipes import cosort, op
-            from recipes.io import open_any
-            from recipes import pprint as pp
-            from recipes.functionals import negate
-            from recipes.string import replace_prefix, truncate
-            from recipes.logging import logging, get_module_logger
-            from ..io import safe_write
-            '''),
-            'recipes.other'):
-        '''
-        from .. import cosort, op
-        from ..io import open_any
-        from .. import pprint as pp
-        from ..functionals import negate
-        from ..string import replace_prefix, truncate
-        from ..logging import logging, get_module_logger
+        from recipes import cosort, op
+        from recipes.io import open_any
+        from recipes import pprint as pp
+        from recipes.functionals import negate
+        from recipes.string import replace_prefix, truncate
+        from recipes.logging import logging, get_module_logger
         from ..io import safe_write
-        ''',
+        '''), 'recipes.other'):
+            '''
+            from .. import cosort, op
+            from ..io import open_any
+            from .. import pprint as pp
+            from ..functionals import negate
+            from ..string import replace_prefix, truncate
+            from ..logging import logging, get_module_logger
+            from ..io import safe_write
+            ''',
 
         # deeper still: inside a/b/c/d.py
         (dedent('''
@@ -317,41 +339,41 @@ class TestImportRelativizer(TestNodeTransformer):
         from .c import j        # implies the existence of c/c.py
         '''),
          'a.b.c'):
-        '''
-        from ... import b
-        from .. import c
-        from . import e
-        from .. import f
-        from . import g
-        from . import h
-        from .x import i
-        from .c import j
-        ''',
+            '''
+            from ... import b
+            from .. import c
+            from . import e
+            from .. import f
+            from . import g
+            from . import h
+            from .x import i
+            from .c import j
+            ''',
 
         # modules shadowing builtin names
         (dedent('''
-            from recipes.pprint.nrs import xx
-            from recipes.string import yy
-            '''),
-            'recipes.other'):
-        '''
-        from ..pprint.nrs import xx
-        from ..string import yy
-        ''',
+        from recipes.pprint.nrs import xx
+        from recipes.string import yy
+        '''),
+         'recipes.other'):
+            '''
+            from ..pprint.nrs import xx
+            from ..string import yy
+            ''',
 
         # modules shadowing builtin names
         (dedent('''
-            from .image import SkyImage, ImageContainer
-            from .mosaic import MosaicPlotter
-            from .segmentation import SegmentedImage
-            '''),
-            'recipes.image'):
-        # FIXME: ECHO
-        '''
         from .image import SkyImage, ImageContainer
         from .mosaic import MosaicPlotter
         from .segmentation import SegmentedImage
-        '''
+        '''),
+         'recipes.image'):
+        # FIXME: ECHO
+            '''
+            from .image import SkyImage, ImageContainer
+            from .mosaic import MosaicPlotter
+            from .segmentation import SegmentedImage
+            '''
     })
     def test_rename(self, code, old_name, expected):
         _, module = self.parse(code, old_name)
@@ -359,22 +381,17 @@ class TestImportRelativizer(TestNodeTransformer):
         assert new == dedent(expected)
 
 
-test_get_module_name = Expected(get_mod_name)({
-    '/recipes/src/recipes/string/brackets.py': 'recipes.string.brackets',
-    '/recipes/src/recipes/oo/property.py': 'recipes.oo.property'
-})
-
 test_refactor = Expected(refactor, right_transform=dedent)({
     # case: Warn if asked to filter unused and no code in body (besides imports)
     mock('import this', filter_unused=True):            Warns(),
     #
     mock(dedent('''
-            import logging
-            import logging.config
+        import logging
+        import logging.config
 
-            logging.config.dictConfig({})
-            '''),
-         filter_unused=True):                            ECHO,
+        logging.config.dictConfig({})
+        '''),
+         filter_unused=True, merge=False):                           ECHO,
 
     # case
     mock(dedent('''
@@ -382,7 +399,7 @@ test_refactor = Expected(refactor, right_transform=dedent)({
 
         class X(SelfAware): pass
         '''),
-        filter_unused=True):
+         filter_unused=True):
     '''
     from recipes.oo import SelfAware
 
@@ -416,7 +433,7 @@ test_refactor = Expected(refactor, right_transform=dedent)({
         from recipes.functionals import negate
         from recipes.string import replace_prefix, truncate
         from recipes.logging import logging, get_module_logger
-        from ..io import safe_write
+        from .io import safe_write
         '''),
          relativize='recipes'):
         '''
@@ -442,8 +459,51 @@ test_refactor = Expected(refactor, right_transform=dedent)({
         from ..io import open_any, safe_write
         from ..string import replace_prefix, truncate
         from ..logging import get_module_logger, logging
-        '''
+        ''',
 
+    mock(dedent('''
+        from .. import ansi, codes, formatters
+        from .xlsx import XlsxWriter
+        from .column import resolve_column
+        from ..utils import resolve_alignment
+        from .utils import *
+        from ..formatter import stylize
+        '''),
+         relativize='motley.table.table'):
+        '''
+        from .. import ansi, codes, formatters
+        from ..formatter import stylize
+        from ..utils import resolve_alignment
+        from .utils import *
+        from .xlsx import XlsxWriter
+        from .column import resolve_column
+        ''',
+            
+    mock(dedent('''
+        from recipes import api
+        from recipes import api
+        from .. import cosort, op, pprint as pp
+        from ..iter import unduplicate
+        from ..dicts import AttrReadItem
+        from ..functionals import negate
+        from ..logging import LoggingMixin
+        from ..pprint.callers import describe
+        from ..string import remove_prefix, truncate
+        from ..io import open_any, read_lines, safe_write
+        from .utils import BUILTIN_MODULE_NAMES, get_module_name
+        '''), 
+         relativize='recipes.pprint'):
+        '''
+        from .. import api, cosort, op, pprint as pp
+        from ..iter import unduplicate
+        from ..dicts import AttrReadItem
+        from ..functionals import negate
+        from ..logging import LoggingMixin
+        from ..string import remove_prefix, truncate
+        from ..io import open_any, read_lines, safe_write
+        from .callers import describe
+        from .utils import BUILTIN_MODULE_NAMES, get_module_name
+        '''
 })
 
 
@@ -467,18 +527,18 @@ test_rewrite = Expected(
                                     Parentage,
                                     ImportRelativizer)
         ''',
-        right_transform=dedent
-    )({
-        mock(hang=True):
-            '''
+    right_transform=dedent
+)({
+    mock(hang=True):
+    '''
             from recipes.introspect.imports import (
                 Parentage, refactor, rewrite, ImportCapture, ImportFilter, NodeTypeFilter,
                 ImportRefactory, ImportMerger, get_mod_name, tidy, ImportSplitter,
                 ImportRelativizer)
             ''',
 
-            mock(hang=False):
-            '''
+    mock(hang=False):
+    '''
             from recipes.introspect.imports import (Parentage, refactor, rewrite,
                                                     ImportCapture, ImportFilter,
                                                     NodeTypeFilter, ImportRefactory,
@@ -486,8 +546,8 @@ test_rewrite = Expected(
                                                     ImportSplitter, ImportRelativizer)
             ''',
 
-            mock(hang=False, one_per_line=True):
-            '''
+    mock(hang=False, one_per_line=True):
+    '''
             from recipes.introspect.imports import (Parentage,
                                                     refactor,
                                                     rewrite,
@@ -502,8 +562,8 @@ test_rewrite = Expected(
                                                     ImportRelativizer)
             ''',
 
-            mock(hang=True, one_per_line=True):
-            '''
+    mock(hang=True, one_per_line=True):
+    '''
             from recipes.introspect.imports import (
                 Parentage,
                 refactor,
@@ -518,7 +578,7 @@ test_rewrite = Expected(
                 ImportSplitter,
                 ImportRelativizer)
             '''
-    })
+})
 
 
 # def test_
@@ -528,7 +588,7 @@ test_rewrite = Expected(
 #     @expected(
 #         ,
 #         cases={
-            
+
 #         })
 #     def test_rewrite_multiline(self, code, hang, one_per_line, expected):
 #         _, module = parse(code)

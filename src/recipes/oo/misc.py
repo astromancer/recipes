@@ -3,6 +3,12 @@ Some object oriented code patterns.
 """
 
 
+def coerce(obj, to, wrap, ignore=()):
+    if isinstance(obj, ignore):
+        return obj
+    return to([obj] if isinstance(obj, wrap) else obj)
+
+
 def iter_subclasses(cls, _seen=None):
     """
     Generator over all subclasses of a given class, in depth first order.
@@ -49,6 +55,7 @@ def list_subclasses(cls):
 
 # ---------------------------------------------------------------------------- #
 
+
 class SelfAwareness(type):
     """
     Meta class for SelfAware objects. When initializing a `SelfAware` class (by
@@ -82,9 +89,11 @@ class SelfAware(metaclass=SelfAwareness):
     ... a is A(A(A(a)))
     True
     """
+    
+# ---------------------------------------------------------------------------- #
 
 
-class AttributeAutoComplete:  # AttributeAutocomplete
+class AttributeAutoComplete:
     """
     Attribute lookup that returns if the lookup key matches the start of the
     attribute name and the match is one-to-one. Raises AttributeError otherwise.
@@ -107,3 +116,7 @@ class AttributeAutoComplete:  # AttributeAutocomplete
                 raise err from None
 
             return super().__getattribute__(real)
+
+
+# alias
+AttributeAutocomplete = AttributeAutoComplete

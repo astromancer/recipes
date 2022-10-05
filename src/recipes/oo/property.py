@@ -116,6 +116,9 @@ class ClassProperty(property):
     def __get__(self, instance, kls):
         return self.fget.__get__(None, kls)()
 
+# alias
+classproperty = ClassProperty
+
 
 # extended from astropy.utils.decorators.lazyproperty
 class CachedProperty(property):
@@ -180,7 +183,7 @@ class CachedProperty(property):
     value of a read-only property will raise an `AttributeError`.
 
         >>> class LazyTest3:
-        ...     @CachedProperty(read_only)
+        ...     @CachedProperty(read_only=True)
         ...     def complicated_property(self):
         ...         print('Computing the value for complicated_property...')
         ...         return 42

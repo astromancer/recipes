@@ -48,7 +48,7 @@ def main(files_or_folders, style,):
     for item in files_or_folders:
         for file in _iter_files(item):
             worker(file, style)
-            
+
     if file is None:
         logger.info('No files found! Exiting.')
 
@@ -57,10 +57,15 @@ def _iter_files(file_or_folder):
 
     path = Path(file_or_folder).resolve()
 
-    if not path.exists():
-        logger.warning('Not a valid file or directory: \'{}\'.', path)
-
-    yield from (path.rglob('*.py') if path.is_dir() else [path])
+    if path.exists():
+        if path.is_dir():
+            yield from path.rglob('*.py')
+        elif path.suffix == '.py':
+            yield path
+        else:
+            logger.warning('Not a valid python file: \'{}\'.', path)
+    else:
+        logger.warning('File or directory does not exist: \'{}\'.', path)
 
 
 def worker(file, style):

@@ -4,9 +4,9 @@ Common patterns involving iterables.
 
 
 # std
-import functools as ftl
 import numbers
 import textwrap as txw
+import functools as ftl
 import itertools as itt
 from collections import abc
 
@@ -14,8 +14,9 @@ from collections import abc
 import more_itertools as mit
 
 # relative
-from . import op
+from . import oo, op
 from .functionals import negate, echo0 as echo
+
 
 #
 SAFETY_LIMIT = 1e8
@@ -99,9 +100,12 @@ def where(items, *args, start=0):
     ValueError
         On receiving invalid number of function arguments.
     """
+    assert isinstance(start, numbers.Integral)
+
     nargs = len(args)
     if nargs == 0:
-        for i, item in enumerate(items):
+        mit.consume(items, start)
+        for i, item in enumerate(items, start):
             if item:
                 yield i
         return
@@ -118,15 +122,8 @@ def where(items, *args, start=0):
     yield from multi_index(items, rhs, test, start)
 
 
-def windowed(obj, size, step=1):
-    assert isinstance(size, numbers.Integral)
-
-    if isinstance(obj, str):
-        for i in range(0, len(obj), step):
-            yield obj[i:i + size]
-        return
-
-    yield from mit.windowed(obj, size)
+def select(items, test=bool):
+    yield from filter(negate(test), items)
 
 
 @ftl.singledispatch
@@ -142,31 +139,54 @@ def _(string, rhs, test=op.eq, start=0):
     assert callable(test)
 
     # if comparing to rhs substring with non-unit length
-    if (n := len(rhs) > 1):
+    if (n := len(rhs)) > 1 and (test != op.contained):
         yield from multi_index(windowed(string, n), rhs, test, start)
         return
-
-    i = start
-    while i < len(string):
-        try:
-            i = string.index(rhs, i)
-            yield i
-        except ValueError:
-            # done
-            return
-        else:
-            i += 1
+    
+    yield from multi_index(iter(string), rhs, test, start)
+    return
+    
+    # if test is not op.eq:
+        
+        
+    # i = start
+    # while i < len(string):
+    #     try:
+    #         i = string.index(rhs, i)
+    #         yield i
+    #     except ValueError:
+    #         # done
+    #         return
+    #     else:
+    #         i += 1
 
 
 @multi_index.register(abc.Iterable)
 def _(obj, rhs, test=op.eq, start=0):
-    mit.consume(obj, start)
+
+    if start:
+        mit.consume(obj, start)
+
     for i, x in enumerate(obj, start):
         if test(x, rhs):
             yield i
 
         if i >= SAFETY_LIMIT:
-            raise ValueError('Infinite iterable?')
+            raise ValueError('Infinite iterable? If this is wrong, please '
+                             'increase the `SAFETY_LIMIT`. eg: \n'
+                             '>>> import recipec.iter as itr\n'
+                             '... itr.SAFETY_LIMIT = 1e9')
+
+
+def windowed(obj, size, step=1):
+    assert isinstance(size, numbers.Integral)
+
+    if isinstance(obj, str):
+        for i in range(0, len(obj), step):
+            yield obj[i:i + size]
+        return
+
+    yield from mit.windowed(obj, size)
 
 
 def split(l, idx):
@@ -175,10 +195,8 @@ def split(l, idx):
     if isinstance(idx, numbers.Integral):
         idx = [idx]
 
-    idx = sorted(idx)
-    if idx:
-        idx = [0, *idx, len(l)]
-        for i, j in mit.pairwise(idx):
+    if idx := sorted(idx):
+        for i, j in mit.pairwise([0, *idx, len(l)]):
             yield l[i:j]
     else:
         yield l
@@ -313,18 +331,31 @@ first_true_idx = first_true_index
 first_false_idx = first_false_index
 
 
-def cofilter(func, *its):
+def cofilter(func_or_iter, *its):
     """
     Filter an arbitrary number of iterators based on the truth value of the
-    first iterable (as evaluated by function func).
+    first iterable. An optional predicate function that determines the truth
+    value of elements can be passed as the first argument, followed by the
+    iterables.
     """
-    func = func or bool
+    if (func_or_iter is None) or isinstance(func_or_iter, abc.Iterable):
+        # handle cofilter(None, ...) // cofilter((1, None), (2, 4))
+        func = bool
+        its = (func_or_iter, *its)
+    elif callable(func_or_iter):
+        func = func_or_iter
+    else:
+        raise TypeError(f'Predicate function should be a callable object, not '
+                        f'{type(func)}')
+
+    # zip(*filter(lambda x: func(x[0]), zip(*its)))
+
     it00, it0 = itt.tee(its[0])
-    # note this consumes the iterator in position 0!!
+    # NOTE this consumes the iterator in position 0!!
     # find the indices where func evaluates to true
     tf = list(map(func, it00))
     # restore the original iterator sequence
-    its = (it0,) + its[1:]
+    its = (it0, *its[1:])
     return tuple(itt.compress(it, tf) for it in its)
 
 
@@ -351,8 +382,10 @@ def filter_duplicates(l, test):
 
         results.add(result)
 
+
 # aliases
 unduplicate = filter_duplicates
+
 
 def iter_repeat_last(it):
     """
@@ -360,3 +393,7 @@ def iter_repeat_last(it):
     """
     it, it1 = itt.tee(mit.always_iterable(it))
     return mit.padded(it, next(mit.tail(1, it1)))
+
+
+def coerced(itr, to, wrap):
+    yield from map(oo.coerce, itr, itt.repeat(to), itt.repeat(wrap))

@@ -1,34 +1,54 @@
+"""
+Formatters for numeric types and arrays.
+"""
+
 # std
 import math
 import numbers
 import warnings
+from typing import Union
 from fractions import Fraction
+from dataclasses import dataclass
 
 # third-party
 import numpy as np
+from loguru import logger
 
 # relative
-from ..string import sub
-from .. import unicode
+from .. import api, dicts, unicode
+from ..oo import classproperty
 from ..dicts import AttrReadItem
-from ..misc import duplicate_if_scalar
+from ..array.misc import vectorize
+from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 from .callers import describe
+from .nrs import precision_rule_dpg
 
+
+# ASCII_MAP = {'inf': 'inf'}
 
 # unicode
-UNICODE_TRANSLATIONS = {'inf':  '∞',    # '\N{INFINITY}',
-                        '-':    '−'}    # '\N{MINUS SIGN}',
-UNICODE_MULTIPLIERS = {'x':   '×',      # '\N{MULTIPLICATION SIGN}'
-                       '.':   '·'}      # '\N{MIDDLE DOT}'
+UNICODE_MAP = {'inf':  '\N{INFINITY}',             # '∞'
+               '-':    '\N{MINUS SIGN}',           # '−'
+               '+/-':  '\N{PLUS-MINUS SIGN}',      # '±'
+               'x':    '\N{MULTIPLICATION SIGN}',  # '×'
+               '.':    '\N{MIDDLE DOT}'}           # '·'
 # ⏨  Decimal exponent symbol
 # ⒑  Number Ten Full Stop
 # ⑽ Parenthesized Number Ten
 
 # LaTeX
-LATEX_TRANSLATIONS = {'inf':    r'\infty'}
-LATEX_MULTIPLIERS = {'x':      r'\times',
-                     '.':      r'\cdot'}
+LATEX_MAP = {'inf': R'\infty',
+             'x':   R'\times',
+             '.':   R'\cdot'}
+
+LATEX_WRAP = {
+    None:       ('', ''),
+    '':         ('', ''),
+    '\(':       ('\(', '\)'),
+    '$':        '$$',
+    '$$':       ('$$', '$$')
+}
 
 #
 MASKED_CONSTANT = '--'
@@ -57,22 +77,59 @@ METRIC_PREFIXES = {
 # decimal, scientific, metric
 KNOWN_FORMATS = {'ascii', 'unicode', 'latex', 'metric'}
 
+# ---------------------------------------------------------------------------- #
+
 
 def empty_string(_):
     return ''
 
 
-def resolve_sign(sign, allowed=' -+'):
-    if sign is None:
+def resolve_sign(signed, allowed=' -+'):
+    if signed is None:
         return ' '
 
-    if isinstance(sign, bool):
-        return '-+'[sign]
+    if isinstance(signed, bool):
+        return '-+'[signed]
 
-    if isinstance(sign, str) and ((allowed is any) or (sign in allowed)):
-        return sign
+    if isinstance(signed, str) and ((allowed is any) or (signed in allowed)):
+        return signed
 
-    raise ValueError(f'Invalid sign {sign!r}. Use one of {tuple(allowed)}.')
+    raise ValueError(f'Invalid value {signed!r} for `signed` parameter. Use one'
+                     f' of {tuple(allowed)}.')
+
+# ---------------------------------------------------------------------------- #
+
+
+class SlotHelper:
+    __slots__ = ()
+
+    def __str__(self):
+        return self._repr(type(self).__slots__,
+                          lhs=str, equal='=', rhs=repr,
+                          brackets='()', align=False)
+
+    def __repr__(self):
+        # (_ for base in (*type(self).__bases__, type(self))
+        return self._repr(type(self).__slots__)
+
+    def _repr(self, attrs, **kws):
+        kws.setdefault('rhs', _rhs)
+        return dicts.pformat({_: getattr(self, _) for _ in attrs},
+                             type(self).__name__,
+                             **kws)
+
+    def __init__(self, **kws):
+        kws.pop('self', None)
+        kws.pop('kws', None)
+        kws.pop('__class__', None)
+        for key, val in kws.items():
+            setattr(self, key, val)
+
+
+def _rhs(obj):
+    return 'None' if obj is None else repr(str(obj))
+
+# ---------------------------------------------------------------------------- #
 
 
 class Masked:
@@ -90,199 +147,151 @@ class Percentage:
     Format a number and append the percentage of a total between brackets.
     """
 
-    def __init__(self, total, fmt_nr, precision=0, brackets='()'):
+    def __init__(self, total, fmt_nr, precision=None, brackets='()'):
+
         self.total = float(total)
         self.formatter = fmt_nr
-        self.precision = int(precision)  # for percentage value
-        # self.brackets = str(brackets)
-        fmt_p = f'{{f}}:.{self.precision}%'.join(brackets)
-        self._fmt = f'{{n}} {fmt_p}'
 
-    def __call__(self, n):
-        return self._fmt.format(n=self.formatter(n), f=n / self.total)
-
-
-class BaseNumeric:
-    def __call__(self, n):
-        """
-        n: int or float
-            the number to format
-        """
-        # handel masked values
-        # if isinstance(n, np.ma.core.MaskedConstant):
-        #     return '--'
-
-        # ensure we have a scalar
-        if not isinstance(n, numbers.Real):
-            raise ValueError('Only scalars are accepted by this function.')
-
-        # handle nans
-        if math.isnan(n):
-            return 'nan'
-
-
-class Decimal:
-    """Decimal number formatter."""
-
-    def __init__(self, precision=None, significant=3, sign='-',
-                 thousands='', shorten=True):  # tail0
-        """
-        Decimal representation of float as str up to given number of significant
-        digits (relative to order of magniture), or decimal precision
-        (absolute). Support for minimalist `shorten` representations as well as
-        optional left- and right padding and unicode representation of
-        minus/infinity (−/∞) included.
-
-        Parameters
-        ----------
-        precision: int, optional
-            if int:
-                Decimal precision (absolute) for format.
-            if None, the default:
-                precision = 1 if the abs(number) is larger than 1. eg. 100.1
-                Otherwise it is chosen such that at least 3 significant digits
-                are shown: eg: 0.0000345 or 0.985
-        significant : int, optional
-            If precision is not given, this gives the number of non-zero digits
-            after the decimal point that will be displayed. This argument allows
-            specification of dynamic precision values which is useful when
-            dealing with numbers that have a large dynamic range.
-        sign: str or bool, optional
-            "-" or True: always sign.
-            "+" or False: only sign negative numbers.
-            " " or None: sign negative, pre-space positive.
-        thousands: str, optional
-            Thousands separator.
-        shorten : {True, False, -1}
-            * If True, the default, redundant zeros after decimal point will be
-                stripped to yield a more compact representation of the same
-                number.
-            * If -1, whitespaces will replace the redundant trailing zeros and
-                decimal point.
-            * If False, the number is left unaltered.
-
-
-        Returns
-        -------
-        str
-
-        Examples
-        --------
-        >>> decimal(2.0000001, 3)
-        '2'
-        >>> decimal(3.14159265, 5)
-        '3.14159'
-        """
-
+        # precision for percentage value
         self.precision = precision
-        self.significant = int(significant)
-        self.thousands = str(thousands)
-        self.sign = resolve_sign(sign)
-        self.shorten = bool(shorten)
+        if precision is None:
+            self.precision = getattr(fmt_nr, 'precision', 0)
 
-    def __call__(self, n, precision=None):
-        """
-        n: int or float
-            the number to format
-        """
+        # self.brackets = str(brackets)
+        fmt_p = f'{{f:.{self.precision}%}}'.join(brackets)
+        self._fmt = f'{{x}} {fmt_p}'
 
-        # ensure we have a scalar
-        if not isinstance(n, numbers.Real):
-            raise ValueError(f'Only scalars are accepted by this function, not'
-                             f' {type(n)}.')
+    def __call__(self, x):
+        return self._fmt.format(x=self.formatter(x), f=x / self.total)
 
-        # handle nans
-        if math.isnan(n):
-            return 'nan'
 
-        precision = self._sanitize_precision(precision, n)
+# ---------------------------------------------------------------------------- #
 
-        # format the number
-        spec = f'{self.sign}{","[:bool(self.thousands)]}.{precision}f'
-        s = format(n, spec).replace(',', self.thousands)
 
-        # strip redundant zeros
-        # n_stripped = 0
-        # width = len(s)
-        if self.shorten and precision > 0:
-            # remove redundant zeros
-            s = s.rstrip('0').rstrip('.')
-            # n_stripped = width - len(s)
+# @dataclass
+class Number(SlotHelper):
+    """Base class for dynamic number formatting."""
 
-        # Right pad for when numbers are displayed to various precisions and the
-        # should form a block. eg. nrs followed by a 1σ uncertainty, and we want to
-        # line up with the '±'.
-        # eg.:
-        #   [-12   ± 1.2,
-        #      1.1 ± 0.2 ]
+    # # _: KW_ONLY    # 3.10+ only
+    # inf: str = field(default='inf', repr=False)
+    # nan: str = field(default='nan', repr=False)
+    # masked: str = field(default='--', repr=False)
 
-        # if right_pad >= max(precision - n_stripped, 0):
-        #     # compute required width of formatted number string
-        #     m = m or order_of_magnitude(n)
-        #     w = sum((int(bool(sign) & (n < 0)),
-        #              max(left_pad, m + 1),  # width lhs of '.'
-        #              max(right_pad, precision),  # width rhs of '.'
-        #              int(precision > 0)))  # '.' expected in formatted str?
+    __slots__ = ('inf', 'nan', 'masked')
 
-        #     s = s.ljust(w, right_pad_char)
+    _ascii_map = {'inf':        'inf',
+                  'nan':        'nan',
+                  'masked':     '--'}
+    _unicode_map = {'inf':      '\N{INFINITY}',         # '∞'
+                    'nan':      'nan',
+                    'masked':   '\N{BLACK SQUARE}'}     # '■'
+    _latex_map = {'inf':        R'\infty',
+                  'nan':        'nan',
+                  'masked':     '--'}
 
-        return s
+    def __init__(self, inf: str = 'inf', nan: str = 'nan', masked: str = '--',
+                 **kws):
 
-    def _sanitize_precision(self, precision, n):
-        # decide default precision
-        m = None
-        precision = precision or self.precision
-        if (precision is None):  # or (left_pad > 0) or (right_pad > 0):
-            # order of magnitude and `significant` determines precision
-            m = order_of_magnitude(n)
-            if math.isinf(m):
-                m = 0
-            precision = int(self.significant) - min(m, 1) - 1
-
-        # only positive precisions make sense for decimal format
-        if precision < 0:
-            warnings.warn(f'Negative precision not allowed for '
-                          f'{describe(type(self))}. Setting precision to 0.')
-            return 0
-        return precision
+        kws = {**locals(), **kws}
+        kws.pop('self')
+        super().__init__(**kws)
 
     @classmethod
     def as_percentage_of(cls, total, **kws):
         return Percentage(total, cls(**kws))
 
-    def latex(self, n):
-        # TODO: spaces for thousands also ignore padding ???
-        return sub(self(n), LATEX_TRANSLATIONS)
+    @classproperty
+    def ascii(cls):  # sourcery skip: instance-method-first-arg-name
+        return cls(**cls._ascii_map)
 
-    def ascii(self, n):
-        return self(n)
-
-    def unicode(self, n):
+    @classproperty
+    def unicode(cls):  # sourcery skip: instance-method-first-arg-name
         """
-        prefer unicode minus '−' over '-'
-        prefer unicode infinity '∞' over 'inf'
+        A representation prefering unicode characters
+            '−' MINUS SIGN      over '-'
+            '∞' INFINITY        over 'inf'
+            '±' PLUS-MINUS SIGN over '+/-'
 
         Parameters
         ----------
-        n : [type]
+        x : number.Real
             [description]
 
         Examples
         --------
         >>> 
         """
-        return sub(self(n), UNICODE_TRANSLATIONS)
+        # for atr in self.__slots__:
+        return cls(**cls._unicode_map)
+        # return strings.sub(self(x), UNICODE_MAP)
 
-    def metric(self, n):
-        return self(n)
+    @classproperty
+    def latex(cls):  # sourcery skip: instance-method-first-arg-name
+        return cls(**cls._latex_map)  # .join(LATEX_WRAP[math])
 
-    def shortest(self, n, choices=KNOWN_FORMATS):
+    def array(self, **kws):
+        return Array(self, **kws)
+
+    def validate(self, x):
+        # ensure we have a scalar
+        if not isinstance(x, numbers.Real):
+            raise ValueError('Only scalars are accepted by this function.')
+
+    # @api.validate(x=validate)
+    def __call__(self, x: numbers.Real):
+        """
+        x: int or float
+            the number to format
+        """
+        # ensure we have a scalar
+        self.validate(x)
+
+        # handel masked values
+        if isinstance(x, np.ma.core.MaskedConstant):
+            return self.masked
+
+        # handle nans
+        if math.isnan(x):
+            return self.nan
+
+        if math.isinf(x):
+            return self.inf
+
+        return self.format(x)
+
+    def format(self, x, precision=None):
+        """
+        x: int or float
+            the number to format
+        precision: int
+            numberic precision
+        """
+        raise NotImplementedError
+
+    #     spec =  f'{self.signed}{","[:bool(self.thousands)]}.{precision}f'
+    #     # self.get_spec(*args, precision)
+    #     xr = format(x, spec).replace(',', self.thousands)
+
+    #     # strip redundant zeros
+    #     if self.short and precision > 0:
+    #         # remove redundant zeros
+    #         xr = xr.rstrip('0').rstrip('.')
+
+    #     return xr
+
+    # def get_spec(self, precision):
+        # return f'{self.signed}{","[:bool(self.thousands)]}.{precision}f'
+
+    # def metric(self, x):
+    #     return self(x)
+
+    def shortest(self, x, choices=KNOWN_FORMATS):
         """
         Most compact representation possible from amongst formats `choices`.
 
         Parameters
         ----------
-        n : [type]
+        x : [type]
             [description]
 
         Examples
@@ -294,6 +303,220 @@ class Decimal:
         [type]
             [description]
         """
+        raise NotImplementedError('todo')
+
+
+STD_BRACKETS = object()
+STD_BRACKET_TYPES = {set: '{}',
+                     list: '[]',
+                     tuple: '()'}
+
+
+class Collection(SlotHelper):
+    
+    __slots__ =  ('fmt', 'max_items', 'edge_items', 'sep', 'dots', 'brackets')
+    
+    def __init__(self, fmt=repr,
+                 max_items=10, edge_items=2,
+                 sep=', ', dots='...', brackets=STD_BRACKETS):
+
+        if isinstance(fmt, str):
+            fmt = fmt.format
+        assert callable(fmt)
+
+        if brackets is not STD_BRACKETS:
+            assert len(brackets) == 2
+
+        kws = locals()
+        kws.pop('self')
+        super().__init__(**kws)
+
+    def __call__(self, obj):
+        """
+        Print a pretty representation of a collection of items, trunctated
+        at `max_items`.
+
+        Parameters
+        ----------
+        obj
+        max_items
+        edge_items
+        sep
+
+        Returns
+        -------
+
+        """
+        brackets = self.brackets
+        if brackets is STD_BRACKETS:
+            brackets = STD_BRACKET_TYPES.get(type(obj), '[]')
+
+        if len(obj) <= self.max_items:
+            return self.sep.join(map(self.fmt, obj)).join(brackets)
+
+        return f'{self.sep}{self.dots} '.join(
+            (self.sep.join(map(self.fmt, obj[:self.edge_items])),
+             self.sep.join(map(self.fmt, obj[-self.edge_items:])))
+        ).join(brackets)
+
+
+class Array(SlotHelper):
+
+    __slots__ = ('fmt', 'max_rows', 'max_cols', 'n_edge', 'dots', 'sep')
+
+    def __init__(self, fmt, width=100, max_size=625, n_edge=2, dots='...',
+                 sep=', '):
+
+        # assert callable((fmt))
+        kws = locals()
+        kws.pop('self')
+        super().__init__(**kws)
+
+    def __call__(self, x):
+
+        if x > self.max_size:
+            return self.summarize(x)
+
+        return vectorize(self.fmt)(x)
+
+    def summarize(self, x):
+        ''
+
+# @api.validate(signed=resolve_sign)
+# @dataclass
+
+
+class Decimal(Number):
+    """
+    Decimal number formatter.
+    This produces decimal format strings of numeric type objects. The
+    `significant` parameter controls the number of (non-zero) significant digits
+    that are displayed, while the mutually exclusive `precision` parameter
+    controls the absolute number of digits after the decimal period. Minimalist,
+    or `short` representations can be requested, in which case trailing zeros
+    and decimal point are removed.
+
+    TODO: optional left- and right padding and unicode representation of
+    minus/infinity (−/∞) included.
+
+    Parameters
+    ----------
+    precision: int, optional
+        if int:
+            Absolute decimal precision for format.
+        if None, the default:
+            precision = 1 if the `abs(number)` is larger than 1. eg. 100.1
+            Otherwise it is chosen such that at least 3 significant digits
+            are shown: eg: 0.0000345 or 0.985 (see `significant` parameter).
+    significant : int, optional
+        If precision is not given, this gives the number of non-zero digits
+        after the decimal point that will be displayed. This argument allows
+        specification of dynamic precision values which is useful when
+        dealing with numbers that have a large dynamic range.
+    signed: str or bool, optional
+        '-' or True: always signed.
+        '+' or False: only sign negative numbers.
+        ' ' or None: sign negative numbers, add space before positive.
+    thousands: str, optional
+        Thousands separator.
+    short : {True, False, -1}
+        * If True, the default, redundant zeros after decimal point will be
+            stripped to yield a more compact representation of the same
+            number.
+        * If -1, whitespaces will replace the redundant trailing zeros and
+            decimal point.
+        * If False, the number is left unaltered.
+
+
+    Returns
+    -------
+    str
+
+    Examples
+    --------
+    >>> Decimal(3)(2.0000001)
+    '2'
+    >>> Decimal(5)(3.14159265)
+    '3.14159'
+    """
+    __slots__ = ('precision', 'significant', 'signed', 'thousands', 'short')
+
+    # @api.synonyms({'sig|digits': 'significant',
+    #                'thousand|_1000': 'thousands',
+    #                'sign': 'signed',
+    #                'shorten': 'short'})
+    def __init__(self,
+                 significant: int = 3,
+                 precision: int = None,
+                 thousands: str = '',
+                 signed: Union[str, bool] = '-',
+                 short: Union[str, bool] = True,
+                 **kws):
+
+        if significant <= 0:
+            raise ValueError('Number of `significant` digits must be positive.')
+
+        kws = {**locals(), **kws}
+        kws.pop('self')
+        super().__init__(**kws)
+
+    def __str__(self):
+        attrs = list(self.__slots__)
+        attrs.pop(0 if self.precision is None else 1)
+        return self._repr(attrs,
+                          lhs=str, equal='=', rhs=repr,
+                          brackets='()', align=False)
+
+    def __repr__(self):
+        return self._repr(type(self).__slots__)
+
+    def format(self, x, /, precision=None):
+        """
+        x: int or float
+            the number to format
+        """
+
+        precision = self._get_precision(precision, x)
+
+        # format the number
+        spec = f'{self.signed}{","[:bool(self.thousands)]}.{precision}f'
+        xr = format(x, spec).replace(',', self.thousands)
+
+        # strip redundant zeros
+        if self.short and precision != 0:
+            # remove redundant zeros
+            width = len(xr)
+            xr = xr.rstrip('0').rstrip('.')
+            if self.short == ' ':
+                xr += ' ' * width - len(xr)
+
+        return xr
+
+    def _get_precision(self, precision, x):
+        # decide default precision
+        precision = precision or self.precision
+        if (precision is not None):
+            return precision
+
+        if x == 0:
+            return 0
+
+        # order of magnitude and `significant` determines precision
+        m = order_of_magnitude(x)
+        if math.isinf(m):
+            m = 0
+
+        precision = int(self.significant) - min(m, 1) - 1
+
+        # only positive precisions make sense for decimal format
+        if precision < 0:
+            warnings.warn(f'Negative precision not allowed for '
+                          f'{describe(type(self))}. Setting precision to 0.')
+            return 0
+
+        logger.debug('Using precision {} for {} significant digits.',
+                     precision, self.significant)
+        return precision
 
 
 class Scientific(Decimal):
@@ -307,24 +530,23 @@ class Scientific(Decimal):
 
         Parameters
         ----------
-        n: numbers.Real
-            {}
         significant: int
             {}
-        sign: str, bool
+        signed: str, bool
             {}
         times: str
             style to use for multiplication symbol.
-            * If value is either 'x' or '.':
-                The symbol used is decided based on the unicode and latex flags
-                as per the following table:
-                    unicode:    '×'         or      '·'
-                    latex:      '\\times'    or      '\\cdot'
-                    str:         'x'        or      '*'
-            * using 'E' or 'e' will switch to E-notation style. eg.: 1.3e-12
+            * If value is either 'x' or '.' or '*':
+                Symbol substitutions for unicode and latex formats are made by 
+                the `unicode` and `latex` methods as per the following table:
+                    unicode:    '×'         or      '·'         or      '*'
+                    latex:      '\\times'   or      '\\cdot'    or      '*'
+                    ascii:      'x'        or      '.'          or      '*'
+            * using 'E' or 'e' will switch to E-notation style. 
+                eg.: 1.3e-12 or 1.3E-12
             * Any other str may be passed in which case it will be used verbatim.
-        shorten: bool
-            {}
+        short: bool
+            Strip trailing zeros and decimal point.
 
 
         Returns
@@ -339,35 +561,33 @@ class Scientific(Decimal):
         ----------
         [1] https://en.wikipedia.org/wiki/Scientific_notation
 
-
         """
 
-        super().__init__(None, significant, sign, thousands, shorten)
-        self.times = str(times)
+    # __slots__ = ('times', 'base', 'exp')
 
-        # TODO: spacing options.
+    # TODO: spacing options.
 
-        #     unicode: bool
-        #     prefer unicode minus symbol '−' over '-'
-        #     prefer unicode infinity symbol  '∞' over 'inf'
-        #     prefer unicode multiplication symbol '×' over 'x'
-        # latex:
-        #     represent the number as a latex string:
-        #     eg:. '$1.04 \\times 10^{-12}$'
-        # engineering: bool
-        #     Prefer representation where exponent is a multiple of 3. Essentially
-        #     scientific notation with base 1000.
+    #     unicode: bool
+    #     prefer unicode minus symbol '−' over '-'
+    #     prefer unicode infinity symbol  '∞' over 'inf'
+    #     prefer unicode multiplication symbol '×' over 'x'
+    # latex:
+    #     represent the number as a latex string:
+    #     eg:. '$1.04 \\times 10^{-12}$'
+    # engineering: bool
+    #     Prefer representation where exponent is a multiple of 3. Essentially
+    #     scientific notation with base 1000.
 
-    def __call__(self, n, times=None, base='10', exp=unicode.superscript):
+    def __call__(self, x, times=None, base='10', exp=unicode.superscript):
         # TODO: defaults at module_level:
         # scientific notation
-        # n_ = abs(n)
-        m = order_of_magnitude(n)  # might be -inf
+        # n_ = abs(x)
+        m = order_of_magnitude(x)  # might be -inf
         p = self.significant
 
         # first get the ×10ⁿ part
         times = times or self.times
-        if self.shorten is True:
+        if self.short is True:
             if (m == 0):
                 times = base = ''
             if m in {0, 1}:
@@ -376,8 +596,8 @@ class Scientific(Decimal):
                 # 0.1 is shorter than 1e-1
                 # 0.01 same as        1e-2  but more readable
 
-                # fucked = super().__call__(n * (10 ** -m), p)
-                # this = super().__call__(n, p)
+                # nope = super().__call__(x * (10 ** -m), p)
+                # this = super().__call__(x, p)
                 # from IPython import embed
                 # embed(header="Embedded interpreter at 'src/recipes/pprint/formatters.py':375")
                 # raise ValueError()
@@ -387,23 +607,23 @@ class Scientific(Decimal):
                 # p = self.significant + 1
 
         # coefficient / mantissa / significand
-        mantissa = super().__call__(n * (10 ** -m), p)  # str
+        mantissa = super().__call__(x * (10 ** -m), p)  # str
 
         # concatenate
         return ''.join([mantissa, times, base, str(exp(m))])
 
-    def ascii(self, n):
-        return self(n, 'e', '', int)
+    def ascii(self, x):
+        return self(x, 'e', '', int)
 
-    def unicode(self, n):
-        return self(n, UNICODE_MULTIPLIERS.get((t := self.times), t),
-                    # '\N{DECIMAL EXPONENT SYMBOL}' <-  ugly: '⏨⁵'
-                    # '\N{NUMBER TEN FULL STOP}'    <-  this maybe ok: "⒑⁵"
+    def unicode(self, x):
+        # '\N{DECIMAL EXPONENT SYMBOL}' <-  ugly: '⏨⁵'
+        # '\N{NUMBER TEN FULL STOP}'    <-  this maybe ok: "⒑⁵"
+        return self(x, UNICODE_MAP.get((t := self.times), t),
                     '10',
                     unicode.superscript)
 
-    def latex(self, n):
-        return self(n, LATEX_MULTIPLIERS.get((t := self.times), t),
+    def latex(self, x):
+        return self(x, LATEX_MAP.get((t := self.times), t),
                     '10', '{{{:d}}}'.format)
 
 
@@ -417,7 +637,7 @@ class Metric:
         self.base = int(base)
         self.unit = str(unit)
 
-    def __call__(self, n):
+    def __call__(self, x):
         """
         Format a number in engineering format
 
@@ -433,19 +653,83 @@ class Metric:
 
         """
         # significant = int(significant)
-        sign = signum(n)
-        n = abs(n)
-        if sign == 0:
-            return str(n)
+        signed = signum(x)
+        x = abs(x)
+        if signed == 0:
+            return str(x)
 
-        pwr = math.log(n) / math.log(self.base)
+        pwr = math.log(x) / math.log(self.base)
         pwr3 = int((pwr // 3) * 3)
         sig = self.significant or [0, 1][pwr3 < 0]
-        mantissa = n / (self.base ** pwr3)
+        mantissa = x / (self.base ** pwr3)
         return f'{mantissa:.{sig:d}f} {METRIC_PREFIXES[pwr3]}{self.unit}'
 
 
 Engineering = Metric
+
+
+class Measurement(Number):
+    """
+    A measured number with some uncertainty.
+    """
+
+    __slots__ = ('pm')
+
+    @api.validate()
+    def __init__(self, precision: int = None, significant: int = 3,
+                 signed: Union[str, bool] = '-', thousands: str = '',
+                 short: bool = True, space: Union[int, tuple] = 1,
+                 pm: str = '+/-'):
+
+        if isinstance(space, int):
+            space = ' ' * space
+
+        pm = pm.join(duplicate_if_scalar(space))
+        del space
+
+        super().__init__(**locals())
+
+    def _get_precision(self, precision, x, u):
+        # decide default precision if necessary based on value of `x` and
+        # uncertainty `u`.
+        precision = precision or self.precision
+        if (precision is None) and u is not None:
+            # significant digits of measurement uncertainty determine precision
+            return precision_rule_dpg(u)
+
+        return super()._get_precision(precision, x)
+
+    # def get_spec(self, u, precision):
+    #     if u is None:
+    #         return f'{self.signed}{","[:bool(self.thousands)]}.{precision}f'
+
+    #     return f'{xr}{self.pm}{self(u, precision)}'
+
+    def format(self, x, u, precision=None):
+
+        xr = super().format(x, precision)
+
+        # Right pad for when numbers are displayed to various precisions and the
+        # should form a block. eg. nrs followed by a 1σ uncertainty, and we want to
+        # line up with the '±'.
+        # eg.:
+        #   [-12   ± 1.2,
+        #      1.1 ± 0.2 ]
+
+        # if right_pad >= max(precision - n_stripped, 0):
+        #     # compute required width of formatted number string
+        #     m = m or order_of_magnitude(x)
+        #     w = sum((int(bool(signed) & (x < 0)),
+        #              max(left_pad, m + 1),  # width lhs of '.'
+        #              max(right_pad, precision),  # width rhs of '.'
+        #              int(precision > 0)))  # '.' expected in formatted str?
+
+        #     s = s.ljust(w, right_pad_char)
+
+        if u is None:
+            return xr
+
+        return f'{xr}{self.pm}{self(u, precision)}'
 
 
 class Conditional:
@@ -502,8 +786,8 @@ class Conditional:
         return self.formatters[tf](obj)
 
 
-def oom_switch(n, log_switch):
-    return abs(order_of_magnitude(n)) >= log_switch
+def oom_switch(x, log_switch):
+    return abs(order_of_magnitude(x)) >= log_switch
 
 
 class Numeric(Conditional):
@@ -523,7 +807,7 @@ class Numeric(Conditional):
     """
 
     def __init__(self, precision=3, significant=3, log_switch=5,
-                 sign='-', times='x', thousands='', shorten=True):
+                 signed='-', times='x', thousands='', short=True):
         """
 
 
@@ -531,10 +815,10 @@ class Numeric(Conditional):
         ----------
         log_switch: int # TODO: tuple  
             Controls switching between decimal/scientific notation. Scientific
-            notation is triggered if `abs(math.log10(abs(n))) > switch`.
+            notation is triggered if `abs(math.log10(abs(x))) > switch`.
 
-        shorten
-            TODO: If shorten = True
+        short
+            TODO: If short = True
             Default is chosen in such a way that the representation of the number
             is as s hort as possible. eg: '1.01445 × 10²' can be more compactly
             represented as '101.445'; 1000 can be more compactly represented as
@@ -555,16 +839,17 @@ class Numeric(Conditional):
 
         super().__init__(
             oom_switch, log_switch,
-            Scientific(significant, sign, times, thousands, shorten),
-            Decimal(precision, significant, sign, thousands, shorten)
+            Scientific(significant, signed, times, thousands, short),
+            Decimal(precision, significant, signed, thousands, short)
         )
 
 
 class FractionOf:
 
     templates = dict(
-        ascii=('{n}{symbol}', '{n}{symbol}/{d}'),
-        latex=('${n}{symbol}$', r'$\frac{{{n}{symbol}}}{{{d}}}$')
+        ascii=('{x}{symbol}', '{x}{symbol}/{d}'),
+        unicode=('{x}{symbol}', '{x}{symbol}/{d}'),
+        latex=('${x}{symbol}$', R'$\frac{{{x}{symbol}}}{{{d}}}$')
     )
 
     def __init__(self, symbols=(), **kws):
@@ -575,13 +860,12 @@ class FractionOf:
     def __call__(self, f, style='ascii'):
         return self.format(f, style)
 
-    
     def format(self, f, style='ascii'):
         s = self._format(f, style)
         if (style == 'latex') and s[0] != s[-1] != '$':
             return s.join('$$')
         return s
-        
+
     def _format(self, f, style='ascii'):
 
         if f == 0:
@@ -596,21 +880,21 @@ class FractionOf:
         itmp, ftmp = self.templates[style]
 
         f = f.limit_denominator()
-        n = n if ((n := f.numerator) != 1) else ""
+        x = x if ((x := f.numerator) != 1) else ""
 
         if ((d := f.denominator) == 1):
-            return itmp.format(n=n, symbol=self.symbols[style], d=d)
+            return itmp.format(x=n, symbol=self.symbols[style], d=d)
 
-        return ftmp.format(n=n, symbol=self.symbols[style], d=f.denominator)
+        return ftmp.format(x=n, symbol=self.symbols[style], d=f.denominator)
 
     def format_mpl(self, f, _pos=None):
         return self.format(f, 'latex')
-    
+
     def ascii(self, f, _pos=None):
         return self.format(f, 'ascii')
 
     def latex(self, f, _pos=None):
-        return self.format(f, 'latex')#.join('$$')
+        return self.format(f, 'latex')  # .join('$$')
 
     def unicode(self, f, _pos=None):
         return self.format(f, 'unicode')
@@ -620,14 +904,14 @@ class FractionOfPi(FractionOf):
     def __init__(self):
         super().__init__(ascii='pi',
                          unicode='π',
-                         latex=r'\pi')
-        
-    def from_radian(self, n, _pos=None, style='latex'):
-        return self.format(n / math.pi, style)
+                         latex=R'\pi')
+
+    def from_radian(self, x, _pos=None, style='latex'):
+        return self.format(x / math.pi, style)
 
 
-def frac_of(f, symbol, i_template='{n}{symbol}', f_template='{n}{symbol}/{d}'):
-    # i_template='{n}{symbol}', f_
+def frac_of(f, symbol, i_template='{x}{symbol}', f_template='{x}{symbol}/{d}'):
+    # i_template='{x}{symbol}', f_
 
     if f == 0:
         return '0'
@@ -636,12 +920,12 @@ def frac_of(f, symbol, i_template='{n}{symbol}', f_template='{n}{symbol}/{d}'):
         return symbol
 
     f = f.limit_denominator()
-    n = n if ((n := f.numerator) != 1) else ""
+    x = x if ((x := f.numerator) != 1) else ""
 
     if ((d := f.denominator) == 1):
-        return i_template.format(n=n, symbol=symbol, d=d)
+        return i_template.format(x=n, symbol=symbol, d=d)
 
-    return f_template.format(n=n, symbol=symbol, d=f.denominator)
+    return f_template.format(x=n, symbol=symbol, d=f.denominator)
 
 # "½" #  onehalf # VULGAR FRACTION ONE HALF
 # "⅓"	#U2153 # VULGAR FRACTION ONE THIRD

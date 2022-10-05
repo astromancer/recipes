@@ -25,10 +25,11 @@ from .functionals import Emit
 
 
 def pformat(mapping, name=None,
-            lhs=repr, equals=': ', rhs=repr,
+            lhs=repr, equal=': ', rhs=repr,
             sep=',', brackets='{}',
             align=None, hang=False,
-            tabsize=4, newline=os.linesep):
+            tabsize=4, newline=os.linesep,
+            ignore=()):
     """
     Pretty format (nested) dicts.
 
@@ -43,7 +44,7 @@ def pformat(mapping, name=None,
         produces.
     lhs : Callable or dict of callable, optional
         Function used to format dictionary keys, by default repr.
-    equals : str, optional
+    equal  : str, optional
         Symbol used for equal sign, by default ': '.
     rhs : Callable or dict of callable, optional
         Function used to format dictionary values, by default repr.
@@ -60,6 +61,8 @@ def pformat(mapping, name=None,
         Number of spaces to use for indentation, by default 4.
     newline : str, optional
         Newline character, by default os.linesep.
+    ignore : tuple of str
+        Keys that will be omitted in the representation of the mapping.
 
     Returns
     -------
@@ -88,7 +91,7 @@ def pformat(mapping, name=None,
     """
     if not isinstance(mapping, abc.MutableMapping):
         raise TypeError(f'Object of type: {type(mapping)} is not a '
-                        f'MutableMapping')
+                        'MutableMapping')
 
     if name is None:
         name = ('' if (kls := type(mapping)) is dict else kls.__name__)
@@ -106,10 +109,11 @@ def pformat(mapping, name=None,
     # format
     string = _pformat(mapping,
                       # resolve formatting functions
-                      _get_formatters(lhs), equals, _get_formatters(rhs),
+                      _get_formatters(lhs), equal, _get_formatters(rhs),
                       sep, brackets,
                       align, hang,
-                      tabsize, newline)
+                      tabsize, newline,
+                      ignore)
     ispace = 0 if hang else len(name)
     string = indent(string, ispace)  # f'{" ": <{pre}}
     if name:
@@ -118,71 +122,88 @@ def pformat(mapping, name=None,
 
 
 def _get_formatters(fmt):
-    if isinstance(fmt, abc.MutableMapping):
-        for key, func in fmt.items():
-            if not callable(func):
-                raise TypeError(f'Invalid formatter type {type(fmt)} for key '
-                                f'{key!r}. Key/value formatters should be '
-                                f'callable.')
-
-        return defaultdict((lambda: repr), fmt)
+    # Check formatters are valid callables
+    # Retruns
+    # A defaultdict that returns `repr` as the default formatter
 
     if callable(fmt):
         return defaultdict(lambda: fmt)
 
-    raise TypeError(f'Invalid formatter type {type(fmt)}. Key/value formatters'
-                    f' should be callable, or a mapping of callables.')
+    if not isinstance(fmt, abc.MutableMapping):
+        raise TypeError(
+            f'Invalid formatter type {type(fmt)}. Key/value formatters should '
+            f'be callable, or a mapping of callables.'
+        )
+
+    for key, func in fmt.items():
+        if callable(func):
+            continue
+
+        raise TypeError(
+            f'Invalid formatter type {type(fmt)} for key {key!r}. Key/value '
+            f'formatters should be callable.'
+        )
+
+    return defaultdict((lambda: repr), fmt)
 
 
-def _pformat(mapping, lhs_func_dict, equals, rhs_func_dict, sep, brackets,
-             align, hang, tabsize, newline):
+def _pformat(mapping, lhs_func_dict, equal, rhs_func_dict, sep, brackets,
+             align, hang, tabsize, newline, ignore):
 
     if len(mapping) == 0:
         # empty dict
         return brackets
 
+    # remove ignored keys
+    if remove_keys := set(mapping.keys()) & set(ignore):
+        mapping = mapping.copy()
+        for key in remove_keys:
+            mapping.pop(key)
+
+    # note that keys may not be str, so first convert
+    keys = tuple(lhs_func_dict[key](key) for key in mapping.keys())
+    keys_size = list(map(len, keys))
+
     string, close = brackets
+    pos = len(string)
+    if align:
+        # make sure we line up the values
+        leqs = len(equal)
+        width = max(keys_size)
+        wspace = [width - w + leqs for w in keys_size]
+    else:
+        wspace = itt.repeat(1)
+
     if hang:
         string += newline
         close = newline + close
     else:
-        tabsize = len(string)
-
-    # note that keys may not be str, so first convert
-    keys = tuple((lhs_func_dict[key](key) for key in mapping.keys()))
-    keys_size = list(map(len, keys))
-
-    if align:
-        # make sure we line up the values
-        leqs = len(equals)
-        width = max(keys_size)
-        widths = (width - w + leqs for w in keys_size)
-    else:
-        widths = itt.repeat(1)
+        tabsize = pos
 
     indents = mit.padded([hang * tabsize], tabsize)
     separators = itt.chain(
         itt.repeat(sep + newline, len(mapping) - 1),
         [close]
     )
-    for pre, key, (okey, val), width, post in \
-            zip(indents, keys, mapping.items(), widths, separators):
+    for pre, key, (okey, val), wspace, end in \
+            zip(indents, keys, mapping.items(), wspace, separators):
         # THIS places ':' directly before value
-        # string += f'{"": <{pre}}{key: <{width}s}{equals}'
+        # string += f'{"": <{pre}}{key: <{width}s}{equal }'
         # WHILE this places it directly after key
         # print(f'{pre=:} {key=:} {width=:}')
-        # print(repr(f'{"": <{pre}}{key}{equals: <{width}s}'))
-        string += f'{"": <{pre}}{key}{equals: <{width}s}'
+        # print(repr(f'{"": <{pre}}{key}{equal: <{width}s}'))
+        # new = f'{"": <{pre}}{key}{equal: <{width}s}'
+        string += f'{"": <{pre}}{key}{equal: <{wspace}s}'
+
         if isinstance(val, abc.MutableMapping):
-            part = _pformat(val, lhs_func_dict, equals, rhs_func_dict, sep,
-                            brackets, align, hang, tabsize, newline)
+            part = _pformat(val, lhs_func_dict, equal, rhs_func_dict, sep,
+                            brackets, align, hang, tabsize, newline, ignore)
         else:
             part = rhs_func_dict[okey](val)
 
         # objects with multi-line representations need to be indented
-        string += indent(part, width + tabsize + 1)
-        # item sep / closing bracket
-        string += post
+        # `post` is item sep or closing bracket
+        string += f'{indent(part, tabsize + len(key) + wspace)}{end}'
 
     return string
 
@@ -216,7 +237,8 @@ def invert(d, conversion=None):
                 f'Cannot invert dictionary with non-hashable item: {val} of '
                 f'type {type(val)}. You may wish to pass a conversion mapping '
                 f'to this function to aid invertion of dicts containing non-'
-                f'hashable items.')
+                f'hashable items.'
+            )
 
         inverted[val] = key
     return inverted
@@ -234,15 +256,16 @@ def merge(*mappings, **kws):
     Examples
     --------
     >>> merge(*({f'{(l := case(letter))}': ord(l)} 
-    ...        for case in (str.upper, str.lower) for letter in 'abc'))
-    {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99}
+    ...        for case in (str.upper, str.lower) for letter in 'abc'),
+    ...       z=100)
+    {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99, 'z': 100}
 
     Returns
     -------
     dict
-        Merged dict
-
+        Merged dictionary.
     """
+
     out = {}
     for mapping in mappings:
         out.update(mapping)
@@ -256,10 +279,16 @@ class Pprinter:
     """Mixin class that pretty prints dictionary content"""
 
     def __str__(self):
-        return pformat(self, self.__class__.__name__)
+        return pformat(self)  # self.__class__.__name__
 
     def __repr__(self):
-        return pformat(self, self.__class__.__name__)
+        return pformat(self)  # self.__class__.__name__
+
+    def pformat(self, **kws):
+        return pformat(self, **kws)
+
+    def pprint(self, **kws):
+        print(self.pformat(**kws))
 
 
 class Invertible:
@@ -285,61 +314,91 @@ class DefaultDict(defaultdict):
     Default dict that allows default factories which take the key as an
     argument.
     """
+    # default_factory = None
+    factory_uses_key = False  # TODO: can detect this by inspection
 
-    factory_takes_key = False  # TODO: can detect this by inspection
-    default_factory = None
+    # def __init__(self, factory=None, *args, **kws):
+    #     # have to do explicit init since class attribute alone doesn't seem to
+    #     # work for specifying default_factory
+    #     defaultdict.__init__(self, factory or self.default_factory, *args, **kws)
 
-    def __init__(self, factory=None, *args, **kws):
-        # have to do explicit init since class attribute alone doesn't seem to
-        # work for specifying default_factory
-        super().__init__(factory or self.default_factory, *args, **kws)
-
-    def __init__(self, factory=None, *args, **kws):
-        # have to do explicit init since class attribute alone doesn't seem to 
-        # work for specifying default_factory
-        super().__init__(factory or self.default_factory, *args, **kws)
-    
     def __missing__(self, key):
         if self.default_factory is None:
-            return super().__missing__(key)
+            # super handles / throws
+            return defaultdict.__missing__(self, key)
 
-        new = self[key] = self.default_factory(
-            *[key][:int(self.factory_takes_key)]
-        )
+        # construct default object
+        new = self[key] = self.default_factory(*[key][:int(self.factory_uses_key)])
         return new
 
 
-class AutoVivify:
-    """Mixin that implements auto-vivification for dictionary types."""
-    _av = True
-    # _factory = ()
+class AccessControl:
+    """
+    Mixin that toggles read/write access.
+    """
+
+    _readonly = False
+    _message = '{self.__class__.__name__}: write access disabled.'
+
+    @property
+    def readonly(self):
+        return self._readonly
+
+    @readonly.setter
+    def readonly(self, readonly):
+        self._readonly = bool(readonly)
+
+    def freeze(self):
+        self.readonly = True
+
+    def __missing__(self, key):
+        if self.readonly:
+            raise KeyError(self._message.format(self=self))
+
+        super().__missing__(key)
+
+
+class AutoVivify(AccessControl):
+    """
+    Mixin that implements auto-vivification for dictionary types.
+    """
 
     @classmethod
     def autovivify(cls, b):
         """Turn auto-vivification on / off"""
-        cls._av = bool(b)
+        cls._readonly = not bool(b)
 
     def __missing__(self, key):
-        if self._av:
-            value = self[key] = type(self)()  # *self._factory
-            return value
+        """
+        Lookup for missing keys in the dict creates a new empty object if not
+        readonly and returns it.
+        """
+        if self.readonly:
+            return super().__missing__(key)
 
-        return super().__missing__(key)
-
-
-class AVDict(dict, AutoVivify):
-    pass
-
-
-# class Node(defaultdict):
-#     def __init__(self, factory, *args, **kws):
+        value = self[key] = type(self)()
+        return value
 
 
-# class Tree(defaultdict, AutoVivify):
-#     _factory = (defaultdict.default_factory, )
+class DictNode(AutoVivify, Pprinter, defaultdict):
+    """
+    A defaultdict that generates instances of itself.  Used to create arbitrary 
+    data trees without prior knowledge of final structure. 
+    """
 
+    # def attr_lookup
+
+    def __init__(self, factory=None, *args, **kws):
+        defaultdict.__init__(self, factory or DictNode, *args, **kws)
+
+
+# alias
+NodeDict = DictNode
+
+# ---------------------------------------------------------------------------- #
 
 # TODO AttrItemWrite
+
 
 class AttrBase(dict):
     def copy(self):
@@ -403,26 +462,26 @@ class AttrDict(AttrBase):
 
 
 class OrderedAttrDict(OrderedDict, AttrBase):
-    """dict with key access through attribute lookup"""
+    """OrderedDict with key access through attribute lookup."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__dict__ = self
 
 
-class TreeLike(AttrDict, AutoVivify):
-    def __init__(self, mapping=(), **kws):
-        super().__init__()
-        kws.update(mapping)
-        for a, v in kws.items():
-            self[a] = v
+# class TreeLike(AttrDict, AutoVivify):
+#     def __init__(self, mapping=(), **kws):
+#         super().__init__()
+#         kws.update(mapping)
+#         for a, v in kws.items():
+#             self[a] = v
 
-    def __setitem__(self, key, val):
-        if '.' in key:
-            key, tail = key.split('.', 1)
-            self[key][tail] = val
-        else:
-            super().__setitem__(key, val)
+#     def __setitem__(self, key, val):
+#         if '.' in key:
+#             key, tail = key.split('.', 1)
+#             self[key][tail] = val
+#         else:
+#             super().__setitem__(key, val)
 
 
 class Indexable:
@@ -616,7 +675,7 @@ class ManyToOneMap(TransDict):
     Expands on TransDict by adding equivalence mapping functions for keywords.
     """
 
-    emit = Emit(1)
+    emit = Emit('raise')
 
     def __init__(self, dic=None, **kwargs):
         super().__init__(dic, **kwargs)
@@ -662,8 +721,8 @@ class ManyToOneMap(TransDict):
                 yield func(key)
             except Exception as err:
                 self.emit(
-                    f'{type(self).__name__}: Equivalence mapping function'
-                    f' failed with:\n{err!s}.'
+                    f'{type(self).__name__}: Equivalence mapping function '
+                    f'failed with:\n{err!s}.'
                 )
 
     def resolve(self, key):

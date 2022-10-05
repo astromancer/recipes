@@ -19,3 +19,4 @@ A collection of some awesome functional decorators used accross recipes.
 from ..functionals import *
 from .base import Decorator
 from .common import *
+from .trace import *

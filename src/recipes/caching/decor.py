@@ -22,22 +22,6 @@ from ..pprint.callers import describe
 from .caches import DEFAULT_CAPACITY
 
 
-# from ..interactive import exit_register
-
-
-# class A:
-#     def __key(self):
-#         return (self.attr_a, self.attr_b, self.attr_c)
-
-#     def __hash__(self):
-#         return hash(self.__key())
-
-#     def __eq__(self, other):
-#         if isinstance(other, A):
-#             return self.__key() == other.__key()
-#         return NotImplemented
-
-
 def check_hashable_defaults(func):
     sig = signature(func)
     for name, p in sig.parameters.items():
@@ -95,7 +79,7 @@ class Cached(Decorator, LoggingMixin):
 
     Features:
         : Keyword parameters fully supported.
-        : Works on any picklable callable.
+        : Works on any callable object that is picklable.
         : Optional type coercion of parameter values prior to caching (typing).
         : Conditionally ignore specific parameters, or entirely reject an entry,
           based on user specified conditionals.
@@ -108,12 +92,13 @@ class Cached(Decorator, LoggingMixin):
         : Raises TypeError when attempting to decorate a function with
           non-hashable default arguments.
 
-    TODOs:
-        not thread safe.
+    TODO:
+        thread safety.
         some stats like ftl.lru_cache
         limit capacity in MB
         more serialization formats
         more cache types
+        telemetry to see if chache is amortising compute costs or not
 
     """
 
@@ -124,6 +109,7 @@ class Cached(Decorator, LoggingMixin):
         Decorator for persistent function memoization that saves cache to file
         as a pickle / json / ...
         """
+
         # this here simply to make `filename` a required arg
         return cls(filename, capacity, policy, ignore, typed, enabled)
 
@@ -151,7 +137,8 @@ class Cached(Decorator, LoggingMixin):
             including any keywords passed to the function. Parameters can be
             given in the `typed` by their name (string), or position (int) for
             position-only or positional-or-keyword parameters. If a parameter is
-            not found in the `typed`, we default to the builtin hash mechanism.
+            not found in the `typed` mapping, we default to the builtin hash
+            mechanism.
 
         Examples
         --------
@@ -258,16 +245,16 @@ class Cached(Decorator, LoggingMixin):
         if key_types:
             for key in tuple(mapping.keys()):
                 if isinstance(key, numbers.Integral):
-                    mapping[key] = names.pop(key)
+                    mapping[names[key]] = mapping.pop(key)
                 key_types -= {type(key)}
+
         if key_types:
             raise ValueError(f'Hash map key has incorrect types {key_types}.')
 
         # all keys are now str
-        invalid = set(mapping.keys()) - set(names)
-        if invalid:
-            raise ValueError(f'{describe(self.__wrapped__).title()} takes no '
-                             f'{named_items("parameter", invalid)}.')
+        if invalid := (set(mapping.keys()) - set(names)):
+            raise ValueError(f'{describe(self.__wrapped__)} takes no '
+                             f'{named_items(list(invalid), "parameter")}.')
 
     def _gen_hash_key(self, args, kws):
         """
@@ -335,7 +322,8 @@ class Cached(Decorator, LoggingMixin):
                 f'{describe(self.__wrapped__).capitalize()} received {what}:'
                 f' {name!r} = {val!r}\n'
                 'Return value for call will not be cached.',
-                CacheRejectionWarning)
+                CacheRejectionWarning
+            )
             return False
         return True
 
@@ -349,7 +337,7 @@ class Cached(Decorator, LoggingMixin):
 
         # self.rotate_file(**params)
         if not self.cache.enabled:
-            self.logger.debug('Caching disabled for {}. Calling function.',
+            self.logger.debug('Caching disabled for {}. Calling.',
                               describe(func))
             return func(*args, **kws)
 
@@ -367,7 +355,7 @@ class Cached(Decorator, LoggingMixin):
         except Exception:
             # since caching is not mission critical, just log the error and
             # then run the function
-            self.logger.exception('Cache lookup failed! Executing {:s}.',
+            self.logger.exception('Cache lookup for {:s} failed! Executing.',
                                   describe(func))
             return func(*args, **kws)
 
@@ -375,11 +363,12 @@ class Cached(Decorator, LoggingMixin):
         # signature. Compute!
         answer = func(*args, **kws)
 
-        # If function call succeeded add, result to cache
+        # If function call succeeded, add result to cache
         try:
             self.cache[key] = answer
         except Exception:
-            self.logger.exception('Caching failed for {:s}!', describe(func))
+            self.logger.exception('Caching result for {:s} call failed!',
+                                  describe(func))
 
         return answer
 
