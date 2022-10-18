@@ -3,88 +3,8 @@ Base classes for extensible decorators.
 """
 
 
-# std
-import logging
-
-# third-party
+from loguru import logger
 from decorator import decorate
-
-logging.basicConfig()
-logger = logging.getLogger(__file__)
-
-#
-# def inclass(func):
-#     return '.' in str(func)
-
-
-# # NOTE: partial functions don't have the __name__, __module__ attributes!
-# # retrieve the deepest func attribute -- the original func
-# while isinstance(func, ftl.partial):
-#     func = func.func
-# self.__module__ = func.__module__
-# self.__name__ = 'partial(%s)' % func.__name__
-
-
-# class Wrapper:  # FunctionMimic
-#     """
-#     A picklable decorator. Does nothing by default.
-#     """
-#     def __new__(cls, func, wrapper):
-#         if inclass(func):
-#             # a method
-#             return super().__new__(MethodWrapper)
-#         return super().__new__(FunctionWrapper)
-
-#     def __init__(self, func, wrapper):
-#         assert callable(func)
-#         assert callable(wrapper)
-#         self.__wrapped__ = func
-#         self.__wrapper__ = wrapper
-
-#         # Update this class to look like the wrapped function
-#         # ftl.update_wrapper(self, func)
-
-#         # for decorated methods: make wrapped function MethodType to avoid
-#         # errors downstream
-#         # if inclass(func):
-#         #     # FIXME: binds to the wrong class!!
-#         #     #   at build time this function is still unbound!
-#         #     func = types.MethodType(func, self)
-
-#     def __repr__(self):
-#         return f'<{type(self).__name__} for {self.__wrapped__.__qualname__!r}>'
-
-#     def pformat(self, *args, **kws):
-#         from .. import pprint as pp
-#         return pp.caller(self.__wrapped__, *args, **kws)
-
-#     def pprint(self, *args, **kws):
-#         print(self.pformat(self.__wrapped__, *args, **kws))
-
-#     def __reduce__(self):
-#         print('REDUCE', self.__class__, self.__wrapped__, )
-#         # return Decorator,
-#         #return Wrapper, (self.__wrapped__, self.__wrapper__)
-#         return Decorator(), (self.__wrapped__, )
-#         # from IPython import embed
-#         # embed(header="Embedded interpreter at 'src/recipes/decor/base.py':64")
-#         # return echo, (self.__wrapped__, )
-
-# def echo(obj):
-#     return obj
-
-# class FunctionWrapper(Wrapper):
-#     def __call__(self, *args, **kws):
-#         # Default null decorator
-#         # print(self.__class__, 'calling', self.__wrapper__, args, kws)
-#         return self.__wrapper__(*args, **kws)
-
-
-# class MethodWrapper(Wrapper):
-#     def __call__(self, *args, **kws):
-#         # Default null decorator
-#         # print(self.__class__, 'calling', self.__wrapper__, args, kws)
-#         return self.__wrapper__(self.__wrapper__.__self__, *args, **kws)
 
 
 class Decorator:
@@ -197,7 +117,7 @@ class Decorator:
         assert callable(func)
         self.__wrapped__ = func
         func.__wrapper__ = self.__wrapper__
-        # print('__wrapped__', self.__wrapped__, type(func), inclass(func))
+        logger.debug('Decorating func: {}.', func)
         return decorate(func, self.__wrapper__)
         # ftl.update_wrapper(decorated, func)
 
@@ -215,3 +135,78 @@ class Decorator:
 
 # alias
 decorator = Decorator
+
+
+#
+# def inclass(func):
+#     return '.' in str(func)
+
+
+# # NOTE: partial functions don't have the __name__, __module__ attributes!
+# # retrieve the deepest func attribute -- the original func
+# while isinstance(func, ftl.partial):
+#     func = func.func
+# self.__module__ = func.__module__
+# self.__name__ = 'partial(%s)' % func.__name__
+
+
+# class Wrapper:  # FunctionMimic
+#     """
+#     A picklable decorator. Does nothing by default.
+#     """
+#     def __new__(cls, func, wrapper):
+#         if inclass(func):
+#             # a method
+#             return super().__new__(MethodWrapper)
+#         return super().__new__(FunctionWrapper)
+
+#     def __init__(self, func, wrapper):
+#         assert callable(func)
+#         assert callable(wrapper)
+#         self.__wrapped__ = func
+#         self.__wrapper__ = wrapper
+
+#         # Update this class to look like the wrapped function
+#         # ftl.update_wrapper(self, func)
+
+#         # for decorated methods: make wrapped function MethodType to avoid
+#         # errors downstream
+#         # if inclass(func):
+#         #     # FIXME: binds to the wrong class!!
+#         #     #   at build time this function is still unbound!
+#         #     func = types.MethodType(func, self)
+
+#     def __repr__(self):
+#         return f'<{type(self).__name__} for {self.__wrapped__.__qualname__!r}>'
+
+#     def pformat(self, *args, **kws):
+#         from .. import pprint as pp
+#         return pp.caller(self.__wrapped__, *args, **kws)
+
+#     def pprint(self, *args, **kws):
+#         print(self.pformat(self.__wrapped__, *args, **kws))
+
+#     def __reduce__(self):
+#         print('REDUCE', self.__class__, self.__wrapped__, )
+#         # return Decorator,
+#         #return Wrapper, (self.__wrapped__, self.__wrapper__)
+#         return Decorator(), (self.__wrapped__, )
+#         # from IPython import embed
+#         # embed(header="Embedded interpreter at 'src/recipes/decor/base.py':64")
+#         # return echo, (self.__wrapped__, )
+
+# def echo(obj):
+#     return obj
+
+# class FunctionWrapper(Wrapper):
+#     def __call__(self, *args, **kws):
+#         # Default null decorator
+#         # print(self.__class__, 'calling', self.__wrapper__, args, kws)
+#         return self.__wrapper__(*args, **kws)
+
+
+# class MethodWrapper(Wrapper):
+#     def __call__(self, *args, **kws):
+#         # Default null decorator
+#         # print(self.__class__, 'calling', self.__wrapper__, args, kws)
+#         return self.__wrapper__(self.__wrapper__.__self__, *args, **kws)
