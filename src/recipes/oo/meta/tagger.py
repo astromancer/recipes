@@ -9,13 +9,160 @@ from loguru import logger
 from ...decorators import Decorator
 
 
-# class MethodTaggerMeta(type):
-#     def __new__(cls, tag):
-#         # cls.tag
-#         cls = super().__new__(cls, name, bases, namespace, **kws)
+class MethodTaggerFactory:
+    """
+    Factory for method tagging decorator.
+    """
+
+    def __init__(self, tag: str):
+        self.tag = tag
+
+    def __call__(self, *info):
+        return MethodTagger(self.tag, info)
 
 
-def factory(tag='_tagged', collection='_tagged'):
+class MethodTagger(Decorator):
+    """
+    Decorator for tagging methods. Methods decorated with this function
+    will have the `{}` attribute set as the tuple of arguments are passed.
+    The decorator will preserve docstrings etc., as it returns the original
+    function.
+    """
+
+    def __init__(self, tag, info, **kws):
+        self.tag = str(tag)
+        self.info = info
+        self.__doc__ = MethodTagger.__doc__.format(tag)
+
+    def __call__(self, func):
+        # set the tag
+        setattr(func, self.tag, self.info)
+        logger.debug('Tagged {} with {!r}.', self.tag, self.info)
+        return func
+
+
+class TagManagerMeta(type):
+    """
+    Constructor for classes that use method tags. 
+    """
+
+    # TODO: you can do this with a descriptor!
+
+    _default_tag_name = '_tag'
+    _default_collection_name = '_collected'
+
+    _doc_template = __doc__ = """
+        Mixin that collects the tagged methods in a dict and assigns it to the
+        `{}` attribute.
+        """
+
+    # @classmethod
+    # def __prepare__(cls, name, bases,
+    #                 tag=_default_tag_name,
+    #                 collection=_default_collection_name):
+    #     return super().__prepare__(name, bases, tag=tag, collection=collection)
+
+    # def resolve(self, which, kws):
+    #     names = {}
+    #     if (attr := kws.pop(which, None)):
+    #         names[attr] = wrappers[which](attr)
+    #         return names
+
+    #     for base in bases:
+    #         if isinstance(base, cls):
+    #             names[which] = getattr(base, which)
+    #             break
+    #     else:
+    #         raise TypeError(f'Could not find {which}.')
+
+    def __new__(cls, name, bases, namespace,
+                # tag='_tag', collection='_collected',
+                **kws):
+
+        if name == 'TagManagerBase':
+            return super().__new__(cls, name, bases, namespace)
+
+        # wrappers = dict(tag=MethodTaggerFactory,
+        #                 collection=dict)
+        # #
+        # for which in ('tag', ):#'collection'):
+
+        logger.debug('New class: {!r}', name)
+        
+        if (attr := kws.pop('tag', None)):
+            namespace['tag'] = MethodTaggerFactory(attr)
+        else:
+            for base in bases:
+                if isinstance(base, cls):
+                    namespace['tag'] = getattr(base, 'tag')
+                    break
+            else:
+                raise TypeError('Please supply a tag (str).')
+
+        tagger = namespace['tag']
+        tag = tagger.tag
+        logger.debug('Found tag: {!r}. Tagger: {}', tag, tagger)
+
+        if (collection := kws.pop('collection', None)):
+            namespace['_collection'] = collection
+        else:
+            for base in bases:
+                if isinstance(base, cls):
+                    namespace['_collection'] = collection = getattr(base, '_collection')
+                    break
+            else:
+                raise TypeError('Please supply a collection name.')
+
+        # set the collection attribute as a class variable
+        namespace[collection] = collected = {}
+        logger.debug('collection is: {}', collection)
+
+        # emulate inheritance for the tagged methods
+        for base in bases:
+            logger.debug('Updated collection for {!r} from base {}', name, base)
+            collected.update(getattr(base, collection, {}))
+
+        # collect
+        collected.update({func.__name__: getattr(func, tag)
+                          for _, func in namespace.items()
+                          if hasattr(func, tag)})
+        logger.debug('Collected the following tagged methods: {}', collected)
+
+        # Create `TagManager` class
+        return super().__new__(cls, name, bases, namespace)
+
+    def _collect_tagged_methods(self, obj):
+        # collect tagged (bound) methods of object
+        return {
+            getattr(obj, method_name): tag_info
+            for (method_name, tag_info) in getattr(obj, self._collection).items()
+        }
+
+
+class TagManagerBase(metaclass=TagManagerMeta):
+    """
+    Mixin that collects the tagged methods in a dict and assigns it to the
+    `{}` attribute.
+    """
+
+    # Note: this can't be implemented fully in TagCollectorMeta.__call__, since
+    # that does not get called for ancestors of this class
+
+    def __new__(cls, *args, **kws):
+        # create object
+        obj = super().__new__(cls)
+
+        # collect (bound) methods to an instance attribute
+        setattr(obj, cls._collection, cls._collect_tagged_methods(obj))
+
+        # update the docstring
+        if not obj.__doc__:
+            obj.__doc__ = cls._doc_template.__doc__.format(cls._collection)
+
+        return obj
+
+
+def factory(tag='_tagged', collection='_collected'):
     """
     Factory for creating class-decorator pair for method tagging and collection.
 
@@ -36,23 +183,25 @@ def factory(tag='_tagged', collection='_tagged'):
     Examples
     --------
     >>> # implicit alias declaration
-    ... AliasManager, alias = factory(collection='_aliases')
+    ... AliasManagerBase, alias = factory(tag='_alias', collection='_aliases')
     ...
-    ... class Child(AliasManager):
+    ... class AliasManager(AliasManagerBase):
     ...     def __init__(self):
-    ...         super().__init__()
-    ...         for (alias,), method in self._aliases.items():
-    ...             setattr(self, alias, method)
+    ...         super().__init__() # collect tagged methods here
+    ...         for method, (alias,) in self._aliases.items():
+    ...             setattr(self, alias, method) # asign aliases
     ...
     ...     @alias('bar')
     ...     def foo(self):
-    ...         '''foo doc'''
+    ...         '''This method is tagged: `_alias` attribute set to  'bar'.'''
     ...         print('foo!')
     ...
-    ... class GrandChild(Child): 
+    ... class MyDerivedClass(AliasManager): 
     ...     pass
     ...
-    ... GrandChild().bar()
+    ... obj = MyDerivedClass()
+    ... obj._aliases
+    {}
     'foo!'
 
     """
@@ -62,70 +211,15 @@ def factory(tag='_tagged', collection='_tagged'):
     assert isinstance(collection, str)
 
     # **************************************************************************
-    class MethodTagger(Decorator):
-        """
-        Decorator for tagging methods. Methods decorated with this function
-        will have the `%s` attribute set as the tuple of arguments are passed.
-        The decorator will preserve docstrings etc., as it returns the original
-        function.
-        """
 
-        def __init__(self, *tag_info, **kws):
-            self.tag_info = tag_info
+    class TagManager(TagManagerBase,
+                     tag=tag, collection=collection):
+        pass
 
-        def __call__(self, func):
-            # set the tag
-            setattr(func, self.tag, self.tag_info)
-            return func
-
-    # TODO: use case without arguments
-    MethodTagger.tag = tag
-    MethodTagger.__doc__ = MethodTagger.__doc__ % tag
-
-    # **************************************************************************
-    class TagCollectorMeta(type):
-        """Metaclass to collect methods tagged with decorator."""
-
-        def __new__(cls, name, bases, namespace, **kws):
-            cls = super().__new__(cls, name, bases, namespace)
-
-            # emulate inheritance for the tagged methods
-            collected = {}
-            for base in bases:
-                collected.update(getattr(base, collection, {}))
-
-            # collect
-            collected.update({func.__name__: getattr(func, tag)
-                              for _, func in namespace.items()
-                              if hasattr(func, tag)})
-            logger.debug('Collected the following tagged methods: {}', collected)
-
-            # set the collection attribute as a class variable
-            setattr(cls, collection, collected)
-
-            return cls
-
-    class TagCollector(metaclass=TagCollectorMeta):
-        """
-        Mixin that collects the tagged methods in a dict and assigns it to the
-        `%s` attribute.
-        """
-        # FIXME: can do this in TagCollectorMeta.__call__
-
-        def __init__(self, *args, **kw):
-            # bind the tagged methods to the instance
-            tagged_methods = {
-                getattr(self, method_name): tag_info
-                for (method_name, tag_info) in getattr(self, collection).items()
-            }
-
-            setattr(self, collection, tagged_methods)
-
-    TagCollector.__doc__ = TagCollector.__doc__ % collection
-    return TagCollector, MethodTagger
+    return TagManager, TagManager.tag
 
 
-def alt_factory(tag='_tagged', collection='_tagged'):
+def alt_factory(tag='_tagged', collection='_collected'):
     """
     Factory for creating class-decorator pair for method tagging and collection.
     This implementation avoids using a metaclass (in some cases this plays better
@@ -174,7 +268,6 @@ def alt_factory(tag='_tagged', collection='_tagged'):
     def tagger(*args):
         """Decorator for tagging methods"""
 
-        #
         def decorator(func):
             # adds an attribute to the decorated function with the name
             # passed in as `tag`
