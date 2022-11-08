@@ -1075,9 +1075,9 @@ class ImportRefactory(LoggingMixin):
                 return module
 
             try:
-                parent_module_name, script_name = get_module_name(self.filename).rsplit('.', 1)
+                parent_module_name, *script = get_module_name(self.filename).rsplit('.', 1)
                 logger.info("Discovered parent module name: {!r} for file '{}.py'.",
-                             parent_module_name, script_name)
+                             parent_module_name, Path(self.filename).name)
             except ValueError as err:
                 if (msg := str(err)).startswith('Could not get package name'):
                     logger.warning(msg)
