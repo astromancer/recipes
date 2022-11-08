@@ -1,5 +1,5 @@
 """
-Common algorithms involving arrays
+Recipes involving arrays.
 """
 
 # third-party
@@ -9,54 +9,45 @@ import numpy as np
 from recipes.lists import flatten, where_duplicate
 
 
-# from IPython import embed
-
-
 def vectorize(fn, otypes=None, doc=None, excluded=None, cache=False,
               signature=None):
+    """Vectorize masked arrays."""
+
     # adapted from :
     #   https://gist.github.com/dbaston/b41c3fa8c02ac151e52e132509c89b4c
 
     vectorized = np.vectorize(fn, otypes, doc, excluded, cache, signature)
 
     def runner(*args, **kwargs):
-        # In theory, it should be possible to replace this with
-        # np.ma.logical_or.reduce([a.mask for a in args])
-        # In practice, it seems to generate an error when the
-        # internal storage of the arguments is different
-        # ValueError: setting an array element with a sequence.
-        masked_args = [_ for _ in args if isinstance(_, np.ma.MaskedArray)]
-        if not masked_args:
-            return vectorized(*args, **kwargs)
-        else:
-            combined_mask = masked_args[0].mask
-            for arg in masked_args[1:]:
-                combined_mask = combined_mask | arg.mask
 
-            vals = np.ma.where(combined_mask,
-                               np.ma.masked,
-                               vectorized(*args, **kwargs))
-            return vals
+        if not (masked_args := [_ for _ in args if isinstance(_, np.ma.MaskedArray)]):
+            return vectorized(*args, **kwargs)
+
+        # In theory, it should be possible to replace this with
+        # np.ma.logical_or.reduce([a.mask for a in args]) In practice, it seems
+        # to generate an error when the internal storage of the arguments is
+        # different ValueError: setting an array element with a sequence.
+        combined_mask = masked_args[0].mask
+        for arg in masked_args[1:]:
+            combined_mask = combined_mask | arg.mask
+
+        return np.ma.where(combined_mask, np.ma.masked, vectorized(*args, **kwargs))
 
     return runner
 
 
 def is_broadcastable(shp1, shp2):
-    for a, b in zip(shp1[::-1], shp2[::-1]):
-        if a == 1 or b == 1 or a == b:
-            pass
-        else:
-            return False
-    return True
+    return not any(a != 1 and b != 1 and a != b
+                   for a, b in zip(shp1[::-1], shp2[::-1]))
 
 
 def row_view(a):
     a = np.ascontiguousarray(a)
-    
+
     if a.ndim != 2:
         a = np.atleast_2d(a)
-    
-    # cast each row as a void type with same size as row --> this will be the 
+
+    # cast each row as a void type with same size as row --> this will be the
     # element to uniquely identify
     dt = np.dtype((np.void, a.dtype.itemsize * a.shape[1]))
     return a.view(np.dtype(dt))
@@ -67,12 +58,9 @@ def unique_rows(a, return_index=False, return_inverse=False):
     res = np.unique(cast, return_index, return_inverse)
     if return_index or return_inverse:
         res, *rest = res
-    unqarr = res.view(a.dtype).reshape(-1, a.shape[
-        1])  # recast/reshape to original type/shape
-    if return_index or return_inverse:
-        return tuple([unqarr] + rest)
-    else:
-        return unqarr
+    # recast/reshape to original type/shape
+    unqarr = res.view(a.dtype).reshape(-1, a.shape[1])
+    return (unqarr, *rest) if return_index or return_inverse else unqarr
 
 
 def row_intersection(a, b):
@@ -143,6 +131,6 @@ class Grid(np.lib.index_tricks.nd_grid):
         # from recipes.iter import flatiter
         # def flatten(a):
         # """flatten arbitrarily nested iterator and return as array /TODO: masked array."""
-        ##if any(map(np.ma.isMA, a)):
-        ##with warnings.catch_warnings():
+        # if any(map(np.ma.isMA, a)):
+        # with warnings.catch_warnings():
         # return np.fromiter(flatiter(a), float)

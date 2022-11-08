@@ -78,9 +78,9 @@ class Decorator:
     """
 
     # Purists might argue that this class is an anti-pattern since it invites
-    # less explicit constructs that are confusing to the uninitiateod.
+    # less explicit constructs that are confusing to the uninitiated.
     # Here it is. Use it. Don't use it. Up to you.
-    # __wrapped__ = None
+
     __slots__ = '__wrapped__'
 
     def __new__(cls, maybe_func=None, *_, **__):
@@ -96,13 +96,13 @@ class Decorator:
             return obj(maybe_func)
 
             # call => decorate / wrap the function
-            # NOTE: init will not be called when returning here since we are
+            # NOTE: init will *not* be called when returning here since we are
             # intentionally returning an object that is not an instance of this
             # class!
 
         # Explicit arguments and/or keywords provided to decorator.
         # >>> @decorator('hello world!')
-        # ... def foo(): return
+        # ... def foo(): ...
         return obj  # NOTE: `__init__` will be called when returning here
 
     def __init__(self, *args, **kws):
@@ -124,7 +124,7 @@ class Decorator:
     def __wrapper__(self, func, *args, **kws):
         """
         Default wrapper simply calls the original `__wrapped__` function.
-        Subclasses should implement the decorator here.
+        Subclasses should implement the actual decorator here.
         """
         # pylint: disable=no-self-use
         return func(*args, **kws)

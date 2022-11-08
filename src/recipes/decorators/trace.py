@@ -48,7 +48,8 @@ class trace(Decorator):
                  pre='Tracing function call:\n >>> {signature}',
                  post='{func.__name__} returned result in {elapsed}:\n > {result}',
                  emit=logger.info,
-                 formatter=None, **options):
+                 formatter=None,
+                 **options):
 
         formatter = formatter or pp.caller  # avoid circular import
 

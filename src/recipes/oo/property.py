@@ -121,6 +121,8 @@ classproperty = ClassProperty
 
 
 # extended from astropy.utils.decorators.lazyproperty
+
+
 class CachedProperty(property):
     """
     Works similarly to property(), but computes the value only once.
@@ -133,12 +135,12 @@ class CachedProperty(property):
         >>> class LazyTest:
         ...     @CachedProperty
         ...     def complicated_property(self):
-        ...         print('Computing the value for complicated_property...')
+        ...         print('Computing the value of `complicated_property`.')
         ...         return 42
         ...
         >>> lt = LazyTest()
         >>> lt.complicated_property
-        Computing the value for complicated_property...
+        Computing the value for `complicated_property`.
         42
         >>> lt.complicated_property
         42
@@ -164,13 +166,13 @@ class CachedProperty(property):
         ...
         >>> lt = LazyTest2()
         >>> lt.dependent_property
-        Computing the value for complicated_property...
+        Computing the value of `complicated_property`.
         1764
         >>> lt.dependent_property
         1764
         >>> del lt.complicated_property
         ... lt.dependent_property
-        Computing the value for complicated_property...
+        Computing the value of `complicated_property`.
         1764
 
     The snippet above shows that the child property will automatically be
@@ -185,12 +187,12 @@ class CachedProperty(property):
         >>> class LazyTest3:
         ...     @CachedProperty(read_only=True)
         ...     def complicated_property(self):
-        ...         print('Computing the value for complicated_property...')
+        ...         print('Computing the value of `complicated_property`.')
         ...         return 42
         ...
         >>> lt = LazyTest3()
         >>> lt.complicated_property
-        Computing the value for complicated_property...
+        Computing the value of `complicated_property`.
         42
         >>> lt.complicated_property = 43
         AttributeError: This property is set to read only.

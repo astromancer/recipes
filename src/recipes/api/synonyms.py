@@ -174,6 +174,9 @@ class Synonyms(Decorator):
         self._param_names = tuple(sig.parameters.keys())
         self._has_vkw = (inspect._ParameterKind.VAR_KEYWORD in
                          {p.kind for p in sig.parameters.values()})
+        # if not self._has_vkw:
+        #     warn(f'No variadic keywords in {self.func}. Synonymns will not'
+        #          ' resolve correctly.')
         return super().__call__(func)
 
     def __wrapper__(self, func, *args, **kws):
@@ -192,7 +195,6 @@ class Synonyms(Decorator):
                 logger.debug('Re-trying function call {}(...) with synonymous '
                              'keywords.', func.__name__)
                 return func(*args, **kws)
-
             raise
 
     def __repr__(self):
@@ -231,7 +233,6 @@ class Synonyms(Decorator):
             new.append(kws.pop(name) if name in kws else next(args, ()))
 
         new.extend(args)
-
         return new, kws
 
     # @ftl.lru_cache()

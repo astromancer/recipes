@@ -78,16 +78,16 @@ class Emit:
     }
 
     def __init__(self, action='ignore', exception=Exception):
-        
+
         if exception is not Exception:
             self._actions['raise'] = raises(exception)
-            
+
         self.action = action
 
     def _resolve_action(self, action):
         if action is None:
             return 'ignore'
-        
+
         if isinstance(action, numbers.Integral):
             return self._action_ints[action]
 
