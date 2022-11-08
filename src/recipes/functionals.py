@@ -7,6 +7,7 @@ Common decorators and simple helpers for functional code patterns.
 # std
 import numbers
 import warnings
+import functools as ftl
 
 # third-party
 from loguru import logger
@@ -61,6 +62,27 @@ def raises(kind):
     def _raises(msg):
         raise kind(msg)
     return _raises
+
+
+def ignore_params(func):
+
+    @ftl.wraps(func)
+    def wrapper(*_, **__):
+        return func()
+
+    return wrapper
+
+
+def ignore_returned(func):
+
+    @ftl.wraps(func)
+    def wrapper(*args, **kws):
+        func(*args, **kws)
+
+    return wrapper
+
+
+ignore_returns = ignore_returned
 
 
 class Emit:
