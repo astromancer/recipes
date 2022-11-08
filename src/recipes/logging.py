@@ -5,21 +5,23 @@ Logging helpers.
 
 # std
 import sys
-import functools as ftl
+import time
+import atexit
 import logging
-from logging import StreamHandler
-from logging.handlers import MemoryHandler
-from contextlib import contextmanager
+import functools as ftl
 
 # third-party
 from loguru import logger
 
 # relative
-from . import op, pprint as pp
+from . import pprint as pp
+from .pprint.nrs import hms
 from .decorators import Decorator
-from .introspect.utils import get_caller_frame, get_class_that_defined_method, get_module_name, get_class_name
+from .introspect.utils import (get_caller_frame, get_class_name,
+                               get_class_that_defined_method, get_module_name)
 
 
+# ---------------------------------------------------------------------------- #
 def get_module_logger(depth=-1):
     """
     Create a logger for a module by calling this function from the module
@@ -28,58 +30,7 @@ def get_module_logger(depth=-1):
     return logging.getLogger(get_module_name(get_caller_frame(2), depth))
 
 
-@contextmanager
-def all_logging_disabled(highest_level=logging.CRITICAL):
-    """
-    A context manager that will prevent any logging messages triggered during
-    the body from being processed.
-
-    Parameters
-    ----------
-    highest_level: int
-        The maximum logging level in use. This would only need to be changed if
-        a custom level greater than CRITICAL is defined.
-    """
-    # source: https://gist.github.com/simon-weber/7853144
-    # two kind-of hacks here:
-    #    * can't get the highest logging level in effect => delegate to the user
-    #    * can't get the current module-level override => use an undocumented
-    #       (but non-private!) interface
-
-    previous_level = logging.root.manager.disable
-    logging.disable(highest_level)
-
-    try:
-        yield
-    finally:
-        logging.disable(previous_level)
-
-
-# @contextmanager
-# def _at_level(logger, level):
-#     olevel = logger.getEffectiveLevel()
-#     logger.setLevel(level)
-#     yield
-#     logger.setLevel(olevel)
-
-
-# class BraceString(str):
-#     def __mod__(self, other):
-#         return self.format(*other)
-
-#     def __str__(self):
-#         return self
-
-
-# class StyleAdapter(logging.LoggerAdapter):
-
-#     def __init__(self, logger, extra=None):
-#         super().__init__(logger, extra)
-
-#     def process(self, msg, kwargs):
-#         if kwargs.pop('style', '%') == '{':  # optional
-#             msg = BraceString(msg)
-#         return msg, kwargs
+# ---------------------------------------------------------------------------- #
 
 
 class LoggingDescriptor:
@@ -96,25 +47,6 @@ class LoggingDescriptor:
     @ftl.lru_cache
     def get_log_name(self, kls):
         return get_class_name(kls, self.namespace_depth)
-
-
-# class LoggingMixin:
-#     """
-#     Mixin class that exposes the `logger` attribute for the class which is an
-#     instance of python's build in `logging.Logger`.  Allows for easy
-#     customization of loggers on a class by class level.
-
-#     Examples
-#     --------
-#     # in sample.py
-#     >>> class Sample(LoggingMixin):
-#             def __init__(self):
-#                 logger.debug('Initializing')
-
-#     >>> from sample import Sample
-#     >>> logger.setLevel(logging.debug)
-#     """
-#     logger = LoggingDescriptor()
 
 
 class LoggingMixin:
@@ -136,6 +68,11 @@ class LoggingMixin:
             """Prepend the class name to the function name in the log record."""
             # TODO: profile this function to see how much overhead you are adding
             fname = record['function']
+            
+            if fname.startswith('<cell line:'):
+                # catch interactive use
+                return 
+                
             parent = get_class_that_defined_method(getattr(parent, fname))
             parent = '' if parent is None else parent.__name__
             record['function'] = f'{parent}.{fname}'
@@ -147,8 +84,10 @@ class LoggingMixin:
 
     logger = Logger()
 
+# ---------------------------------------------------------------------------- #
 
-class catch_and_log(Decorator, LoggingMixin):
+
+class Catch(Decorator, LoggingMixin):
     """
     Decorator that catches and logs errors instead of actively raising
     exceptions.
@@ -162,59 +101,113 @@ class catch_and_log(Decorator, LoggingMixin):
                              pp.caller(func, args, kws))
 
 
-# class MultilineIndenter(logging.LoggerAdapter):
-# """
-# This example adapter expects the passed in dict-like object to have a
-# 'connid' key, whose value in brackets is prepended to the log message.
-# """
-# def process(self, msg, kwargs):
-# msg = msg.replace('\n', indent + '\n')
-# return msg, kwargs
-
-# logger = MultilineIndenter(logger, {})
-
-# to get logging level:
-# debug = logging.getLogger().isEnabledFor(logging.DEBUG)
+# alias
+catch_and_log = catch = Catch
 
 
-class RepeatMessageHandler(MemoryHandler):
+# ---------------------------------------------------------------------------- #
+class TimeDeltaFormatter:
     """
-    Filter duplicate log messages.
+    Helper for printing elapsed time in hms format eg: 00ʰ02ᵐ33.2ˢ
     """
-    # These attributres will be compared to determine equality between Record objects
-    _attrs = ('msg', 'args', 'levelname')
-    _get_record_atr = op.AttrGetter(*_attrs)
 
-    def __init__(self, capacity=2,
-                 flushLevel=logging.ERROR,
-                 target=StreamHandler(sys.stdout),
-                 flushOnClose=True):
-        super().__init__(capacity, flushLevel, target, flushOnClose)
+    def __init__(self, timedelta, **kws):
+        self.timedelta = timedelta
+        self._kws = {**kws,
+                     # defaults
+                     **dict(precision=1,
+                            unicode=True)}
 
-    def emit(self, record):
-        record.repeats = 1
-        if not self.buffer:
-            return super().emit(record)
+    def __format__(self, spec):
+        return hms(self.timedelta.total_seconds(), **self._kws)
 
-        duplicate = self.is_repeat(record)
-        if not duplicate:
-            self.flush()
-            return super().emit(record)
 
-        previous = self.buffer[-1]
-        previous.repeats += 1
+class RepeatMessageHandler:
+    """
+    A loguru sink that filters repeat log messages and instead emits a 
+    custom summary message.
+    """
 
-    def is_repeat(self, record):
-        if self.buffer:
-            return (self._get_record_atr(record) == self._get_record_atr(self.buffer[-1]))
-        return False
+    _keys = (
+        # 'file',
+        'function', 'line',
+        'message',
+        'exception', 'extra'
+    )
+    #
+    formatter = staticmethod(str.format)
 
-    def flush(self):
-        if not self.buffer:
+    def __init__(self,
+                 target=sys.stderr,
+                 template=' ⤷ [Previous {n_messages} {n_repeats} in {t}]\n',
+                 x='×',
+                 xn=' {x}{n:d}',
+                 buffer_size=12):
+
+        self._target = target
+        self._repeats = 0
+        self._repeating = None
+        self._template = str(template)
+        self._x = str(x)
+        self._xn = str(xn)
+        self._memory = []
+        self.buffer_size = int(buffer_size)
+        self._timestamp = None
+
+        atexit.register(self._write_repeats)
+
+    def write(self, message):
+        #
+        args = (message.record['level'].no, message.record['file'].path,
+                *(message.record[k] for k in self._keys))
+        if args in self._memory:  # if self._previous_args == args:
+            if self._repeats:  # multiple consecutive messages repeat
+                idx = self._memory.index(args)
+                if idx == 0:
+                    self._repeats += 1
+                    self._repeating = 0
+                elif idx == (self._repeating + 1):
+                    self._repeating = idx
+                else:
+                    # out of sequence, flush
+                    self._flush()
+            else:
+                # drop all previous unique messages
+                self._memory = self._memory[self._memory.index(args):]
+                self._repeating = 0
+                self._repeats += 1
+                self._timestamp = time.time()
+
             return
 
-        previous = self.buffer[-1]
-        if previous.repeats > 1:
-            previous.msg += f' [Message repeats ×{previous.repeats}]'
+        # add to buffered memory
+        if self._repeats:
+            # done repeating, write summary of repeats, flush memory
+            self._flush()
 
-        super().flush()
+        self._memory.append(args)
+        if len(self._memory) > self.buffer_size:
+            self._memory.pop(0)
+
+        self._target.write(message)
+
+    def _flush(self):
+        self._write_repeats()
+
+        self._memory = []
+        self._repeats = 0
+        self._repeating = None
+
+    def _write_repeats(self):
+        if self._repeats == 0:
+            return
+
+        # xn = #('' if self._repeats == 1 else
+        xn = self._xn.format(x=self._x, n=self._repeats + 1)
+
+        # {i} message{s|i} repeat{s|~i}{xn}
+        i = len(self._memory) - 1
+        n_messages = f'{f"{i + 1} " if (many := i > 1) else ""}message{"s" * many}'
+        n_repeats = f'repeat{"s" * (not many)}{xn}'
+        t = hms(time.time() - self._timestamp, precision=3, short=True, unicode=True)
+        self._target.write(self.formatter(self._template, **locals()))
