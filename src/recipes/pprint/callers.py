@@ -59,7 +59,7 @@ def describe(obj, sep=' ', repr=repr):
 
         # obj is a class
         return 'class ' + repr(f'{obj.__module__}.{obj.__name__}')
-            # return str(obj).strip("<>")
+        # return str(obj).strip("<>")
 
     if hasattr(obj, '__qualname__'):
         # any function or method
@@ -85,8 +85,9 @@ def parameter(par, val_formatter=repr):
     return VAR_MARKS.get(kind, '') + formatted
 
 
-def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
-           params_per_line=None, hang=None, show_defaults=True,
+def caller(obj, args=(), kws=None, show_defaults=True,
+           show_binding_class=True, name_depth=2,
+           params_per_line=None, hang=None, wrap=80,
            value_formatter=repr):
     """
     Pretty format a callable object, optionally with paramater values for the
@@ -111,17 +112,21 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
     obj : object
         A callable object.
     args : tuple, optional
-        Positional and variadic positional arguments for the function call, by
-        default ().
+        Positional and variadic positional arguments for the represented call,
+        by default ().
     kws : dict, optional
         Variadic keywords for the call, by default None
-    wrap : int, optional
-        Line width for hard wrapping, by default 80.
+    show_defaults : bool, optional
+        Whether or not to include parameters with default values, by default
+        True.
+    show_binding_class : bool
+        If the callable is a method, show the name of the class that the method
+        is bound to, instead of the name of class which defined the method.
     name_depth : int, optional
-        Controls how the function's name is represented. This parameter gives
-        the namespace depth, number of parent object names to include in the
-        qualified name of the callable. The default, 1, will only give the
-        object name itself. Any higher integer will include the the
+        Controls how the function's (qualified) name is represented. This
+        parameter gives the namespace depth, number of parent object names to
+        include in the qualified name of the callable. The default, 1, will only
+        give the object name itself. Any higher integer will include the the
         dot-seperated name(s) of the class, (sub)module(s), package, (or
         <locals>) in the name up to the requested number.
         For fully qualified names (up to (sub)module level), use
@@ -137,9 +142,8 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
         `hang=None`, chooses to hang the parameter spec (if *params_per_line*
         not given) if the number of parameters in the call is greater than 7, or
         if one of the parameters has a long repr.
-    show_defaults : bool, optional
-        Whether or not to include parameters with default values, by default
-        True.
+    wrap : int, optional
+        Line width for hard wrapping, by default 80.
     value_formatter : callable, optional
         Function to use for formatting parameter values, by default repr.
 
@@ -166,10 +170,28 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
     #
 
     if not callable(obj):
-        raise TypeError(f'Object {obj} is not a callable')
+        raise TypeError(f'Object {obj} is not a callable.')
 
+    name = get_name(obj, name_depth, show_binding_class)
+
+    # format signature
+    sig = signature(inspect.signature(obj), args, kws,
+                    wrap, (n := len(name)) + 1, params_per_line,
+                    hang, show_defaults, value_formatter)
+    return name + sig.replace('\n', f'{" ":<{n}}\n')
+
+
+def get_name(obj, name_depth, show_binding_class=True):
     # get object name string with module
-    name_parts = obj.__qualname__.split('.')
+    if not name_depth:
+        return ''
+
+    name = obj.__qualname__
+    if show_binding_class and name_depth > 1 and hasattr(obj, '__self__'):
+        defining_class_name, _ = name.split('.', 1)
+        name = name.replace(defining_class_name, obj.__self__.__class__.__name__)
+
+    name_parts = name.split('.')
     local_depth = len(name_parts)
     name_depth = 100 if name_depth == -1 else name_depth
     if name_depth < local_depth:
@@ -180,13 +202,7 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
         name_parts = module_name.split('.') + name_parts
 
     # full name to specified depth
-    name = '.'.join(filter(None, name_parts))
-
-    # format signature
-    sig = signature(inspect.signature(obj), args, kws,
-                    wrap, len(name) + 1, params_per_line,
-                    hang, show_defaults, value_formatter)
-    return name + sig.replace('\n', (' ' * len(name)) + '\n')
+    return '.'.join(filter(None, name_parts))
 
 
 def signature(sig, args=(), kws=None, wrap=80, indent=1,
@@ -196,7 +212,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     # format each parameter as 'param=value' pair
     if (args or kws):
         # with parameter values provided
-        ba = sig.bind(*args, **(kws or {}))
+        ba = sig.bind_partial(*args, **(kws or {}))
         if show_defaults:
             ba.apply_defaults()
         pars = ['='.join((p, value_formatter(val)))
@@ -297,31 +313,6 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     s = f'\n{s}\n' if hang else s.lstrip()
     return s.join('()')
 
-# @docsplice
 
-
-def method(func, show_defining_class=True, **kws):
-    """
-    Get a pretty string representation of the method with its parameters.
-
-    Parameters
-    ----------
-    func: Callable
-        The callable to represent
-    show_defining_class: bool
-        Show class that defined method instead of the name of class of object to
-        which the method is bound.
-
-
-    Returns
-    -------
-    str
-
-    """
-
-    if show_defining_class:
-        cls = get_class_that_defined_method(func)
-        kws['name_depth'] = 0
-        return f'{cls.__name__}{caller(func, **kws)}'
-
-    return caller(func, **kws)
+# alias
+method = caller
