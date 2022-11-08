@@ -7,6 +7,7 @@ from loguru import logger
 
 # relative
 from ...decorators import Decorator
+from ...logging import LoggingMixin
 
 
 class MethodTaggerFactory:
@@ -17,28 +18,37 @@ class MethodTaggerFactory:
     def __init__(self, tag: str):
         self.tag = tag
 
-    def __call__(self, *info):
-        return MethodTagger(self.tag, info)
+    def __call__(self, *info, **kws):
+        return MethodTagger(self.tag, info, **kws)
 
 
-class MethodTagger(Decorator):
+class MethodTagger(Decorator, LoggingMixin):
     """
-    Decorator for tagging methods. Methods decorated with this function
-    will have the `{}` attribute set as the tuple of arguments are passed.
-    The decorator will preserve docstrings etc., as it returns the original
-    function.
+    Decorator for tagging methods. Methods decorated with this function will
+    have the `{}` attribute set to the tuple of arguments passed to the
+    decorator.
+
+    This decorator will preserve function docstrings etc., since it returns the
+    original function, only adding some attributes to it.
     """
 
-    def __init__(self, tag, info, **kws):
+    def __init__(self, tag, info):
         self.tag = str(tag)
         self.info = info
+        # self.kws = kws
         self.__doc__ = MethodTagger.__doc__.format(tag)
 
     def __call__(self, func):
         # set the tag
         setattr(func, self.tag, self.info)
-        logger.debug('Tagged {} with {!r}.', self.tag, self.info)
-        return func
+        self.logger.debug('Tagged {} with {!r}.', self.tag, self.info)
+        # NOTE: kw tags (self.kws) ignored by default. Subclasses can use the
+        # them by overwriting this method
+
+        # Decorate the method. Even though the base implementation here wraps a
+        # do-nothing decorator, subclasses can change functionality by
+        # overwriting the `__wrapper__` method.
+        return super().__call__(func)
 
 
 class TagManagerMeta(type):
