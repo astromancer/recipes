@@ -20,7 +20,7 @@ def duplicate_if_scalar(a, n=2, raises=True):  # TODO: severity
     # if isinstance(a, numbers.Number):
     #     return [a] * n
 
-    if not isinstance(a, abc.Sized):
+    if not isinstance(a, abc.Sized) or isinstance(a, str):
         return [a] * n
 
     size = len(a)
