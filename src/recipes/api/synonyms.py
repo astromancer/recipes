@@ -172,15 +172,18 @@ class Synonyms(Decorator):
         self.func = func
         self.signature = sig = inspect.signature(func)
         self._param_names = tuple(sig.parameters.keys())
-        self._has_vkw = (inspect._ParameterKind.VAR_KEYWORD in
+        self._no_kws = (inspect._ParameterKind.VAR_KEYWORD in
                          {p.kind for p in sig.parameters.values()})
-        # if not self._has_vkw:
-        #     warn(f'No variadic keywords in {self.func}. Synonymns will not'
-        #          ' resolve correctly.')
-        return super().__call__(func)
+        if self._no_kws:
+            self.logger.info(f'No variadic keywords in {self.func}. Changing'
+                             f' function signature!')
+        
+        # decorate
+        return super().__call__(func, kwsyntax=self._no_kws)
 
     def __wrapper__(self, func, *args, **kws):
-        if not self._has_vkw:
+        
+        if self._no_kws:
             args, kws = self.resolve(args, kws)
             return func(*args, **kws)
 
@@ -205,12 +208,10 @@ class Synonyms(Decorator):
         Update the translation map.
         """
 
-        translator = {'simple': KeywordTranslate,
-                      'regex': RegexTranslate}[_mode]
-
-        for directive, target in dict(mappings).items():
+        translator = TRANSLATORS[_mode]
+        for pattern, target in dict(mappings).items():
             # if isinstance(k, str)
-            self.resolvers.append(translator(directive, target))
+            self.resolvers.append(translator(pattern, target))
 
     def resolve(self, args, kws):    # namespace=None,
         """
@@ -253,3 +254,6 @@ class Synonyms(Decorator):
 
 # alias
 synonyms = Synonyms
+
+TRANSLATORS = {'simple': KeywordTranslate,
+               'regex': RegexTranslate}
