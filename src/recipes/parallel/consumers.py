@@ -1,85 +1,61 @@
 # std
+import traceback
 import multiprocessing as mp
 
 # relative
 from ..logging import LoggingMixin
+from ..pprint import caller, describe
+
+from recipes.decorators import Decorator
 
 
-class BaseTask():
+class Delayed(Decorator):
+    def __wrapper__(self, func, *args, **kws):
+        return Task(func, *args, **kws)
+
+
+class BaseTask(LoggingMixin):
     """A simple wrapper class for parallel task execusion."""
 
-    def __init__(self, func, *args):
+    def __init__(self, func, *args, **kws):
+        self.logger.debug('Creating {:s}: {:s}', describe(self), str(self))
         self.func = func
         self.args = args
+        self.kws = kws
 
     def __call__(self):
-        return self.func(*self.args)
+        self.logger.debug('Excecuting: {:s}', self)
+        return self.func(*self.args, **self.kws)
 
     def __str__(self):
-        return '%s%s' % (self.func.__name__,  str(self.args))
-        # return '%s(%s, ...)' % (self.func.__name__,  str(self.args[:2]))
-
-    # def __repr__(self):
+        return f'{type(self).__name__}<{caller(self.func, self.args, self.kws)}>'
 
 
 # class NullCondition(ExitStack):
-    # def notify_all(self):
-        # pass
+#     # def notify_all(self):
+#         # pass
 
-#from decor.expose import get_func_repr
+# class Task(BaseTask):
+#     """A simple wrapper class for parallel task execusion."""
 
-class Task(BaseTask, LoggingMixin):
-    """A simple wrapper class for parallel task execusion"""
+#     def triggers(self, func, )
 
-    def __init__(self, func, *args):
-        BaseTask.__init__(self, func, *args)
+# class TriggeringTask(Task):
+#     def __init__(self, func, args):
+#         Task.__init__(self, func, *args)
+#         self._triggers = []
 
-        self._is_done = False  # NullCondition()
+#     def __call__(self):
+#         return self.triggers(self.func(*self.args))
 
-        self.logger.debug('creating an instance of {:s}: {:s}'
-                          % (self.__class__.__name__, str(self)))
+#     def add_trigger(self, func, args=()):
+#         """Add task that will be triggered upon return of the call - somehow"""
+#         # pre_args - arguments for the triggered task that we know beforehand
+#         self._triggers.append((func, args))
 
-    # @expose.args()
-    def __call__(self):
-        self.logger.debug('Excecuting: {:s}' % self)
-        return self.func(*self.args)
-        # if self._is_done:
-        # with self._is_done:
-        # self._is_done.notify_all()
-
-        # return returned
-
-    def __str__(self):
-        # return get_func_repr(self.func, self.args)  #pretty repr
-        return '%s%s' % (self.func.__name__,  str(self.args))
-        # return '%s(%s, ...)' % (self.func.__name__,  str(self.args[:2]))
-
-    # def notify_when_done(self, cond):
-        #self._is_done = cond
-        # return self._is_done
-
-    # TODO: maybe add some control structure here for optionally returning the
-    # result / more tasks
-    # TODO: AS DECORATOR
-
-
-class TriggeringTask(Task):
-    def __init__(self, func, args):
-        Task.__init__(self, func, *args)
-        self._triggers = []
-
-    def __call__(self):
-        return self.triggers(self.func(*self.args))
-
-    def add_trigger(self, func, args=()):
-        """Add task that will be triggered upon return of the call - somehow"""
-        # pre_args - arguments for the triggered task that we know beforehand
-        self._triggers.append((func, args))
-
-    def triggers(self, *args):
-        triggered = Tasks([TriggeringTask(f, *pre_args, *args)
-                           for f, pre_args in self._triggers])
-        return triggered
+#     def triggers(self, *args):
+#         return Tasks([TriggeringTask(f, *pre_args, *args)
+#                       for f, pre_args in self._triggers])
 
 
 # class Tasks(list):
@@ -107,7 +83,7 @@ class ConsumerBase(mp.Process, LoggingMixin):
 
     def run(self):
 
-        self.logger.info('Running {:s}' % self.name)
+        self.logger.info('Running {:s}',  self.name)
         while self._continue():
             args = self.inq.get(self.TIMEOUT)
             if args is SENTINEL:
@@ -137,7 +113,7 @@ class ConsumerBase(mp.Process, LoggingMixin):
     def main(self, incoming):
         # NOTE: you can elliminate intermediate storage here
         pre = self.pre_process(incoming)
-        # self.logger.debug('%s excecuting: %s%s'
+        # self.logger.debug('{} excecuting: {}{}'
         # %(self.name, self._target.__name__, pre))
         answer = self._target(*pre)
         return self.post_process(incoming, answer)
@@ -150,8 +126,8 @@ class ConsumerBase(mp.Process, LoggingMixin):
 
     def shutdown(self):
         """shutdown procedure"""
-        self.logger.info('%s received sentinel. Exiting.' % self.name)
-        #self.logger.debug('SH*T: {:s}' %  self.outq.qsize())
+        self.logger.info('{} received sentinel. Exiting.', self.name)
+        #self.logger.debug('SH*T: {:s}',   self.outq.qsize())
         self.inq.task_done()
 
 
@@ -163,13 +139,13 @@ class ConsumerBase(mp.Process, LoggingMixin):
     #
     # def run(self):
 
-        #self.logger.info('Running {:s}' % self.name)
+        #self.logger.info('Running {:s}',  self.name)
         # while self._continue():
         #args = self.inq.get(self.TIMEOUT)
         # if args is None:
         # Poison pill means shutdown
-        #self.logger.info('%s received sentinel. Exiting.' % self.name)
-        ##self.logger.debug('SH*T: {:s}' %  self.outq.qsize())
+        #self.logger.info('{} received sentinel. Exiting.', self.name)
+        ##self.logger.debug('SH*T: {:s}',  self.outq.qsize())
         # self.inq.task_done()
 
         # self.exit.set()
@@ -208,16 +184,16 @@ class TriggerBase(ConsumerBase):
                 'no output queue to add returned items to')  # %post
             return
 
-        #self.logger.debug('%s has size %d' %(self.outq, self.outq.qsize()))
+        #self.logger.debug('{} has size {:i}',(self.outq, self.outq.qsize()))
         self.logger.debug('Attempting to trigger {:s}', str(self._target))
         # avoid error for empty trigger generators (i does not get defined)
         i = 0
         for i, args in enumerate(self.triggers(post)):
-            #self.logger.debug('Plonking {:s}' %str(g))
+            #self.logger.debug('Plonking {:s}',str(g))
             self.outq.put(args)
 
-        self.logger.debug('%i items added to queue' % i)
-        self.logger.debug('%s has size %d' % (self.outq, self.outq.qsize()))
+        self.logger.debug('%i items added to queue', i)
+        self.logger.debug('{} has size {:i}', self.outq, self.outq.qsize())
 
     def triggers(self, args):
         yield from ()
@@ -229,7 +205,7 @@ class ProcessTask(TriggerBase):
     def main(self, task):
 
         # NOTE: you can elliminate intermediate storage here
-        self.logger.debug('%s excecuting: %s%s' % (self.name, task))
+        self.logger.debug('{} excecuting: {}', self.name, task)
         pre = self.pre_process(task)
         answer = task()
         post = self.post_process(pre, answer)
@@ -246,7 +222,7 @@ class ProcessFunc(TriggerBase):
         func, args = incoming
 
         pre = self.pre_process(args)
-        #self.logger.debug('%s excecuting: %s%s' % (self.name, func.__name__, pre))
+        #self.logger.debug('{} excecuting: {}{}', (self.name, func.__name__, pre))
         answer = func(*pre)
         post = self.post_process(args, answer)
 
@@ -290,18 +266,18 @@ class PersistantConsumer(mp.Process, LoggingMixin):
         self.outq = outq
 
     def run(self):
-        self.logger.info('Running {:s}' % self.name)
+        self.logger.info('Running {:s}', self.name)
         while True:
             args = self.inq.get()
 
             if args is None:
                 # Poison pill means shutdown
-                self.logger.info('%s: Exiting' % self.name)
+                self.logger.info('{}: Exiting', self.name)
                 self.inq.task_done()
                 break
 
             try:
-                self.logger.debug('%s excecuting: %s%s' %
+                self.logger.debug('{} excecuting: {}{}',
                                   (self.name, self._target, args))
                 # NOTE: single argument syntax
                 answer = self._target(args, self._args)
@@ -334,21 +310,21 @@ class AutoTriggerConsumer(mp.Process, LoggingMixin):
         self.logger.debug('creating an instance of Consumer')
 
     def run(self):
-        self.logger.info('Running {:s}' % self.name)
+        self.logger.info('Running {:s}', self.name)
         while True:
             task = self.inq.get()
 
             if task is None:
                 # Poison pill means shutdown
-                self.logger.info('%s: Exiting' % self.name)
+                self.logger.info('{}: Exiting', self.name)
                 self.inq.task_done()
                 break
 
             try:
-                #self.logger.debug('%s excecuting: %s%s' % (self.name, self._target, args))
+                #self.logger.debug('{} excecuting: {}{}', (self.name, self._target, args))
                 new_tasks = task()
                 self.logger.debug(
-                    'post_processing {:s} of {:s}' % (new_tasks, task.func))
+                    'post_processing {:s} of {:s}', new_tasks, task.func)
                 self.post_process(new_tasks)
 
             # catch and log errors
@@ -373,15 +349,15 @@ class AutoTriggerConsumer(mp.Process, LoggingMixin):
     def load_queue(self, tasks):
         if not self.has_outq:
             self.logger.warning(
-                'no output queue to add returned {:s} to' % args)
+                'no output queue to add returned {:s} to', args)
             return
 
-        self.logger.debug('Triggered %d tasks' % len(tasks))
+        self.logger.debug('Triggered {:i} tasks', len(tasks))
         q = self.outq
-        for i, task in enumerate(tasks):
+        for task in tasks:
             q.put(task)
 
-        self.logger.debug('%s has size %d' % (q, q.qsize()))
+        self.logger.debug('{} has size {:i}', (q, q.qsize()))
         # NOTE: since task are homogeneous, we can estimate size of queue in memory
 
 
@@ -418,12 +394,12 @@ class AutoTriggerConsumer2(
             self.logger.warning('no output queue to add returned {:s} to',
                                 returned)
         else:
-            self.logger.debug('Triggered %d tasks' % len(data))
+            self.logger.debug('Triggered {:i} tasks', len(data))
             q = self.allqs[qi+1]
-            for i, datum in enumerate(data):
+            for datum in data:
                 q.put(datum)
 
-            self.logger.debug('%s has size %d' % (q, q.qsize()))
+            self.logger.debug('{} has size {:i}', q, q.qsize())
 
     # def add_trigger(self, func, args=()):
         ##"""Add task that will be triggered upon return of the call - somehow"""

@@ -42,9 +42,9 @@ methods_to_sync = (
     '__complex__', '__int__', '__float__')
 
 method_sync_template = """
-def %s(self, *args):
+def {0}(self, *args):
     with self._shared:
-        return np.ndarray.%s(self, *args)
+        return np.ndarray.{0}(self, *args)
 """
 
 
@@ -61,7 +61,7 @@ def init_synced_array(shape, fill_value=0, dtype=ctypes.c_double):
 
 class SyncedCounter:
     """
-    synchronized shared-memory counter
+    Synchronized shared-memory counter
 
     `mp.Value` values are locked by default. This is correct in the sense that
     even if an assignment consists of multiple operations (such as assigning
@@ -131,7 +131,7 @@ class SyncedCounter:
 
 class SyncedArray(np.ndarray):
     """
-    array subclass enabling synchronized parallel read/write access to shared
+    Array subclass enabling synchronized parallel read/write access to shared
     memory with all the numpy fancy indexing niceties.
     """
 
@@ -159,7 +159,7 @@ class SyncedArray(np.ndarray):
 
         shx = mp.Array(dtype, data.size)
         shx[:] = data.ravel()
-        # NOTE mp.Array is a function that returns SynchronizedArray
+        # NOTE mp.Array is a function that returns SyncronizedArray
         #  which syncs on access to `value` attribute as well as on
         #  `__getitem__`, `__setitem__`, `__getslice__`, `__setslice__`
         # TODO: may as well do all the syncing here since you are bypassing
@@ -208,8 +208,8 @@ class SyncedArray(np.ndarray):
         #
         # We disallow view castings for SyncedArray
         if not hasattr(obj, '_shared') and not hasattr(self, '_shared'):
-            raise TypeError('view castings to %r are not allowed' %
-                            self.__class__.__name__)
+            raise TypeError(f'View castings to {self.__class__.__name__!r} are'
+                            f' not allowed')
 
         # note: view castings from `SyncedArray` to `SyncedArray` will not
         #  trigger the exception above, which is totally OK
@@ -233,7 +233,7 @@ class SyncedArray(np.ndarray):
     #
     # define synchronized methods here
     for name in methods_to_sync:
-        exec(method_sync_template % ((name,) * 2))
+        exec(method_sync_template.format(name))
 
 
 # create proxy objects for the sync classes above so we can access them from

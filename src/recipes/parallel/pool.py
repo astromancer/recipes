@@ -1,10 +1,12 @@
 
 
 # std
+import os, threading
+import time
 import multiprocessing as mp
 
-# local
-from recipes.logging import LoggingMixin
+# relative
+from ..logging import LoggingMixin
 
 
 class ConservativePool(mp.pool.Pool):
@@ -33,9 +35,8 @@ class ConservativePool(mp.pool.Pool):
         return result
 
 
-
 class ProcessPool(LoggingMixin):
-    '''A trimmed down version of mp.pool.Pool'''
+    """A trimmed down version of mp.pool.Pool"""
 
     def __init__(self, inq, outq=None, processes=None, **kws):
 
@@ -67,10 +68,9 @@ class ProcessPool(LoggingMixin):
     def _maintain_pool(self):
         """Clean up any exited workers and start replacements for them.
         """
-        if self._join_exited_workers():
-            if self.maintain.is_set():
-                self._repopulate_pool()
-                time.sleep(0.1)
+        if self._join_exited_workers() and self.maintain.is_set():
+            self._repopulate_pool()
+            time.sleep(0.1)
 
     def _join_exited_workers(self):
         """Cleanup after any worker processes which have exited due to reaching
@@ -98,7 +98,7 @@ class ProcessPool(LoggingMixin):
         """Bring the number of pool processes up to the specified number,
         for use after reaping workers which have exited.
         """
-        for i in range(self._processes - len(self._pool)):
+        for _ in range(self._processes - len(self._pool)):
             w = self.Process(self.inq, self.outq, **self._kws)
             self._pool.append(w)
             #w.name = w.name.replace('Process', 'PoolWorker')

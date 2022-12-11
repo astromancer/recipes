@@ -27,7 +27,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
     #  updating an exclusive segment of the shared result array.
 
     if loc is None:
-        fid, loc = tempfile.mkstemp('.npy')
+        _fid, loc = tempfile.mkstemp('.npy')
         overwrite = True  # fixme. messages below will be inaccurate
 
     loc = Path(loc)
@@ -58,9 +58,9 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
     data = np.lib.format.open_memmap(filename, mode, dtype, shape)
 
     if data.shape != shape:
-        logger.warning(f'Loaded memmap has shape {data.shape}, which is '
-                       f'different to that requested: {shape}. Overwrite: '
-                       f'{overwrite}.')
+        raise ValueError(f'Loaded memmap has shape {data.shape}, which is '
+                         f'different to that requested: {shape}. Overwrite: '
+                         f'{overwrite}.')
 
     # overwrite data
     if (new or overwrite) and (fill is not None):
