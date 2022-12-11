@@ -93,7 +93,7 @@ class Decorator:
             # >>> @decorator
             # ... def foo(): return
             cls.__init__(obj)
-            return obj(maybe_func)
+            return obj(maybe_func) # create wrapper here
 
             # call => decorate / wrap the function
             # NOTE: init will *not* be called when returning here since we are
@@ -110,7 +110,7 @@ class Decorator:
         Inherited classes can implement stuff here.
         """
 
-    def __call__(self, func):
+    def __call__(self, func, kwsyntax=False):
         """
         Function wrapper created here.
         """
@@ -118,8 +118,8 @@ class Decorator:
         self.__wrapped__ = func
         func.__wrapper__ = self.__wrapper__
         logger.debug('Decorating func: {}.', func)
-        return decorate(func, self.__wrapper__)
-        # ftl.update_wrapper(decorated, func)
+        # NOTE: The function returned by decorate *is not the same object* as `func` here
+        return decorate(func, self.__wrapper__, kwsyntax=kwsyntax)
 
     def __wrapper__(self, func, *args, **kws):
         """

@@ -443,7 +443,7 @@ class ImportFilter(Parentage):
 
         if node.asname in self.remove:
             logger.info('Removing alias {:s} to imported name {:s}',
-                         node.asname, node.name)
+                        node.asname, node.name)
             node.asname = None
 
         return node
@@ -1075,9 +1075,11 @@ class ImportRefactory(LoggingMixin):
                 return module
 
             try:
-                parent_module_name, *script = get_module_name(self.filename).rsplit('.', 1)
-                logger.info("Discovered parent module name: {!r} for file '{}.py'.",
-                             parent_module_name, Path(self.filename).name)
+                parent_module_name = get_module_name(self.filename)
+                if parent_module_name:
+                    parent_module_name, *script = parent_module_name.rsplit('.', 1)
+                    logger.info("Discovered parent module name: {!r} for file '{}'.",
+                                parent_module_name, Path(self.filename).name)
             except ValueError as err:
                 if (msg := str(err)).startswith('Could not get package name'):
                     logger.warning(msg)

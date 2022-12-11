@@ -712,5 +712,5 @@ from obstools.phot.proc import TaskExecutor
 from obstools.phot.tracking.core import SegmentedImage, SlotModeTracker, \
     check_image_drift  # multiline
 
-from scrawl.imagine import ImageDisplay
+from scrawl.image import ImageDisplay
 '''

@@ -62,7 +62,7 @@ def guess_format(filename):
     if formatter is None:
         raise ValueError(
             'Could not guess file format from filename. Please provide the '
-            'expected format for deserialization of file: {filename!r}'
+            'expected format for deserialization of file: {filename!r}.'
         )
     return formatter
 
@@ -173,7 +173,7 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
     for file in _iter_files(path_or_pattern, extensions, recurse):
         for ignored in ignore:
             if fnm.fnmatchcase(str(file), ignored):
-                logger.debug("Ignoring '{!s}' matching pattern {!r}", file, ignored)
+                logger.debug("Ignoring '{!s}' matching pattern {!r}.", file, ignored)
                 break
         else:
             yield file
