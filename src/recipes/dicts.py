@@ -8,6 +8,7 @@ import os
 import numbers
 import itertools as itt
 from pathlib import Path
+from typing import MutableMapping
 from collections import OrderedDict, UserDict, abc, defaultdict
 
 # third-party
@@ -330,7 +331,7 @@ class DefaultDict(defaultdict):
         return new
 
 
-class AccessControl:
+class _AccessManager:
     """
     Mixin that toggles read/write access.
     """
@@ -349,6 +350,9 @@ class AccessControl:
     def freeze(self):
         self.readonly = True
 
+    def unfreeze(self):
+        self.readonly = False
+
     def __missing__(self, key):
         if self.readonly:
             raise KeyError(self._message.format(self=self))
@@ -356,7 +360,7 @@ class AccessControl:
         super().__missing__(key)
 
 
-class AutoVivify(AccessControl):
+class AutoVivify(_AccessManager):
     """
     Mixin that implements auto-vivification for dictionary types.
     """
@@ -385,7 +389,13 @@ class DictNode(AutoVivify, Pprinter, defaultdict):
     """
 
     def __init__(self, factory=None, *args, **kws):
-        defaultdict.__init__(self, factory or DictNode, *args, **kws)
+        factory = factory or type(self)
+        if kws:
+            defaultdict.__init__(self, factory, *args)
+            for key, val in kws.items():
+                self[key] = factory(**val) if isinstance(val, MutableMapping) else val
+        else:
+            defaultdict.__init__(self, factory, *args, **kws)
 
 
 # alias
@@ -398,7 +408,7 @@ NodeDict = DictNode
 
 class AttrBase(dict):
     def copy(self):
-        """Ensure instance of same class is returned"""
+        """Ensure instance of same class is returned."""
         return self.__class__(super().copy())
 
 
