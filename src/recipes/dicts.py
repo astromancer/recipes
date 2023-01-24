@@ -20,8 +20,6 @@ from .functionals import Emit
 
 # TODO: a factory function which takes requested props, eg: indexable=True,
 # attr=True, ordered=True)
-# TODO: factory methods to get class based on what you want: attribute
-# lookup, indexability,
 
 
 def pformat(mapping, name=None,
@@ -382,11 +380,9 @@ class AutoVivify(AccessControl):
 
 class DictNode(AutoVivify, Pprinter, defaultdict):
     """
-    A defaultdict that generates instances of itself.  Used to create arbitrary 
+    A defaultdict that generates instances of itself. Used to create arbitrary 
     data trees without prior knowledge of final structure. 
     """
-
-    # def attr_lookup
 
     def __init__(self, factory=None, *args, **kws):
         defaultdict.__init__(self, factory or DictNode, *args, **kws)
@@ -410,20 +406,22 @@ class AttrReadItem(AttrBase):
     """
     Dictionary with item read access through attribute lookup.
 
-    Note: Items keyed on names that are identical to method names of the `dict`
-    builtin, eg. 'keys', will not be accessible through attribute lookup.
-
-    Setting attributes on instances of this class is prohibited since it can
-    lead to ambiguity. If you want item write access through attributes, use 
-    `AttrDict`.
-
     >>> x = AttrReadItem(hello=0, world=2)
     >>> x.hello, x.world
     (0, 2)
+
+    Note: Items keyed on names that are identical to method names of `dict`
+    eg. 'keys', will not be accessible through attribute lookup.
+
     >>> x['keys'] = None
     >>> x.keys
     <function AttrReadItem.keys>
+    >>> print(x)
+    {'hello': 0, 'world': 2, 'keys': None}
 
+    Setting attributes on instances of this class is prohibited since it can
+    lead to ambiguity. If you want item write access through attributes, use the
+    `AttrDict` object.
     """
 
     def __getattr__(self, key):

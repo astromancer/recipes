@@ -219,9 +219,10 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
         return
 
     if not path.exists():
-        raise ValueError(f"Could not any resolve files for the input pattern: '"
-                         f"{path!s}'. Please supply a path to a valid existing"
-                         f" directory, or alternitively a glob pattern.")
+        raise ValueError('Could not any resolve files for the input pattern: '
+                         f"'{path!s}'. Please supply a path to a valid existing"
+                         ' directory, or alternitively a glob pattern or bash '
+                         'brace expansion pattern.')
 
     # Return the input if it is an existing file. This break the recurrence.
     yield path
