@@ -623,8 +623,8 @@ def show_tree(folder, use_dynamic_spacing=False):
     """
 
     from ..tree import FileSystemNode
-
-    tree = FileSystemNode.from_list(iter_files(folder))
+    
+    tree = FileSystemNode.from_path(folder)
     tree.use_dynamic_spacing = bool(use_dynamic_spacing)
     return tree.render()
 

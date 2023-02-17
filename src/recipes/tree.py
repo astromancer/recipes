@@ -5,26 +5,24 @@ import re
 import math
 import numbers
 import itertools as itt
+from pathlib import Path
 from typing import MutableMapping
 
 # third-party
 import anytree
-from anytree import AbstractStyle, ContRoundStyle
-from anytree.render import RenderTree, Row, _is_last
+from anytree.render import _is_last
 from loguru import logger
-
-# local
-from recipes.oo.temp import temporarily
 
 # relative
 from . import op
-from .string import remove_prefix, strings
+from .string import strings
+from .oo.temp import temporarily
+from .decorators import sharedmethod
 
 
 # ---------------------------------------------------------------------------- #
 # for style in AbstractStyle.__subclasses__():
 #     style().end[0]
-
 RGX_TREE_PARSER = re.compile('([│├└ ])[─ ]{2} ')
 
 
@@ -48,12 +46,9 @@ def _reindent(string, height):
 # ---------------------------------------------------------------------------- #
 
 
-# ---------------------------------------------------------------------------- #
+class DynamicIndentRender(anytree.RenderTree):
 
-
-class DynamicIndentRender(RenderTree):
-
-    def __init__(self, node, style=ContRoundStyle(), childiter=list, maxlevel=None):
+    def __init__(self, node, style=anytree.ContRoundStyle(), childiter=list, maxlevel=None):
         super().__init__(node, style, childiter, maxlevel)
 
         self.attr = 'name'
@@ -61,7 +56,8 @@ class DynamicIndentRender(RenderTree):
         # Adapt the style
         # Use first character of vertical/branch/end strings eg "│", "├", "└"
         style = self.style
-        self.style = AbstractStyle(*next(zip(style.vertical, style.cont, style.end)))
+        self.style = anytree.AbstractStyle(
+            *next(zip(style.vertical, style.cont, style.end)))
 
     def __iter__(self):
         return self.__next(self.node, tuple())
@@ -83,19 +79,23 @@ class DynamicIndentRender(RenderTree):
     def __item(self, node, continues, style, level):
 
         if not continues:
-            return Row(u'', u'', node)
+            return anytree.render.Row(u'', u'', node)
+
         selection = (style.empty, style.vertical)
         items = [f'{selection[c]: <{w}}' for w, c in zip(self.widths, continues)]
-        branch = f'{style.cont if continues[-1] else style.end: <{self.widths[level]}}'
+        branch = f'{(style.cont if continues[-1] else style.end): <{self.widths[level]}}'
         indent = ''.join(items[:-1])
         pre = indent + branch
         fill = ''.join((indent, items[-1]))
         # print(f'item {pre=:}, {fill=:}, {node=:}')
-        return Row(pre, fill, node)
+        return anytree.render.Row(pre, fill, node)
 
     def by_attr(self, attrname='name'):
         with temporarily(self, attr=attrname):
             return super().by_attr(attrname)
+
+# ---------------------------------------------------------------------------- #
+
 
 class PrintNode(anytree.Node):
 
@@ -139,18 +139,28 @@ class Node(PrintNode):  # StringNode
     Can be used to represent file system trees etc.
     """
 
-    get_prefix = op.itemgetter(0)
+    get_label = op.itemgetter(0)
     """This function decides the names of the nodes. It will be called on each
-    string in the input list, returning the name of the of that node parent."""
+    item in the input list at each level, returning the name of that node."""
+
+    join_labels = ''.join
+    """This function joins node names together when collapsing the tree"""
 
     @property
     def sibling_leaves(self):
         return tuple(child for child in self.siblings if child.is_leaf)
 
     @classmethod
-    def from_list(cls, items, collapse=True):
+    def from_strings(cls, items, collapse=True):
         """
         Create the tree from a list of input strings.
+        """
+        return cls.from_list(strings(items))
+
+    @classmethod
+    def from_list(cls, items, labeller=None, filtering=None, collapse=True):
+        """
+        Create the tree from a list of input sequences.
 
         Parameters
         ----------
@@ -200,26 +210,41 @@ class Node(PrintNode):  # StringNode
         Node
             The root node of the tree.
         """
-
-        # ensure list of strings
-        items = sorted(strings(items))
-
         # build the tree
+
         root = cls('')
-        root.make_branch(items)
+        root._make_branch(sorted(items), labeller, filtering)
         if collapse:
             root.collapse_unary()
         return root
 
-    def make_branch(self, words):
+    @sharedmethod
+    def _make_branch(self, items, labeller=None, filtering=None):
         """
-        Build the tree by splitting the list of strings letter by letter and
+        Build the tree by grouping a
         grouping when subsequent letters have the same prefix.
         """
-        for base, words in itt.groupby(filter(None, words), self.get_prefix):
-            child = self.__class__(base, parent=self)
-            child.make_branch((remove_prefix(w, base)
-                               for w in filter(None, words)))
+        if filtering is not False:
+            items = filter(filtering, items)
+
+        cls = type(self)
+        if constructor := (cls is type):
+            parent = None  # root node
+            cls = self
+        else:
+            parent = self
+
+        for gid, keys in itt.groupby(items, labeller or self.get_label):
+            child = cls(gid, parent=parent)
+            child._make_branch(self._step_down(keys), labeller, filtering)
+
+        if constructor:
+            return child  # this is actually the root node ;)
+
+    def _step_down(self, items):
+        itr = itt.zip_longest(*items)
+        next(itr)  # step down a level
+        return zip(*itr)
 
     def __repr__(self):
         # we need this because anytree uses repr to render the tree. Not ideal
@@ -335,7 +360,7 @@ class Node(PrintNode):  # StringNode
         if not isinstance(max_depth, numbers.Integral) or max_depth < 1:
             msg = '`max_depth` parameter should be a positive integer.'
             if max_depth == 0:
-                msg += ('Use `list(node.descendants)` to get a fully collapse '
+                msg += ('Use `list(node.descendants)` to get a fully collapsed '
                         'list of nodes.')
             raise ValueError(msg)
 
@@ -465,7 +490,7 @@ class Node(PrintNode):  # StringNode
         changed = False
         while len(child.children) == 1:
             child, = child.children
-            self.name += child.name
+            self.name = self.join_labels((self.name, child.name))
             changed = True
         self.children = child.children
 
@@ -477,5 +502,27 @@ class Node(PrintNode):  # StringNode
 
 class FileSystemNode(Node):
 
-    def get_prefix(self, item):
-        return ''.join(item.partition(r'/')[:-1])
+    # @classmethod
+    # def make(cls, items, labeller=None, filtering=None):
+
+    @classmethod
+    def from_path(cls, folder, collapse=True):
+        folder = Path(folder)
+        assert folder.exists()
+
+        root = cls._make_branch([folder])
+
+        if collapse:
+            root.collapse_unary()
+
+        return root
+
+    @staticmethod
+    def get_label(path):
+        return f'{path.name}{"/" * path.is_dir()}'
+
+    @staticmethod
+    def _step_down(paths):
+        path = next(paths)
+        if path.is_dir():
+            yield from path.iterdir()
