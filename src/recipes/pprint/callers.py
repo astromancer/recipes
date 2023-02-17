@@ -8,7 +8,7 @@ import textwrap as txw
 
 # relative
 from ..introspect.utils import get_module_name
-from ..introspect import get_class_that_defined_method
+from ..introspect import get_defining_class
 # import types
 
 

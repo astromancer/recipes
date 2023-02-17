@@ -18,7 +18,7 @@ from . import pprint as pp
 from .pprint.nrs import hms
 from .decorators import Decorator
 from .introspect.utils import (get_caller_frame, get_class_name,
-                               get_class_that_defined_method, get_module_name)
+                               get_defining_class, get_module_name)
 
 
 # ---------------------------------------------------------------------------- #
@@ -73,7 +73,7 @@ class LoggingMixin:
                 # catch interactive use
                 return 
                 
-            parent = get_class_that_defined_method(getattr(parent, fname))
+            parent = get_defining_class(getattr(parent, fname))
             parent = '' if parent is None else parent.__name__
             record['function'] = f'{parent}.{fname}'
 

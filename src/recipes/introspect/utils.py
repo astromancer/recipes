@@ -231,7 +231,7 @@ def get_class_name(obj, depth=None):
     return '.'.join((get_module_name(kls, depth), kls.__name__))
 
 
-def get_class_that_defined_method(method: MethodType):
+def get_defining_class(method: MethodType):
     """
     Get the class that defined a method.
 
