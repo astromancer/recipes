@@ -103,10 +103,10 @@ class fallback(Decorator):
             return self.fallback
 
 
-class post(Decorator):
+class post:
     """Run `func(*args, **kws) after running the wrapped function."""
 
-    def __init__(self, func, *args, **kws):
+    def __init__(self, func: abc.Callable, *args, **kws):
         assert callable(func)
         self.post = func
         self.post_args = args
@@ -125,7 +125,7 @@ class post(Decorator):
         return result
 
 
-class pre(Decorator):
+class pre:
     """Run `func(*args, **kws) after running the wrapped function."""
 
     def __init__(self, func, *args, **kws):

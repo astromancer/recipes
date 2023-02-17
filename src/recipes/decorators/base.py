@@ -88,10 +88,12 @@ class Decorator:
         obj = super().__new__(cls)
 
         # Catch auto-init usage pattern
-        if callable(maybe_func):
+        if callable(maybe_func): 
+            # TODO check the annotations to see if callable expected
+            
             # No arguments provided to decorator.
             # >>> @decorator
-            # ... def foo(): return
+            # ... def foo(): ...
             cls.__init__(obj)
             return obj(maybe_func) # create wrapper here
 

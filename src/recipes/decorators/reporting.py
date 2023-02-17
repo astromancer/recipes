@@ -97,7 +97,7 @@ class trace(Decorator):
 
 
 # alias
-args = params = trace
+args = params = Trace = trace
 
 
 class suppress(Decorator):
@@ -116,38 +116,3 @@ class suppress(Decorator):
         sys.stdout.flush()
 
         return result
-
-
-# def get_inner(func, args=(), kws=None):
-#     """ """
-#     kws = kws or {}
-#     while isinstance(func, ftl.partial):
-#     kws.update(func.keywords)
-#     args += func.args
-#     func = func.func
-#     return func, args, kws
-
-
-# class InfoPrintWrapper(DecoratorBase):
-#     def setup(self, pre='', post=''):
-#         self.pre = pre
-#         self.post = post
-
-#     def __call__(self)
-#     # def make_wrapper(self, func):
-#     #     @ftl.wraps(func)
-#     #     def wrapper(*args, **kw):
-#     #         print(self.pre)
-#     #         r = func(*args, **kw)
-#     #         print(self.post)
-#     #         return r
-
-#     #     return wrapper
-
-
-# class SameLineDone(InfoPrintWrapper):
-#     def setup(self, pre='', post='', **kws):
-#         self.pre = pre
-#         up = '\033[1A'
-#         right = '\033[%iC' % (len(pre) + 3)
-#         self.post = up + right + post

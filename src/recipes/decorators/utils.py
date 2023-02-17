@@ -1,48 +1,89 @@
-import inspect
+import types
 
 
-def decorateAll(decorator=None, exclude=()):
+class sharedmethod(classmethod): # source astropy
     """
-    A decorator that applies a given decorator to all methods in a class.
-    Useful for profiling / debugging.
+    This is a method decorator that allows both an instancemethod and a
+    `classmethod` to share the same name.
+
+    When using `sharedmethod` on a method defined in a class's body, it
+    may be called on an instance, or on a class.  In the former case it
+    behaves like a normal instance method (a reference to the instance is
+    automatically passed as the first ``self`` argument of the method)::
+
+        >>> class Example:
+        ...     @sharedmethod
+        ...     def identify(self, *args):
+        ...         print('self was', self)
+        ...         print('additional args were', args)
+        ...
+        >>> ex = Example()
+        >>> ex.identify(1, 2)
+        self was <astropy.utils.decorators.Example object at 0x...>
+        additional args were (1, 2)
+
+    In the latter case, when the `sharedmethod` is called directly from a
+    class, it behaves like a `classmethod`::
+
+        >>> Example.identify(3, 4)
+        self was <class 'astropy.utils.decorators.Example'>
+        additional args were (3, 4)
+
+    This also supports a more advanced usage, where the `classmethod`
+    implementation can be written separately.  If the class's *metaclass*
+    has a method of the same name as the `sharedmethod`, the version on
+    the metaclass is delegated to::
+
+        >>> class ExampleMeta(type):
+        ...     def identify(self):
+        ...         print('this implements the {0}.identify '
+        ...               'classmethod'.format(self.__name__))
+        ...
+        >>> class Example(metaclass=ExampleMeta):
+        ...     @sharedmethod
+        ...     def identify(self):
+        ...         print('this implements the instancemethod')
+        ...
+        >>> Example().identify()
+        this implements the instancemethod
+        >>> Example.identify()
+        this implements the Example.identify classmethod
     """
 
-    def wrapper(cls):
-        if decorator is not None:
-            for name, method in inspect.getmembers(
-                    cls, predicate=inspect.isfunction):
-                # NOTE: For same reason, static methods don't like being
-                #   decorated like this
-                is_static = isinstance(
-                        cls.__dict__.get(name, None), staticmethod)
-                if not (is_static or name in exclude):
-                    setattr(cls, name, decorator(method))
-        return cls
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            mcls = type(objtype)
+            clsmeth = getattr(mcls, self.__func__.__name__, None)
+            if callable(clsmeth):
+                func = clsmeth
+            else:
+                func = self.__func__
 
-    return wrapper
+            return self._make_method(func, objtype)
+        else:
+            return self._make_method(self.__func__, obj)
 
-# import functools
-#
-# from .base import OptArgDecor
+    @staticmethod
+    def _make_method(func, instance):
+        return types.MethodType(func, instance)
 
-# class DecorateAll(OptArgDecor):
-#     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#     def __init__(self, cls, decorator, exclude=None):
-#
-#
-#         self.decorator = decorator
-#         self.exclude = [] if exclude is None else exclude
-#
-#     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#     def __call__(self, *args, **kws):
-#         return make_wrapper(*args, **kws)
-#
-#     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#     def make_wrapper(self, cls):
-#         @functools.wraps(cls)
-#         def wrapper(*args, **kws):
-#             for name, method in inspect.getmembers(cls, predicate=inspect.isfunction):
-#                 if name not in self.exclude:
-#                     setattr(cls, name, self.decorator(method))
-#             return cls(*args, **kws)
-#         return wrapper
+
+# def decorateAll(decorator=None, exclude=()):
+#     """
+#     A decorator that applies a given decorator to all methods in a class.
+#     Useful for profiling / debugging.
+#     """
+
+#     def wrapper(cls):
+#         if decorator:
+#             for name, method in inspect.getmembers(
+#                     cls, predicate=inspect.isfunction):
+#                 # NOTE: For same reason, static methods don't like being
+#                 #   decorated like this
+#                 is_static = isinstance(
+#                     cls.__dict__.get(name, None), staticmethod)
+#                 if not (is_static or name in exclude):
+#                     setattr(cls, name, decorator(method))
+#         return cls
+
+#     return wrapper
