@@ -14,7 +14,8 @@ from collections import abc
 import more_itertools as mit
 
 # relative
-from . import oo, op
+from . import op
+from .oo.misc import coerce
 from .functionals import negate, echo0 as echo
 
 
@@ -142,13 +143,12 @@ def _(string, rhs, test=op.eq, start=0):
     if (n := len(rhs)) > 1 and (test != op.contained):
         yield from multi_index(windowed(string, n), rhs, test, start)
         return
-    
+
     yield from multi_index(iter(string), rhs, test, start)
     return
-    
+
     # if test is not op.eq:
-        
-        
+
     # i = start
     # while i < len(string):
     #     try:
@@ -174,7 +174,7 @@ def _(obj, rhs, test=op.eq, start=0):
         if i >= SAFETY_LIMIT:
             raise ValueError('Infinite iterable? If this is wrong, please '
                              'increase the `SAFETY_LIMIT`. eg: \n'
-                             '>>> import recipec.iter as itr\n'
+                             '>>> import recipes.iter as itr\n'
                              '... itr.SAFETY_LIMIT = 1e9')
 
 
@@ -236,7 +236,7 @@ def non_unique(itr):
 
 def cyclic(obj, n=None):
     """
-    Cyclic iterator. Will cycle (optionally only up to `n` items).  If ``obj``
+    Cyclic iterator. Will cycle (optionally only up to `n` items). If ``obj``
     is not iterable, it will be repeated `n` times.
     """
     cyc = itt.cycle(mit.always_iterable(obj))
@@ -277,9 +277,7 @@ def group_more(func=echo, *its, unzip=True, **kws):
 
     its = cosort(*its, key=func)
     zipper = itt.groupby(zip(*its), on_zeroth(func))
-    if unzip:
-        return ((key, zip(*groups)) for key, groups in zipper)
-    return zipper
+    return ((key, zip(*groups)) for key, groups in zipper) if unzip else zipper
 
 
 def tee_more(*its, n=2):
@@ -309,9 +307,7 @@ def first_true_index(iterable, test=echo, default=None):
     """
 
     index, _ = mit.first_true(enumerate(iterable), (None, None), on_first(test))
-    if index is None:
-        return default
-    return index
+    return default if index is None else index
 
 
 def first_false_index(iterable, test=echo, default=None):
@@ -396,4 +392,64 @@ def iter_repeat_last(it):
 
 
 def coerced(itr, to, wrap):
-    yield from map(oo.coerce, itr, itt.repeat(to), itt.repeat(wrap))
+    yield from map(coerce, itr, itt.repeat(to), itt.repeat(wrap))
+
+
+def subclasses(cls, _seen=None):
+    """
+    Generator over all subclasses of a given class, in depth first order.
+
+    >>> list(iter_subclasses(int)) == [bool]
+    True
+
+    >>> class A: pass
+    >>> class B(A): pass
+    >>> class C(A): pass
+    >>> class D(B,C): pass
+    >>> class E(D): pass
+    >>> list(iter_subclasses(A))
+    [__main__.B, __main__.D, __main__.E, __main__.C]
+
+    >>> # get ALL (new-style) classes currently defined
+    >>> [cls.__name__ for cls in iter_subclasses] #doctest: +ELLIPSIS
+    ['type', ... 'tuple', ...]
+    """
+
+    # recipe adapted from:
+    # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
+
+    
+    
+    if not isinstance(cls, type):
+        from recipes.oo.repr_helpers import qualname
+        raise TypeError(f'{qualname(subclasses)}` must be called with new-style'
+                        f' classes, not {cls!r}.')
+
+    _seen = _seen or set()
+    for sub in cls.__subclasses__(*([cls] if (cls is type) else ())):
+        if sub not in _seen:
+            _seen.add(sub)
+            yield sub
+            yield from subclasses(sub, _seen)
+
+
+def superclasses(cls, _seen=None):
+
+    if not isinstance(cls, type):
+        raise TypeError('`iter.baseclasses` must be called with new-style '
+                        'classes, not {cls!r}.')
+
+    _seen = _seen or set()
+
+    chain = []
+    for base in cls.__bases__:
+        if base not in _seen:
+            _seen.add(base)
+            yield base
+            chain.append(superclasses(base, _seen))
+
+    yield from itt.chain(*chain)
+
+
+# alias
+baseclasses = superclasses
