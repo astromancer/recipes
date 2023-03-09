@@ -14,9 +14,9 @@ from ..oo import coerce
 
 def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
     """
-    Pre-allocate a writeable shared memory map as a container for the
-    results of parallel computation. If file already exists and overwrite is False
-    open in update mode and fill will be ignored. Data persistence ftw.
+    Pre-allocate a writeable shared memory map as a container for the results of
+    parallel computation. If file already exists and overwrite is False open in
+    update mode and fill will be ignored. Data persistence ftw.
     """
 
     # NOTE: Objects created by this function have no synchronization primitives
@@ -46,7 +46,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
         dtype = 'f' if fill is None else type(fill)
 
     # create memmap
-    shape = coerce(shape, tuple, numbers.Integral)
+    shape = coerce(shape, tuple, numbers.Integral) if shape else None
     if new:
         logger.debug('Creating memmap of shape {!s} and dtype {!r:} at {!r:}.',
                      shape, dtype, filename)

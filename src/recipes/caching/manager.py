@@ -114,6 +114,7 @@ class CacheManager(LoggingMixin):
 
     def __init__(self, capacity=DEFAULT_CAPACITY, filename=None, policy='lru',
                  enabled=True):
+
         self.capacity = int(capacity)
         self.policy = str(policy).lower()
         self.filename = str(filename) if filename else None
@@ -127,10 +128,10 @@ class CacheManager(LoggingMixin):
     def __str__(self):
         info = {'size': f'{len(self.data)}/{self.capacity}'}
         if self.filename:
-            info['file'] = str(self.path)
-        info = pformat(info, lhs=str, brackets="[]")
+            info['file'] = repr(str(self.path))
+        info = pformat(info, type(self).__name__, lhs=str, rhs=str, brackets='[]')
         return pformat(self.data,
-                       f'{type(self).__name__}{info}',
+                       f'{info}',
                        hang=True)
 
     __repr__ = __str__
@@ -145,13 +146,12 @@ class CacheManager(LoggingMixin):
         path = self.path
         if not path:
             return
-        
+
         self.stale = True
         if path.parent.exists():
             return
-            
+
         raise ValueError(f'Parent folder does not exist: {path.parent}')
-            
 
     @property
     def path(self):
@@ -183,13 +183,14 @@ class CacheManager(LoggingMixin):
     def _update_from_file(self):
         if self.stale and self.filename and self.path.exists():
             clone = self.load(self.filename)
-            # self.data.update(clone.data) 
+            # self.data.update(clone.data)
             # # RuntimeError: OrderedDict mutated during iteration
             self.data = clone.data
+            self.stale = False
 
     def get(self, key, default=None):
         return self.data.get(key, default)
-    
+
     def enable(self, filename=None):
         """
         (Re-)enable a cache, optionally at a new file location.
@@ -197,8 +198,8 @@ class CacheManager(LoggingMixin):
         Parameters
         ----------
         filename : str or Path, optional
-            [description], by default None.
-            
+            File system path for saving cache, by default None.
+
         Note, the filename parameter is here for convenience. Assigning a new
         location to the filename attribute also works.
         """

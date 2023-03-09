@@ -115,9 +115,7 @@ def pformat(mapping, name=None,
                       ignore)
     ispace = 0 if hang else len(name)
     string = indent(string, ispace)  # f'{" ": <{pre}}
-    if name:
-        return f'{name}{string}'
-    return string
+    return f'{name}{string}' if name else string
 
 
 def _get_formatters(fmt):

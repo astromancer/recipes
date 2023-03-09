@@ -1,4 +1,6 @@
-"""Commom utility functions."""
+"""
+Some miscellaneous utility functions.
+"""
 
 # std
 import numbers

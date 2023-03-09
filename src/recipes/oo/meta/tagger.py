@@ -199,19 +199,20 @@ def factory(tag='_tagged', collection='_collected'):
     ...     def __init__(self):
     ...         super().__init__() # collect tagged methods here
     ...         for method, (alias,) in self._aliases.items():
-    ...             setattr(self, alias, method) # asign aliases
+    ...             setattr(self, alias, method) # assign aliases
     ...
     ...     @alias('bar')
     ...     def foo(self):
-    ...         '''This method is tagged: `_alias` attribute set to  'bar'.'''
+    ...         '''This method is tagged: `_alias` attribute set to 'bar'.'''
     ...         print('foo!')
     ...
-    ... class MyDerivedClass(AliasManager): 
+    ... class MySubClass(AliasManager): 
     ...     pass
     ...
-    ... obj = MyDerivedClass()
+    ... obj = MySubClass()
     ... obj._aliases
     {}
+    obj.bar()
     'foo!'
 
     """

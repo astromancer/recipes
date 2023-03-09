@@ -1,5 +1,4 @@
 
-
 # std
 from collections import OrderedDict as odict
 
@@ -8,7 +7,7 @@ from ..logging import LoggingMixin
 from ..string import remove_suffix
 
 
-DEFAULT_CAPACITY = 2**7
+DEFAULT_CAPACITY = 2 ** 7
 
 # TODO: sqlite, yaml, dill, msgpack, srsly
 
@@ -165,9 +164,7 @@ class LRUCache(odict, Cache):
         return Cache.__str__(self)
 
     def get(self, key, default=None):
-        if key in self:
-            return self[key]
-        return default
+        return self[key] if key in self else default
 
     def __getitem__(self, key):
         # we return the value of the key that is queried in O(1) and return -1
