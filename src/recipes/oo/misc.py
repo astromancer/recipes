@@ -3,13 +3,6 @@ Some object oriented code patterns.
 """
 
 
-def coerce(obj, to, wrap, ignore=()):
-
-    if isinstance(obj, ignore):
-        return obj
-
-    return to([obj] if isinstance(obj, wrap) else obj)
-
 
 # ---------------------------------------------------------------------------- #
 

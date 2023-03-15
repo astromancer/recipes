@@ -15,7 +15,6 @@ import more_itertools as mit
 
 # relative
 from . import op
-from .oo.misc import coerce
 from .functionals import negate, echo0 as echo
 
 
@@ -391,10 +390,6 @@ def iter_repeat_last(it):
     return mit.padded(it, next(mit.tail(1, it1)))
 
 
-def coerced(itr, to, wrap):
-    yield from map(coerce, itr, itt.repeat(to), itt.repeat(wrap))
-
-
 def subclasses(cls, _seen=None):
     """
     Generator over all subclasses of a given class, in depth first order.
@@ -418,8 +413,6 @@ def subclasses(cls, _seen=None):
     # recipe adapted from:
     # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
 
-    
-    
     if not isinstance(cls, type):
         from recipes.oo.repr_helpers import qualname
         raise TypeError(f'{qualname(subclasses)}` must be called with new-style'

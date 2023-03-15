@@ -7,7 +7,7 @@ import numbers
 from collections import abc
 
 
-def duplicate_if_scalar(a, n=2, raises=True):  # TODO: severity
+def duplicate_if_scalar(obj, n=2, raises=True, accept=(str,)):  # TODO: severity
     """
     Ensure object size or duplicate if necessary.
 
@@ -19,31 +19,27 @@ def duplicate_if_scalar(a, n=2, raises=True):  # TODO: severity
     -------
 
     """
-    # if isinstance(a, numbers.Number):
-    #     return [a] * n
 
-    if not isinstance(a, abc.Sized) or isinstance(a, str):
-        return [a] * n
+    if not isinstance(obj, abc.Sized) or isinstance(obj, accept):
+        return [obj] * n
 
-    size = len(a)
+    size = len(obj)
     if size == 0:
-        return [a] * n
+        if raises:
+            raise ValueError(f'Cannot duplicate empty {type(obj)}.')
+        return [obj] * n
 
     if size == 1:
-        return list(a) * n
-
-    # if np.size(a) == 1:
-    #     # preserves duck type arrays
-    #     return np.asanyarray([a] * n).squeeze()
+        return list(obj) * n
 
     if (size != n) and raises:
         raise ValueError(
-            f'Input object of type {type(a)} has incorrect size. Expected '
+            f'Input object of type {type(obj)} has incorrect size. Expected '
             f'either a scalar type object, or a Container with length in {{1, '
             f'{n}}}.'
         )
 
-    return a
+    return obj
 
 # ---------------------------------------------------------------------------- #
 
@@ -89,7 +85,21 @@ def _integers_from_slices(slices, n):
     return integers
 
 
-def ensure_list(obj):
-    if isinstance(obj, abc.Iterator):
-        return list(obj)
-    return duplicate_if_scalar(obj, 1, raises=False)
+def _ensure_wrapped(obj, scalars=str):
+    if obj is None:
+        return
+
+    if isinstance(obj, abc.Iterable) and not isinstance(obj, scalars):
+        yield from obj
+        return
+
+    yield obj
+
+
+def ensure_wrapped(obj, to=list, coerce=None, scalars=str):
+    itr = _ensure_wrapped(obj, scalars)
+    return to(map(coerce, itr) if coerce else itr)
+
+
+def ensure_list(obj, coerce=None):
+    return ensure_wrapped(obj, list, coerce)
