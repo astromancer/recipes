@@ -172,17 +172,17 @@ class Synonyms(Decorator):
         self.func = func
         self.signature = sig = inspect.signature(func)
         self._param_names = tuple(sig.parameters.keys())
-        self._no_kws = (inspect._ParameterKind.VAR_KEYWORD in
-                         {p.kind for p in sig.parameters.values()})
+        self._no_kws = (inspect._ParameterKind.VAR_KEYWORD not in
+                        {p.kind for p in sig.parameters.values()})
         if self._no_kws:
-            self.logger.info(f'No variadic keywords in {self.func}. Changing'
-                             f' function signature!')
-        
+            logger.info(f'No variadic keywords in {self.func}. Changing '
+                         'function signature!')
+
         # decorate
-        return super().__call__(func, kwsyntax=self._no_kws)
+        return super().__call__(func, kwsyntax=False)  # self._no_kws
 
     def __wrapper__(self, func, *args, **kws):
-        
+
         if self._no_kws:
             args, kws = self.resolve(args, kws)
             return func(*args, **kws)

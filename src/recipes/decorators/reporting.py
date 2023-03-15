@@ -68,7 +68,7 @@ class trace(Decorator):
 
         try:
             if '{signature}' in self.pre:
-                signature = indent(self.formatter(self.func, args, kws,
+                signature = indent(self.formatter(func, args, kws,
                                                   **self.options))
             self.emit(self.pre, **locals())
         except Exception as err:
@@ -87,7 +87,7 @@ class trace(Decorator):
                 self.emit(self.post, **locals())
         except Exception as err:
             logger.exception(
-                '{} while printing the trace info for func call for {}:\n{}\n'
+                '{} while printing the trace info for call to {}:\n{}\n'
                 'Continuing program execution: The result will now '
                 'be returned.', type(err).__name__, func, err
             )
