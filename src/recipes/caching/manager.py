@@ -44,11 +44,11 @@ class JSONCacheEncoder(json.JSONEncoder):
 
         if isinstance(obj, CacheManager):
             # Have to convert to tuple since json does not allow non-string keys
-            # in dict which is lame
+            # in dict which is lame...
             # note json does not support tuples, so hashability is lost here
             return {
                 obj.__class__.__name__: {
-                    **obj.__dict__,
+                    **{at: getattr(obj, at) for at in obj.__slots__},
                     **{'data': tuple(obj.data.items())}
                 }
             }
@@ -77,8 +77,10 @@ def cache_decoder(mapping):
     logger.debug('Loading cache of type {!r} with state {}.',
                  type(cache), mapping[name])
 
+    # load Manager
     obj = object.__new__(CacheManager)
-    obj.__dict__.update(kws)
+    for at in CacheManager.__slots__:
+        setattr(obj, at, kws[at])
 
     # kls = Cache.types_by_name().get(name)
     # if not kls:
@@ -111,6 +113,8 @@ class CacheManager(LoggingMixin):
     """
     Manages cache saving and loading etc.
     """
+
+    __slots__ = ('capacity', 'policy', 'data', 'enabled', 'stale', '_filename')
 
     def __init__(self, capacity=DEFAULT_CAPACITY, filename=None, policy='lru',
                  enabled=True):
