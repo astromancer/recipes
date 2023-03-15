@@ -11,6 +11,10 @@ DEFAULT_STYLE = dict(lhs=str,
                      align=False)
 
 
+def qualname(kls):
+    return f'{kls.__module__}.{kls.__name__}'
+
+
 def get_attrs(obj, keys, maybe=()):
     return {**{key: getattr(obj, key) for key in keys},
             **{key: val for key in maybe if (val := getattr(obj, key))}}
@@ -42,4 +46,3 @@ class ReprHelper:
 
     #     if hasattr(type(self), '__dict__'):
     #         attrs = self.__dict__.keys()
-

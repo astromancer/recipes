@@ -17,10 +17,6 @@ STD_BRACKET_TYPES = {set: '{}',
                      tuple: '()'}
 
 
-def qualname(kls):
-    return f'{kls.__module__}.{kls.__name__}'
-
-
 def mapping(dict_, name=None, **kws):
     """
     Pretty print a dict-like mapping
@@ -39,7 +35,7 @@ def mapping(dict_, name=None, **kws):
     print(pformat(dict_, name, **kws))
 
 
-def collection(obj, max_items=10, edge_items=1, sep=',', dots='...', 
+def collection(obj, max_items=10, edge_items=1, sep=',', dots='...',
                brackets=STD_BRACKETS, fmt=repr):
     """
     Print a pretty representation of a collection of items, trunctated
@@ -63,14 +59,14 @@ def collection(obj, max_items=10, edge_items=1, sep=',', dots='...',
         brackets = STD_BRACKET_TYPES.get(type(obj), '[]')
     else:
         assert len(brackets) == 2
-        
+
     if len(obj) <= max_items:
         return sep.join(map(fmt, obj)).join(brackets)
 
     return f'{sep} {dots} '.join(
         (sep.join(map(fmt, obj[:edge_items])),
          sep.join(map(fmt, obj[-edge_items:])))
-         ).join(brackets)
+    ).join(brackets)
 
 
 def banner(text, swoosh='=', width=80, title=None, align='^'):
