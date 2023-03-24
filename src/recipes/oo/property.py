@@ -7,8 +7,10 @@ Extensions for buitlin property decorator.
 # std
 import threading
 import operator as op
+import functools as ftl
 from collections import abc
 from types import FunctionType
+from typing import Collection, Dict
 
 # third-party
 from loguru import logger
@@ -19,14 +21,44 @@ _NotFound = object()
 
 
 # ---------------------------------------------------------------------------- #
+class PropertyForwarding:
+    """
+    Mixin class with method for forwarding property/attribute access to another
+    object in it's namespace. Useful for exposing dynamic attributes of nested
+    objects in the instance's namespace.
+    """
+
+    _property_forwarding = {}
+
+    def __new__(cls, *args, **kws):
+        # Attach property descriptors
+        for member, attrs in cls._property_forwarding.items():
+            for _ in attrs:
+                setattr(cls, _, ForwardProperty(f'{member}.{_}'))
+
+        return super().__new__(cls)
+
+    # @classmethod
+    # def forward_properties(cls, mapping: Dict[str, Collection[str]]):
+    #     # Attach property descriptors
+    #     for _ in attrs:
+    #         setattr(cls, _, ForwardProperty(f'{member}.{_}'))
+
 
 class ForwardProperty:
     """
-    Forward nested property to a parent class.
+    A descritor that forwards attribute/property lookup to another namespace
+    member. Useful for exposing dynamic attributes of nested objects in the 
+    parent namespace.
+    
+    This works like `op.attrgetter` but in addition allows setting attributes.
     """
 
+    __slots__ = ('member', 'property_name', '_getter', '_dependents')
+
     def __init__(self, name):
-        self.parent_name, self.property_name = str(name).split('.', 1)
+        self.member, self.property_name = str(name).split('.', 1)
+        self._getter = op.attrgetter(self.property_name)
         self._dependents = []
 
     def __get__(self, obj, kls=None):
@@ -36,85 +68,239 @@ class ForwardProperty:
             # lookup from class
             return self
 
-        return op.attrgetter(self.property_name)(getattr(obj, self.parent_name))
+        return self._getter(getattr(obj, self.member))
 
     def __set__(self, obj, value):
-        parent = getattr(obj, self.parent_name)
-        setattr(parent, self.property_name, value)
+        member = getattr(obj, self.member)
+        setattr(member, self.property_name, value)
 
     def __delete__(self, obj):
-        parent = getattr(obj, self.parent_name)
-        del parent
+        member = getattr(obj, self.member)
+        del member
 
 
-# class ForwardProperty:
+
+# class ClassProperty(property):
 #     """
-#     Forward nested property to a parent class.
+#     Allows properties to be accessed from class or instance
+
+#     Examples
+#     --------
+
+#     >>> class Example:
+#     ...
+#     ...    _name = None  # optional name.
+#     ...    # Optional name. Defaults to class name if not over-written by
+#     ...    # inheritors.
+#     ...
+#     ...    @ClassProperty
+#     ...    @classmethod
+#     ...    def name(cls):
+#     ...        return cls._name or cls.__name__
+#     ...
+#     ...    @name.setter
+#     ...    def name(self, name):
+#     ...        self.set_name(name)
+#     ...
+#     ...    @classmethod
+#     ...    def set_name(cls, name):
+#     ...        cls._name = str(name)
+#     ...
+#     ... obj = Example()
+#     ... obj.name
+#     'Example'
+#     >>> obj.name = 'New'
+#     ... (obj.name, Example.name)
+#     ('New', 'New')
+
+#     FIXME Class level assignment OVERWRITES `name` - doesn't go through
+#     setter
+#     >>> Example.name = 'zzz'
+#     ... obj.name, Example.name
+#     ('zzz', 'zzz')
+
 #     """
 
-#     def __init__(self, parent, name):
-#         self.parent = parent
-#         self.property_name = str(name)
+#     def __get__(self, instance, kls):
+#         return self.fget.__get__(None, kls)()
 
-#     def __get__(self, instance, kls=None):
-#         # sourcery skip: assign-if-exp, reintroduce-else
-#         # get parent object
-#         if instance is None:
-#             # lookup from class
-#             return self
 
-#         # parent = getattr(instance, self.parent_name)
-#         return op.attrgetter(self.parent)(self.property_name)
+# copied from astropy.utils.decorators.classproperty
 
-#     def __set__(self, instance, value):
-#         # parent = getattr(instance, self.parent_name)
-#         setattr(self.parent, self.property_name, value)
-
+# TODO: This can still be made to work for setters by implementing an
+# accompanying metaclass that supports it; we just don't need that right this
+# second
 
 class ClassProperty(property):
     """
-    Allows properties to be accessed from class or instance
+    Similar to `property`, but allows class-level properties.  That is,
+    a property whose getter is like a `classmethod`.
+
+    The wrapped method may explicitly use the `classmethod` decorator (which
+    must become before this decorator), or the `classmethod` may be omitted
+    (it is implicit through use of this decorator).
+
+    .. note::
+
+        classproperty only works for *read-only* properties.  It does not
+        currently allow writeable/deletable properties, due to subtleties of how
+        Python descriptors work.  In order to implement such properties on a class
+        a metaclass for that class must be implemented.
+
+    Parameters
+    ----------
+    fget : callable
+        The function that computes the value of this property (in particular,
+        the function when this is used as a decorator) a la `property`.
+
+    doc : str, optional
+        The docstring for the property--by default inherited from the getter
+        function.
+
+    lazy : bool, optional
+        If True, caches the value returned by the first call to the getter
+        function, so that it is only called once (used for lazy evaluation
+        of an attribute).  This is analogous to `lazyproperty`.  The ``lazy``
+        argument can also be used when `classproperty` is used as a decorator
+        (see the third example below).  When used in the decorator syntax this
+        *must* be passed in as a keyword argument.
 
     Examples
     --------
 
-    >>> class Example:
-    ...
-    ...    _name = None  # optional name.
-    ...    # Optional name. Defaults to class name if not over-written by 
-    ...    # inheritors.
-    ...
-    ...    @ClassProperty
-    ...    @classmethod
-    ...    def name(cls):
-    ...        return cls._name or cls.__name__
-    ...
-    ...    @name.setter
-    ...    def name(self, name):
-    ...        self.set_name(name)
-    ...
-    ...    @classmethod
-    ...    def set_name(cls, name):
-    ...        assert isinstance(name, str)
-    ...        cls._name = name
-    ...
-    ... obj = Example()
-    ... obj.name
-    'Example'
-    >>> obj.name = 'New'
-    ... (obj.name, Example.name)
-    ('New', 'New')
+    ::
 
-    NOTE:FIXME Class level assignment OVERWRITES `name` - doesn't go through
-    setter
-    >>> Example.name = 'zzz'
-    ... obj.name, Example.name
-    ('zzz', 'zzz')
+        >>> class Foo:
+        ...     _bar_internal = 1
+        ...     @classproperty
+        ...     def bar(cls):
+        ...         return cls._bar_internal + 1
+        ...
+        >>> Foo.bar
+        2
+        >>> foo_instance = Foo()
+        >>> foo_instance.bar
+        2
+        >>> foo_instance._bar_internal = 2
+        >>> foo_instance.bar  # Ignores instance attributes
+        2
 
+    As previously noted, a `classproperty` is limited to implementing
+    read-only attributes::
+
+        >>> class Foo:
+        ...     _bar_internal = 1
+        ...     @classproperty
+        ...     def bar(cls):
+        ...         return cls._bar_internal
+        ...     @bar.setter
+        ...     def bar(cls, value):
+        ...         cls._bar_internal = value
+        ...
+        Traceback (most recent call last):
+        ...
+        NotImplementedError: classproperty can only be read-only; use a
+        metaclass to implement modifiable class-level properties
+
+    When the ``lazy`` option is used, the getter is only called once::
+
+        >>> class Foo:
+        ...     @classproperty(lazy=True)
+        ...     def bar(cls):
+        ...         print("Performing complicated calculation")
+        ...         return 1
+        ...
+        >>> Foo.bar
+        Performing complicated calculation
+        1
+        >>> Foo.bar
+        1
+
+    If a subclass inherits a lazy `classproperty` the property is still
+    re-evaluated for the subclass::
+
+        >>> class FooSub(Foo):
+        ...     pass
+        ...
+        >>> FooSub.bar
+        Performing complicated calculation
+        1
+        >>> FooSub.bar
+        1
     """
 
-    def __get__(self, instance, kls):
-        return self.fget.__get__(None, kls)()
+    def __new__(cls, fget=None, doc=None, lazy=False):
+        if fget is None:
+            # Being used as a decorator--return a wrapper that implements
+            # decorator syntax
+            def wrapper(func):
+                return cls(func, lazy=lazy)
+
+            return wrapper
+
+        return super().__new__(cls)
+
+    def __init__(self, fget, doc=None, lazy=False):
+        self._lazy = lazy
+        if lazy:
+            self._lock = threading.RLock()   # Protects _cache
+            self._cache = {}
+        fget = self._wrap_fget(fget)
+
+        super().__init__(fget=fget, doc=doc)
+
+        # There is a buglet in Python where self.__doc__ doesn't
+        # get set properly on instances of property subclasses if
+        # the doc argument was used rather than taking the docstring
+        # from fget
+        # Related Python issue: https://bugs.python.org/issue24766
+        if doc is not None:
+            self.__doc__ = doc
+
+    def __get__(self, obj, objtype):
+        if self._lazy:
+            val = self._cache.get(objtype, _NotFound)
+            if val is _NotFound:
+                with self._lock:
+                    # Check if another thread initialised before we locked.
+                    val = self._cache.get(objtype, _NotFound)
+                    if val is _NotFound:
+                        val = self.fget.__wrapped__(objtype)
+                        self._cache[objtype] = val
+        else:
+            # The base property.__get__ will just return self here;
+            # instead we pass objtype through to the original wrapped
+            # function (which takes the class as its sole argument)
+            val = self.fget.__wrapped__(objtype)
+        return val
+
+    def getter(self, fget):
+        return super().getter(self._wrap_fget(fget))
+
+    def setter(self, fset):
+        raise NotImplementedError(
+            "classproperty can only be read-only; use a metaclass to "
+            "implement modifiable class-level properties")
+
+    def deleter(self, fdel):
+        raise NotImplementedError(
+            "classproperty can only be read-only; use a metaclass to "
+            "implement modifiable class-level properties")
+
+    @staticmethod
+    def _wrap_fget(orig_fget):
+        if isinstance(orig_fget, classmethod):
+            orig_fget = orig_fget.__func__
+
+        # Using stock functools.wraps instead of the fancier version
+        # found later in this module, which is overkill for this purpose
+
+        @ftl.wraps(orig_fget)
+        def fget(obj):
+            return orig_fget(obj.__class__)
+
+        return fget
+
 
 # alias
 classproperty = ClassProperty
@@ -296,3 +482,7 @@ class CachedProperty(property):
         for child in self._dependents:
             logger.debug('delete child {}', child)
             child.__delete__(obj)
+
+
+#
+cachedproperty = cached_property = lazyproperty = CachedProperty
