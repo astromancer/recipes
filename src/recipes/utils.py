@@ -2,12 +2,17 @@
 Some miscellaneous utility functions.
 """
 
-# std
+import typing
 import numbers
+import builtins
 from collections import abc
 
 
-def duplicate_if_scalar(obj, n=2, raises=True, accept=(str,)):  # TODO: severity
+def is_scalar(obj, exceptions=(str, )):
+    return not isinstance(obj, abc.Sized) or isinstance(obj, exceptions)
+
+
+def duplicate_if_scalar(obj, n=2, raises=True, exceptions=(str,)):  # TODO: severity
     """
     Ensure object size or duplicate if necessary.
 
@@ -20,7 +25,7 @@ def duplicate_if_scalar(obj, n=2, raises=True, accept=(str,)):  # TODO: severity
 
     """
 
-    if not isinstance(obj, abc.Sized) or isinstance(obj, accept):
+    if is_scalar(obj, exceptions):
         return [obj] * n
 
     size = len(obj)
@@ -83,6 +88,34 @@ def _integers_from_slices(slices, n):
     for s in slices:
         integers |= set(range(*s.indices(n)))
     return integers
+
+
+class EnsureWrapped:
+    def __init__(self, wrapper, is_scalar=str, not_scalar=abc.Iterable):
+        
+        if isinstance(wrapper, type):
+            self.wrapper = wrapper
+            self.coerce = None
+        elif isinstance(wrapper, typing._GenericAlias):
+            self.wrapper = getattr(builtins, wrapper._name.lower())
+            self.coerce, = typing.get_args(wrapper)
+        else:
+            raise TypeError(f'Invalid wrapper type {wrapper}.')
+        
+        self.scalars = is_scalar
+        self.not_scalars = not_scalar
+    
+    def _iter(self, obj):
+        if isinstance(obj, self.not_scalars) and not isinstance(obj, self.scalars):
+            yield from obj
+            return
+
+        yield obj
+    
+    def __call__(self, obj, coerce=None):
+        coerce = coerce or self.coerce
+        itr = self._iter(obj)
+        return self.wrapper(map(coerce, itr) if coerce else itr)
 
 
 def _ensure_wrapped(obj, scalars=str):

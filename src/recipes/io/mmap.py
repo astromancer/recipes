@@ -1,6 +1,5 @@
 
 # std
-import numbers
 import tempfile
 from pathlib import Path
 
@@ -9,7 +8,7 @@ import numpy as np
 from loguru import logger
 
 # relative
-from ..oo import coerce
+from ..utils import ensure_wrapped
 
 
 def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
@@ -46,7 +45,9 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
         dtype = 'f' if fill is None else type(fill)
 
     # create memmap
-    shape = coerce(shape, tuple, numbers.Integral) if shape else None
+    if shape:
+        shape = ensure_wrapped(shape, tuple)
+
     if new:
         logger.debug('Creating memmap of shape {!s} and dtype {!r:} at {!r:}.',
                      shape, dtype, filename)
