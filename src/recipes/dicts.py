@@ -329,6 +329,33 @@ class DefaultDict(defaultdict):
         return new
 
 
+# ---------------------------------------------------------------------------- #
+
+
+class vdict(dict):
+    """
+    Dictionary with vectorized item lookup.
+    """
+    _wrapper = list
+
+    def __getitem__(self, key):
+        # dispatch on list, np.ndarray for vectorized item getting with arbitrary
+        # nesting
+        try:
+            return super().__getitem__(key)
+        except (KeyError, TypeError) as err:
+            # vectorization
+            if isinstance(key, abc.Collection) and not isinstance(key, str):
+                # Container and not str
+                return self._wrapper(self[_] for _ in key)
+
+            if key in (Ellipsis, None):
+                return self._wrapper(self.values())
+
+            raise err from None
+
+
+# ---------------------------------------------------------------------------- #
 class _AccessManager:
     """
     Mixin that toggles read/write access.
