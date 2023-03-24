@@ -7,7 +7,17 @@ from ..iter import superclasses
 from .repr_helpers import ReprHelper, _repr
 
 
+def _sanitize(kws):
+    kws = dict(kws)
+    for _ in {'self', 'kws', '__class__'}:
+        kws.pop(_, None)
+    return kws
+
+
 def _get_slots(cls):
+    if not isinstance(cls, type) and hasattr(cls, '__slots__'):
+        cls = type(cls)
+        
     for base in (*superclasses(cls), cls):
         yield from getattr(base, '__slots__', ())
 
@@ -35,10 +45,23 @@ class SlotHelper(SlotRepr):
 
     __slots__ = ()
 
-    def __init__(self, **kws):
+    @classmethod
+    def from_dict(cls, kws):
+        init_params = set(_get_slots(cls))
+        init_params |= set(cls.__init__.__code__.co_varnames) - {'self', 'args', 'kws'}
+        return cls(**{s: kws.pop(s) for s in init_params if s in kws})
+
+    def __init__(self, *args, **kws):
         # generic init that sets attributes for input keywords
-        for _ in {'self', 'kws', '__class__'}:
-            kws.pop(_, None)
+        kws = _sanitize(kws)
+
+        used = set()
+        for key, val in zip(self.__slots__, args):
+            setattr(self, key, val)
+            used.add(key)
+
+        if overspecified := (used & set(kws)):
+            raise ValueError(f'Multiple values for parameter {overspecified.pop()}.')
 
         for key, val in kws.items():
             setattr(self, key, val)
@@ -57,7 +80,8 @@ class SlotHelper(SlotRepr):
         for at in _get_slots(type(self)):
             eq = (getattr(self, at) == getattr(other, at))
             if not isinstance(eq, bool):
-                eq = eq.all()
+                eq = all(eq)
             if not eq:
                 return False
+
         return True
