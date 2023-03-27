@@ -273,7 +273,7 @@ def merge(*mappings, **kws):
 
 
 class Pprinter:
-    """Mixin class that pretty prints dictionary content"""
+    """Mixin class that pretty prints dictionary content."""
 
     def __str__(self):
         return pformat(self)  # self.__class__.__name__

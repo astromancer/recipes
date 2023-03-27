@@ -1,7 +1,7 @@
 import types
 
 
-class sharedmethod(classmethod): # source astropy
+class sharedmethod(classmethod):  # source astropy
     """
     This is a method decorator that allows both an instancemethod and a
     `classmethod` to share the same name.

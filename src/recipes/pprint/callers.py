@@ -1,5 +1,5 @@
 """
-Pretty printing callable objects and call signatures
+Pretty printing callable objects and call signatures.
 """
 
 # std
@@ -8,13 +8,14 @@ import textwrap as txw
 
 # relative
 from ..introspect.utils import get_module_name
-from ..introspect import get_defining_class
-# import types
 
 
+# ---------------------------------------------------------------------------- #
 POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 VAR_MARKS = {VAR: '*', VKW: '**'}
 _empty = inspect.Parameter.empty
+
+# ---------------------------------------------------------------------------- #
 
 
 def describe(obj, sep=' ', repr=repr):
@@ -58,7 +59,7 @@ def describe(obj, sep=' ', repr=repr):
             return f'class {repr(obj.__name__)}'
 
         # obj is a class
-        return 'class ' + repr(f'{obj.__module__}.{obj.__name__}')
+        return f"class {repr(f'{obj.__module__}.{obj.__name__}')}"
         # return str(obj).strip("<>")
 
     if hasattr(obj, '__qualname__'):
@@ -315,4 +316,4 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
 
 
 # alias
-method = caller
+pformat = method = caller

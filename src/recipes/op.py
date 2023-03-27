@@ -108,7 +108,7 @@ class ItemGetter:
             try:
                 yield self._worker(target, i)
             except self._excepts:
-                # note. Next line will raise KeyError if no default provided at init
+                # NOTE. Next line raises KeyError if no default provided at init
                 yield self.get_default(i)
 
 

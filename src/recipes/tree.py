@@ -6,12 +6,10 @@ import math
 import numbers
 import itertools as itt
 from pathlib import Path
-from typing import MutableMapping
 
 # third-party
 import anytree
 from anytree.render import _is_last
-from loguru import logger
 
 # relative
 from . import op
