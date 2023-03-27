@@ -229,9 +229,10 @@ class Synonyms(Decorator):
         """
         Update the translation map.
         """
+
         _mode = mode
         for pattern, target in dict(mappings).items():
-            if _mode is None:
+            if mode is None:
                 _mode = 'simple' if pattern.replace('_', '').isalpha() else 'regex'
 
             translator = TRANSLATORS[_mode]
@@ -242,7 +243,7 @@ class Synonyms(Decorator):
         Translate the keys in `kws` dict to the correct one for the hard api.
         """
         logger.debug('Correcting user call parameters for api function {!r}:',
-                     self.func.__name__)
+                     callers.describe(self.func))
 
         sig = self.signature
         param_types = {par.name: par.kind
@@ -250,7 +251,7 @@ class Synonyms(Decorator):
 
         # resolve kws
         kws = {self.resolve_key(key): val
-               for key, val in kws.items()}
+                for key, val in kws.items()}
 
         # check if any translated kws overlap with args
         if args:
@@ -262,8 +263,9 @@ class Synonyms(Decorator):
         new = []
         args = iter(args)
         sentinel = object()
+        stoplist = [KWO, VKW, *([PKW] * (VAR not in param_types.values()))]
         for (name, kind) in param_types.items():
-            if kind in (KWO, VKW):
+            if kind in stoplist:
                 break
 
             if name in kws:
@@ -280,7 +282,7 @@ class Synonyms(Decorator):
             return key
 
         for func in self.resolvers:
-            if (trial := func(key)) in self._param_names:
+            if (trial := func(key)) and trial != key:
                 logger.debug(msg := f'Keyword translated: {key!r} --> {trial!r}')
                 self.emit(msg)
                 return trial

@@ -101,18 +101,38 @@ def test_subs(fun, spec):
     decorated = syn(fun)
     decorated(*args, **kws)
 
+# ---------------------------------------------------------------------------- #
 
-def test_kws():
 
-    class Case:
-        @api.synonyms({'convert': 'converters'})
-        def from_dict(self, data, converters=(), **kws):
-            assert 'convert' not in kws
+class Case0:
+    @api.synonyms({'convert': 'converters'})
+    def method(self, data, converters=(), **kws):
+        assert 'convert' not in kws
 
-    case = Case()
-    case.from_dict(None, convert=True)
+
+class Case1:
+    @api.synonyms({
+        'convert':                  'converters',
+        'split_nested(_types?)?':   'split_nested_types'
+    })
+    def method(self, data, converters=(), ignore_keys=(), convert_keys=(),
+               order='r', col_sort=None, **kws):
+        assert 'convert' not in kws
+        assert converters is True
+        assert kws.pop('split_nested_types') is True
+
+
+@pytest.mark.parametrize(
+    'cls, kws',
+    {Case0: dict(convert=True),
+     Case1: dict(convert=True, split_nested=True)}.items()
+)
+def test_kws(cls, kws):
+    case = cls()
+    case.method(None, **kws)
+
     with pytest.raises(TypeError):
-        case.from_dict(None, None, convert=True)
+        case.method(None, None, **kws)
 
 
 def test_kws_classmethod():
@@ -122,10 +142,12 @@ def test_kws_classmethod():
         @api.synonyms({'convert': 'converters'})
         def from_dict(cls, data, converters=(), **kws):
             assert 'convert' not in kws
+            assert converters is True
 
     Case.from_dict(None, convert=True)
     with pytest.raises(TypeError):
         Case.from_dict(None, None, convert=True)
+
 
 # def test_kws():
 
