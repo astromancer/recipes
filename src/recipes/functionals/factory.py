@@ -5,30 +5,40 @@ The following code shows (implicitly) how the various types of parameters are
 defined:
 
 >>> def func(
-...         a, b=0,   # positional only
-...         /,
-...         c, d=2,   # positional or kw
-...         *args,    # variadic positional
-...         *,
-...         e=3,      # keyword-only
-...         **kws     # variadic keywords
+...         a, b=0,     # positional only
+...         /,          # mark end of position-only params
+...         c, d=2,     # positional or keyword
+...         *args,      # variadic positional
+...         *,          # mark start of keyword-only params
+...         e=3,        # keyword-only
+...         **kws       # variadic keywords
 ...     ): ...
 """
 
 
 # std
+import inspect
 import textwrap as txw
 import itertools as itt
 from collections import defaultdict
-from inspect import Parameter, inspect
 
 # third-party
 import more_itertools as mit
+from loguru import logger
+
 
 # ---------------------------------------------------------------------------- #
 
-
+Parameter = inspect.Parameter
 PKIND = POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
+
+
+NULL = object()
+
+FUNC_TEMPL = """
+def {name}{sig!s}:
+    ...
+"""
 
 # pylint: disable-all
 
@@ -45,7 +55,7 @@ PKIND = POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 # # varspec = {VAR: (itt.repeat('*args'), itt.repeat(Parameter.empty)),
 #            VKW: (itt.repeat('**kws'), itt.repeat(Parameter.empty))}
 
-
+# ---------------------------------------------------------------------------- #
 def has_default(par):
     return par.default is not par.empty
 
@@ -82,11 +92,12 @@ def has_var(params):
 class FunctionFactory:
     """Generate python functions for all variety of allowed signatures."""
 
-    def __init__(self, arg_name_pool, default_pool):
+    def __init__(self, arg_name_pool, default_pool, function_body='...'):
         self.name_pool = arg_name_pool
         self.default_pool = itt.cycle(default_pool)
+        self.function_body = str(function_body)
 
-    def __call__(self, n_par_kind, name_base='f', class_name_base=None):
+    def __call__(self, n_par_kind, name_base='f', class_name_base=None, body=None):
         """
         Generate functions with signature based on *n_par_kind*. Successively
         yields fuctions having between 0 and n parameters of each kind, where n
@@ -123,10 +134,9 @@ class FunctionFactory:
                     name = f'{name_base}{i}'
 
                 # create func
-                yield self.make(name, params, class_name)
+                yield self.make(name, params, class_name, body)
 
-        logger.info(
-            f'Created {i} functions with unique signature')
+        logger.info(f'Created {i} functions with unique signature.')
 
     def gen_params(self, nkind):
         """
@@ -194,30 +204,31 @@ class FunctionFactory:
 
         # new parameter with default
         for params in self.toggle_defaults(params[:-1]):
-            yield params + [last.replace(default=next(self.default_pool))]
+            yield [*params, last.replace(default=next(self.default_pool))]
 
     @staticmethod
-    def get_code(name, params, class_name=None):
+    def get_code(name, params, class_name=None, body=None):
         """function source code factory"""
         if class_name:
             params = [Parameter('self', POS)] + params
 
         sig = inspect.Signature(params)
-        s = txw.dedent(f"""
-                        def {name}{sig!s}:
-                            pass
-                        """).strip('\n')
+        body = txw.indent(body or '...', ' ' * 4)
+        s = txw.dedent(FUNC_TEMPL.format(**locals())).strip('\n')
 
         if class_name:
-            deffunc = txw.indent(s, '\t')
-            defclass = f"class {class_name}:\n{deffunc}".expandtabs(4)
+            deffunc = txw.indent(s, ' ' * 4)
+            defclass = f'class {class_name}:\n{deffunc}'
             return f'{defclass}\n\nobj = {class_name}()'
+        
         return s
 
-    def make(self, name, params, class_name=None):
-        """function factory"""
+    def make(self, name, params, class_name=None, body=None, evaldict=None):
+        """function factory."""
         locals_ = {}
-        exec(self.get_code(name, params, class_name), None, locals_)
+        code = self.get_code(name, params, class_name, body or self.function_body)
+        # print('CODE', code, sep='\n')
+        exec(code, evaldict or {}, locals_)
         return getattr(locals_['obj'], name) if class_name else locals_[name]
 
 
@@ -279,15 +290,18 @@ class ParamValueGenerator:
             return
 
         if par.kind in [POS, PKW]:
-            args.append(next(self.arg_pool))
+            if (item := next(self.arg_pool, NULL)) is not NULL:
+                args.append(item)
 
         elif par.kind == VAR:
-            args.extend(next(self.var_pool))
+            args.extend(next(self.var_pool, ()))
 
         elif par.kind == KWO:
-            kws[par.name] = next(self.arg_pool)
+            if (item := next(self.arg_pool, NULL)) is not NULL:
+                kws[par.name] = item
 
         elif par.kind == VKW:
-            kws.update(next(self.kws_pool))
+            kws.update(next(self.kws_pool, {}))
+
 
 ArgValGen = ParamValueGenerator

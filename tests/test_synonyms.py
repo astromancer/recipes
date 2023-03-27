@@ -9,7 +9,7 @@ from loguru import logger
 # local
 from recipes import api, dicts
 from recipes.pprint import callers
-from recipes.function_factory import FunctionFactory
+from recipes.functionals.factory import FunctionFactory
 
 
 # ---------------------------------------------------------------------------- #

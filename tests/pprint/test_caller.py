@@ -10,7 +10,7 @@ from pytest_cases import parametrize
 # local
 from recipes import pprint as pp
 from recipes.string import replace_suffix
-from recipes.function_factory import FunctionFactory, ParamValueGenerator
+from recipes.functionals.factory import FunctionFactory, ParamValueGenerator
 
 
 # pylint: disable-all
