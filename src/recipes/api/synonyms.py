@@ -41,7 +41,7 @@ import itertools as itt
 from loguru import logger
 
 # relative
-from ..pprint import caller
+from ..pprint import callers
 from ..functionals import Emit
 from ..decorators import Decorator
 from ..string.brackets import BracketParser
@@ -67,17 +67,25 @@ OPTION_REGEX_BUILDERS = {'[]': _ordered_group,
 
 
 # ---------------------------------------------------------------------------- #
+class OneToOne:
+    def __init__(self, pattern, answer=''):
+        self.pattern = str(pattern)
+        self.answer = str(answer)
 
-class RegexTranslate:
+    def __call__(self, s):
+        if s == self.pattern:
+            return self.answer
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.pattern} --> {self.answer})'
+
+
+class RegexTranslate(OneToOne):
     """
     Class to assist many-to-one keyword mappings via regex pattern matching.
     """
 
     def __init__(self, pattern, answer=''):  # ensure_order
-
-        # assert mode in {'simple', 'regex', None}, f'Invalid mode string: {mode!r}'
-
-        self.answer = str(answer)
 
         if isinstance(pattern, str):
             self.regex = re.compile(pattern)
@@ -88,12 +96,12 @@ class RegexTranslate:
         else:
             raise TypeError('Invalid pattern type: {}', type(pattern))
 
+        # assert mode in {'simple', 'regex', None}, f'Invalid mode string: {mode!r}'
+        super().__init__(self.regex.pattern, answer)
+
     def __call__(self, s):
         if self.regex.fullmatch(s):
             return self.answer
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({self.regex.pattern} --> {self.answer})'
 
 
 class KeywordTranslate(RegexTranslate):
@@ -167,7 +175,7 @@ class Synonyms(Decorator):
     """
     # TODO: detect ambiguous mappings
 
-    def __init__(self, mappings=(), /, mode='regex', action='warn'):
+    def __init__(self, mappings=(), /, mode=None, action='warn'):
         # TODO **kws for simple mappings labels=label
         self.emit = Emit(action, TypeError)
         self.resolvers = []
@@ -183,7 +191,7 @@ class Synonyms(Decorator):
                         {p.kind for p in sig.parameters.values()})
 
         if self._no_kws:
-            logger.info(f'No variadic keywords in {caller(self.func)}. '
+            logger.info(f'No variadic keywords in {callers.describe(self.func)}. '
                         'Decorator will have different function signature that '
                         'includes variadic keywords (**kws) in order to support'
                         ' api translation facilities.')
@@ -191,41 +199,42 @@ class Synonyms(Decorator):
         #     dec.__signature__ = sig.replace(parameters=params)
 
         # decorate
-        return super().__call__(func, kwsyntax=self._no_kws)
+        return super().__call__(func, kwsyntax=True)
 
     def __wrapper__(self, func, *args, **kws):
-
         if self._no_kws:
-            args, kws = self.resolve(args, kws)
-            return func(*args, **kws)
+            try:
+                return func(*args, **kws)
+            except TypeError as err:  # NOTE: only works if func has no variadic kws
+                if ((e := str(err)).startswith(func.__name__) and
+                        ('unexpected keyword argument' in e)):
+                    #
+                    logger.debug('Caught {}\n. Attempting keyword translation.', err)
+                    args, kws = self.resolve(args, kws)
+                    logger.debug('Re-trying function call {}(...) with synonymous '
+                                 'keywords.', func.__name__)
+                    return func(*args, **kws)
+                raise
 
         # NOTE: if the function takes variadic keywords (**kws), we cannot rely
         # on the function call failing below due to incorrect keyword arguments
         # since those will be aggregated in the kws dict by the interpreter.
-        try:
-            return func(*args, **kws)
-        except TypeError as err:  # NOTE: only works if func has no variadic kws
-            if ((e := str(err)).startswith(func.__name__) and
-                    ('unexpected keyword argument' in e)):
-                #
-                logger.debug('Caught {}\n. Attempting keyword translation.', err)
-                args, kws = self.resolve(args, kws)
-                logger.debug('Re-trying function call {}(...) with synonymous '
-                             'keywords.', func.__name__)
-                return func(*args, **kws)
-            raise
+        args, kws = self.resolve(args, kws)
+        return func(*args, **kws)
 
     def __repr__(self):
         return repr(self.resolvers)
 
-    def update(self, mappings=(), /, _mode='regex'):
+    def update(self, mappings=(), mode=None):
         """
         Update the translation map.
         """
-
-        translator = TRANSLATORS[_mode]
+        _mode = mode
         for pattern, target in dict(mappings).items():
-            # if isinstance(k, str)
+            if _mode is None:
+                _mode = 'simple' if pattern.replace('_', '').isalpha() else 'regex'
+
+            translator = TRANSLATORS[_mode]
             self.resolvers.append(translator(pattern, target))
 
     def resolve(self, args, kws):    # namespace=None,
@@ -243,8 +252,14 @@ class Synonyms(Decorator):
         kws = {self.resolve_key(key): val
                for key, val in kws.items()}
 
+        # check if any translated kws overlap with args
+        if args:
+            ba = sig.bind_partial(*args).arguments
+            if ambiguous := (set(ba.keys()) & kws.keys()):
+                raise TypeError(f'{callers.describe(self.func)} got multiple '
+                                f'values for argument {ambiguous.pop()!r}.')
+
         new = []
-        have_args = bool(args)
         args = iter(args)
         sentinel = object()
         for (name, kind) in param_types.items():
@@ -279,6 +294,7 @@ class Synonyms(Decorator):
 # alias
 synonyms = Synonyms
 
-TRANSLATORS = {'simple': KeywordTranslate,
+TRANSLATORS = {'simple': OneToOne,
+               'weird': KeywordTranslate,
                'regex': RegexTranslate}
 # ---------------------------------------------------------------------------- #
