@@ -41,11 +41,19 @@ import itertools as itt
 from loguru import logger
 
 # relative
+from ..pprint import caller
 from ..functionals import Emit
 from ..decorators import Decorator
 from ..string.brackets import BracketParser
 
 
+# ---------------------------------------------------------------------------- #
+# Parameter types
+PKIND = POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
+
+
+# ---------------------------------------------------------------------------- #
+# Interpret directive brackets () []
 def _ordered_group(word):
     return '|'.join(itt.accumulate(word)).join(('()'))
 
@@ -57,6 +65,8 @@ def _unordered_group(word):
 OPTION_REGEX_BUILDERS = {'[]': _ordered_group,
                          '()': _unordered_group}
 
+
+# ---------------------------------------------------------------------------- #
 
 class RegexTranslate:
     """
@@ -151,9 +161,6 @@ class KeywordTranslate(RegexTranslate):
         return regex
 
 
-POS, PKW, VAR, KWO, VKW = inspect._ParameterKind
-
-
 class Synonyms(Decorator):
     """
     Decorator for function parameter translation.
@@ -174,12 +181,17 @@ class Synonyms(Decorator):
         self._param_names = tuple(sig.parameters.keys())
         self._no_kws = (inspect._ParameterKind.VAR_KEYWORD not in
                         {p.kind for p in sig.parameters.values()})
+
         if self._no_kws:
-            logger.info(f'No variadic keywords in {self.func}. Changing '
-                         'function signature!')
+            logger.info(f'No variadic keywords in {caller(self.func)}. '
+                        'Decorator will have different function signature that '
+                        'includes variadic keywords (**kws) in order to support'
+                        ' api translation facilities.')
+        #     params = (*self.signature.parameters.values(), inspect.Parameter('kws', VKW))
+        #     dec.__signature__ = sig.replace(parameters=params)
 
         # decorate
-        return super().__call__(func, kwsyntax=False)  # self._no_kws
+        return super().__call__(func, kwsyntax=self._no_kws)
 
     def __wrapper__(self, func, *args, **kws):
 
@@ -187,6 +199,9 @@ class Synonyms(Decorator):
             args, kws = self.resolve(args, kws)
             return func(*args, **kws)
 
+        # NOTE: if the function takes variadic keywords (**kws), we cannot rely
+        # on the function call failing below due to incorrect keyword arguments
+        # since those will be aggregated in the kws dict by the interpreter.
         try:
             return func(*args, **kws)
         except TypeError as err:  # NOTE: only works if func has no variadic kws
@@ -217,6 +232,9 @@ class Synonyms(Decorator):
         """
         Translate the keys in `kws` dict to the correct one for the hard api.
         """
+        logger.debug('Correcting user call parameters for api function {!r}:',
+                     self.func.__name__)
+
         sig = self.signature
         param_types = {par.name: par.kind
                        for par in sig.parameters.values()}
@@ -226,12 +244,17 @@ class Synonyms(Decorator):
                for key, val in kws.items()}
 
         new = []
+        have_args = bool(args)
         args = iter(args)
+        sentinel = object()
         for (name, kind) in param_types.items():
             if kind in (KWO, VKW):
                 break
 
-            new.append(kws.pop(name) if name in kws else next(args, ()))
+            if name in kws:
+                new.append(kws.pop(name))
+            elif (val := next(args, sentinel)) is not sentinel:
+                new.append(val)
 
         new.extend(args)
         return new, kws
@@ -252,8 +275,10 @@ class Synonyms(Decorator):
         # raise KeyError(f'Invalid parameter {key!r} for {describe(self.func)}')
 
 
+# ---------------------------------------------------------------------------- #
 # alias
 synonyms = Synonyms
 
 TRANSLATORS = {'simple': KeywordTranslate,
                'regex': RegexTranslate}
+# ---------------------------------------------------------------------------- #
