@@ -11,6 +11,7 @@ import re
 import math
 import pprint
 import numbers
+import warnings
 import itertools as itt
 from collections import namedtuple
 
@@ -21,10 +22,9 @@ import numpy as np
 import docsplice as doc
 
 # relative
-from .. import op
+from .. import op, unicode as uni
 from ..functionals import echo0
 from ..array.misc import vectorize
-from .. import unicode as uni
 from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 
@@ -117,9 +117,7 @@ def leading_decimal_zeros(n):
 
     """
     m = order_of_magnitude(n)
-    if m > 0 or math.isinf(m):
-        return 0
-    return -m - 1
+    return 0 if (m > 0 or math.isinf(m)) else -m - 1
 
 
 def get_significant_digits(x, n=3):
@@ -231,59 +229,65 @@ def _to_sexa(t, base_unit='h', precision='s'):
     yield s * t
 
 
-def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
+class YMDHMS:
 
     fill = ('', '', '', '0', '0', '0')
     width = ('', '', '', 2, 2, 2)
-    # sep = ['y', 'M', 'd ', 'h', 'm', 's']
 
-    # parse spec
-    mo = REGEX_YMDHMS_SPEC.match(spec)
-    # kws = mo.groupdict()
+    def __init__(self, sep=None, ascii=False):
+        self.sep = tuple(self._resolve_sep(sep, ascii))
 
-    # generator that computes ydmhms representation
-    mag = 'yMdhms'
-    v = mag.index(base_unit) if base_unit else op.index(TIME_DIVISORS, t, test=op.le)
-    w = mag.index(mo['tail_unit'])
-    if v >= w:
-        raise ValueError(f'Base unit ({mag[v]!r}) must have greater magnitude '
-                         f'than tail unit ({mag[w]!r}).')
+    def __call__(self, t, base_unit=None, spec='s9?') -> str:
+        return ''.join(self._iter(t, *self._parse_spec(t, base_unit, spec))).rstrip()
 
-    # sep = kws.pop('sep') or sep
-    if sep is None:
-        sep = (YMDHMS_SUPER, YMDHMS_ASCII)[ascii]
-    # sep = SEP_SPEC.get(sep, sep)
-    nsep = len(sep)
-    assert nsep in {0, 1, 5, 6}
-    if nsep in {0, 1}:
-        sep = itt.repeat(sep, 5)
-    # print(list(sep))
-    sep = itt.islice(iter(sep), v, w + 1)
+    def _iter(self, t, u, v, p, short):
+        # compute parts and round
+        if t < 0:
+            yield ('-' if ascii else '\N{MINUS SIGN}')
 
-    # compute parts and round
-    if t < 0:
-        yield ('\N{MINUS SIGN}', '-')[ascii]
+        #
+        r = abs(t)
+        sep = itt.islice(iter(self.sep), u, v + 1)
+        for d, f, w in itt.islice(zip(TIME_DIVISORS, self.fill, self.width), u, v):
+            t, r = divmod(r, d)
+            yield f'{int(t):{f}{w}d}'
+            yield next(sep, '')
 
-    r = abs(t)
-    for i in range(v, w):  # for d in TIME_DIVISORS[v:w]:
-        d = TIME_DIVISORS[i]
-        # print(r, d)
-        t, r = divmod(r, d)
-        yield f'{int(t):{fill[i]}{width[i]}d}'
-        yield next(sep, '')
+        r /= TIME_DIVISORS[v]
+        s = f'{r:{self.fill[v]}{self.width[v] + int(p)}.{p}f}'
 
-    p = mo['precision'] or 0
-    r /= TIME_DIVISORS[w]
-    s = f'{r:{fill[i]}{width[i]}.{p}f}'
-    if mo['short'] and p:
-        s = s.rstrip('0').rstrip('.')
+        if short and p:
+            s = s.rstrip('0').rstrip('.')
 
-    yield s
-    yield from sep
+        yield s
+        yield from sep
+
+    def _parse_spec(self, t, base_unit, spec):
+        # parse spec
+        mo = REGEX_YMDHMS_SPEC.match(spec)
+
+        mag = 'yMdhms'
+        v = mag.index(base_unit) if base_unit else op.index(TIME_DIVISORS, t, test=op.le)
+        w = mag.index(mo['tail_unit'])
+        if v > w:
+            raise ValueError(f'Base unit ({mag[v]!r}) must have greater magnitude '
+                             f'than tail unit ({mag[w]!r}).')
+        return v, w, (mo['precision'] or 0), bool(mo['short'])
+
+    def _resolve_sep(self, sep, ascii):
+        if sep is None:
+            return (YMDHMS_ASCII if ascii else YMDHMS_SUPER)
+
+        nsep = len(sep)
+        if nsep in {0, 1}:
+            return itt.repeat(sep, 5)
+
+        assert nsep in {5, 6}
+        return sep
 
 
 def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
-    return ''.join(_ymdhms(t, base_unit, spec, sep, ascii)).rstrip()
+    return YMDHMS(sep, ascii)(t, base_unit, spec)
 
 
 # class ydmhms:
@@ -1176,6 +1180,9 @@ def decimal_u(x, u, precision=None, short=False,
     -------
 
     """
+    if u is None or u is False or not np.isfinite(u):
+        return decimal(x, precision, 0, sign, short, thousands=thousands)
+
     if precision is None:
         precision = precision_rule_dpg(u)
     precision = int(precision)  # type enforcement
@@ -1240,6 +1247,13 @@ def uarray(x, u, significant=None, log_switch=5, short=False, times='x',
         #
         raise NotImplementedError('Probably not a good idea. Not yet tested for'
                                   '  large arrays.')
+
+    # check uncertainty ok
+    if u is None or u is False or np.isnan(u).all():
+        warnings.warn('Ignoring invalid uncertainty array.')
+        del u
+        kws = locals()
+        return numeric_array(kws.pop('x'), **kws)
 
     # decide on scientific vs decimal notation
     oom = np.floor(np.round(np.log10(abs(x)), 9)).astype(int)
@@ -1331,11 +1345,11 @@ def matrix(a, precision=3):
     return hstack([left, tbl, right])
 
 
-# def matrix(a, precision=2, significant=3, switch=5, sign=' ', times='x',
+# def matrix(a, precision=2, significant=3, log_switch=5, sign=' ', times='x',
 #           short=False, unicode=True, latex=False, engineering=False,
 #           thousands=''):
 #     """"""
-#     q = numeric_array(a, precision, significant, switch, sign, times, short,
+#     q = numeric_array(a, precision, significant, log_switch, sign, times, short,
 #                       unicode, latex, engineering, thousands)
 #
 #     return _matrix_repr(q)
