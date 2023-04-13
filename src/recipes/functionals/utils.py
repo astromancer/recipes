@@ -45,14 +45,15 @@ class always:
 
 
 def negate(func=bool):
-    """Negates a callable that return boolean."""
+    """Negates a callable that returns boolean."""
+    # TODO: double negate retrns original
     def wrapped(obj):
         return not func(obj)
     return wrapped
 
 
 def raises(kind):
-    """raises an exception of type `kind`."""
+    """Raises an exception of type `kind`."""
     def _raises(msg):
         raise kind(msg)
     return _raises

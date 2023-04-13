@@ -88,14 +88,14 @@ class Decorator:
         obj = super().__new__(cls)
 
         # Catch auto-init usage pattern
-        if callable(maybe_func): 
+        if callable(maybe_func):
             # TODO check the annotations to see if callable expected
-            
+
             # No arguments provided to decorator.
             # >>> @decorator
             # ... def foo(): ...
             cls.__init__(obj)
-            return obj(maybe_func) # create wrapper here
+            return obj(maybe_func)  # create wrapper here
 
             # call => decorate / wrap the function
             # NOTE: init will *not* be called when returning here since we are
@@ -119,8 +119,10 @@ class Decorator:
         assert callable(func)
         self.__wrapped__ = func
         func.__wrapper__ = self.__wrapper__
+
+        # NOTE: The function returned by decorate *is not the same object* as
+        # `func` here
         logger.debug('Decorating func: {}.', func)
-        # NOTE: The function returned by decorate *is not the same object* as `func` here
         return decorate(func, self.__wrapper__, kwsyntax=kwsyntax)
 
     def __wrapper__(self, func, *args, **kws):

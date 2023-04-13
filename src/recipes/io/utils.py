@@ -70,7 +70,7 @@ def guess_format(filename):
 def deserialize(filename, formatter=None, **kws):
     path = Path(filename)
     if not path.exists():
-        raise FileNotFoundError
+        raise FileNotFoundError(str(path))
 
     formatter = formatter or guess_format(path)
     with path.open(f'r{FILEMODES[formatter]}') as fp:
