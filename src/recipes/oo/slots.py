@@ -80,7 +80,7 @@ class SlotHelper(SlotRepr):
         for at in _get_slots(type(self)):
             eq = (getattr(self, at) == getattr(other, at))
             if not isinstance(eq, bool):
-                eq = all(eq)
+                eq = eq.all()  # numpy hack
             if not eq:
                 return False
 
