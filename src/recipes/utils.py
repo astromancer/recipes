@@ -2,10 +2,35 @@
 Some miscellaneous utility functions.
 """
 
+# std
 import typing
 import numbers
 import builtins
 from collections import abc
+
+# relative
+from .functionals import negate
+
+
+def is_null(obj):
+    if (obj is None) or (obj is False):
+        return True
+
+    try:
+        return not bool(obj)
+    except ValueError as err:
+        if str(err).startswith('The truth value of an array with more than one '
+                               'element is ambiguous.'):
+            return obj.size
+
+        raise err from None
+
+
+not_null = notnull = negate(is_null)
+
+
+# alias
+isnull = is_null
 
 
 def is_scalar(obj, exceptions=(str, )):
@@ -106,7 +131,6 @@ class EnsureWrapped:
 
         self.scalars = is_scalar
         self.not_scalars = not_scalar
-
 
     def __call__(self, obj, coerce=None):
         coerce = coerce or self.coerce

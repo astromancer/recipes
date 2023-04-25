@@ -22,14 +22,12 @@ from loguru import logger
 
 # relative
 from .. import api, cosort, op, pprint as pp
-from ..io import open_any
+from ..utils import not_null
 from ..iter import unduplicate
 from ..dicts import AttrReadItem
 from ..functionals import negate
 from ..logging import LoggingMixin
-from ..string import remove_prefix
 from ..pprint.callers import describe
-from .utils import BUILTIN_MODULE_NAMES
 from ..string import remove_prefix, truncate
 from ..io import open_any, read_lines, safe_write
 from .utils import BUILTIN_MODULE_NAMES, get_module_name
@@ -50,6 +48,11 @@ from .utils import BUILTIN_MODULE_NAMES, get_module_name
 # TODO: merge these
 # from collections.abc import Hashable
 # from collections import OrderedDict, UserDict, abc, defaultdict
+
+# TODO detect clobbered imports
+# from x import y
+# from y import y
+
 
 # ---------------------------------------------------------------------------- #
 api_synonyms = api.synonyms({'filter':          'filter_unused',
@@ -112,19 +115,6 @@ def is_script(source: str):
     return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
 
 # ---------------------------------------------------------------------------- #
-
-
-def is_null(obj):
-    return (obj is None) or (obj is False)
-
-
-def not_null(obj):
-    return not is_null(obj)
-
-
-# alias
-isnull = is_null
-notnull = not_null
 
 # ---------------------------------------------------------------------------- #
 # Functions for sorting / rewriting import nodes
