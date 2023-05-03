@@ -63,9 +63,9 @@ def _iter_files(file_or_folder):
         elif path.suffix == '.py':
             yield path
         else:
-            logger.warning('Not a valid python file: \'{}\'.', path)
+            logger.warning("Not a valid python file: '{}'.", path)
     else:
-        logger.warning('File or directory does not exist: \'{}\'.', path)
+        logger.warning("File or directory does not exist: '{}'.", path)
 
 
 def worker(file, style):

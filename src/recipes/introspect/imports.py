@@ -12,7 +12,6 @@ import math
 import warnings as wrn
 import functools as ftl
 import itertools as itt
-from typing import Union
 from pathlib import Path
 from collections import defaultdict
 
@@ -30,7 +29,7 @@ from ..logging import LoggingMixin
 from ..pprint.callers import describe
 from ..string import remove_prefix, truncate
 from ..io import open_any, read_lines, safe_write
-from .utils import BUILTIN_MODULE_NAMES, get_module_name
+from .utils import BUILTIN_MODULE_NAMES, get_module_name, get_package_name
 
 
 # FIXME: unscoped imports do not get added to top!!!
@@ -133,7 +132,7 @@ def is_any_import_node(node):
 
 
 def is_relative(node):
-    return get_level(node) > 0
+    return get_level(node) > 0``
 
 
 def get_level(node):
@@ -148,16 +147,6 @@ def get_length(node):
 
 def get_module_name_list(node):
     return get_module_name(node).split('.')
-
-
-def get_package_name(node_or_path: Union[str, Path, ast.Import]):
-    fullname = get_module_name(node_or_path)
-    # if fullname.startswith('.'):
-    #     return '.' * node.level
-    if fullname is None:
-        raise ValueError(f'Could not get package name for file {node_or_path!r}.')
-
-    return fullname.split('.', 1)[0]
 
 
 def relative_sorter(node):
@@ -222,28 +211,6 @@ def rewrite(node, width=80, hang=None, indent=4, one_per_line=False):
 # Group sorters
 
 
-def get_module_kind(module_name):
-    return CONFIG.module_group_names[get_module_typecode(module_name)]
-
-
-def get_module_typecode(module_name):
-    # get name if Node
-    if is_any_import_node(module_name):
-        module_name = get_package_name(module_name)
-    #
-    assert isinstance(module_name, str)
-
-    if is_builtin(module_name):
-        return 0
-    if is_local(module_name):
-        return 2
-    if not module_name or module_name.startswith('.'):
-        return 3
-    return 1
-    # if is_3rd_party(module_name):
-    #     return 1
-
-
 def is_builtin(name):  # name.split('.')[0]
     return name in BUILTIN_MODULE_NAMES
 
@@ -262,6 +229,33 @@ def is_local(name):
 #         return False
 #
 #     return ('dist-packages' in spec.origin) or ('site-packages' in spec.origin)
+
+
+def get_module_kind(module_name):
+    return CONFIG.module_group_names[get_module_typecode(module_name)]
+
+
+def get_module_typecode(module_name):
+
+    # get name if Node
+    if is_any_import_node(module_name):
+        module_name = get_package_name(module_name)
+    #
+    assert isinstance(module_name, str)
+
+    if is_builtin(module_name):
+        return 0
+
+    if is_local(module_name):
+        return 2
+
+    # sourcery skip: assign-if-exp, reintroduce-else
+    if not module_name or module_name.startswith('.'):
+        return 3
+
+    return 1
+    # if is_3rd_party(module_name):
+    #     return 1
 
 
 def get_group_style(module):

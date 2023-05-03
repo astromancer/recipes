@@ -1,0 +1,17 @@
+
+# sorting style
+style:                      aesthetic
+# filter_unused:None
+# split:0
+# merge:1
+# relativize:None
+width:  80
+
+# internal sorting codes
+module_group_names:         [std, third-party, local, relative]
+module_group_name_suffix:   # libs
+
+# list of local module names
+user_local_modules:         ~/.config/recipes/local_libs.txt
+
+log_warnings:               True

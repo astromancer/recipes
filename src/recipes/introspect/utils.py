@@ -57,9 +57,7 @@ def get_caller_name(back=1):
     frame = get_caller_frame(back + 1)
     try:
         name = frame.f_code.co_name
-        if name == '<module>':
-            return get_module_name(frame)
-        return name
+        return get_module_name(frame) if (name == '<module>') else name
     finally:
         # break reference cycles
         # https://docs.python.org/3/library/inspect.html?highlight=signature#the-interpreter-stack
@@ -191,6 +189,15 @@ def _(path, depth=None):
 
     warn(f"Could not find package name for '{path}'.")
 
+from typing import Union
+def get_package_name(node_or_path: Union[str, Path, ast.Import]):
+    fullname = get_module_name(node_or_path)
+    # if fullname.startswith('.'):
+    #     return '.' * node.level
+    if fullname is None:
+        raise ValueError(f'Could not get package name for file {node_or_path!r}.')
+
+    return fullname.split('.', 1)[0]
 
 # def get_module_name(filename, depth=1):
 
