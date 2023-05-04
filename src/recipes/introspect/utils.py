@@ -3,22 +3,25 @@ Introspction utilities.
 """
 
 # std
-import ast
+import re
+import io
+import os
 import sys
 import pkgutil
 import inspect
-import contextlib
+import ast
+import warnings
 import functools as ftl
-from typing import cast
+import contextlib as ctx
 from pathlib import Path
-from warnings import warn
+from typing import Union, cast
 from types import FrameType, MethodType
 
 # third-party
 from stdlib_list import stdlib_list
 
 # relative
-from ..string import remove_suffix
+from ..string import remove_suffix, truncate
 
 
 # list of builtin modules
@@ -167,7 +170,7 @@ def _(path, depth=None):
         if trial in stop:
             break
 
-        with contextlib.suppress(ImportError):
+        with ctx.suppress(ImportError):
             if pkgutil.get_loader(trial.name):
                 candidates.append(trial)
         trial = trial.parent
@@ -187,9 +190,9 @@ def _(path, depth=None):
         name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
         return name.rstrip('/').replace('/', '.')
 
-    warn(f"Could not find package name for '{path}'.")
+    warnings.warn(f"Could not find package name for '{path}'.")
 
-from typing import Union
+
 def get_package_name(node_or_path: Union[str, Path, ast.Import]):
     fullname = get_module_name(node_or_path)
     # if fullname.startswith('.'):
@@ -270,3 +273,39 @@ def get_defining_class(method: MethodType):
 
     # handle special descriptor objects
     return getattr(method, '__objclass__', None)
+
+
+# ---------------------------------------------------------------------------- #
+# detect executable python script
+REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
+
+
+def is_script(source: str):
+    return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
+
+
+# ---------------------------------------------------------------------------- #
+# maximal filename size. Helps distinguish source code strings from filenames
+F_NAMEMAX = os.statvfs('.').f_namemax
+
+
+def get_stream(file_or_source):
+    if isinstance(file_or_source, io.IOBase):
+        return file_or_source
+
+    if isinstance(file_or_source, str):
+        if len(file_or_source) < F_NAMEMAX and Path(file_or_source).exists():
+            return file_or_source
+
+        # assume string is raw source code
+        return io.StringIO(file_or_source)
+
+    if isinstance(file_or_source, Path):
+        if file_or_source.exists():
+            return file_or_source
+
+        raise FileNotFoundError(f'{truncate(file_or_source, 100)}')
+
+    raise TypeError(
+        f'Cannot interpret {type(file_or_source)} as file-like object.'
+    )

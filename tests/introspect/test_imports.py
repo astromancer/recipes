@@ -285,8 +285,8 @@ class TestImportRelativizer(TestNodeTransformer):
         ('from xx import yy as uu, zz as vv\n'
          'from xx.yy import qq',
          'xx'):
-        ('from . import yy as uu, zz as vv\n'
-         'from .yy import qq'),
+            ('from . import yy as uu, zz as vv\n'
+            'from .yy import qq'),
 
         # one level deep
         (dedent('''

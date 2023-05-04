@@ -4,9 +4,7 @@ Refactor import statements in python source code.
 
 
 # std
-import os
 import io
-import re
 import ast
 import math
 import warnings as wrn
@@ -23,15 +21,16 @@ from loguru import logger
 from .. import api, cosort, op, pprint as pp
 from ..utils import not_null
 from ..iter import unduplicate
-from ..dicts import AttrReadItem
 from ..functionals import negate
 from ..logging import LoggingMixin
+from ..string import remove_prefix
 from ..pprint.callers import describe
-from ..string import remove_prefix, truncate
 from ..io import open_any, read_lines, safe_write
-from .utils import BUILTIN_MODULE_NAMES, get_module_name, get_package_name
+from . import CONFIG
+from .utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
+                    get_stream, is_script)
 
-
+# ---------------------------------------------------------------------------- #
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
 
@@ -52,6 +51,12 @@ from .utils import BUILTIN_MODULE_NAMES, get_module_name, get_package_name
 # from x import y
 # from y import y
 
+# FIXME:
+# import ast, warnings
+# import math
+# import warnings as wrn
+    
+
 
 # ---------------------------------------------------------------------------- #
 api_synonyms = api.synonyms({'filter':          'filter_unused',
@@ -59,28 +64,7 @@ api_synonyms = api.synonyms({'filter':          'filter_unused',
                              'module_name':     'relativize'})
 
 # ---------------------------------------------------------------------------- #
-CONFIG = AttrReadItem(
-    log_warnings=True,
-
-    # sorting style
-    style='aesthetic',
-    # filter_unused=None,
-    # split=0,
-    # merge=1,
-    # relativize=None
-
-    # internal sorting codes
-    module_group_names=['std', 'third-party', 'local', 'relative'],
-    module_group_name_suffix='',  # libs
-
-    # list of local module names
-    user_local_modules=Path.home() / '.config/recipes/local_libs.txt'
-)
-
-
-# LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
-LOCAL_MODULES = read_lines(CONFIG.user_local_modules)
-
+CONFIG = CONFIG.imports
 
 # warning control
 if CONFIG.log_warnings:
@@ -93,27 +77,14 @@ if CONFIG.log_warnings:
     wrn.showwarning = showwarning
 
 # ---------------------------------------------------------------------------- #
-# list of builtin modules
-
+# module constants
 
 # supported styles for sorting
 STYLES = ('alphabetic', 'aesthetic')
 
-# maximal filename size. Helps distinguish source code strings from filenames
-F_NAMEMAX = os.statvfs('.').f_namemax
+# LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
+LOCAL_MODULES = read_lines(Path(CONFIG.user_local_modules).expanduser())
 
-
-# object that finds system location of module from name
-# pathFinder = PathFinder()
-
-# ---------------------------------------------------------------------------- #
-REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
-
-
-def is_script(source: str):
-    return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
-
-# ---------------------------------------------------------------------------- #
 
 # ---------------------------------------------------------------------------- #
 # Functions for sorting / rewriting import nodes
@@ -132,7 +103,7 @@ def is_any_import_node(node):
 
 
 def is_relative(node):
-    return get_level(node) > 0``
+    return get_level(node) > 0
 
 
 def get_level(node):
@@ -683,11 +654,11 @@ def _iter_lines(module, headers=None):
 
 
 class GroupHeaders:
-    def __init__(self, names=CONFIG.module_group_names,
-                 suffix=CONFIG.module_group_name_suffix):
+    def __init__(self, names=CONFIG.groups.names,
+                 suffix=CONFIG.groups.suffix):
 
         self.names = dict(enumerate(names))
-        self.suffix = str(suffix)
+        self.suffix = str(suffix or '')
         self.newlines = mit.padded([''], '\n')
 
     def get(self, i):
@@ -707,31 +678,9 @@ def depends_on(file_or_source):
     return ImportRefactory(file_or_source).get_dependencies()
 
 
-def get_stream(file_or_source):
-    if isinstance(file_or_source, io.IOBase):
-        return file_or_source
-
-    if isinstance(file_or_source, str):
-        if len(file_or_source) < F_NAMEMAX and Path(file_or_source).exists():
-            return file_or_source
-
-        # assume string is raw source code
-        return io.StringIO(file_or_source)
-
-    if isinstance(file_or_source, Path):
-        if file_or_source.exists():
-            return file_or_source
-
-        raise FileNotFoundError(f'{truncate(file_or_source, 100)}')
-
-    raise TypeError(
-        f'Cannot interpret {type(file_or_source)} as file-like object.'
-    )
-
-
 @api_synonyms
 def refactor(file_or_source,
-             sort=CONFIG.style,
+             sort=CONFIG.sort,
              filter_unused=None,
              split=0,
              merge=1,
@@ -802,7 +751,7 @@ class ImportRefactory(LoggingMixin):
 
     @api_synonyms
     def refactor(self,
-                 sort=CONFIG.style,
+                 sort=CONFIG.sort,
                  filter_unused=None,
                  split=0,
                  merge=1,
@@ -933,7 +882,7 @@ class ImportRefactory(LoggingMixin):
 
         return module
 
-    def sort_and_group(self, module=None, style=CONFIG.style):
+    def sort_and_group(self, module=None, style=CONFIG.sort):
         """Sort and group"""
         module = module or self.module
 
@@ -1113,7 +1062,7 @@ class ImportRefactory(LoggingMixin):
         emit(f'This looks like a {filetype}. Skipping relativize.')
         return False
 
-    def sort(self, module=None, how=CONFIG.style):
+    def sort(self, module=None, how=CONFIG.sort):
         logger.trace('Sorting imports in module {} using {!r} sorter.',
                      module, how)
         module = module or self.module
@@ -1253,7 +1202,10 @@ def excision_flagger(lines, line_nrs):
 
 
 def is_group_header_comment(line):
-    # RGX = re.compile(rf'# ({"|".join(CONFIG.module_group_names)}) {CONFIG.module_group_name_suffix}')
-    return (line.startswith('# ') and
-            line[2:].startswith(tuple(CONFIG.module_group_names)) and
-            line.strip().endswith(CONFIG.module_group_name_suffix))
+    # RGX = re.compile(rf'# ({"|".join(CONFIG.groups.names)}) {CONFIG.groups.suffix}')
+    return (
+        line.startswith('# ') and
+        line[2:].startswith(tuple(CONFIG.groups.names)) and
+        ((not (s := CONFIG.groups.suffix))
+         or line.strip().endswith(s))
+    )

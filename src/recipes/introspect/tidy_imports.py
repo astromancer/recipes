@@ -29,7 +29,8 @@ logger.configure(activation=[('recipes', 'INFO')])
 
 @click.command()
 @click.argument('files_or_folders', nargs=-1)
-@click.option('-s', '--style', default='aesthetic', show_default=True,
+@click.option('-s', '--style',
+              default='aesthetic', show_default=True,
               type=click.Choice(STYLES))
 def main(files_or_folders, style,):
     #   filter_unused=None,
