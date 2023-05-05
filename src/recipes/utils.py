@@ -12,27 +12,18 @@ from collections import abc
 from .functionals import negate
 
 
-def is_null(obj):
-    if (obj is None) or (obj is False):
-        return True
-
-    try:
-        return not bool(obj)
-    except ValueError as err:
-        if str(err).startswith('The truth value of an array with more than one '
-                               'element is ambiguous.'):
-            return obj.size
-
-        raise err from None
-
-
-not_null = notnull = negate(is_null)
+# ---------------------------------------------------------------------------- #
+def not_null(obj, except_=('',)):
+    #      scalar                                                array-like
+    return bool((obj or (obj in except_)) if is_scalar(obj) else len(obj))
 
 
 # alias
-isnull = is_null
+notnull = not_null
+isnull = is_null = negate(not_null)
 
 
+# ---------------------------------------------------------------------------- #
 def is_scalar(obj, exceptions=(str, )):
     return not isinstance(obj, abc.Sized) or isinstance(obj, exceptions)
 
@@ -71,8 +62,8 @@ def duplicate_if_scalar(obj, n=2, raises=True, exceptions=(str,)):  # TODO: acti
 
     return obj
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 def _delete(container, indices):
     # delete multiple elements in a mutable container.
@@ -114,8 +105,8 @@ def _integers_from_slices(slices, n):
         integers |= set(range(*s.indices(n)))
     return integers
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 class EnsureWrapped:
     def __init__(self, wrapper, is_scalar=str, not_scalar=abc.Iterable):

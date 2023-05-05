@@ -23,6 +23,15 @@ from .functionals import Emit
 # attr=True, ordered=True)
 
 
+# ---------------------------------------------------------------------------- #
+def isdict(obj):
+    return isinstance(obj, abc.MutableMapping)
+
+
+is_dict = isdict
+
+
+# ---------------------------------------------------------------------------- #
 def pformat(mapping, name=None,
             lhs=repr, equal=': ', rhs=repr,
             sep=',', brackets='{}',
