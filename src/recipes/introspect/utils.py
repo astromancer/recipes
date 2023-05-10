@@ -68,26 +68,9 @@ def get_caller_name(back=1):
 
 
 # ---------------------------------------------------------------------------- #
-# Dispatcher for getting module name import node or path
-
-# @ftl.singledispatch
-# def get_module_name(node):  # rename get_qualname
-#     """Get the full (dot separated) module name from various types."""
-#     raise TypeError(
-#         f'No default dispatch method for type {type(node).__name__!r}.'
-#     )
+# Dispatcher for getting module name from import node or path
 
 def get_module_name(obj=None, depth=None):
-    # called without arguments => get current module name by inspecting the call
-    # stack
-    if obj is None:
-        obj = get_caller_frame(2)
-
-    return _get_module_name(obj, depth)
-
-
-@ftl.singledispatch  # generic type implementation
-def _get_module_name(obj, depth=None):
     """
     Get full (or partial) qualified (dot-separated) name of an object's parent
     (sub)modules and/or package, up to namespace depth `depth`.
@@ -96,22 +79,48 @@ def _get_module_name(obj, depth=None):
     if depth == 0:
         return ''
 
+    # called without arguments => get current module name by inspecting the call
+    # stack
+    if obj is None:
+        obj = get_caller_frame(2)
+
+    # dispatch
+    name = _get_module_name(obj)
+
+    if (name == 'builtins') and (depth is None):
+        return ''
+
+    if depth in (-1, None):
+        depth = 0
+    
+    return '.'.join(name.split('.')[-depth:])
+    
+# @ftl.singledispatch
+# def get_module_name(node):
+#     """Get the full (dot separated) module name from various types."""
+#     raise TypeError(
+#         f'No default dispatch method for type {type(node).__name__!r}.'
+#     )
+
+
+@ftl.singledispatch  # generic type implementation
+def _get_module_name(obj):
+
     module = inspect.getmodule(obj)
+    if module is None:
+        raise TypeError(f'Could not determine module for object {obj} of type {type(obj)}.')
+
     name = module.__name__
 
     if name == '__main__':
-        from pathlib import Path
-
         # if module has no '__file__' attribute, we are either
         # i)  running file as a script
         # ii) in an interactive session
         if not hasattr(module, '__file__'):
-            return ('' if depth is None else '__main__')
+            return '__main__'
 
-        name = Path(module.__file__).stem
-
-    if (name == 'builtins') and (depth is None):
-        return ''
+        # 
+        name = _get_module_name(module.__file__)
 
         # return Path(mod.__file__).stem
 
@@ -134,33 +143,30 @@ def _get_module_name(obj, depth=None):
         # else:
         #     raise ValueError
 
-    if depth in (-1, None):
-        depth = 0
-
-    return '.'.join(name.split('.')[-depth:])
+    return name
 
 
 # @_get_module_name.register(type(None))
 # # called without arguments => get current module name
-# def _(obj, depth=None):
+# def _(obj):
 #     obj = get_caller_frame(4)
 #     return get_module_name(obj, depth)
 
 
 @_get_module_name.register(ast.Import)
-def _(node, depth=None):
+def _(node):
     # assert len(node.names) == 1
     return node.names[0].name
 
 
 @_get_module_name.register(ast.ImportFrom)
-def _(node, depth=None):
+def _(node):
     return f'{"." * node.level}{node.module or ""}'
 
 
 @_get_module_name.register(str)
 @_get_module_name.register(Path)
-def _(path, depth=None):
+def _(path):
     # get full module name from path
     path = Path(path)
     candidates = []

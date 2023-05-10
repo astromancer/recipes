@@ -5,13 +5,13 @@ from pathlib import Path
 from loguru import logger
 
 # relative
-from .introspect.utils import get_package_name
+from .introspect.utils import get_package_name, get_module_name
 
 # local
 from recipes.dicts import AttrReadItem, DictNode
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 class ConfigNode(DictNode, AttrReadItem):
 
@@ -19,9 +19,32 @@ class ConfigNode(DictNode, AttrReadItem):
     def load(cls, filename):
         return cls(**load(filename))
 
+    @classmethod
+    def load_module(cls, filename, format):
+        node = cls.load(find_config((path := Path(filename)), format))
+        return node[get_module_name(path, 1)]
+
 
 # ---------------------------------------------------------------------------- #
-def find_config(filename, style=None):  # , root='src'
+
+def find_config(filename, format=None):
+    """
+    Search upwards in the folder tree for a config file matching the requested
+    format.
+
+    Parameters
+    ----------
+    filename : str or Path
+        The filename, typically for the current file, ie. `__file__`. The parent
+        folder of this file is the starting point for the search.
+    format : str, optional
+        The file format, by default None.
+
+    Returns
+    -------
+    Path or None
+        The config file if any exist.
+    """
 
     pkg = get_package_name(filename)
     if pkg is None:
@@ -34,11 +57,12 @@ def find_config(filename, style=None):  # , root='src'
         package_root = package_root.parent
 
     parent = path.parent
-    extensions = [style] or CONFIG_PARSERS
+    extensions = [format] or CONFIG_PARSERS
     while parent != package_root:
         for name in extensions:
             for filename in parent.glob(f'*.{name}'):
-                logger.info("Found config file: '{}'", filename)
+                logger.info("Found config file: '{}' in {!r} module (sub-"
+                            "folder) of package {}.", filename, parent, pkg)
                 return filename
 
         parent = parent.parent
