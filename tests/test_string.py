@@ -51,11 +51,13 @@ test_sub = Expected(sub)({
 
 
 test_title = Expected(title)({
-    # basic
     mock.title('hello world'):                         'Hello World',
     mock.title('hello world', 'world'):                'Hello world',
+    mock.title('hello\nworld', 'world'):               'Hello world',
     mock.title('internal in inside', 'in'):            'Internal in Inside',
-    mock.title('words for the win', ('for', 'the')):   'Words for the Win'
+    mock.title('internal in inside in', 'in'):         'Internal in Inside in',
+    mock.title('words for the win', ('for', 'the')):   'Words for the Win',
+    mock.title('words for the winter', ('win')):       'Words For The Winter'
 })
 
 

@@ -340,9 +340,13 @@ def title(string, ignore=()):
     if isinstance(ignore, str):
         ignore = [ignore]
 
-    ignore = [*map(str.strip, ignore)]
+    ignore = tuple(map(str.strip, ignore))
     subs = {f'{s.title()} ': f'{s} ' for s in ignore}
-    return sub(string.title(), subs)
+    new = sub(string.title(), subs)
+    if string.endswith(ignore): # ths one does not get subbed above due to spaces
+        head, last = new.rsplit(maxsplit=1)
+        return f'{head} {last.lower()}'
+    return new
 
 
 def snake_case(string):
