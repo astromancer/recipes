@@ -1,38 +1,53 @@
-from recipes.testing import Expected, Throws, mock, expected, ECHO
-from recipes.string import Percentage, sub, title, justify
+
+# third-party
 import pytest
 
+# local
+from recipes.testing import ECHO, Expected, mock
+from recipes.string import Percentage, justify, sub, title, pluralize
 
-test_sub = Expected(sub)(
+
+test_pluralize = Expected(pluralize)({
+    'synopsis': 'synopses',
+    'success':  'successes',
+    'vortex':   'vortices',
+    'nucleus':  'nuclei',
+    'cilium':   'cilia',
+    'array':    'arrays',
+    'agency':   'agencies',
+    'nerd':     'nerds'
+})
+
+
+test_sub = Expected(sub)({
     # basic
-    {mock.sub('hello world', {'h': 'm', 'o ': 'ow '}):
-     'mellow world',
-     mock.sub('hello world', dict(h='m', o='ow', rld='')):
-     'mellow wow',
-     mock.sub('hello world', {'h': 'm', 'o ': 'ow ', 'l': ''}):
-     'meow word',
-     mock.sub('hello world', dict(hell='lo', wo='', r='ro', d='l')):
-     'loo roll',
-     # character permutations
-     mock.sub('option(A, B)', {'B': 'A', 'A': 'B'}):
-     'option(B, A)',
-     mock.sub('AABBCC', {'A': 'B', 'B': 'C', 'C': 'c'}):
-     'BBCCcc',
-     mock.sub('hello world', dict(h='m', o='ow', rld='', w='v')):
-     'mellow vow',
+    mock.sub('hello world', {'h': 'm', 'o ': 'ow '}):
+        'mellow world',
+    mock.sub('hello world', dict(h='m', o='ow', rld='')):
+        'mellow wow',
+    mock.sub('hello world', {'h': 'm', 'o ': 'ow ', 'l': ''}):
+        'meow word',
+    mock.sub('hello world', dict(hell='lo', wo='', r='ro', d='l')):
+        'loo roll',
+    # character permutations
+    mock.sub('option(A, B)', {'B': 'A', 'A': 'B'}):
+        'option(B, A)',
+    mock.sub('AABBCC', {'A': 'B', 'B': 'C', 'C': 'c'}):
+        'BBCCcc',
+    mock.sub('hello world', dict(h='m', o='ow', rld='', w='v')):
+        'mellow vow',
 
-     mock.sub('dark-SHOC2-8x8-1MHz 2.5 EM: 30', {' ': '-', "'": '', ': ': ''}):
-         'dark-SHOC2-8x8-1MHz-2.5-EM30',
+    mock.sub('dark-SHOC2-8x8-1MHz 2.5 EM: 30', {' ': '-', "'": '', ': ': ''}):
+        'dark-SHOC2-8x8-1MHz-2.5-EM30',
 
-     mock.sub(r"""\
+    mock.sub(R"""\
      \begin{equation}[Binary vector potential]
         \label{eq:bin_pot_vec}
         Ψ\qty(\vb{r}) = - \frac{GM_1}{\abs{\vb{r - r_1}}}
         \end{equation}""",
-              {'_p': 'ₚ', 'eq:bin_pot_vec': 'eq:bin_pot_vec'}):
-     ECHO
-     }
-)
+             {'_p': 'ₚ', 'eq:bin_pot_vec': 'eq:bin_pot_vec'}):
+        ECHO
+})
 
 
 test_title = Expected(title)({
@@ -70,7 +85,7 @@ def test_percentage(s, e):
 
 
 test_justify = Expected(justify)({
-    # (justify := mock.justify), 
+    # (justify := mock.justify),
     mock.justify('!\n!', '<', 10): '!         \n!         ',
     mock.justify('!\n!', '>', 10): '         !\n         !',
     mock.justify('!\n!', '>', 10): '    !     \n    !     '

@@ -458,50 +458,64 @@ def shared_affix(strings, pre_stops='', post_stops=''):
     suffix = shared_suffix([item[i0:] for item in strings], post_stops)
     return prefix, suffix
 
+
 # ---------------------------------------------------------------------------- #
 # pluralization (experimental)
+_PLURAL_SUFFIX_MAP = {
+    'is':           (-2, 'es'),         # eg: synopsis  -> synopses
+    # note: this fails for eg; necropolis which has plural
+    # necropolises or necropoleis or necropoles or necropoli
+    'eus':          (-2, 'i'),          # eg: nucleus -> nuclei
+    's':            (None, 'es'),       # eg: success -> successes
+    'ex':           (-2, 'ices'),       # eg: vortex - > vortices
+    'um':           (-2, 'a'),          # eg: cilium -> cilia
+    ('ay', 'ey'):   (None, 's'),        # eg: array -> arrays
+    'y':            (-1, 'ies')         # eg: agency -> agencies
+}
 
 
-def naive_english_plural(text):
-    if text.endswith('s'):
-        return f'{text}es'
+def naive_english_plural(word):
 
-    elif text.endswith('eus'):
-        return remove_suffix(text, 'us') + 'i'
+    for end, (n, suffix) in _PLURAL_SUFFIX_MAP.items():
+        if word.endswith(end):
+            return f'{word[:n]}{suffix}'
+        
+    if word.endswith('y') and (word[-2] not in 'ae'):  # eg: agency not array
+        return f'{word[:-2]}ies'                # agency -> agencies
 
-    elif text.endswith('um'):
-        return remove_suffix(text, 'um') + 'a'
-
-    elif text.endswith('y') and (text[-2] not in 'ae'):  # eg: agency not array
-        return remove_suffix(text, 'y') + 'ies'
-
-    return f'{text}s'
+    # everything else
+    return f'{word}s'
 
 
-def pluralise(text, collection=(()), plural=None):
-    """Conditional plural of `text` based on size of `collection`."""
-    if isinstance(collection, abc.Collection) and (len(collection) != 1):
-        return plural or naive_english_plural(text)
-    return text
+def _many(obj):
+    return isinstance(obj, abc.Collection) and (len(obj) != 1)
+
+
+def pluralise(text, items=(()), plural=None, n=None):
+    """Conditional plural of `text` based on size of `items`."""
+    return ((plural or naive_english_plural(text))
+            if (n and n > 1) or _many(items)
+            else text)
 
 
 # alias
 pluralize = pluralise
 
 
-def numbered(collection, name, plural=None):
-    return f'{len(collection):d} {pluralise(name, collection, plural):s}'
+def numbered(items, name, plural=None):
+    return f'{len(items):d} {pluralise(name, items, plural):s}'
 
 
-def named_items(collection, name, plural=None, fmt=str, **kws):
+def named_items(items, name, plural=None, fmt=str, **kws):
 
-    if isinstance(collection, abc.Collection) and (len(collection) != 1):
-        from recipes import pprint
+    if not _many(items):
+        return f'{name}: {fmt(items[0])}'
 
-        return (f'{plural or naive_english_plural(name)}: '
-                f'{pprint.collection(collection, fmt=fmt)}')
+    from recipes import pprint
 
-    return f'{name}: {fmt(collection[0])}'
+    return (f'{plural or naive_english_plural(name)}: '
+            f'{pprint.collection(items, fmt=fmt)}')
+
 
 # ---------------------------------------------------------------------------- #
 # Misc
@@ -710,7 +724,7 @@ def _justify(text, align, width, length_func, formatter):
     width = int(width or widest)
     if widest > width:
         warn(f'Requested paragraph width of {width} is less than the '
-                 f'length of widest line: {widest}.')
+             f'length of widest line: {widest}.')
 
     if align != ' ':
         for lw, line in zip(linewidths, lines):
