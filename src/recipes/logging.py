@@ -68,11 +68,11 @@ class LoggingMixin:
             """Prepend the class name to the function name in the log record."""
             # TODO: profile this function to see how much overhead you are adding
             fname = record['function']
-            
-            if fname.startswith('<cell line:'):
+
+            if fname.startswith(('<cell line:', '<module>')):
                 # catch interactive use
-                return 
-                
+                return
+
             parent = get_defining_class(getattr(parent, fname))
             parent = '' if parent is None else parent.__name__
             record['function'] = f'{parent}.{fname}'

@@ -4,8 +4,10 @@ import more_itertools as mit
 
 # relative
 from ..iter import superclasses
-from .repr_helpers import ReprHelper, _repr
+from .repr_helpers import ReprHelper
 
+
+# ---------------------------------------------------------------------------- #
 
 def _sanitize(kws):
     kws = dict(kws)
@@ -17,7 +19,7 @@ def _sanitize(kws):
 def _get_slots(cls):
     if not isinstance(cls, type) and hasattr(cls, '__slots__'):
         cls = type(cls)
-        
+
     for base in (*superclasses(cls), cls):
         yield from getattr(base, '__slots__', ())
 
@@ -38,6 +40,9 @@ class SlotRepr(ReprHelper):
         return super().__repr__(attrs=mit.collapse(attrs, extra), **kws)
 
 
+__non_init_params = {'self', 'args', 'kws'}
+
+
 class SlotHelper(SlotRepr):
     """
     Helper class for objects with __slots__.
@@ -48,7 +53,7 @@ class SlotHelper(SlotRepr):
     @classmethod
     def from_dict(cls, kws):
         init_params = set(_get_slots(cls))
-        init_params |= set(cls.__init__.__code__.co_varnames) - {'self', 'args', 'kws'}
+        init_params |= set(cls.__init__.__code__.co_varnames) - __non_init_params
         return cls(**{s: kws.pop(s) for s in init_params if s in kws})
 
     def __init__(self, *args, **kws):

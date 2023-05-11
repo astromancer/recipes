@@ -11,10 +11,12 @@ from io import StringIO
 from loguru import logger
 
 # relative
-from ..string import indent
 from .. import pprint as pp
+from ..string import indent
 from .base import Decorator
 
+
+# ---------------------------------------------------------------------------- #
 
 def format_print(string, *args, **kws):
     print(string.format(*args, **kws))

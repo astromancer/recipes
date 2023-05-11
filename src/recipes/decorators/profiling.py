@@ -164,7 +164,7 @@ def timer(Decorator):
 #         tstr = codes.apply(pprint.hms(te - ts), bg='y')
 #         tbl = Table([r, tstr],
 #                     title='Timer',
-#                     title_props=dict(c='bold', bg='g'),
+#                     title_style=dict(c='bold', bg='g'),
 #                     row_headers=['func', 'Time'],
 #                     where_row_borders=[0, -1])
 #         print(tbl)
