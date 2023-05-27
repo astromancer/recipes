@@ -12,9 +12,12 @@ test_pluralize = Expected(pluralize)({
     'success':  'successes',
     'vortex':   'vortices',
     'nucleus':  'nuclei',
+    'radius':   'radii',
+    'walrus':   'walruses',
     'cilium':   'cilia',
     'array':    'arrays',
     'agency':   'agencies',
+    'radish':   'radishes',
     'nerd':     'nerds'
 })
 

@@ -343,7 +343,7 @@ def title(string, ignore=()):
     ignore = tuple(map(str.strip, ignore))
     subs = {f'{s.title()} ': f'{s} ' for s in ignore}
     new = sub(string.title(), subs)
-    if string.endswith(ignore): # ths one does not get subbed above due to spaces
+    if string.endswith(ignore):  # ths one does not get subbed above due to spaces
         head, last = new.rsplit(maxsplit=1)
         return f'{head} {last.lower()}'
     return new
@@ -466,29 +466,29 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 # ---------------------------------------------------------------------------- #
 # pluralization (experimental)
 _PLURAL_SUFFIX_MAP = {
-    'is':           (-2, 'es'),         # eg: synopsis  -> synopses
+    'is':               (-2, 'es'),    # eg: synopsis  -> synopses
     # note: this fails for eg; necropolis which has plural
     # necropolises or necropoleis or necropoles or necropoli
-    'eus':          (-2, 'i'),          # eg: nucleus -> nuclei
-    's':            (None, 'es'),       # eg: success -> successes
-    'ex':           (-2, 'ices'),       # eg: vortex - > vortices
-    'um':           (-2, 'a'),          # eg: cilium -> cilia
-    ('ay', 'ey'):   (None, 's'),        # eg: array -> arrays
-    'y':            (-1, 'ies')         # eg: agency -> agencies
+    ('eus', 'ius'):     (-2, 'i'),     # eg: nucleus -> nuclei; radius -> radii
+    ('s', 'sh', 'ch'):  (None, 'es'),  # eg: success -> successes, watch -> watches ...
+    'ex':               (-2, 'ices'),  # eg: vortex - > vortices
+    'um':               (-2, 'a'),     # eg: cilium -> cilia
+    ('ay', 'ey'):       (None, 's'),   # eg: array -> arrays
+    'y':                (-1, 'ies')    # eg: agency -> agencies
 }
 
 
 def naive_english_plural(word):
 
-    for end, (n, suffix) in _PLURAL_SUFFIX_MAP.items():
-        if word.endswith(end):
-            return f'{word[:n]}{suffix}'
-        
-    if word.endswith('y') and (word[-2] not in 'ae'):  # eg: agency not array
-        return f'{word[:-2]}ies'                # agency -> agencies
-
-    # everything else
-    return f'{word}s'
+    return next(
+        (
+            f'{word[:n]}{suffix}'
+            for end, (n, suffix) in _PLURAL_SUFFIX_MAP.items()
+            if word.endswith(end)
+        ),
+        # everything else
+        f'{word}s',
+    )
 
 
 def _many(obj):
