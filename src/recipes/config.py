@@ -20,7 +20,7 @@ class ConfigNode(DictNode, AttrReadItem):
         return cls(**load(filename))
 
     @classmethod
-    def load_module(cls, filename, format):
+    def load_module(cls, filename, format=None):
         node = cls.load(find_config((path := Path(filename)), format))
         return node[get_module_name(path, 1)]
 
@@ -57,7 +57,7 @@ def find_config(filename, format=None):
         package_root = package_root.parent
 
     parent = path.parent
-    extensions = [format] or CONFIG_PARSERS
+    extensions = [format] if format else CONFIG_PARSERS
     while parent != package_root:
         for name in extensions:
             for filename in parent.glob(f'*.{name}'):
