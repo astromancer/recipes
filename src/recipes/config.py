@@ -1,3 +1,4 @@
+
 # std
 from pathlib import Path
 
@@ -5,10 +6,8 @@ from pathlib import Path
 from loguru import logger
 
 # relative
-from .introspect.utils import get_package_name, get_module_name
-
-# local
-from recipes.dicts import AttrReadItem, DictNode
+from .dicts import AttrReadItem, DictNode
+from .introspect.utils import get_module_name, get_package_name
 
 
 # ---------------------------------------------------------------------------- #
@@ -22,7 +21,9 @@ class ConfigNode(DictNode, AttrReadItem):
     @classmethod
     def load_module(cls, filename, format=None):
         node = cls.load(find_config((path := Path(filename)), format))
-        return node[get_module_name(path, 1)]
+        for parent in get_module_name(path).split('.')[::-1]:
+            if parent in node:
+                return node[parent]
 
 
 # ---------------------------------------------------------------------------- #
