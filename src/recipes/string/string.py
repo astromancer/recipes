@@ -301,7 +301,7 @@ def sub(string, mapping=(), **kws):
     for key in okeys:
         # if any values have the key in them, need to remap them temporarily
         if op.any(ovals, op.contained(key).within):
-            tmp[key] = str(id(key))
+            tmp[key] = str(id(key))  # sourcery skip: remove-unnecessary-cast
             good.pop(key)
 
     inv = {val: mapping[key] for key, val in tmp.items()}
@@ -466,19 +466,91 @@ def shared_affix(strings, pre_stops='', post_stops=''):
 # ---------------------------------------------------------------------------- #
 # pluralization (experimental)
 _PLURAL_SUFFIX_MAP = {
-    'is':               (-2, 'es'),    # eg: synopsis  -> synopses
+    'a':
+        (None, 'e'),
+    # eg:   knife -> knives
+    #       hoof -> hoovesxx
+    'f':
+        (-1, 'ves'),
+    'fe':
+        (-2, 'ves'),
+
+    # eg:   nucleus -> nuclei;
+    #       radius -> radii
+    #       fungus -> fungi
+    # EXCEPTIONS:
+    # eg: genus -> genera
+    #     opus -> opera
+    ('eus', 'ius', 'us'):
+        (-2, 'i'),
+
+    # eg:   synopsis  -> synopses
+    #       thesis -> theses
+    'is':
+        (-2, 'es'),
     # note: this fails for eg; necropolis which has plural
     # necropolises or necropoleis or necropoles or necropoli
-    ('eus', 'ius'):     (-2, 'i'),     # eg: nucleus -> nuclei; radius -> radii
-    ('s', 'sh', 'ch'):  (None, 'es'),  # eg: success -> successes, watch -> watches ...
-    'ex':               (-2, 'ices'),  # eg: vortex - > vortices
-    'um':               (-2, 'a'),     # eg: cilium -> cilia
-    ('ay', 'ey'):       (None, 's'),   # eg: array -> arrays
-    'y':                (-1, 'ies')    # eg: agency -> agencies
+
+    # eg: tableau -> tableaux
+    'eau':
+        (None, 'x'),
+
+    # eg:   vortex - > vortices
+    ('ex', 'ix'):
+        (-2, 'ices'),
+
+    # eg: phenomenon -> phenomena
+    #     criterion ->  criteria
+    ('on'):
+        (-2, 'a'),
+
+    # eg:   success -> successes,
+    #       watch -> watches ...
+    ('s', 'sh', 'ch', 'x', 'z'):
+        (None, 'es'),
+
+    # eg:   concerti -> concerto
+    'to':
+        (-1, 'i'),
+
+    # eg:   cilium -> cilia
+    'um':
+        (-2, 'a'),
+
+    # eg:   array -> arrays
+    ('ay', 'ey'):
+        (None, 's'),
+
+    # eg:   agency -> agencies
+    'y':
+        (-1, 'ies')
+}
+
+PLURALIA_TANTUM = {
+    # unchanging / context dependent
+    'aircraft',
+    'bison',
+    'deer',
+    'fish',       # or fishes when refering to species of fishes
+    'faux pas',
+    'moose',
+    'offspring',
+    'grouse',
+    'salmon',
+    'series',
+    'sheep',
+    'shrimp',
+    'species',
+    'swine',
+    'trout',
+    'tuna'
 }
 
 
 def naive_english_plural(word):
+
+    if word in PLURALIA_TANTUM:
+        return word
 
     return next(
         (
