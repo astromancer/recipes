@@ -21,14 +21,15 @@ from loguru import logger
 from .. import api, cosort, op, pprint as pp
 from ..utils import not_null
 from ..iter import unduplicate
+from ..config import ConfigNode
 from ..functionals import negate
 from ..logging import LoggingMixin
 from ..string import remove_prefix
 from ..pprint.callers import describe
 from ..io import open_any, read_lines, safe_write
-from . import CONFIG
 from .utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
                     get_stream, is_script)
+
 
 # ---------------------------------------------------------------------------- #
 # FIXME: unscoped imports do not get added to top!!!
@@ -55,16 +56,17 @@ from .utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
 # import ast, warnings
 # import math
 # import warnings as wrn
-    
 
 
 # ---------------------------------------------------------------------------- #
-api_synonyms = api.synonyms({'filter':          'filter_unused',
-                             'relative(_to)?':  'relativize',
-                             'module_name':     'relativize'})
+api_synonyms = api.synonyms(
+    {'filter':          'filter_unused',
+     'relative(_to)?':  'relativize',
+     'module_name':     'relativize'}
+)
 
 # ---------------------------------------------------------------------------- #
-CONFIG = CONFIG.imports
+CONFIG = ConfigNode.load_module(__file__, 'yaml')
 
 # warning control
 if CONFIG.log_warnings:
@@ -477,6 +479,7 @@ class ImportSplitter(ImportMerger):
     def __init__(self, level=0):
         super().__init__()
         self.level = level if isinstance(level, (list, tuple)) else [int(level)]
+        print('LEVEL', self.level)
 
     def visit_Import(self, node):
         node = self.generic_visit(node)
@@ -854,7 +857,7 @@ class ImportRefactory(LoggingMixin):
         if not_null(merge):
             module = self.merge(module, merge)
 
-        if not_null(split):
+        if not_null(split, [0]):
             module = self.split(module, split)
 
         if relativize is None:
