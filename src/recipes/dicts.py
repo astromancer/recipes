@@ -278,6 +278,20 @@ def merge(*mappings, **kws):
     out.update(kws)
     return out
 
+null = object()
+
+def _split(mapping, keys):
+    for key in keys:
+        if val := mapping.pop(key, null) is not null:
+            yield key, val
+
+def split(mapping, *keys):
+    return mapping, dict(_split(mapping, keys))
+
+def remove(mapping, *keys):
+    list(_split(mapping, keys))
+    return mapping
+
 # ---------------------------------------------------------------------------- #
 
 
