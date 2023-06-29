@@ -20,15 +20,43 @@ class ConfigNode(DictNode, AttrReadItem):
 
     @classmethod
     def load_module(cls, filename, format=None):
-        node = cls.load(find_config((path := Path(filename)), format))
-        for parent in get_module_name(path).split('.')[::-1]:
+        config_file = find_config((path := Path(filename)), format, True)
+        node = cls.load(config_file)
+        candidates = get_module_name(path).split('.')[::-1]
+        for parent in candidates:
             if parent in node:
                 return node[parent]
 
+        raise ValueError('Could not locate config section for any of the parent'
+                         f' packages: {candidates} in config file {config_file}')
 
 # ---------------------------------------------------------------------------- #
 
-def find_config(filename, format=None):
+class ConfigLoader:
+
+    # @classmethod
+    # def hook(cls, name):
+    #     obj = sys.modules[name] = cls(sys.modules[name])
+    #     return obj
+
+    def __init__(self, module, format=None):
+        self.mod = module
+        self.format = format
+        self.config = None
+
+    def __getattr__(self, key):
+        if key == 'CONFIG':
+            cfg = super().__getattr__('config')
+            if cfg is None:
+                self.config = cfg = ConfigNode.load(
+                    find_config(self.module.__file__, self.format)
+                )
+            return cfg
+
+        return super().__getattr__(key)
+
+
+def find_config(filename, format=None, raises=False):
     """
     Search upwards in the folder tree for a config file matching the requested
     format.
@@ -53,7 +81,7 @@ def find_config(filename, format=None):
 
     path = Path(filename)
     parts = path.parts
-    package_root = Path('/'.join(('', *parts[1:parts.index(pkg)])))
+    package_root = Path('/'.join(('', *parts[1:parts.index(pkg) + 1])))
     if package_root.name == 'src':
         package_root = package_root.parent
 
@@ -68,7 +96,13 @@ def find_config(filename, format=None):
 
         parent = parent.parent
 
-    logger.debug("No local config file found for '{}'", filename)
+    message = ('Could not find config file in any of the parent folders down to'
+               f' the package root for {filename = :}, {format = :}')
+
+    if raises:
+        raise FileNotFoundError(message)
+
+    logger.debug(message)
 
 
 def load_yaml(filename):

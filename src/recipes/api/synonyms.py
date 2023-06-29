@@ -1,5 +1,5 @@
 """
-Parameter and Keyword name translation for understanding inexact human input.
+Parameter and keyword name translation for understanding inexact human input.
 
 Say you have an API function:
 
@@ -20,8 +20,8 @@ We can teach out function these alternatives like so:
 ... def stamp(labeled=True, color='default', center=False):
 ...     'the usual definition goes here'
 
-Now, like magic, our function will work with the alternatives we gave it via the
-regexes above at the cost of a small overhead for each misspelled parameter.
+Now our function will work automagically with the alternatives we gave it via
+the regexes above at the cost of a small overhead for each misspelled parameter.
 """
 
 # Keyword translation on-the-fly for flexible, typo tollerant APIs.
@@ -209,7 +209,8 @@ class Synonyms(Decorator):
                 if ((e := str(err)).startswith(func.__name__) and
                         ('unexpected keyword argument' in e)):
                     #
-                    logger.debug('Caught {}\n. Attempting keyword translation.', err)
+                    logger.debug('Caught {}: {}. Attempting keyword translation.',
+                                 type(err), err)
                     args, kws = self.resolve(args, kws)
                     logger.debug('Re-trying function call {}(...) with synonymous '
                                  'keywords.', func.__name__)
@@ -242,7 +243,7 @@ class Synonyms(Decorator):
         """
         Translate the keys in `kws` dict to the correct one for the hard api.
         """
-        logger.debug('Correcting user call parameters for api function {!r}:',
+        logger.debug('Correcting user call parameters for api {}.',
                      callers.describe(self.func))
 
         sig = self.signature
