@@ -117,7 +117,7 @@ class FunctionFactory:
             in the class with this name. 
 
         Yields
-        -------
+        ------
         function or method
         """
 
@@ -148,7 +148,7 @@ class FunctionFactory:
             Maximum of parameters of each kind.
 
         Yields
-        -------
+        ------
         list
             List of `inspect.Parameter`s for function
         """

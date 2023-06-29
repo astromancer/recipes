@@ -241,7 +241,7 @@ def iter_ext(files, extensions='*'):
         All file extensions to consider
 
     Yields
-    -------
+    ------
     Path
         [description]
     """
@@ -297,7 +297,7 @@ def iter_lines(filelike, *section, mode='r', strip=None):
     >>>
 
     Yields
-    -------
+    ------
     str
         lines from the file
     """

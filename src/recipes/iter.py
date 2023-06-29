@@ -91,7 +91,7 @@ def where(items, *args, start=0):
         Starting index for search, by default 0.
 
     Yields
-    -------
+    ------
     int
         Index at which `item` was found or `test` evaluated True
 

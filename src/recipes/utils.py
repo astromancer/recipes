@@ -34,7 +34,7 @@ def duplicate_if_scalar(obj, n=2, raises=True, exceptions=(str,)):  # TODO: acti
 
     Parameters
     ----------
-    a : number or array-like
+    obj : number or array-like
 
     Returns
     -------

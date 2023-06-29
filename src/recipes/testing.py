@@ -53,8 +53,11 @@ from .iter import cofilter, negate
 from .functionals import echo0 as echo
 from recipes import op
 
+
+# ---------------------------------------------------------------------------- #
 POS, PKW, VAR, KWO, VKW = _ParameterKind
 
+# ---------------------------------------------------------------------------- #
 
 def to_tuple(obj):
     return obj if isinstance(obj, tuple) else (obj, )
@@ -78,7 +81,7 @@ def show_diff(actual, expected):
     return '\n'.join(difflib.ndiff(actual.splitlines(True),
                                  expected.splitlines(True)))
 
-
+# ---------------------------------------------------------------------------- #
 class WrapArgs:
     def __init__(self, *args, **kws):
         self.args, self.kws = get_hashable_args(*args, **kws)

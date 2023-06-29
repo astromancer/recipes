@@ -479,7 +479,6 @@ class ImportSplitter(ImportMerger):
     def __init__(self, level=0):
         super().__init__()
         self.level = level if isinstance(level, (list, tuple)) else [int(level)]
-        print('LEVEL', self.level)
 
     def visit_Import(self, node):
         node = self.generic_visit(node)

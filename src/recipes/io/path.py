@@ -20,7 +20,7 @@ class Path(type(pathlib.Path())):  # HACK to get proper path type on all systems
             Regular expression or list of filenames to ignore, by default None
 
         Yields
-        -------
+        ------
         pathlib.Path
             The matching paths
         """
