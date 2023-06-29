@@ -90,7 +90,7 @@ def fold(a, wsize, overlap=0, axis=0, pad='masked', **kws):
 
     # pad out
     if pad:
-        a, _ = padder(a, wsize, overlap, axis, **kws)
+        a, _ = padder(a, wsize, overlap, axis, pad, **kws)
     #
     sa = get_strided_array(a, wsize, overlap, axis)
 
