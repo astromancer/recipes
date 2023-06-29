@@ -5,15 +5,13 @@ import more_itertools as mit
 # relative
 from ..iter import superclasses
 from .repr_helpers import ReprHelper
-
+from recipes.dicts import remove
 
 # ---------------------------------------------------------------------------- #
 
-def _sanitize(kws):
-    kws = dict(kws)
-    for _ in {'self', 'kws', '__class__'}:
-        kws.pop(_, None)
-    return kws
+
+def _sanitize_locals(kws, *ignore):
+    return remove(kws, {'self', 'kws', '__class__', *ignore})
 
 
 def _get_slots(cls):
@@ -58,7 +56,7 @@ class SlotHelper(SlotRepr):
 
     def __init__(self, *args, **kws):
         # generic init that sets attributes for input keywords
-        kws = _sanitize(kws)
+        kws = _sanitize_locals(kws)
 
         used = set()
         for key, val in zip(self.__slots__, args):
