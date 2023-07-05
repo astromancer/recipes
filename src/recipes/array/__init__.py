@@ -2,4 +2,4 @@
 Module for coding recipes involving arrays
 """
 
-from .misc import *
+from .utils import *

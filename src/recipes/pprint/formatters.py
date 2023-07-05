@@ -18,7 +18,7 @@ from loguru import logger
 from .. import api, dicts, unicode
 from ..oo import classproperty
 from ..dicts import AttrReadItem
-from ..array.misc import vectorize
+from ..array import vectorize
 from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 from .callers import describe

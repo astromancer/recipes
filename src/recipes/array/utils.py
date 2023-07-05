@@ -9,6 +9,10 @@ import numpy as np
 from recipes.lists import flatten, where_duplicate
 
 
+def get_fields(a, fields, viewtype=float):
+    return a[list(fields)].view(viewtype).reshape((*a.shape, -1)) 
+
+
 def vectorize(fn, otypes=None, doc=None, excluded=None, cache=False,
               signature=None):
     """Vectorize masked arrays."""
@@ -90,12 +94,6 @@ def arange_like(a):
 def multirange(*shape):
     N, dl = flatten(shape)
     return np.tile(range(dl), (N, 1))
-
-
-# NOTE: TOO SLOW!!
-# def grid_like(a):
-# """create grid from the shape of the given array"""
-# return shape2grid( a.shape )
 
 
 class Grid(np.lib.index_tricks.nd_grid):
