@@ -1,5 +1,6 @@
 
 # std
+import numbers
 import tempfile
 from pathlib import Path
 
@@ -11,13 +12,47 @@ from loguru import logger
 from ..utils import ensure_wrapped
 
 
-def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
+def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **kws):
     """
     Pre-allocate a writeable shared memory map as a container for the results of
-    parallel computation. If file already exists and overwrite is False open in
-    update mode and fill will be ignored. Data persistence ftw.
-    """
+    (parallel) computation. This is a wrapper around `np.lib.format.open_memmap`
+    with a more convenient API for our purposes here. For example, if file
+    already exists and `overwrite` is False, so that we open in update mode,
+    `fill` parameter will be ignored.
 
+    Parameters
+    ----------
+    loc : sr or path-like, optional
+        File location, by default None, which defaults to the sysem temporary
+        storage location via the `tempfile` package
+    shape : tuple of int, optional
+        Desired shape of the array, by default None. Shape will be read from the
+        file if loading an exisiting memmap, ignoring this parameter.
+    dtype : data-type, optional
+        Desired data type for array, by default None. Ignored when reading from
+        exisiting memmap. Can be omitted when creating an array and providing a
+        `fill` value.
+    fill : object, optional
+        Item used to populate the array when creating, by default None. The
+        array dtype will be decided based on this value  if not provided.
+    overwrite : bool, optional
+        Whether to overwrite an existing file, by default False
+
+    Examples
+    --------
+    >>> 
+
+    Returns
+    -------
+    numpy.memmap
+        Memmory mapped array.
+
+    Raises
+    ------
+    ValueError
+        If requested shape does not match exisiting memmap shape and overwrite
+        is False.
+    """
     # NOTE: Objects created by this function have no synchronization primitives
     #  in place. Having concurrent workers write on overlapping shared memory
     #  data segments, for instance by using inplace operators and assignments on
@@ -42,7 +77,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
     new = not loc.exists()
     mode = 'w+' if (new or overwrite) else 'r+'  # FIXME w+ r+ same??
     if dtype is None:
-        dtype = 'f' if fill is None else type(fill)
+        dtype = float if fill is None else type(fill)
 
     # create memmap
     if shape:
@@ -56,7 +91,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
 
     # NOTE: using ` np.lib.format.open_memmap` here so that we get a small
     #  amount of header info for easily loading the array
-    data = np.lib.format.open_memmap(filename, mode, dtype, shape)
+    data = np.lib.format.open_memmap(filename, mode, dtype, shape, **kws)
 
     if data.shape != shape:
         raise ValueError(f'Loaded memmap has shape {data.shape}, which is '
@@ -65,14 +100,17 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False):
 
     # overwrite data
     if (new or overwrite) and (fill is not None):
-        logger.debug('Overwriting data with {:g}.', fill)
+        logger.opt(lazy=True).debug(
+            'Overwriting memory map data with input {}.',
+            lambda: fill if isinstance(fill, numbers.Number) else 'data')
+        
         data[:] = fill
 
     return data
 
 
-def load_memmap_nans(loc, shape=None, dtype=None, overwrite=False):
-    return load_memmap(loc, shape, dtype, fill=np.nan, overwrite=overwrite)
+def load_memmap_nans(loc, shape=None, dtype=None, overwrite=False, **kws):
+    return load_memmap(loc, shape, dtype, fill=np.nan, overwrite=overwrite, **kws)
 
 
 # ---------------------------------------------------------------------------- #
