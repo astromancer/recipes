@@ -540,6 +540,7 @@ PLURALIA_TANTUM = {
     'series',
     'sheep',
     'shrimp',
+    'software',
     'species',
     'swine',
     'trout',
@@ -563,15 +564,20 @@ def naive_english_plural(word):
     )
 
 
-def _many(obj):
-    return isinstance(obj, abc.Collection) and (len(obj) != 1)
-
-
 def pluralise(text, items=(()), plural=None, n=None):
     """Conditional plural of `text` based on size of `items`."""
+
     return ((plural or naive_english_plural(text))
-            if (n and n > 1) or _many(items)
+            if _is_plural(items, n)
             else text)
+
+
+def _is_plural(items=(()), n=None):
+    return _many(items) if n is None else n != 1
+
+
+def _many(obj):
+    return isinstance(obj, abc.Collection) and (len(obj) != 1)
 
 
 # alias
