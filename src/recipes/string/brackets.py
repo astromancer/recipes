@@ -493,7 +493,7 @@ class BracketParser:
              1 or True  : raises ValueError
 
         Yields
-        -------
+        ------
         match : BracketPair
         """
 
@@ -751,7 +751,7 @@ class BracketParser:
     def _isplit_slice_pairs(self, string, must_close, condition):
         # for splitting like (pre-bracket, bracketed)
         slices = self.isplit_slices(string, must_close, condition)
-        yield from mit.grouper(slices, 2, slice(len(string), None))
+        yield from mit.grouper(slices, 2, fillvalue=slice(len(string), None))
 
     def isplit_pairs(self, string, must_close=False, condition=always_true):
         for pre, bracketed in self._isplit_slice_pairs(string, must_close, condition):
