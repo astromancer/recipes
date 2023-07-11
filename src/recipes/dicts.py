@@ -282,7 +282,7 @@ null = object()
 
 def _split(mapping, keys):
     for key in keys:
-        if val := mapping.pop(key, null) is not null:
+        if (val := mapping.pop(key, null)) is not null:
             yield key, val
 
 def split(mapping, *keys):
