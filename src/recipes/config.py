@@ -22,6 +22,7 @@ class ConfigNode(DictNode, AttrReadItem):
     def load_module(cls, filename, format=None):
         config_file = find_config((path := Path(filename)), format, True)
         node = cls.load(config_file)
+        # step up parent modules
         candidates = get_module_name(path).split('.')[::-1]
         for parent in candidates:
             if parent in node:
