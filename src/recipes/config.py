@@ -11,27 +11,45 @@ from .introspect.utils import get_module_name, get_package_name
 
 
 # ---------------------------------------------------------------------------- #
+CONFIG_CACHE = {}
+
+# ---------------------------------------------------------------------------- #
+
 
 class ConfigNode(DictNode, AttrReadItem):
 
     @classmethod
     def load(cls, filename):
-        return cls(**load(filename))
+        if filename not in CONFIG_CACHE:
+            CONFIG_CACHE[filename] = cls(**load(filename))
+
+        return CONFIG_CACHE[filename]
 
     @classmethod
     def load_module(cls, filename, format=None):
         config_file = find_config((path := Path(filename)), format, True)
         node = cls.load(config_file)
         # step up parent modules
-        candidates = get_module_name(path).split('.')[::-1]
-        for parent in candidates:
-            if parent in node:
-                return node[parent]
+        candidates = get_module_name(path).split('.')
+        
+        if len(candidates) == 1 and Path(filename).stem == '__init__':
+            # the package root is loading the config
+            return node
 
+        found = False
+        for parent in candidates[1:]: # can skip root here
+            if parent in node:
+                found = True
+                node = node[parent]
+
+        if found:
+            return node
+        
         raise ValueError('Could not locate config section for any of the parent'
                          f' packages: {candidates} in config file {config_file}')
 
 # ---------------------------------------------------------------------------- #
+
 
 class ConfigLoader:
 
