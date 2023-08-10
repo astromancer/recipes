@@ -7,14 +7,17 @@ Miscellaneous functions for pretty printing
 import os
 
 # relative
-from ..dicts import pformat
+from .. import dicts
 from ..string import overlay
 
 
+# ---------------------------------------------------------------------------- #
 STD_BRACKETS = object()
 STD_BRACKET_TYPES = {set: '{}',
                      list: '[]',
                      tuple: '()'}
+
+# ---------------------------------------------------------------------------- #
 
 
 def mapping(dict_, name=None, **kws):
@@ -32,7 +35,7 @@ def mapping(dict_, name=None, **kws):
     --------
     >>> 
     """
-    print(pformat(dict_, name, **kws))
+    return dicts.pformat(dict_, name, **kws)
 
 
 def collection(obj, max_items=10, edge_items=1, sep=',', dots='...',

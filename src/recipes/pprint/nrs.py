@@ -24,7 +24,7 @@ import docsplice as doc
 # relative
 from .. import op, unicode as uni
 from ..functionals import echo0
-from ..array.misc import vectorize
+from ..array.utils import vectorize
 from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 
@@ -254,7 +254,11 @@ class YMDHMS:
             yield next(sep, '')
 
         r /= TIME_DIVISORS[v]
-        s = f'{r:{self.fill[v]}{self.width[v] + int(p)}.{p}f}'
+         
+        if w := self.width[v]:
+            w += int(p)
+            
+        s = f'{r:{self.fill[v]}{w}.{p}f}'
 
         if short and p:
             s = s.rstrip('0').rstrip('.')
@@ -1338,7 +1342,7 @@ def matrix(a, precision=3):
     from motley.utils import hstack
 
     tbl = Table(a, precision=precision, frame=False, col_borders=' ',
-                minimalist=True, title='', title_props={})
+                minimalist=True, title='', title_style={})
     n_rows, _ = tbl.shape
     left = '\n'.join('┌' + ('│' * n_rows) + '└')
     right = '\n'.join([' ┐'] + [' │'] * n_rows + [' ┘'])
