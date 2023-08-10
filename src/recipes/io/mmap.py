@@ -93,7 +93,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
     #  amount of header info for easily loading the array
     data = np.lib.format.open_memmap(filename, mode, dtype, shape, **kws)
 
-    if data.shape != shape:
+    if shape and (data.shape != shape):
         raise ValueError(f'Loaded memmap has shape {data.shape}, which is '
                          f'different to that requested: {shape}. Overwrite: '
                          f'{overwrite}.')
