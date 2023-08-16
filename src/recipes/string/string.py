@@ -20,6 +20,7 @@ from ..iter import where
 from ..utils import _delete_immutable, duplicate_if_scalar
 
 
+# ---------------------------------------------------------------------------- #
 # regexes
 REGEX_SPACE = re.compile(r'\s+')
 
@@ -28,6 +29,7 @@ JUSTIFY_MAP = {'r': '>',
                'l': '<',
                'c': '^',
                's': ' '}
+# ---------------------------------------------------------------------------- #
 
 
 class Percentage:
@@ -273,6 +275,7 @@ def sub(string, mapping=(), **kws):
 
     """
 
+    string = str(string)
     mapping = {**dict(mapping), **kws}
     if not mapping:
         return string
@@ -591,7 +594,7 @@ def numbered(items, name, plural=None):
 def named_items(items, name, plural=None, fmt=str, **kws):
 
     if not _many(items):
-        return f'{name}: {fmt(items[0])}'
+        return f'{name}: {fmt(next(iter(items)))}'
 
     from recipes import pprint
 
