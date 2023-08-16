@@ -93,17 +93,20 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
     #  amount of header info for easily loading the array
     data = np.lib.format.open_memmap(filename, mode, dtype, shape, **kws)
 
-    if shape and (data.shape != shape):
-        raise ValueError(f'Loaded memmap has shape {data.shape}, which is '
-                         f'different to that requested: {shape}. Overwrite: '
-                         f'{overwrite}.')
+    # check shape and dtype match
+    # dtype=np.dtype(dtype)
+    for what, val in dict(shape=shape, dtype=dtype).items():
+        if val and val != (dval := getattr(data, what)):
+            raise ValueError(f'Loaded memmap has {what} {dval}, which is '
+                             f'different to that requested: {val}. Overwrite: '
+                             f'{overwrite}.')
 
     # overwrite data
     if (new or overwrite) and (fill is not None):
         logger.opt(lazy=True).debug(
             'Overwriting memory map data with input {}.',
             lambda: fill if isinstance(fill, numbers.Number) else 'data')
-        
+
         data[:] = fill
 
     return data
