@@ -73,22 +73,23 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
         logger.info('Creating folder: {!r:}', str(folder))
         folder.mkdir(parents=True)
 
-    # update mode if existing file, else read
-    new = not loc.exists()
-    mode = 'w+' if (new or overwrite) else 'r+'  # FIXME w+ r+ same??
-    if dtype is None:
-        dtype = float if fill is None else type(fill)
-
-    # create memmap
     if shape:
         shape = ensure_wrapped(shape, tuple)
-
+    
+    # update mode if existing file, else read
+    new = not loc.exists() or overwrite
     if new:
+        mode = 'w+' # FIXME w+ r+ same??
+        # default dtype for writing
+        dtype = dtype or (float if fill is None else type(fill))
+        
         logger.debug('Creating memmap of shape {!s} and dtype {!r:} at {!r:}.',
                      shape, dtype, filename)
     else:
+        mode = 'r+'
         logger.debug('Loading memmap at {!r:}.', filename)
 
+    # create memmap
     # NOTE: using ` np.lib.format.open_memmap` here so that we get a small
     #  amount of header info for easily loading the array
     data = np.lib.format.open_memmap(filename, mode, dtype, shape, **kws)
@@ -102,7 +103,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
                              f'{overwrite}.')
 
     # overwrite data
-    if (new or overwrite) and (fill is not None):
+    if new and (fill is not None):
         logger.opt(lazy=True).debug(
             'Overwriting memory map data with input {}.',
             lambda: fill if isinstance(fill, numbers.Number) else 'data')
