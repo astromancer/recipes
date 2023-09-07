@@ -99,8 +99,9 @@ class PrintNode(anytree.Node):
 
     # rendering option
     renderer = DynamicIndentRender
+    renderer_kws = {}
 
-    def render(self):
+    def render(self, **kws):
         """
         A re-spaced rendering of the tree where spacing between levels are set
         dynamically based on the length of the string representation of the
@@ -123,7 +124,7 @@ class PrintNode(anytree.Node):
                          ├1
                          └2
         """
-        return str(self.renderer(self))
+        return str(self.renderer(self, **{**self.renderer_kws, **kws}))
 
     def pprint(self):
         print(self.render())
@@ -138,11 +139,13 @@ class Node(PrintNode):  # StringNode
     """
 
     get_label = op.itemgetter(0)
-    """This function decides the names of the nodes. It will be called on each
-    item in the input list at each level, returning the name of that node."""
+    """This function decides the names of the nodes during construction. It will
+    be called on each item in the input list at each level, returning the name 
+    of that node."""
 
     join_labels = ''.join
-    """This function joins node names together when collapsing the tree"""
+    """This function joins node names together when collapsing the unary
+    branches of the tree."""
 
     @property
     def sibling_leaves(self):
@@ -236,12 +239,12 @@ class Node(PrintNode):  # StringNode
 
         for gid, keys in itt.groupby(items, labeller or self.get_label):
             child = cls(gid, parent=parent)
-            child._make_branch(self._step_down(keys), labeller, filtering)
+            child._make_branch(self._get_children(keys), labeller, filtering)
 
         if constructor:
             return child  # this is actually the root node ;)
 
-    def _step_down(self, items):
+    def _get_children(self, items):
         itr = itt.zip_longest(*items)
         next(itr)  # step down a level
         return zip(*itr)
@@ -262,7 +265,10 @@ class Node(PrintNode):  # StringNode
             if key == child.name:
                 return child
 
-        raise KeyError(f'Could not get child node for index key {key}.')
+        raise KeyError(f'Could not get child node for index key {key!r}.')
+
+    # def __contains__(self, key):
+    #     return next((c for c in self.children if c.name == key), None) is not None
 
     # def append(self, name):
     #     child = type(self)(name)
@@ -499,18 +505,36 @@ class Node(PrintNode):  # StringNode
 
         return changed
 
+# ---------------------------------------------------------------------------- #
+
+
+def _sort_key(node):
+    return (node.as_path().is_dir(), node.name)
+
+
+def _pprint_sort(children):
+    return sorted(children, key=_sort_key)
+
 
 class FileSystemNode(Node):
+    # pprinting
+    renderer_kws = dict(childiter=_pprint_sort)
 
     # @classmethod
     # def make(cls, items, labeller=None, filtering=None):
 
     @classmethod
-    def from_path(cls, folder, collapse=True):
+    def from_path(cls, folder, collapse=True, ignore=()):
         folder = Path(folder)
         assert folder.exists()
 
-        root = cls._make_branch([folder])
+        if isinstance(ignore, str):
+            ignore = [ignore]
+        ignore = list(ignore)
+
+        filtering = (lambda path: (path.name not in ignore)) if ignore else None
+        root = cls._make_branch([folder], None, filtering)
+        root._root_path = folder.parent
 
         if collapse:
             root.collapse_unary()
@@ -522,7 +546,11 @@ class FileSystemNode(Node):
         return f'{path.name}{"/" * path.is_dir()}'
 
     @staticmethod
-    def _step_down(paths):
+    def _get_children(paths):
         path = next(paths)
         if path.is_dir():
             yield from path.iterdir()
+
+    def as_path(self):
+        """The node as a Path object"""
+        return self.root._root_path / ''.join(map(str, (*self.ancestors, self)))
