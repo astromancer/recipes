@@ -277,7 +277,7 @@ def index(collection, item, start=0, test=eq, default=NULL):
     #  -> only if default parameter was explicitly given do we return that
     #   instead of raising a ValueError
     if default is NULL:
-        raise ValueError(f'{item} is not in {type(collection)}')
+        raise ValueError(f'{item!r} is not in {type(collection).__name__}')
 
     return default
 

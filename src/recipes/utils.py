@@ -55,9 +55,9 @@ def duplicate_if_scalar(obj, n=2, raises=True, exceptions=(str,)):  # TODO: acti
 
     if (size != n) and raises:
         raise ValueError(
-            f'Input object of type {type(obj)} has incorrect size. Expected '
-            f'either a scalar type object, or a Container with length in {{1, '
-            f'{n}}}.'
+            f'Input object of type {type(obj)} has incorrect size: {size}. '
+            'Expected either a scalar type object, or a Container with length '
+            f'in {{1, {n}}}.'
         )
 
     return obj

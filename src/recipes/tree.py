@@ -58,7 +58,7 @@ class DynamicIndentRender(anytree.RenderTree):
             *next(zip(style.vertical, style.cont, style.end)))
 
     def __iter__(self):
-        return self.__next(self.node, tuple())
+        return self.__next(self.node, ())
 
     def __next(self, node, continues, level=0):
         name = str(getattr(node, self.attr))
@@ -208,12 +208,14 @@ class Node(PrintNode):  # StringNode
         Node
             The root node of the tree.
         """
-        # build the tree
 
+        # build the tree
         root = cls('')
         root._make_branch(sorted(items), labeller, filtering)
+
         if collapse:
             root.collapse_unary()
+
         return root
 
     @sharedmethod
@@ -424,7 +426,7 @@ class Node(PrintNode):  # StringNode
         return changed
 
     def grandparent_adopts(self):
-        # reparent this child to the grand parent and concatenate the names
+        # re-parent this child to the grand parent and concatenate the names
         parent = self.parent
         self.name = parent.name + self.name
         self.parent = parent.parent

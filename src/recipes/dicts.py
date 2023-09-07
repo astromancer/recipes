@@ -278,15 +278,19 @@ def merge(*mappings, **kws):
     out.update(kws)
     return out
 
+
 null = object()
+
 
 def _split(mapping, keys):
     for key in keys:
         if (val := mapping.pop(key, null)) is not null:
             yield key, val
 
+
 def split(mapping, *keys):
     return mapping, dict(_split(mapping, keys))
+
 
 def remove(mapping, *keys):
     list(_split(mapping, keys))
@@ -449,8 +453,8 @@ class DictNode(AutoVivify, Pprinter, defaultdict):
 # alias
 NodeDict = DictNode
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 # TODO AttrItemWrite
 
 
@@ -713,7 +717,7 @@ class TransDict(UserDict):
 
         Examples
         --------
-        >>> d.many_to_one({'all', 'these', 'keys', 'will', 'map to':
+        >>> d.many_to_one({('all', 'these', 'keys', 'will', 'map to'):
                            'THIS VALUE')
         ... d['all'] == d['these'] == 'THIS VALUE'
         True
@@ -815,10 +819,11 @@ class IndexableOrderedDict(OrderedDict):
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
     # Note: dict order is gauranteed since pyhton 3.7
+
     def __init__(self, default_factory=None, mapping=(), **kws):
         if not (default_factory is None or callable(default_factory)):
             raise TypeError(
-                'First argument to {self.__class__.__name__} must be callable.'
+                f'First argument to {self.__class__.__name__} must be callable.'
             )
 
         OrderedDict.__init__(self, mapping, **kws)
