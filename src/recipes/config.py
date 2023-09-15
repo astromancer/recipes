@@ -11,7 +11,7 @@ from .introspect.utils import get_module_name, get_package_name
 
 
 # ---------------------------------------------------------------------------- #
-CONFIG_CACHE = {}
+CACHE = {}
 
 # ---------------------------------------------------------------------------- #
 
@@ -20,59 +20,66 @@ class ConfigNode(DictNode, AttrReadItem):
 
     @classmethod
     def load(cls, filename):
-        if filename not in CONFIG_CACHE:
-            CONFIG_CACHE[filename] = cls(**load(filename))
+        if filename not in CACHE:
+            CACHE[filename] = cls(**load(filename))
 
-        return CONFIG_CACHE[filename]
+        return CACHE[filename]
 
     @classmethod
     def load_module(cls, filename, format=None):
         config_file = find_config((path := Path(filename)), format, True)
         node = cls.load(config_file)
+
         # step up parent modules
         candidates = get_module_name(path).split('.')
-        
-        if len(candidates) == 1 and Path(filename).stem == '__init__':
-            # the package root is loading the config
+
+        stem = Path(filename).stem
+        if (stem == 'config') or (stem == '__init__' and len(candidates) == 1):
+            # the package initializer is loading the config
             return node
 
         found = False
-        for parent in candidates[1:]: # can skip root here
+        keys = node.keys()
+        for parent in candidates[1:]:  # can skip root here
             if parent in node:
                 found = True
                 node = node[parent]
 
         if found:
             return node
-        
-        raise ValueError('Could not locate config section for any of the parent'
-                         f' packages: {candidates} in config file {config_file}')
+
+        nl = '\n    '
+        raise ValueError(f'Config file {config_file} does not contain any section'
+                         f' matching module names in the package tree: {candidates}\n'
+                         'The following config sections are available:'
+                         f' {nl.join(("", *map(repr, keys)))}')
+
 
 # ---------------------------------------------------------------------------- #
 
 
-class ConfigLoader:
+# class ConfigLoader:
 
-    # @classmethod
-    # def hook(cls, name):
-    #     obj = sys.modules[name] = cls(sys.modules[name])
-    #     return obj
+#     # @classmethod
+#     # def hook(cls, name):
+#     #     obj = sys.modules[name] = cls(sys.modules[name])
+#     #     return obj
 
-    def __init__(self, module, format=None):
-        self.mod = module
-        self.format = format
-        self.config = None
+#     def __init__(self, module, format=None):
+#         self.module = module
+#         self.format = format
+#         self.config = None
 
-    def __getattr__(self, key):
-        if key == 'CONFIG':
-            cfg = super().__getattr__('config')
-            if cfg is None:
-                self.config = cfg = ConfigNode.load(
-                    find_config(self.module.__file__, self.format)
-                )
-            return cfg
+#     def __getattr__(self, key):
+#         if key == 'CONFIG':
+#             cfg = super().__getattr__('config')
+#             if cfg is None:
+#                 self.config = cfg = ConfigNode.load(
+#                     find_config(self.module.__file__, self.format)
+#                 )
+#             return cfg
 
-        return super().__getattr__(key)
+#         return super().__getattr__(key)
 
 
 def find_config(filename, format=None, raises=False):

@@ -1,7 +1,11 @@
+"""
+Context Managers.
+"""
 
 import contextlib as ctx
 
 
+# ---------------------------------------------------------------------------- #
 class ContextStack(ctx.ExitStack):
     def __init__(self, context=None):
         super().__init__()
