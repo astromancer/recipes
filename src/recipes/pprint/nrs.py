@@ -22,7 +22,8 @@ import numpy as np
 import docsplice as doc
 
 # relative
-from .. import op, unicode as uni
+from .. import op
+from ..string import unicode as uni
 from ..functionals import echo0
 from ..array.utils import vectorize
 from ..utils import duplicate_if_scalar

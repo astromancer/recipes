@@ -1,3 +1,6 @@
+"""
+Common decorators and simple helpers for functional code patterns.
+"""
 
 from .utils import *
-from .emit import Emit
+# from .decorators import *

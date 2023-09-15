@@ -13,7 +13,7 @@ from collections import abc, deque
 from loguru import logger
 
 # relative
-from .interactive import is_interactive
+from .shell.interactive import is_interactive
 
 
 ZERO_DEPTH_BASES = (str, bytes, Number, range, bytearray)

@@ -24,6 +24,7 @@ import docsplice as doc
 from .functionals import echo0, raises
 
 
+# ---------------------------------------------------------------------------- #
 class NULL:
     "Null singleton"
 

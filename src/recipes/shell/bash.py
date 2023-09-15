@@ -11,12 +11,12 @@ import math
 import docsplice as doc
 
 # relative
-from . import op
-from .tree import Node
-from .lists import split_where
-from .functionals import negate
-from .string import shared_affix, strings
-from .string.brackets import BracketParser, csplit
+from .. import op
+from ..tree import Node
+from ..lists import split_where
+from ..functionals import negate
+from ..string import shared_affix, strings
+from ..string.brackets import BracketParser, csplit
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')

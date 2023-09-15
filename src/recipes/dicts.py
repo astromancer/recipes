@@ -15,12 +15,13 @@ from collections import OrderedDict, UserDict, abc, defaultdict
 import more_itertools as mit
 
 # relative
+from .flow import Emit
+from .iter import cofilter
 from .string import indent
-from .functionals import Emit
 
 
-# TODO: a factory function which takes requested props, eg: indexable=True,
-# attr=True, ordered=True)
+# TODO: a factory function which takes requested props, eg:
+# indexable=True, attr='r', ordered=True)
 
 
 # ---------------------------------------------------------------------------- #
@@ -434,20 +435,95 @@ class AutoVivify(_AccessManager):
         return value
 
 
-class DictNode(AutoVivify, Pprinter, defaultdict):
+class NodeList(list):
+    def __getitem__(self, key):
+        return NodeList(
+            [child[key] for child in self if isinstance(child, vdict)]
+        )
+
+
+class LeafNode:  # SlotHelper circular!
+    __slots__ = ('_val', 'parent')
+
+    def __init__(self, val):
+        self.parent = None
+        self._val = val
+
+    def __repr__(self):
+        return str(self._val)
+
+
+def _get_val(item):
+    return item._val if isinstance(item, LeafNode) else item
+
+
+class DictNode(AutoVivify, Pprinter, defaultdict, vdict):
     """
     A defaultdict that generates instances of itself. Used to create arbitrary 
     data trees without prior knowledge of final structure. 
     """
 
+    _wrapper = NodeList
+
     def __init__(self, factory=None, *args, **kws):
-        factory = factory or type(self)
+        factory = factory or self._new_node
         if kws:
             defaultdict.__init__(self, factory, *args)
             for key, val in kws.items():
-                self[key] = factory(**val) if isinstance(val, MutableMapping) else val
+                self[key] = factory(val)
         else:
             defaultdict.__init__(self, factory, *args, **kws)
+
+    def _new_node(self, val):
+        node = type(self)(**val) if isinstance(val, MutableMapping) else LeafNode(val)
+        node.parent = self
+        return node
+
+    def __getitem__(self, key):
+        return _get_val(super().__getitem__(key))
+    
+    def __iter__(self): 
+        # needed for ** unpacking to work. FNW
+        return super().__iter__()
+    
+    def values(self):
+        for val in super().values():
+            if isinstance(val, LeafNode):
+                val = val._val
+            yield val
+            
+    def items(self):
+        yield from zip(self.keys(), self.values())
+    
+    def pop(self, key, *default):
+        return _get_val(super().pop(key, *default))
+
+    def leaves(self, levels=all, merge_keys=False):
+
+        if isinstance(levels, numbers.Integral):
+            levels = [levels]
+
+        keys = [] if merge_keys else None
+        return dict(self._leaves(levels, 0, keys))
+
+    def _leaves(self, levels, _level=0, _keys=None):
+        merge_keys = _keys is not None
+        for key, child in self.items():
+            if isinstance(child, type(self)):
+                yield from child._leaves(
+                    levels, _level + 1, ((*_keys, key) if merge_keys else None)
+                )
+            elif (levels is all or _level in levels):
+                yield ((*_keys, key) if merge_keys else key), child
+
+    def flatten(self, levels=all):
+        return self.leaves(levels, True)
+
+    def filtered(self, func, levels=all, merge_keys=True):
+        return dict(self._filter(func, levels, merge_keys))
+
+    def _filter(self, func, levels, merge_keys):
+        yield from zip(*cofilter(func, *zip(*self.leaves(levels, merge_keys))))
 
 
 # alias

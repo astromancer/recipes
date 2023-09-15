@@ -5,11 +5,11 @@ The following code shows (implicitly) how the various types of parameters are
 defined:
 
 >>> def func(
-...         a, b=0,     # positional only
+...         a, # b=0,   # positional only
 ...         /,          # mark end of position-only params
 ...         c, d=2,     # positional or keyword
 ...         *args,      # variadic positional
-...         *,          # mark start of keyword-only params
+...         # *,        # mark start of keyword-only params
 ...         e=3,        # keyword-only
 ...         **kws       # variadic keywords
 ...     ): ...

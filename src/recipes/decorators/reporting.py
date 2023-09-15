@@ -11,7 +11,6 @@ from io import StringIO
 from loguru import logger
 
 # relative
-from .. import pprint as pp
 from ..string import indent
 from .base import Decorator
 
@@ -53,6 +52,7 @@ class trace(Decorator):
                  formatter=None,
                  **options):
 
+        from recipes import pprint as pp
         formatter = formatter or pp.caller  # avoid circular import
 
         self.pre = pre

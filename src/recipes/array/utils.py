@@ -9,8 +9,29 @@ import numpy as np
 from recipes.lists import flatten, where_duplicate
 
 
+# ---------------------------------------------------------------------------- #
+def symmetrize(a):
+    return a + a.T - np.diag(a.diagonal())
+
+
+class SymNDArray(np.ndarray):
+    def __setitem__(self, ij, value):
+        i, j = ij
+        super(SymNDArray, self).__setitem__((i, j), value)
+        super(SymNDArray, self).__setitem__((j, i), value)
+
+
+def symarray(input_array):
+    """
+    Returns a symmetrized version of the array-like input_array.
+    Further assignments to the array are automatically symmetrized.
+    """
+    return symmetrize(np.asarray(input_array)).view(SymNDArray)
+
+
+# ---------------------------------------------------------------------------- #
 def get_fields(a, fields, viewtype=float):
-    return a[list(fields)].view(viewtype).reshape((*a.shape, -1)) 
+    return a[list(fields)].view(viewtype).reshape((*a.shape, -1))
 
 
 def vectorize(fn, otypes=None, doc=None, excluded=None, cache=False,

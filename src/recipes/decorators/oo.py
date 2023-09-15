@@ -1,7 +1,25 @@
+
+
 import types
 
 
-class sharedmethod(classmethod):  # source astropy
+
+class singleton:
+    # adapted from:
+    # https://python-3-patterns-idioms-test.readthedocs.io/en/latest/Singleton.html
+
+    def __init__(self, klass):
+        self.klass = klass
+        self.instance = None
+
+    def __call__(self, *args, **kws):
+        if self.instance is None:
+            self.instance = self.klass(*args, **kws)
+        return self.instance
+
+
+
+class sharedmethod(classmethod):  # adapted from astropy
     """
     This is a method decorator that allows both an instancemethod and a
     `classmethod` to share the same name.
@@ -51,24 +69,20 @@ class sharedmethod(classmethod):  # source astropy
     """
 
     def __get__(self, obj, objtype=None):
-        if obj is None:
-            mcls = type(objtype)
-            clsmeth = getattr(mcls, self.__func__.__name__, None)
-            if callable(clsmeth):
-                func = clsmeth
-            else:
-                func = self.__func__
-
-            return self._make_method(func, objtype)
-        else:
+        if obj is not None:
             return self._make_method(self.__func__, obj)
+    
+        mcls = type(objtype)
+        clsmeth = getattr(mcls, self.__func__.__name__, None)
+        func = clsmeth if callable(clsmeth) else self.__func__
+        return self._make_method(func, objtype)
 
     @staticmethod
     def _make_method(func, instance):
         return types.MethodType(func, instance)
 
 
-# def decorateAll(decorator=None, exclude=()):
+# def all_methods(decorator, ignore=()):
 #     """
 #     A decorator that applies a given decorator to all methods in a class.
 #     Useful for profiling / debugging.
@@ -82,7 +96,7 @@ class sharedmethod(classmethod):  # source astropy
 #                 #   decorated like this
 #                 is_static = isinstance(
 #                     cls.__dict__.get(name, None), staticmethod)
-#                 if not (is_static or name in exclude):
+#                 if not (is_static or name in ignore):
 #                     setattr(cls, name, decorator(method))
 #         return cls
 

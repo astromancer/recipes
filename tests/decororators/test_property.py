@@ -1,15 +1,15 @@
 
-from recipes.oo.property import lazyproperty
+from recipes.oo.property import cached_property
 
 
 class _TestClass:
     _computed = False
 
-    @lazyproperty
+    @cached_property
     def p1(self):
         return 42
 
-    @lazyproperty(depends_on=p1)
+    @cached_property(depends_on=p1)
     def p2(self):
         self._computed = True
         return self.p1 * 10

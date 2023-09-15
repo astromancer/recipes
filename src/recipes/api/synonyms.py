@@ -41,8 +41,8 @@ import itertools as itt
 from loguru import logger
 
 # relative
+from ..flow import Emit
 from ..pprint import callers
-from ..functionals import Emit
 from ..decorators import Decorator
 from ..string.brackets import BracketParser
 

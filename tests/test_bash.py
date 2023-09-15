@@ -3,7 +3,7 @@
 import textwrap as txw
 
 # local
-from recipes import bash
+from recipes.shell import bash
 from recipes.testing import Expected, expected, Throws
 
 

@@ -56,21 +56,21 @@ class Decorator:
     use this decorator if the first argument to the initializer is intended to
     be some callable. This will not work as expected:
 
-    >>> class coerce_first_param(decorator):
+    >>> class CoerceTo(Decorator):
     ...     def __init__(self, new_type):
     ...         assert isinstance(new_type, type)
     ...         self.new_type = new_type
     ...
     ...     def __wrapper__(self, obj):
-    ...         return self.__wrapped__(self.new_type(obj))
+    ...         return super().__wrapped__(self.new_type(obj))
     ...
-    ... @coerce_first_param(str)    # NOPE!
+    ... @CoerceTo(str)    # NOPE!
     ... def buz(): 
     ...     ...
 
     This can be remedied by passing your callable to the initializer as a
     keyword parameter:
-    >>> @coerce_first_param(new_type=str)    # OK!
+    >>> @CoerceTo(new_type=str)    # OK!
     ... def buz():
     ...     return ...
     ... buz()

@@ -26,7 +26,7 @@ import docsplice as doc
 
 # relative
 from ..string import sub
-from ..bash import brace_expand_iter
+from ..shell.bash import brace_expand_iter
 from ..string.brackets import BracketParser
 from ..functionals import echo0
 
