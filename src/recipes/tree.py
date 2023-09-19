@@ -6,6 +6,7 @@ import math
 import numbers
 import itertools as itt
 from pathlib import Path
+from collections import abc
 
 # third-party
 import anytree
@@ -14,8 +15,8 @@ from anytree.render import _is_last
 # relative
 from . import op
 from .string import strings
+from .functionals import always
 from .oo.temp import temporarily
-from .decorators import sharedmethod
 
 
 # ---------------------------------------------------------------------------- #
@@ -41,16 +42,32 @@ def _reindent(string, height):
             yield row
         yield '\n'
 
+
+# ---------------------------------------------------------------------------- #
+
+def _recurse(func, mapping, arg):
+
+    for key, item in mapping.items():
+        if isinstance(item, abc.MutableMapping):
+            _recurse(func, item, arg)
+        else:
+            mapping[key] = func(item, arg)
+
+    return mapping
+
 # ---------------------------------------------------------------------------- #
 
 
 class DynamicIndentRender(anytree.RenderTree):
 
-    def __init__(self, node, style=anytree.ContRoundStyle(), childiter=list, maxlevel=None):
+    def __init__(self, node, style=anytree.ContRoundStyle(), childiter=list,
+                 maxlevel=None, attr='name'):
+
         super().__init__(node, style, childiter, maxlevel)
 
-        self.attr = 'name'
+        self.attr = str(attr)
         self.widths = [0] * (node.height + 1)
+        # self.widths[0] = len(getattr(node, self.attr))
         # Adapt the style
         # Use first character of vertical/branch/end strings eg "│", "├", "└"
         style = self.style
@@ -62,16 +79,15 @@ class DynamicIndentRender(anytree.RenderTree):
 
     def __next(self, node, continues, level=0):
         name = str(getattr(node, self.attr))
-        self.widths[(level - 1):] = [len(name), *([0] * (node.height + 1))]
-        # print(f'next {node=:}, {level=:}, {self.indents=:}, {continues=:}')
+        self.widths[level:] = [len(name), *([0] * (node.height + 1))]
+        # print(f'{node.name = :<15} {level = :<10} {self.widths = !s:<20} {continues = !s:<20}')
 
         yield self.__item(node, continues, self.style, level)
 
-        children = node.children
         level += 1
+        children = node.children
         if children and (self.maxlevel is None or level < self.maxlevel):
-            children = self.childiter(children)
-            for child, is_last in _is_last(children):
+            for child, is_last in _is_last(self.childiter(children)):
                 yield from self.__next(child, continues + (not is_last, ), level=level)
 
     def __item(self, node, continues, style, level):
@@ -80,13 +96,16 @@ class DynamicIndentRender(anytree.RenderTree):
             return anytree.render.Row(u'', u'', node)
 
         selection = (style.empty, style.vertical)
-        items = [f'{selection[c]: <{w}}' for w, c in zip(self.widths, continues)]
-        branch = f'{(style.cont if continues[-1] else style.end): <{self.widths[level]}}'
-        indent = ''.join(items[:-1])
-        pre = indent + branch
-        fill = ''.join((indent, items[-1]))
-        # print(f'item {pre=:}, {fill=:}, {node=:}')
-        return anytree.render.Row(pre, fill, node)
+        *items, last = [f'{selection[c]: <{w}}'
+                        for w, c in zip(self.widths[1:], continues)]
+
+        branches = f'{(style.end, style.cont)[continues[-1]]: <{self.widths[level + 1]}}'
+        indent = ''.join(items)
+        # print(f'{items = }\n{last = }\n{branches = }')
+
+        return anytree.render.Row(indent + branches,
+                                  indent + last,
+                                  node)
 
     def by_attr(self, attrname='name'):
         with temporarily(self, attr=attrname):
@@ -95,11 +114,16 @@ class DynamicIndentRender(anytree.RenderTree):
 # ---------------------------------------------------------------------------- #
 
 
-class PrintNode(anytree.Node):
+class PrettyNode(anytree.Node):
 
     # rendering option
     renderer = DynamicIndentRender
     renderer_kws = {}
+
+    def __repr__(self):
+        # we need this because anytree uses repr when render the tree. Not ideal
+        # since it obscures the true object.
+        return str(self.name)
 
     def render(self, **kws):
         """
@@ -129,37 +153,66 @@ class PrintNode(anytree.Node):
     def pprint(self):
         print(self.render())
 
+
 # ---------------------------------------------------------------------------- #
 
 
-class Node(PrintNode):  # StringNode
+class TreeBuilder:
     """
-    An `anytree.Node` that builds trees based on a list of input strings.
-    Can be used to represent file system trees etc.
+    Various tree constructors / contractors.
     """
 
-    get_label = op.itemgetter(0)
+    _get_name = op.itemgetter(0)
     """This function decides the names of the nodes during construction. It will
     be called on each item in the input list at each level, returning the name 
     of that node."""
 
-    join_labels = ''.join
+    _join_names = ''.join
     """This function joins node names together when collapsing the unary
     branches of the tree."""
 
-    @property
-    def sibling_leaves(self):
-        return tuple(child for child in self.siblings if child.is_leaf)
+    @classmethod
+    def _build(cls, method_name, *args, root='', collapse=False, **kws):
+        """
+        Build a tree.  First create the root node with name `root`. Then
+        recursively build the tree by calling constructor method with to create
+        each branch.
+
+        Parameters
+        ----------
+        method_name : string
+            Name of the method that will graft branches onto nodes.
+        root : str, optional
+            Name of the root node, by default ''.
+        collapse : bool, optional
+            Whether to collapse unary branches of the tree after creating it, by
+            default False.
+
+        Returns
+        -------
+        TreeBuilder (or subclass) instance.
+            Root node of the tree.
+        """
+
+        root = cls(root)
+        getattr(root, method_name)(*args, **kws)
+
+        if collapse:
+            root.collapse_unary()
+
+        return root
+
+    # def _recurse()
 
     @classmethod
     def from_strings(cls, items, collapse=True):
         """
         Create the tree from a list of input strings.
         """
-        return cls.from_list(strings(items))
+        return cls.from_list(strings(items), collapse)
 
     @classmethod
-    def from_list(cls, items, labeller=None, filtering=None, collapse=True):
+    def from_list(cls, items, root='', labeller=None, filtering=None, collapse=True):
         """
         Create the tree from a list of input sequences.
 
@@ -213,67 +266,83 @@ class Node(PrintNode):  # StringNode
         """
 
         # build the tree
-        root = cls('')
-        root._make_branch(sorted(items), labeller, filtering)
+        return cls._build('_from_list', sorted(items), labeller, filtering,
+                          root=root, collapse=collapse)
 
-        if collapse:
-            root.collapse_unary()
-
-        return root
-
-    @sharedmethod
-    def _make_branch(self, items, labeller=None, filtering=None):
+    def _from_list(self, items, labeller=None, filtering=None):
         """
-        Build the tree by grouping a
-        grouping when subsequent letters have the same prefix.
+        Build the tree by grouping items and recursing on sub-groups
         """
+
         if filtering is not False:
             items = filter(filtering, items)
 
-        cls = type(self)
-        if constructor := (cls is type):
-            parent = None  # root node
-            cls = self
-        else:
-            parent = self
-
-        for gid, keys in itt.groupby(items, labeller or self.get_label):
-            child = cls(gid, parent=parent)
-            child._make_branch(self._get_children(keys), labeller, filtering)
-
-        if constructor:
-            return child  # this is actually the root node ;)
+        for name, items in itt.groupby(items, labeller or self._get_name):
+            if name is None:
+                continue
+            
+            # print(f'{name = }')
+            child = type(self)(name, parent=self)
+            child._from_list(self._get_children(items), labeller, filtering)
 
     def _get_children(self, items):
         itr = itt.zip_longest(*items)
         next(itr)  # step down a level
         return zip(*itr)
 
-    def __repr__(self):
-        # we need this because anytree uses repr to render the tree. Not ideal
-        # since it obscures the true object.
-        return str(self.name)
+    # ------------------------------------------------------------------------ #
+    @classmethod
+    def from_dict(cls, mapping, root='', collapse=False):
+        """
+        Create the tree from a mapping of input name-value pairs. Values may 
+        themselves be mappings.
 
-    def __getitem__(self, key):
-        if self.is_leaf:
-            raise ValueError('Node has no children.')
+        Parameters
+        ----------
+        items : mapping
+            _description_
 
-        if isinstance(key, numbers.Integral):
-            return self.children[key]
+        Examples 
+        --------
 
-        for child in self.children:
-            if key == child.name:
-                return child
 
-        raise KeyError(f'Could not get child node for index key {key!r}.')
+        Returns
+        -------
+        Node
+            The root node of the tree.
+        """
 
-    # def __contains__(self, key):
-    #     return next((c for c in self.children if c.name == key), None) is not None
+        # build the tree
+        return cls._build('_from_dict', mapping,
+                          root=root, collapse=collapse)
 
-    # def append(self, name):
-    #     child = type(self)(name)
-    #     child.parent = self.parent
+    def _from_dict(self, mapping):
 
+        # if constructor := isinstance(self, type):
+        #     cls, parent = self, None  # root node
+        # else:
+        #     cls, parent = type(self), self
+        cls = type(self)
+        for name, items in mapping.items():
+            if isinstance(items, abc.MutableMapping):
+                child = cls(name, parent=self)
+                child._from_dict(items)
+            else:
+                child = cls(name, parent=self)
+
+        # if constructor:
+        #     return child     # this is actually the root node ;)
+
+    # ------------------------------------------------------------------------ #
+    @property
+    def sibling_leaves(self):
+        return tuple(child for child in self.siblings if child.is_leaf)
+
+    @property
+    def sibling_leaves(self):
+        return tuple(child for child in self.siblings if child.is_leaf)
+
+    # ------------------------------------------------------------------------ #
     def collapse(self, max_depth=math.inf, top_down=None, bottom_up=True):
         """
         Collapse the nodes that are deeper than `max_depth`. Each child node
@@ -496,7 +565,7 @@ class Node(PrintNode):  # StringNode
         changed = False
         while len(child.children) == 1:
             child, = child.children
-            self.name = self.join_labels((self.name, child.name))
+            self.name = self._join_names((self.name, child.name))
             changed = True
         self.children = child.children
 
@@ -505,9 +574,31 @@ class Node(PrintNode):  # StringNode
 
         return changed
 
+
+class Node(PrettyNode, TreeBuilder):
+
+    def __getitem__(self, key):
+        if self.is_leaf:
+            raise ValueError('Node has no children.')
+
+        if isinstance(key, numbers.Integral):
+            return self.children[key]
+
+        for child in self.children:
+            if key == child.name:
+                return child
+
+        raise KeyError(f'Could not get child node for index key {key!r}.')
+
+    # def __contains__(self, key):
+    #     return next((c for c in self.children if c.name == key), None) is not None
+
+    # def append(self, name):
+    #     child = type(self)(name)
+    #     child.parent = self.parent
+
+
 # ---------------------------------------------------------------------------- #
-
-
 def _sort_key(node):
     return (node.as_path().is_dir(), node.name)
 
@@ -516,33 +607,37 @@ def _pprint_sort(children):
     return sorted(children, key=_sort_key)
 
 
+def _ignore_names(ignore):
+
+    if isinstance(ignore, str):
+        ignore = [ignore]
+
+    if not (ignore := list(ignore)):
+        return always(True)
+
+    def wrapper(path):
+        return (path.name not in ignore)
+
+    return wrapper
+
+
 class FileSystemNode(Node):
+
     # pprinting
     renderer_kws = dict(childiter=_pprint_sort)
 
-    # @classmethod
-    # def make(cls, items, labeller=None, filtering=None):
-
     @classmethod
     def from_path(cls, folder, collapse=True, ignore=()):
+        
         folder = Path(folder)
         assert folder.exists()
 
-        if isinstance(ignore, str):
-            ignore = [ignore]
-        ignore = list(ignore)
-
-        filtering = (lambda path: (path.name not in ignore)) if ignore else None
-        root = cls._make_branch([folder], None, filtering)
-        root._root_path = folder.parent
-
-        if collapse:
-            root.collapse_unary()
-
-        return root
+        return cls._build('_from_list', 
+                          folder.iterdir(), None, _ignore_names(ignore),
+                          root=str(folder), collapse=False)
 
     @staticmethod
-    def get_label(path):
+    def _get_name(path):
         return f'{path.name}{"/" * path.is_dir()}'
 
     @staticmethod
@@ -552,5 +647,5 @@ class FileSystemNode(Node):
             yield from path.iterdir()
 
     def as_path(self):
-        """The node as a Path object"""
-        return self.root._root_path / ''.join(map(str, (*self.ancestors, self)))
+        """The node as a pathlib.Path object."""
+        return Path(''.join(map(str, (*self.ancestors, self))))
