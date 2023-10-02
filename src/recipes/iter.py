@@ -26,24 +26,6 @@ NULL = object()
 # ---------------------------------- helpers --------------------------------- #
 
 
-# -------------------------------- decorators -------------------------------- #
-
-def on_nth(func, n):
-    def wrapped(obj):
-        return func(obj[n])
-    return wrapped
-
-
-def on_zeroth(func):
-    return on_nth(func, 0)
-
-
-def on_first(func):
-    return on_nth(func, 1)
-
-# ---------------------------------------------------------------------------- #
-
-
 def as_iter(obj, exclude=(str,), return_as=list):
     """
     Converts the input object to an iterable.
@@ -63,8 +45,116 @@ as_sequence = as_iter
 # as_sequence_unless_str
 
 
-# def where(iterable, test=bool):
-#     return nth_zip(0, *filter(on_first(test), enumerate(iterable)))
+# -------------------------------- decorators -------------------------------- #
+
+# TODO: remove in favour of functionals.partial??
+
+def on_nth(func, n):  # apply.nth_positional(func, 1)(*args)
+
+    def wrapped(obj):
+        return func(obj[n])
+
+    return wrapped
+
+
+def on_zeroth(func):
+    return on_nth(func, 0)
+
+
+def on_first(func):
+    return on_nth(func, 1)
+
+
+# ---------------------------------------------------------------------------- #
+# Indexing helpers
+
+def nth_true(iterable, n, test=echo, default=NULL, return_index=True):
+    index, value = _nth_true(iterable, n, test, default)
+    return (index, value) if return_index else value
+
+
+def _nth_true(iterable, n, test=echo, default=NULL):
+    """
+    Find the `n`th index position of the `iterable` for the which the callable
+    `test` returns True. If no such element exists, return `default` value.
+    """
+    assert isinstance(n, numbers.Integral) and n >= 0
+
+    # itr = itt.chain(filter(test, iterable), itt.repeat(default))
+    # mit.nth(it, n, default)
+
+    for i, (j, value) in enumerate(filter(on_first(test), enumerate(iterable))):
+        if i == n:
+            break
+
+    if i < n:
+        if value is not NULL:
+            return None, default
+
+        raise ValueError(f'Iterable contains only {i} (< {n}) truthy elements '
+                         f'(based on test function {test}). You may supply any '
+                         f'default value to suppress this error.')
+
+    return j, value
+
+
+def nth_true_index(iterable, n, test=echo, default=NULL):
+    index, _ = _nth_true(iterable, n, test, default)
+    return index
+
+
+def first_true_index(iterable, test=echo, default=NULL):
+    """
+    Find the first index position of the iterable for the which the callable
+    pred returns True
+    """
+    return nth_true_index(iterable, 0, test, default)
+
+
+def first_false_index(iterable, test=echo, default=NULL):
+    """
+    Find the first index position of the iterable for the which the
+    callable pred returns False
+    """
+    return first_true_index(iterable, negate(test), default)
+
+
+def last_true_index(iterable, test=bool, default=NULL):
+    return -first_true_index(reversed(iterable), test, default)
+
+
+# aliases
+first_true_idx = first_true_index
+first_false_idx = first_false_index
+
+
+# ---------------------------------------------------------------------------- #
+def nth_zip(n, *its):
+    """Return the nth component of the zipped sequence"""
+    return tuple(mit.nth(it, n) for it in its)
+
+
+def zip_slice(start, stop, step, *its):
+    """Returns a slice of the zipped sequence of iterators"""
+    return zip(*itt.islice(zip(*its), start, stop, step))
+
+
+def zip_append(items, tails):
+    """Appends elements from iterator to the items in a zipped sequence."""
+    return [(*zpd, app) for (zpd, app) in zip(items, tails)]
+
+
+def pad_none(iterable):
+    """
+    Returns the sequence elements and then returns None indefinitely.
+
+    Useful for emulating the behavior of the built-in map() function.
+    """
+    return itt.chain(iterable, itt.repeat(None))
+
+# ---------------------------------------------------------------------------- #
+# Multi-indexing iterators
+
 
 def where(items, *args, start=0):
     """
@@ -122,9 +212,10 @@ def where(items, *args, start=0):
     yield from multi_index(items, rhs, test, start)
 
 
-def select(items, test=bool):
-    yield from filter(negate(test), items)
+# def where(iterable, test=bool):
+#     return nth_zip(0, *filter(on_first(test), enumerate(iterable)))
 
+# Dispatch for multi-indexing
 
 @ftl.singledispatch
 def multi_index(obj, rhs, test=None, start=0):
@@ -177,6 +268,7 @@ def _(obj, rhs, test=op.eq, start=0):
                              '... itr.SAFETY_LIMIT = 1e9')
 
 
+# ---------------------------------------------------------------------------- #
 def windowed(obj, size, step=1):
     assert isinstance(size, numbers.Integral)
 
@@ -187,6 +279,9 @@ def windowed(obj, size, step=1):
 
     yield from mit.windowed(obj, size)
 
+
+# ---------------------------------------------------------------------------- #
+# Segmenting iterators / collections
 
 def split(l, idx):
     """Split a list into sub-lists at the given indices"""
@@ -222,16 +317,12 @@ def split_slices(indices):
     return map(slice, *zip(*mit.pairwise(itt.chain([0], indices))))
 
 
-def non_unique(itr):
-    prev = next(itr, NULL)
-    if prev is NULL:
-        return
+def chunker(itr, size):
+    return iter(map(tuple, itt.islice(iter(itr), size)), ())
 
-    for item in itr:
-        if item == prev:
-            yield prev
-        prev = item
 
+# ---------------------------------------------------------------------------- #
+# Cyclic iterators
 
 def cyclic(obj, n=None):
     """
@@ -242,35 +333,18 @@ def cyclic(obj, n=None):
     return itt.islice(cyc, n)
 
 
-def nth_zip(n, *its):
-    """Return the nth component of the zipped sequence"""
-    return tuple(mit.nth(it, n) for it in its)
-
-
-def zip_slice(start, stop, step, *its):
-    """Returns a slice of the zipped sequence of iterators"""
-    return zip(*itt.islice(zip(*its), start, stop, step))
-
-
-def zip_append(items, tails):
-    """Appends elements from iterator to the items in a zipped sequence."""
-    return [(*zpd, app) for (zpd, app) in zip(items, tails)]
-
-
-def pad_none(iterable):
+def iter_repeat_last(it):
     """
-    Returns the sequence elements and then returns None indefinitely.
-
-    Useful for emulating the behavior of the built-in map() function.
+    Yield items from the input iterable and repeat the last item indefinitely
     """
-    return itt.chain(iterable, itt.repeat(None))
+    it, it1 = itt.tee(mit.always_iterable(it))
+    return mit.padded(it, next(mit.tail(1, it1)))
 
 
-def chunker(itr, size):
-    return iter(map(tuple, itt.islice(iter(itr), size)), ())
+# ---------------------------------------------------------------------------- #
+# Simultaneous (co) operations on multiple iterables
 
-
-def group_more(func=echo, *its, unzip=True, **kws):
+def cogroup(func=echo, *its, unzip=True, **kws):
     # avoid circular import
     from recipes.lists import cosort
 
@@ -279,7 +353,7 @@ def group_more(func=echo, *its, unzip=True, **kws):
     return ((key, zip(*groups)) for key, groups in zipper) if unzip else zipper
 
 
-def tee_more(*its, n=2):
+def cotee(*its, n=2):
     tn = itt.tee(zip(*its), n)
     return itt.starmap(zip, tn)
 
@@ -291,39 +365,8 @@ def copartition(pred, *its):
 
     partition(is_odd, range(10), range) --> (1 3 5 7 9), (0 2 4 6 8)
     """
-    t1, t2 = tee_more(*its)
+    t1, t2 = cotee(*its)
     return cofilter(pred, *t2), cofilter(negate(pred), *t1)
-
-
-# def first(iterable, pred=bool, default=None):
-#     return next(filter(pred, iterable), default)
-
-
-def first_true_index(iterable, test=echo, default=None):
-    """
-    Find the first index position of the iterable for the which the callable
-    pred returns True
-    """
-
-    index, _ = mit.first_true(enumerate(iterable), (None, None), on_first(test))
-    return default if index is None else index
-
-
-def first_false_index(iterable, test=echo, default=None):
-    """
-    Find the first index position of the iterable for the which the
-    callable pred returns False
-    """
-    return first_true_index(iterable, negate(test), default)
-
-
-def last_true_index(iterable, test=bool, default=False):
-    return -first_true_index(reversed(iterable), test, default)
-
-
-# aliases
-first_true_idx = first_true_index
-first_false_idx = first_false_index
 
 
 def cofilter(func_or_iter, *its):
@@ -333,15 +376,7 @@ def cofilter(func_or_iter, *its):
     value of elements can be passed as the first argument, followed by the
     iterables.
     """
-    if (func_or_iter is None) or isinstance(func_or_iter, abc.Iterable):
-        # handle cofilter(None, ...) // cofilter((1, None), (2, 4))
-        func = bool
-        its = (func_or_iter, *its)
-    elif callable(func_or_iter):
-        func = func_or_iter
-    else:
-        raise TypeError(f'Predicate function should be a callable object, not '
-                        f'{type(func)}')
+    its, func = _parse_iterable_filter(func_or_iter, its)
 
     # zip(*filter(lambda x: func(x[0]), zip(*its)))
 
@@ -354,9 +389,31 @@ def cofilter(func_or_iter, *its):
     return tuple(itt.compress(it, tf) for it in its)
 
 
+def _parse_iterable_filter(func_or_iter, its):
+    if (func_or_iter is None) or isinstance(func_or_iter, abc.Iterable):
+        # handle cofilter(None, ...) // cofilter((1, None), (2, 4))
+        func = bool
+        its = (func_or_iter, *its)
+    elif callable(func_or_iter):
+        func = func_or_iter
+    else:
+        raise TypeError(f'Predicate function should be a callable object (or '
+                        f'`None`), not an instance of {type(func)}.')
+
+    return its, func
+
+
 # def cofilter_false(func, *its):
 #     return cofilter(negate(func or bool), *its)
 
+
+# ---------------------------------------------------------------------------- #
+def select(items, test=bool):
+    yield from filter(negate(test), items)
+
+
+# ---------------------------------------------------------------------------- #
+# Duplicate detection / filtering
 
 def duplicates(l):
     """Yield tuples of item, indices pairs for duplicate values."""
@@ -382,13 +439,19 @@ def filter_duplicates(l, test):
 unduplicate = filter_duplicates
 
 
-def iter_repeat_last(it):
-    """
-    Yield items from the input iterable and repeat the last item indefinitely
-    """
-    it, it1 = itt.tee(mit.always_iterable(it))
-    return mit.padded(it, next(mit.tail(1, it1)))
+def non_unique(itr):
+    prev = next(itr, NULL)
+    if prev is NULL:
+        return
 
+    for item in itr:
+        if item == prev:
+            yield prev
+        prev = item
+
+
+# ---------------------------------------------------------------------------- #
+# Super / subclass iterators
 
 def subclasses(cls, _seen=None):
     """

@@ -75,7 +75,7 @@ class ItemGetter:
     (Multi-)Item getter with optional default substitution.
     """
     _worker = staticmethod(getitem)
-    _excepts = LookupError # (KeyError, IndexError)
+    _excepts = LookupError  # (KeyError, IndexError)
     _raises = KeyError
 
     def __init__(self, *keys, default=NULL, defaults=None):
@@ -149,7 +149,6 @@ class AttrSetter:
         assert len(values) == len(keys)
         for get_obj, attr, value in zip(self.getters, keys, values):
             setattr(get_obj(target), attr, value)
-
 
 
 class AttrDict(AttrGetter):
@@ -235,6 +234,7 @@ class MethodVector(MethodCaller):
         return list(map(super().__call__, target))
 
 
+# ---------------------------------------------------------------------------- #
 def index(collection, item, start=0, test=eq, default=NULL):
     """
     Find the index position of `item` in `collection`, or if a test function is
@@ -297,12 +297,26 @@ class contained:  # pylint: disable=invalid-name
     def __init__(self, item):
         self.item = item
 
-    # def __call__(self, item, container):
-    #     """ item in container"""
-    #     return item in container
+    def __call__(self, container):
+        """ item in container"""
+        return self.item in container
 
     def within(self, container):
-        return self.item in container
+        return self(container)
+
+
+class startswith:
+
+    __slots__ = 'item'
+
+    def __new__(cls, *args):
+        return (args[0].startswith(args[1])) if len(args) == 2 else super().__new__(cls)
+
+    def __init__(self, item):
+        self.item = item
+
+    def __call__(self, container):
+        return container.startswith(self.item)
 
 
 # aliases
