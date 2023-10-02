@@ -280,7 +280,7 @@ class TreeBuilder:
         for name, items in itt.groupby(items, labeller or self._get_name):
             if name is None:
                 continue
-            
+
             # print(f'{name = }')
             child = type(self)(name, parent=self)
             child._from_list(self._get_children(items), labeller, filtering)
@@ -318,10 +318,6 @@ class TreeBuilder:
 
     def _from_dict(self, mapping):
 
-        # if constructor := isinstance(self, type):
-        #     cls, parent = self, None  # root node
-        # else:
-        #     cls, parent = type(self), self
         cls = type(self)
         for name, items in mapping.items():
             if isinstance(items, abc.MutableMapping):
@@ -330,8 +326,7 @@ class TreeBuilder:
             else:
                 child = cls(name, parent=self)
 
-        # if constructor:
-        #     return child     # this is actually the root node ;)
+        return self
 
     # ------------------------------------------------------------------------ #
     @property
@@ -575,6 +570,7 @@ class TreeBuilder:
         return changed
 
 
+
 class Node(PrettyNode, TreeBuilder):
 
     def __getitem__(self, key):
@@ -628,13 +624,13 @@ class FileSystemNode(Node):
 
     @classmethod
     def from_path(cls, folder, collapse=True, ignore=()):
-        
+
         folder = Path(folder)
         assert folder.exists()
 
-        return cls._build('_from_list', 
+        return cls._build('_from_list',
                           folder.iterdir(), None, _ignore_names(ignore),
-                          root=str(folder), collapse=False)
+                          root=str(folder), collapse=collapse)
 
     @staticmethod
     def _get_name(path):
@@ -648,4 +644,8 @@ class FileSystemNode(Node):
 
     def as_path(self):
         """The node as a pathlib.Path object."""
-        return Path(''.join(map(str, (*self.ancestors, self))))
+        path = Path()
+        for _ in (*self.ancestors, self):
+            path /= str(_)
+
+        return path

@@ -6,7 +6,7 @@ from pathlib import Path
 from loguru import logger
 
 # relative
-from .dicts import AttrReadItem, DictNode
+from .dicts import _AttrReadItem, DictNode
 from .introspect.utils import get_module_name, get_package_name
 
 
@@ -16,7 +16,7 @@ CACHE = {}
 # ---------------------------------------------------------------------------- #
 
 
-class ConfigNode(DictNode, AttrReadItem):
+class ConfigNode(DictNode, _AttrReadItem):
 
     @classmethod
     def load(cls, filename):
@@ -54,6 +54,13 @@ class ConfigNode(DictNode, AttrReadItem):
                          'The following config sections are available:'
                          f' {nl.join(("", *map(repr, keys)))}')
 
+    def __getattr__(self, key):
+        """
+        Try to get the value in the dict associated with key `key`. If `key`
+        is not a key in the dict, try get the attribute from the parent class.
+        Note: LeafNodes
+        """
+        return super().__getitem__(key) if key in self else super().__getattribute__(key)
 
 # ---------------------------------------------------------------------------- #
 

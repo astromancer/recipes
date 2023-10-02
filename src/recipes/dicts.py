@@ -15,16 +15,23 @@ from collections import OrderedDict, UserDict, abc, defaultdict
 import more_itertools as mit
 
 # relative
+from . import op
 from .flow import Emit
-from .iter import cofilter
 from .string import indent
+from .utils import is_scalar
+from .functionals import always
+from .iter import cofilter, first_true_index
 
 
 # TODO: a factory function which takes requested props, eg:
 # indexable=True, attr='r', ordered=True)
 
+# ---------------------------------------------------------------------------- #
+NULL = object()
 
 # ---------------------------------------------------------------------------- #
+
+
 def isdict(obj):
     return isinstance(obj, abc.MutableMapping)
 
@@ -262,7 +269,7 @@ def merge(*mappings, **kws):
 
     Examples
     --------
-    >>> merge(*({f'{(l := case(letter))}': ord(l)} 
+    >>> merge(*({f'{(l := case(letter))}': ord(l)}
     ...        for case in (str.upper, str.lower) for letter in 'abc'),
     ...       z=100)
     {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99, 'z': 100}
@@ -367,13 +374,13 @@ class vdict(dict):
     _wrapper = list
 
     def __getitem__(self, key):
-        # dispatch on list, np.ndarray for vectorized item getting with arbitrary
-        # nesting
+        # dispatch on list, np.ndarray for vectorized item getting with
+        # arbitrary nesting
         try:
             return super().__getitem__(key)
         except (KeyError, TypeError) as err:
             # vectorization
-            if isinstance(key, abc.Collection) and not isinstance(key, str):
+            if not is_scalar(key):
                 # Container and not str
                 return self._wrapper(self[_] for _ in key)
 
@@ -420,7 +427,7 @@ class AutoVivify(_AccessManager):
 
     @classmethod
     def autovivify(cls, b):
-        """Turn auto-vivification on / off"""
+        """Turn auto-vivify on / off *for all instances of this class*."""
         cls._readonly = not bool(b)
 
     def __missing__(self, key):
@@ -435,14 +442,109 @@ class AutoVivify(_AccessManager):
         return value
 
 
-class NodeList(list):
+# ---------------------------------------------------------------------------- #
+
+    # def __getattr__(self, attr):
+    #     if attr in self.__dict__:
+    #         return getattr(self, attr)
+    #     return getattr(self._val, attr)
+
+
+# class NodeList(list):
+#     def __getitem__(self, key):
+#         return NodeList(
+#             [child[key] for child in self if isinstance(child, vdict)]
+#         )
+
+def _get_val(item):
+    return item._val if isinstance(item, LeafNode) else item
+    # new = item._val if isinstance(item, LeafNode) else item
+    # print(type(item), '--->', type(new))
+    # return new
+
+
+def _get_filter_func(keys):
+
+    if keys is NULL:
+        return always(True)
+
+    if keys is None:
+        keys = bool
+
+    if callable(keys):
+        return keys
+
+    if is_scalar(keys):
+        return op.contained(keys).within
+
+    def test(inner):
+        return any(key in inner for key in keys)
+
+    return test
+
+
+def _excise_key(keys, test):
+    drop_index = first_true_index(keys, test=test)
+    keys = list(keys)
+    drop_key = keys[drop_index]
+    keys.remove(keys[drop_index])
+    return tuple(keys), (drop_key, drop_index)
+
+
+def _crosscheck_keys(keys):
+    bad = set()
+    for a, b in itt.combinations(keys, 2):
+        if a[:len(b)] == b:
+            bad.add(b)
+        if b[:len(a)] == a:
+            bad.add(a)
+
+    return bad
+
+
+def _filter_keys(keys, test):
+    new_keys, dropped = zip(*(_excise_key(keys, test) for keys in keys))
+    bad = _crosscheck_keys(new_keys)
+    new_keys = list(new_keys)
+    for b in bad:
+        i = new_keys.index(b)
+        replace, index = dropped[i]
+        new = list(new_keys[i])
+        new.insert(index, replace)
+        new_keys[i] = tuple(new)
+
+    return new_keys
+
+
+class _NodeIndexing:
+
+    # support tuple indexing for accessing descendants
+    _index_descendants = tuple
+
     def __getitem__(self, key):
-        return NodeList(
-            [child[key] for child in self if isinstance(child, vdict)]
-        )
+        node = self
+        if self._index_descendants and isinstance(key, self._index_descendants):
+            *keys, key = key
+            if keys:
+                node = node[tuple(keys)]
+            return node[key]
+
+        return super(_NodeIndexing, node).__getitem__(key)
+
+    def __setitem__(self, key, val):
+        node = self
+        if self._index_descendants and isinstance(key, self._index_descendants):
+            *keys, key = key
+            if keys:
+                node = node[tuple(keys)]
+        return super(_NodeIndexing, node).__setitem__(key, val)
+
+    def update(self, mapping=(), **kws):
+        for key, val in dict(mapping, **kws).items():
+            self[key] = val
 
 
-class LeafNode:  # SlotHelper circular!
+class LeafNode:
     __slots__ = ('_val', 'parent')
 
     def __init__(self, val):
@@ -453,81 +555,131 @@ class LeafNode:  # SlotHelper circular!
         return str(self._val)
 
 
-def _get_val(item):
-    return item._val if isinstance(item, LeafNode) else item
-
-
-class DictNode(AutoVivify, Pprinter, defaultdict, vdict):
+class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
     """
     A defaultdict that generates instances of itself. Used to create arbitrary 
     data trees without prior knowledge of final structure. 
     """
 
-    _wrapper = NodeList
-
-    def __init__(self, factory=None, *args, **kws):
-        factory = factory or self._new_node
-        if kws:
-            defaultdict.__init__(self, factory, *args)
-            for key, val in kws.items():
-                self[key] = factory(val)
+    def _attach(self, val):
+        if isinstance(val, type(self)):
+            node = val
+        elif isinstance(val, MutableMapping):
+            node = type(self)(**val)
+            # node.update(val)
         else:
-            defaultdict.__init__(self, factory, *args, **kws)
+            node = LeafNode(val)
 
-    def _new_node(self, val):
-        node = type(self)(**val) if isinstance(val, MutableMapping) else LeafNode(val)
         node.parent = self
         return node
 
-    def __getitem__(self, key):
-        return _get_val(super().__getitem__(key))
-    
-    def __iter__(self): 
+    def __init__(self, *args, **kws):
+        factory = self._attach
+        if args and callable(args[0]):  # and not isinstance(args[0], abc.Iterable):
+            factory, *args = args
+
+        # init
+        defaultdict.__init__(self, factory)
+        if args or kws:
+            self.update(*args, **kws)
+
+    def __iter__(self):
         # needed for ** unpacking to work. FNW
         return super().__iter__()
-    
+
+    def __getitem__(self, key):
+        return _get_val(super().__getitem__(key))
+
+    def __setitem__(self, key, val):
+        return super().__setitem__(key, self._attach(val))
+
+    # ------------------------------------------------------------------------ #
     def values(self):
-        for val in super().values():
-            if isinstance(val, LeafNode):
-                val = val._val
-            yield val
-            
+        yield from map(_get_val, super().values())
+
     def items(self):
         yield from zip(self.keys(), self.values())
-    
+
     def pop(self, key, *default):
         return _get_val(super().pop(key, *default))
 
-    def leaves(self, levels=all, merge_keys=False):
+    # def merge(self, other):
+    #     self.update(other)
+    # class _NodeMixin:
+
+    # ------------------------------------------------------------------------ #
+    def _root(self):
+        node = self
+        while hasattr(node, 'parent'):
+            node = node.parent
+        return node
+
+    def leaves(self, levels=all):
 
         if isinstance(levels, numbers.Integral):
             levels = [levels]
 
-        keys = [] if merge_keys else None
+        keys = []
         return dict(self._leaves(levels, 0, keys))
 
     def _leaves(self, levels, _level=0, _keys=None):
-        merge_keys = _keys is not None
         for key, child in self.items():
             if isinstance(child, type(self)):
-                yield from child._leaves(
-                    levels, _level + 1, ((*_keys, key) if merge_keys else None)
-                )
+                yield from child._leaves(levels, _level + 1, (*_keys, key))
             elif (levels is all or _level in levels):
-                yield ((*_keys, key) if merge_keys else key), child
+                yield (*_keys, key), child
 
     def flatten(self, levels=all):
-        return self.leaves(levels, True)
+        return self.leaves(levels)
 
-    def filtered(self, func, levels=all, merge_keys=True):
-        return dict(self._filter(func, levels, merge_keys))
+    def filtered(self, keys=NULL, values=NULL, levels=all):
+        new = type(self)()
+        new.update(self._filter(_get_filter_func(keys),
+                                _get_filter_func(values),
+                                levels))
+        # new[keys] = val
+        return new
 
-    def _filter(self, func, levels, merge_keys):
-        yield from zip(*cofilter(func, *zip(*self.leaves(levels, merge_keys))))
+    def _filter(self, key_test, val_test, levels):
+        keys, values = cofilter(key_test, *zip(*self.leaves(levels).items()))
+        values, keys = cofilter(val_test, values, keys)
+        yield from zip(keys, values)
 
+    def find(self, key, collapse=False):
+        # sourcery skip: assign-if-exp, reintroduce-else
+        test = op.has(key).within
+        found = self.filtered(test)
 
-# alias
-NodeDict = DictNode
+        if not collapse:
+            return found
+
+        found = found.flatten()
+        new_keys = _filter_keys(found.keys(), test)
+
+        return type(self)({
+            key: val
+            for key, val in zip(new_keys, found.values())
+        })
+
+    def transform(self, key_transform, *args, **kws):
+        new = type(self)()
+        for keys, val in self.leaves().items():
+            new[key_transform(keys, *args, **kws)] = val
+
+        return new
+
+    # alias
+    reshape = transform
+
+    def map(self, func, *args, **kws):
+        # create new empty
+        new = type(self)()
+        for name, child in self.items():
+            if isinstance(child, type(self)):
+                new[name] = child.map(func, *args, **kws)
+            else:
+                new[name] = func(child, *args, **kws)
+        return new
 
 
 # ---------------------------------------------------------------------------- #
@@ -540,7 +692,17 @@ class AttrBase(dict):
         return self.__class__(super().copy())
 
 
-class AttrReadItem(AttrBase):
+class _AttrReadItem:
+
+    def __getattr__(self, key):
+        """
+        Try to get the value in the dict associated with key `key`. If `key`
+        is not a key in the dict, try get the attribute from the parent class.
+        """
+        return self[key] if key in self else super().__getattribute__(key)
+
+
+class AttrReadItem(AttrBase, _AttrReadItem):
     """
     Dictionary with item read access through attribute lookup.
 
@@ -562,17 +724,12 @@ class AttrReadItem(AttrBase):
     `AttrDict` object.
     """
 
-    def __getattr__(self, key):
-        """
-        Try to get the value in the dict associated with key `key`. If `key`
-        is not a key in the dict, try get the attribute from the parent class.
-        """
-        return self[key] if key in self else super().__getattribute__(key)
-
     # def __setattr__(self, name: str, value):
-    # TODO maybe warn once instead
+    # # TODO maybe warn once instead
     #     raise AttributeError(
-    #         'Setting attributes on {} instances is not allowed. Use `recipes.dicts.AttrDict` if you need item write access through attributes.')
+    #         'Setting attributes on {} instances is not allowed. Use '
+    #         '`recipes.dicts.AttrDict` if you need item write access through '
+    #         'attributes.')
 
 
 class AttrDict(AttrBase):
@@ -581,11 +738,12 @@ class AttrDict(AttrBase):
     # pros: IDE autocomplete works on keys
     # cons: clobbers build in methods like `keys`, `items` etc...
     #     : inheritance: have to init this superclass before all others
-    # FIXME: clobbers build in methods like `keys`, `items` etc...
-    # check: dict.__dict__
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    # FIXME: clobbers build in methods like `keys`, `items` etc...
+    # disallowed = tuple(dict.__dict__.keys())
+
+    def __init__(self, *args, **kws):
+        super().__init__(*args, **kws)
         self.__dict__ = self
 
     def __setstate__(self, state):
@@ -600,24 +758,9 @@ class AttrDict(AttrBase):
 class OrderedAttrDict(OrderedDict, AttrBase):
     """OrderedDict with key access through attribute lookup."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, **kws):
+        super().__init__(*args, **kws)
         self.__dict__ = self
-
-
-# class TreeLike(AttrDict, AutoVivify):
-#     def __init__(self, mapping=(), **kws):
-#         super().__init__()
-#         kws.update(mapping)
-#         for a, v in kws.items():
-#             self[a] = v
-
-#     def __setitem__(self, key, val):
-#         if '.' in key:
-#             key, tail = key.split('.', 1)
-#             self[key][tail] = val
-#         else:
-#             super().__setitem__(key, val)
 
 
 class Indexable:
@@ -758,14 +901,14 @@ class TransDict(UserDict):
 
     """
 
-    def __init__(self, dic=None, **kwargs):
-        super().__init__(dic, **kwargs)
+    def __init__(self, dic=None, **kws):
+        super().__init__(dic, **kws)
         self.dictionary = {}
 
-    def add_mapping(self, dic=None, **kwargs):
+    def add_mapping(self, dic=None, **kws):
         """Add translation dictionary"""
         dic = dic or {}
-        self.dictionary.update(dic, **kwargs)
+        self.dictionary.update(dic, **kws)
 
     # aliases
     add_trans = add_vocab = add_translations = add_mapping
@@ -813,8 +956,8 @@ class ManyToOneMap(TransDict):
 
     emit = Emit('raise')
 
-    def __init__(self, dic=None, **kwargs):
-        super().__init__(dic, **kwargs)
+    def __init__(self, dic=None, **kws):
+        super().__init__(dic, **kws)
         # equivalence mappings - callables that return the desired item.
         self._mappings = []
 
