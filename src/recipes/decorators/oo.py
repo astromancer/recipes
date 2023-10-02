@@ -3,8 +3,7 @@
 import types
 
 
-
-class singleton:
+class Singleton:
     # adapted from:
     # https://python-3-patterns-idioms-test.readthedocs.io/en/latest/Singleton.html
 
@@ -17,6 +16,9 @@ class singleton:
             self.instance = self.klass(*args, **kws)
         return self.instance
 
+
+# alias
+singleton = Singleton
 
 
 class sharedmethod(classmethod):  # adapted from astropy
@@ -71,7 +73,7 @@ class sharedmethod(classmethod):  # adapted from astropy
     def __get__(self, obj, objtype=None):
         if obj is not None:
             return self._make_method(self.__func__, obj)
-    
+
         mcls = type(objtype)
         clsmeth = getattr(mcls, self.__func__.__name__, None)
         func = clsmeth if callable(clsmeth) else self.__func__

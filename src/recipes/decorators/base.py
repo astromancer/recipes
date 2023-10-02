@@ -117,7 +117,10 @@ class Decorator:
         Function wrapper created here.
         """
         assert callable(func)
+
+        # func is instance attribute __wrapped__
         self.__wrapped__ = func
+        # and func attribute __wrapper__ is instance
         func.__wrapper__ = self.__wrapper__
 
         # NOTE: The function returned by decorate *is not the same object* as

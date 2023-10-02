@@ -38,7 +38,7 @@ class Emit:
 
     def __init__(self, action='ignore', exception=Exception):
 
-        if exception is not Exception:
+        if exception is not None:
             self._actions['raise'] = raises(exception)
 
         self.action = action
