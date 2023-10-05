@@ -6,7 +6,8 @@ from pathlib import Path
 from loguru import logger
 
 # relative
-from .dicts import _AttrReadItem, DictNode
+from .dicts import DictNode
+from .dicts.core import _AttrReadItem
 from .introspect.utils import get_module_name, get_package_name
 
 
