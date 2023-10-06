@@ -131,7 +131,6 @@ def relative_sorter(node):
 # ---------------------------------------------------------------------------- #
 # Node writer
 
-
 def rewrite(node, width=80, hang=None, indent=4, one_per_line=False):
     """write an import node as str"""
     s = ''
@@ -290,7 +289,6 @@ NODE_SORTERS = {
 
 # ---------------------------------------------------------------------------- #
 # Node Transformers
-
 
 class NodeTypeFilter(ast.NodeTransformer):
     def __init__(self, remove=(), keep=(ast.AST,)):
@@ -702,6 +700,37 @@ def refactor(file_or_source,
 tidy = refactor
 
 
+def _parse_partial(source, max_remove=5):
+    """
+    Tenacious source code parsing, retrying with invalid syntax lines removed.
+    """
+
+    removed = []
+    for i in range(max_remove + 1):
+        try:
+            module = ast.parse(source)
+            if removed:
+                logger.success('Parsed source code successfully after removing '
+                               'lines: {}.', removed)
+            return module, removed
+
+        except SyntaxError as err:
+            if i == 0:
+                lines = source.splitlines()
+                
+            if i == max_remove:
+                raise err
+
+            logger.info('Could not parse source code due to {}. Removing line '
+                        '{} and retrying.', err, err.lineno)
+
+            # replace offending line with blank
+            n = err.lineno - 1
+            lines[n] = ''
+            removed.append(n)
+            source = '\n'.join(lines)
+
+
 class ImportRefactory(LoggingMixin):
     """
     Tidy up import statements that might be scattered throughout hastily written
@@ -738,8 +767,13 @@ class ImportRefactory(LoggingMixin):
         if isinstance(file, io.TextIOWrapper):
             self.filename = file.buffer.name
 
+        # parse
+        module, self.invalid_syntax_lines = _parse_partial(self.source)
+
         self.captured = ImportCapture()  # TODO: move inside filter_unused
-        self.module = self.captured.visit(ast.parse(self.source))
+        self.module = self.captured.visit(module)
+
+        # save original module content so we can check if any changes were made
         self._original = ast.dump(self.module)
 
     def __call__(self, *args, **kws):
@@ -769,9 +803,9 @@ class ImportRefactory(LoggingMixin):
             The sorting rules are as follow: # TODO
         filter_unused : bool, optional
             Filter import statements for names that were not used in the source
-            code. Default action is to filter only when the input source has
-            some code beyond the import block, and is not a module initializer
-            `__init__.py` script.
+            code. Default action is to filter unused imports only when the input
+            source has some code beyond the import block, and is not a module
+            initializer (`__init__.py`) script.
         split : {None, False, 0, 1}, optional
             Whether to split import statements:
             * Case `False` or `None`, do not
@@ -950,6 +984,11 @@ class ImportRefactory(LoggingMixin):
             self.logger.info('Not filtering unused statements for import-only '
                              'script, since this would leave an empty file.')
             return False
+
+        # if self.invalid_syntax_lines:
+        #     self.logger.info('Not filtering unused statements for source code ')
+            # 'containing syntax errors.')
+
         return True
 
     def filter_unused(self, module=None):
