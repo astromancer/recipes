@@ -586,6 +586,13 @@ class Node(PrettyNode, TreeBuilder):
 
         raise KeyError(f'Could not get child node for index key {key!r}.')
 
+    def as_dict(self, attr='name', leaf_attr='name'):
+        if self.is_leaf:
+            return getattr(self, leaf_attr)
+
+        return {getattr(child, attr): child.as_dict(attr, leaf_attr)
+                for child in self.children}
+    
     # def __contains__(self, key):
     #     return next((c for c in self.children if c.name == key), None) is not None
 
