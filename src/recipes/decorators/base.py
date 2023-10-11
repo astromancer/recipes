@@ -3,10 +3,16 @@ Base classes for extensible decorators.
 """
 
 
+# std
+import contextlib as ctx
+
+# third-party
 from loguru import logger
 from decorator import decorate
 
 
+
+# ---------------------------------------------------------------------------- #
 class Decorator:
     """
     Decorator class which supports optional initialization parameters. Can be
@@ -118,15 +124,22 @@ class Decorator:
         """
         assert callable(func)
 
+        logger.debug('Decorating func: {}.', func)
+        decorator = decorate(func, self.__wrapper__, kwsyntax=kwsyntax)
+        # NOTE: this sets: __name__, __doc__, __wrapped__, __signature__,
+        # __qualname_, [__defaults__, __kwdefaults__, __annotations___]
+        # on the decorator.
+        # NOTE: The function returned by decorate *is not the same object* as
+        # `func` here!
+
         # func is instance attribute __wrapped__
         self.__wrapped__ = func
         # and func attribute __wrapper__ is instance
-        func.__wrapper__ = self.__wrapper__
+        with ctx.suppress(AttributeError):
+            # This fails for methods
+            func.__wrapper__ = decorator
 
-        # NOTE: The function returned by decorate *is not the same object* as
-        # `func` here
-        logger.debug('Decorating func: {}.', func)
-        return decorate(func, self.__wrapper__, kwsyntax=kwsyntax)
+        return decorator
 
     def __wrapper__(self, func, *args, **kws):
         """
