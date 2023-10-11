@@ -1,34 +1,31 @@
 """
 Partial functions via placeholder syntax.
+
+
+>>> def func(a, b, c, q=0, **kws):
+...     return (a, b, c, q)
+... 
+... # special placeholder
+... o = placeholder
+... 
+... # New partial function with one free parameter (originally position)
+... func_partial_at_2_only = partial(func)('a', 'b', o, q=1, **kws)
+... # later
+... result = func_partial_at_2_only(2) # >>> func('a', 'b', 2)
+... 
+... 
+... func_partial_at_1_and_2 = partial(func)('a', o, o, q=1, **kws)
+... # later
+... result = func_partial_at_2_only(1, 2)   # >>> func('a', 1, 2)
 """
-
-# def func(a, b, c, q=0, **kws):
-#     return (a, b, c, q)
-
-
-# # special placeholder
-# O = placeholder
-
-# # New partial function with one free parameter (originally position)
-# func_partial_at_2_only = partial(func)('a', 'b', O, q=1, **kws)
-# # later
-# result = func_partial_at_2_only(2)
-# # >>> func('a', 'b', 2)
-
-# func_partial_at_1_and_2 = partial(func)('a', O, O, q=1, **kws)
-# #  later
-# result = func_partial_at_2_only(1, 2)
-# # >>> func('a', 1, 2)
-
-# original_function = partial(func)
-
-
-# TODO map(partial(sub)(vector(subs.values()), subs))
-# Can probably help do this with type annotations
 
 
 from ..iter import where
 from ..decorators import Decorator
+
+
+# TODO map(partial(sub)(vector(subs.values()), subs))
+# Can probably help do this with type annotations
 
 
 class PlaceHolder:
@@ -36,11 +33,6 @@ class PlaceHolder:
     def __new__(self):
         return PlaceHolder
 
-
-class Partial(Decorator):
-    def __wrapper__(self, func, *args, **kws):
-        return PartialAt(where(args, PlaceHolder), args, kws)(func)
-        
 
 class PartialAt(Decorator):
 
@@ -65,6 +57,14 @@ class PartialAt(Decorator):
             _args[i] = a
 
         return super().__wrapper__(func, *_args, **{**self.kws, **kws})
+
+
+class Partial(Decorator):
+
+    factory = PartialAt
+
+    def __wrapper__(self, func, *args, **kws):
+        return self.factory(where(args, PlaceHolder), args, kws)(func)
 
 
 # aliases
