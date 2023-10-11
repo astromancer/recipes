@@ -181,7 +181,6 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
 
     def pop(self, key, *default):
         return _get_val(super().pop(key, *default))
-        
 
     # def merge(self, other):
     #     self.update(other)
@@ -215,7 +214,7 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
 
     def filtered(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()
-        
+
         new.update(self._filter(_get_filter_func(keys),
                                 _get_filter_func(values),
                                 levels))
@@ -240,7 +239,7 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
 
         if remapped_keys is not None:
             remapped_keys.update(zip(found.keys(), new_keys))
-        
+
         return type(self)(dict(zip(new_keys, found.values())))
 
     def transform(self, key_transform, *args, **kws):
@@ -264,7 +263,7 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
         return new
 
     def split(self, keys):
-        return tuple(self.map(_split_trans, keys).values())
+        return tuple(self.transform(_split_trans, keys).values())
 
 
 def _split_trans(keys, accept):
