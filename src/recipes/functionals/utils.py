@@ -2,18 +2,16 @@
 Functional helpers.
 """
 
+# ---------------------------------------------------------------------------- #
+# Canonical do nothing function
+
 
 def noop(*_, **__):
     """Do nothing."""
 
 
-def is_none(x):
-    return x is None
-
-
-def not_none(x):
-    return x is not None
-
+# ---------------------------------------------------------------------------- #
+# Functions that simply return the input parameter(s) unmodified
 
 def echo0(_, *ignored_):
     """simply return the 0th parameter."""
@@ -26,6 +24,44 @@ def echo(*_):
 
 
 # ---------------------------------------------------------------------------- #
+# Decorators for restricting operations on selected function parameters only
+# TODO: proper decorator FutureIndex(0)
+
+def on_nth(func, n):  # apply.nth_positional(func, 1)(*args)
+
+    def wrapped(obj):
+        return func(obj[n])
+
+    return wrapped
+
+
+def on_zeroth(func):
+    return on_nth(func, 0)
+
+
+def on_first(func):
+    return on_nth(func, 1)
+
+
+#
+on_1st = on_first
+on_0th = on_zeroth
+
+# ---------------------------------------------------------------------------- #
+# Null conditionals
+
+
+def is_none(x):
+    return x is None
+
+
+def not_none(x):
+    return x is not None
+
+
+# ---------------------------------------------------------------------------- #
+# Negating truth tests
+
 def negate(func=bool):
     """Negates a callable that returns boolean."""
 
@@ -37,6 +73,8 @@ def negate(func=bool):
 
 
 # ---------------------------------------------------------------------------- #
+# Raising future exceptions
+
 def raises(kind):
     """Raises an exception of type `kind`."""
 
@@ -49,6 +87,8 @@ def raises(kind):
 
 
 # ---------------------------------------------------------------------------- #
+# Callable that always return the same object, ignoring all parameters
+
 class always:
     """A callable that always returns the same value."""
 

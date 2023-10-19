@@ -15,16 +15,17 @@ import more_itertools as mit
 
 # relative
 from . import op
-from .functionals import negate, echo0 as echo
+from .functionals import negate, on_zeroth, echo0 as echo
 
 
-#
-SAFETY_LIMIT = 1e8
+# ---------------------------------------------------------------------------- #
 #
 NULL = object()
+#
+INDEX_MAX = int(1e8)
+
 
 # ---------------------------------- helpers --------------------------------- #
-
 
 def as_iter(obj, exclude=(str,), return_as=list):
     """
@@ -45,26 +46,6 @@ as_sequence = as_iter
 # as_sequence_unless_str
 
 
-# -------------------------------- decorators -------------------------------- #
-
-# TODO: remove in favour of functionals.partial??
-
-def on_nth(func, n):  # apply.nth_positional(func, 1)(*args)
-
-    def wrapped(obj):
-        return func(obj[n])
-
-    return wrapped
-
-
-def on_zeroth(func):
-    return on_nth(func, 0)
-
-
-def on_first(func):
-    return on_nth(func, 1)
-
-
 # ---------------------------------------------------------------------------- #
 # Indexing helpers
 
@@ -83,24 +64,23 @@ def _nth_true(iterable, n, test=echo, default=NULL):
     # itr = itt.chain(filter(test, iterable), itt.repeat(default))
     # mit.nth(it, n, default)
 
-    for i, (j, value) in enumerate(filter(on_first(test), enumerate(iterable))):
-        if i == n:
-            break
+    filtered, index = cofilter(test, iterable, itt.count())
+    itr = enumerate(zip(filtered, index))
+    mit.consume(itr, n)
+    i, (value, index) = next(itr, default)
+    if value is NULL:
+        if i < n:
+            raise ValueError(
+                f'Iterable contains only {i} (< {n}) truthy elements (based on '
+                f'test function {test}). You may supply any default value to '
+                'suppress this error.'
+            )
 
-    if i < n:
-        if value is not NULL:
-            return None, default
-
-        raise ValueError(f'Iterable contains only {i} (< {n}) truthy elements '
-                         f'(based on test function {test}). You may supply any '
-                         f'default value to suppress this error.')
-
-    return j, value
+    return index, value
 
 
 def nth_true_index(iterable, n, test=echo, default=NULL):
-    index, _ = _nth_true(iterable, n, test, default)
-    return index
+    return _nth_true(iterable, n, test, default)[0]
 
 
 def first_true_index(iterable, test=echo, default=NULL):
@@ -144,26 +124,19 @@ def zip_append(items, tails):
     return [(*zpd, app) for (zpd, app) in zip(items, tails)]
 
 
-def pad_none(iterable):
-    """
-    Returns the sequence elements and then returns None indefinitely.
-
-    Useful for emulating the behavior of the built-in map() function.
-    """
-    return itt.chain(iterable, itt.repeat(None))
-
 # ---------------------------------------------------------------------------- #
 # Multi-indexing iterators
 
 
 def where(items, *args, start=0):
     """
-    Yield the indices at which items in a Iterable or Collection `items`
-    evaluate True. This function will consume the iterable, so take care not to
-    pass infinite iterables - the function will break out after the module
-    constant `SAFETY_LIMIT` (by default 10**8) number of iterations is reached.
+    Yield the indices at which items from an Iterable or Collection `items`
+    evaluate True according to an optional test function. This function will
+    consume the iterable, so take care not to pass infinite iterables - the
+    function will raise an exception if the iteration count is greater than the
+    value of the module constant `INDEX_MAX` (by default 10**8).
 
-    Valid call signatures are:
+    Three distinct call signatures are supported:
         >>> where(items)                # yield indices where items are truthy
         >>> where(items, value)         # yield indices where items equal value
         >>> where(items, func, value)   # conditionally on func(item, value)
@@ -194,31 +167,24 @@ def where(items, *args, start=0):
 
     nargs = len(args)
     if nargs == 0:
-        mit.consume(items, start)
-        for i, item in enumerate(items, start):
-            if item:
-                yield i
+        _, indices = cofilter(items, itt.count(start))
+        yield from indices
         return
 
-    if nargs == 1:
-        test = op.eq
-        rhs, = args
-    elif nargs == 2:
-        test, rhs = args
-    else:
+    if nargs > 2:
         # print valid call signatures from docstring
         raise ValueError(txw.dedent(where.__doc__.split('\n\n')[1]))
 
+    *test, rhs = args
+    test, = test or [op.eq]
+
     yield from multi_index(items, rhs, test, start)
-
-
-# def where(iterable, test=bool):
-#     return nth_zip(0, *filter(on_first(test), enumerate(iterable)))
 
 # Dispatch for multi-indexing
 
+
 @ftl.singledispatch
-def multi_index(obj, rhs, test=None, start=0):
+def multi_index(obj, rhs, test=bool, start=0):
     """default dispatch for multi-indexing"""
     raise TypeError(f'Object of type {type(obj)} is not an iterable.')
 
@@ -237,18 +203,14 @@ def _(string, rhs, test=op.eq, start=0):
     yield from multi_index(iter(string), rhs, test, start)
     return
 
-    # if test is not op.eq:
 
-    # i = start
-    # while i < len(string):
-    #     try:
-    #         i = string.index(rhs, i)
-    #         yield i
-    #     except ValueError:
-    #         # done
-    #         return
-    #     else:
-    #         i += 1
+@multi_index.register(dict)
+def _(obj, rhs, test=op.eq, start=None):
+    if start:
+        raise NotImplementedError
+
+    # cofilter
+    yield from (k for k, o in obj.items() if test(o, rhs))
 
 
 @multi_index.register(abc.Iterable)
@@ -257,18 +219,20 @@ def _(obj, rhs, test=op.eq, start=0):
     if start:
         mit.consume(obj, start)
 
-    for i, x in enumerate(obj, start):
-        if test(x, rhs):
-            yield i
-
-        if i >= SAFETY_LIMIT:
-            raise ValueError('Infinite iterable? If this is wrong, please '
-                             'increase the `SAFETY_LIMIT`. eg: \n'
-                             '>>> import recipes.iter as itr\n'
-                             '... itr.SAFETY_LIMIT = 1e9')
-
+    indices = (i for i, x in enumerate(obj, start) if test(x, rhs))
+    sentinel = itt.chain(itt.repeat(False, INDEX_MAX - 1), [True])
+    for i in indices:
+        if next(sentinel):
+            raise RuntimeError(
+                'Infinite iterable? If this is wrong, increase the '
+                '`INDEX_MAX`. eg: \n'
+                '>>> import recipes.iter as itr\n'
+                '... itr.INDEX_MAX = 1e9')
+        yield i
 
 # ---------------------------------------------------------------------------- #
+
+
 def windowed(obj, size, step=1):
     assert isinstance(size, numbers.Integral)
 
