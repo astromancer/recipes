@@ -15,7 +15,6 @@ import docsplice as doc
 
 # relative
 from . import op, iter as _iter
-from .dicts import DefaultOrderedDict
 from .functionals import always, echo0 as _echo
 from .utils import _delete
 
@@ -44,7 +43,7 @@ def cosort(*lists, key=None, master_key=None, order=1):
         * If callable: Sorting is done by value of
             >>> key(item)
           for successive items from the first iterable.
-        * If tuple: Sorting done by value of
+        * If tuple of callables: Sorting done by value of
               >>> key[0](item_0), ..., key[n](item_n)
           for items in the first n iterables (where n is the length of the `key`
           tuple) i.e. the first callable is the primary sorting criterion, and the
@@ -232,6 +231,8 @@ def partition(l, predicate):
 
 def tally(l):
     """Return dict of item, count pairs for sequence."""
+    from .dicts import DefaultOrderedDict
+
     t = DefaultOrderedDict(int)
     for item in l:
         t[item] += 1
@@ -240,6 +241,8 @@ def tally(l):
 
 def unique(l):
     """Return dict of unique (item, indices) pairs for sequence."""
+    from .dicts import DefaultOrderedDict
+    
     t = DefaultOrderedDict(list)
     for i, item in enumerate(l):
         t[item].append(i)

@@ -1,5 +1,6 @@
 
 # std
+import math
 import numbers
 import itertools as itt
 from typing import MutableMapping
@@ -7,9 +8,11 @@ from collections import defaultdict
 
 # relative
 from .. import op
+from ..lists import cosort
 from ..utils import is_scalar
 from ..functionals import always
 from ..iter import cofilter, first_true_index
+from ..functionals.partial import partial, placeholder as o
 from .core import AutoVivify, Pprinter, vdict
 
 
@@ -264,6 +267,23 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
 
     def split(self, keys):
         return tuple(self.transform(_split_trans, keys).values())
+
+    def sorted(self, keys):
+
+        if callable(keys):
+            raise NotImplementedError()
+
+        if is_scalar(keys):
+            raise ValueError(f'Expected callable or list of keys, not {type(keys)}.')
+
+        new = type(self)()
+        new.update(
+            zip(*cosort(
+                *zip(*self.items()),
+                key=partial(op.index)(keys, o, default=math.inf),
+            ))
+        )
+        return new
 
 
 def _split_trans(keys, accept):
