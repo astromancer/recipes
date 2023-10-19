@@ -1,5 +1,5 @@
 """
-Base classes for extensible decorators.
+Base class for extensible decorators.
 """
 
 
@@ -11,7 +11,6 @@ from loguru import logger
 from decorator import decorate
 
 
-
 # ---------------------------------------------------------------------------- #
 class Decorator:
     """
@@ -19,7 +18,7 @@ class Decorator:
     pickled, unlike function based decorators / factory. The actual decorator
     should be implemented by overriding the `__wrapper__` method.
 
-    There are two distinct use cases
+    There are two distinct usage patterns currently supported:
     1) No explicit arguments provided to decorator.
     eg.:
     >>> @decorator
@@ -41,21 +40,34 @@ class Decorator:
     original function by running `functools.update_wrapper`.
 
     Considering the usage patterns above:
-    In the first case (no parameters to decorator), the wrapper will be built
-    upon construction by running `__call__` (with the function `fun` as the only
-    parameter) inside `__new__`. Initialization here is trivial.
+    In the first case (no parameters to decorator), the wrapper will be created
+    upon construction by running `__call__` (with the target callable as the
+    first parameter) inside `__new__`. Initialization here is trivial.
 
     In the second use case, the `__init__` method should be implemented to
     handle the parameters ('hello', foo='bar') passed to the decorator
-    constructor. As before, the `__call__` method creates the wrapper and
-    returns the `__wrapper__` method as the new function.
+    constructor. As before, the `__call__` method creates the decorator.
 
-    By default, this decorator does nothing besides call the original function. 
-    Subclasses should implement the `__wrapper__` method to do the desired work.
-    For example:
-    >>> class increment(decorator):
-    ...     def __wrapper__(self, *args, **kws)
-    ...         return self.func(*args, **kws) + 1
+    By default, this bass class implements decorators that do nothing besides
+    call the original function. Subclasses should therefore implement the
+    `__wrapper__` method to do the desired work. For example:
+
+    >>> class traced(decorator):
+    ...     # print function signatures before call.
+    ...     def __wrapper__(self, func, *args, **kws):
+    ...         parameters = (*args,
+    ...                       *(map(" = ".join, *zip(*kws.items())) if kws else ()))
+    ...         parameters = str(parameters.rstrip(', ')
+    ...         print(f'Calling function: {func.__name__}{parameters}}.')
+    ...         return func(*args, **kws)
+    ...
+    ... @traced
+    ... def worker(a=1):
+    ...     print('Now doing work.')
+    ...
+    ... worker(2)
+    Calling function: worker(2).
+    Now doing work.
 
     NOTE: The use case above is identified based on the type of object the
     constructor receives as the first argument. It is therefore impossible to
@@ -126,14 +138,16 @@ class Decorator:
 
         logger.debug('Decorating func: {}.', func)
         decorator = decorate(func, self.__wrapper__, kwsyntax=kwsyntax)
-        # NOTE: this sets: __name__, __doc__, __wrapped__, __signature__,
-        # __qualname_, [__defaults__, __kwdefaults__, __annotations___]
-        # on the decorator.
         # NOTE: The function returned by decorate *is not the same object* as
         # `func` here!
+        # `decorate` sets: __name__, __doc__, __wrapped__, __signature__,
+        # __qualname_, [__defaults__, __kwdefaults__, __annotations___]
+        # on `decorator`.
 
         # func is instance attribute __wrapped__
-        self.__wrapped__ = func
+        self.__wrapped__ = func 
+        
+        # FIXME: each call overwrites. will cause problems wen using same factory for decorating multiple functions
         # and func attribute __wrapper__ is instance
         with ctx.suppress(AttributeError):
             # This fails for methods

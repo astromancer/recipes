@@ -64,7 +64,7 @@ class SlotHelper(SlotRepr):
             used.add(key)
 
         if overspecified := (used & set(kws)):
-            raise ValueError(f'Multiple values for parameter {overspecified.pop()}.')
+            raise ValueError(f'Multiple values for parameter(s) {overspecified}.')
 
         for key, val in kws.items():
             setattr(self, key, val)

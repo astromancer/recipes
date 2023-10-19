@@ -46,7 +46,7 @@ class trace(Decorator):
     """
 
     def __init__(self,
-                 pre='Tracing function call:\n >>> {signature}',
+                 pre='Tracing function call:\n>>> {signature}',
                  post='{func.__name__} returned result in {elapsed}:\n > {result}',
                  emit=logger.info,
                  formatter=None,
