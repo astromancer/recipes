@@ -5,7 +5,7 @@ import pickle
 import pytest
 
 # local
-from recipes.decorators.base import decorator
+from recipes.decorators import decorator
 
 # from pytest_cases import parametrize, fixture
 
