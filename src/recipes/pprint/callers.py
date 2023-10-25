@@ -5,6 +5,7 @@ Pretty printing callable objects and call signatures.
 # std
 import inspect
 import textwrap as txw
+import functools as ftl
 
 # relative
 from ..introspect.utils import get_module_name
@@ -91,16 +92,16 @@ def caller(obj, args=(), kws=None, show_defaults=True,
            params_per_line=None, hang=None, wrap=80,
            value_formatter=repr):
     """
-    Pretty format a callable object, optionally with paramater values for the
-    call signature.
+    Pretty format a callable object, optionally with paramater values for
+    representing the call signature.
 
     This is a flexible formatter for producing string representations of call
-    signatures of any callable python object. Optional arguments allows one to
-    print the parameter values of objects passed to the function. One can also
-    choose whether or not to print the default parameter values. This function
-    can therefore be used to represent callable objects themselves, ie. the
-    function without parameters, or a call signature ie. how a call will be
-    typed out in the source code.
+    signatures for any callable python object. Optional `args` and `kws`
+    parameters allows one to print the values of parameters as they would be
+    passed to the function. A switch for printing the default parameter values
+    is also available in `show_defaults`. This function can therefore be used to
+    represent callable objects themselves, ie. the function without parameters,
+    or a call signature ie. how the call will be seen by the interpreter.
 
     Wrapping the call signature across multiple lines for calls with many
     parameters, is also supported, as is fine tuning parameters for the depth of
@@ -173,7 +174,18 @@ def caller(obj, args=(), kws=None, show_defaults=True,
     if not callable(obj):
         raise TypeError(f'Object {obj} is not a callable.')
 
+    # mutable default
+    kws = kws or {}
+
+    # special handling for partial objects!
+    if partial := isinstance(obj, ftl.partial):
+        obj = obj.func
+        args = (*obj.args, *args)
+        kws = {**obj.keywords, **kws}
+
     name = get_name(obj, name_depth, show_binding_class)
+    if partial:
+        name = f'functools.partial({name})'
 
     # format signature
     sig = signature(inspect.signature(obj), args, kws,
@@ -187,7 +199,12 @@ def get_name(obj, name_depth, show_binding_class=True):
     if not name_depth:
         return ''
 
-    name = obj.__qualname__
+    if hasattr(obj, '__qualname__'):
+        name = obj.__qualname__
+    else:
+        kls = type(obj)
+        name = f'{kls.__module__}{kls.__name__}'
+
     if show_binding_class and name_depth > 1 and hasattr(obj, '__self__'):
         defining_class_name, _ = name.split('.', 1)
         name = name.replace(defining_class_name, obj.__self__.__class__.__name__)
