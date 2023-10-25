@@ -12,7 +12,7 @@ from textwrap import dedent
 from loguru import logger
 
 # relative
-from ..decorators import Decorator
+from ..decorators.base import Decorator
 from ..functionals import noop, raises
 
 

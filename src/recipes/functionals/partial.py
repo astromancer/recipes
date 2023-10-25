@@ -22,7 +22,7 @@ Partial functions via placeholder syntax.
 
 from ..iter import where
 from ..oo.slots import SlotHelper
-from ..decorators import Decorator
+from ..decorators import Decorator, Wrapper
 
 
 # TODO map(partial(sub)(vector(subs.values()), subs))
@@ -56,19 +56,19 @@ class PartialAt(Decorator):
         self._keywords = tuple(where(kws, PlaceHolder))
         self._keywords_indexed = tuple(where(kws, isinstance, _IndexedPlaceHolder))
 
-    def __call__(self, func, kwsyntax=True):
-        return super().__call__(func, kwsyntax)
+    def __call__(self, func):
+        return super().__call__(func, emulate=False, kwsyntax=True)
 
     def __wrapper__(self, func, *args, **kws):
-        return super().__wrapper__(
-            func, *self._get_args(args), **self._get_kws(kws)
-        )
+        return func(*self._get_args(args), **self._get_kws(kws))
 
     @property  # cache?
     def nfree(self):
         return len(self._positions) + len(self._positions_indexed)
 
-    def _get_args(self, args):
+    def _get_args(self, args=()):
+        # fill placeholders in `self.args` with dynamic values from `args` here
+        # to get final positional args tuple for the function call
         if (nargs := len(args)) != self.nfree:
             raise ValueError(
                 f'{self} requires {self.nfree} parameters, received {nargs}.'
@@ -87,6 +87,8 @@ class PartialAt(Decorator):
         return tuple(_args)
 
     def _get_kws(self, kws):
+        # fill placeholders in `self.kws` with dynamic values from `kws`
+        # here to get final key-word parameters for the function call
         if undespecified := set(self._keywords + self._keywords_indexed) - set(kws.keys()):
             raise ValueError(f'Required Keyword arguments: {undespecified}.')
 
@@ -104,11 +106,16 @@ class PartialAt(Decorator):
 
 
 class Partial(Decorator):
+    
+    task = PartialAt
 
-    factory = PartialAt
-
+    def __call__(self, func, emulate=False, kwsyntax=False):
+        return super().__call__(func, emulate, kwsyntax)
+    
     def __wrapper__(self, func, *args, **kws):
-        return self.factory(args, kws)(func)
+        return self.task(args, kws)(func)
+
+
 
 
 # aliases
