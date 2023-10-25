@@ -230,9 +230,61 @@ def _(obj, rhs, test=op.eq, start=0):
                 '... itr.INDEX_MAX = 1e9')
         yield i
 
+
 # ---------------------------------------------------------------------------- #
+# Filtering / element selection
+def select(items, *args, start=0):
+    """
+
+    Three distinct call signatures are supported:
+    >>> select(items)               # yield `items` that are truthy
+    >>> select(items, test)         # yield items where `test(item)` is truthy
+    >>> select(items, test, value)  # yield conditionally on `test(item, value)`
 
 
+    Parameters
+    ----------
+    items : _type_
+        _description_
+    start : int, optional
+        _description_, by default 0
+
+    Examples
+    --------
+    >>> 
+
+    Returns
+    -------
+    _type_
+        _description_
+
+    Raises
+    ------
+    ValueError
+        _description_
+    """
+
+    assert isinstance(start, numbers.Integral)
+
+    nargs = len(args)
+    if nargs == 0:
+        return filter(None, items)
+
+    if nargs == 1:
+        test, = args
+        assert callable(test)
+        return filter(negate(test), items)
+
+    if nargs == 2:
+        test, rhs = args
+        return (_ for _ in items if test(_, rhs))
+
+    # print valid call signatures from docstring
+    raise ValueError(txw.dedent(select.__doc__.split('\n\n')[1]))
+
+
+# ---------------------------------------------------------------------------- #
+# slicing
 def windowed(obj, size, step=1):
     assert isinstance(size, numbers.Integral)
 
@@ -365,15 +417,6 @@ def _parse_iterable_filter(func_or_iter, its):
                         f'`None`), not an instance of {type(func)}.')
 
     return its, func
-
-
-# def cofilter_false(func, *its):
-#     return cofilter(negate(func or bool), *its)
-
-
-# ---------------------------------------------------------------------------- #
-def select(items, test=bool):
-    yield from filter(negate(test), items)
 
 
 # ---------------------------------------------------------------------------- #
