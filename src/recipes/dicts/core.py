@@ -319,6 +319,10 @@ class Pprinter:
         print(self.pformat(**kws))
 
 
+# alias
+PPrinter = Pprinter
+
+
 class Invertible:
     """
     Mixin class for invertible mappings

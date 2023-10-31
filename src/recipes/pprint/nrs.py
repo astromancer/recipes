@@ -232,11 +232,15 @@ def _to_sexa(t, base_unit='h', precision='s'):
 
 class YMDHMS:
 
-    fill = ('', '', '', '0', '0', '0')
-    width = ('', '', '', 2, 2, 2)
-
-    def __init__(self, sep=None, ascii=False):
+    def __init__(self, sep=None, ascii=False,
+                 fill=('', '', '', '0', '0', '0'),
+                 width=('', '', '', 2, 2, 2)):
+        
         self.sep = tuple(self._resolve_sep(sep, ascii))
+        
+        assert len(fill) == len(width) == 6
+        self.fill = fill
+        self.width = width
 
     def __call__(self, t, base_unit=None, spec='s9?') -> str:
         return ''.join(self._iter(t, *self._parse_spec(t, base_unit, spec))).rstrip()
@@ -255,10 +259,10 @@ class YMDHMS:
             yield next(sep, '')
 
         r /= TIME_DIVISORS[v]
-         
+
         if w := self.width[v]:
             w += int(p)
-            
+
         s = f'{r:{self.fill[v]}{w}.{p}f}'
 
         if short and p:
@@ -291,7 +295,7 @@ class YMDHMS:
         return sep
 
 
-def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
+def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False, **kws):
     return YMDHMS(sep, ascii)(t, base_unit, spec)
 
 

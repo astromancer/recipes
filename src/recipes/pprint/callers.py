@@ -65,6 +65,9 @@ def describe(obj, sep=' ', repr=repr):
 
     if hasattr(obj, '__qualname__'):
         # any function or method
+        # TODO: distinguish between functions and methods
+        # if get_defining_class(obj):
+        #     ' method'
         return f'{obj.__class__.__name__}{sep}{repr(obj.__qualname__)}'
 
     # any other callable

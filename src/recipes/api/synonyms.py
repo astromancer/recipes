@@ -191,10 +191,10 @@ class Synonyms(Decorator):
                         {p.kind for p in sig.parameters.values()})
 
         if self._no_kws:
-            logger.info(f'No variadic keywords in {callers.describe(self.func)}. '
-                        'Decorator will have different function signature that '
-                        'includes variadic keywords (**kws) in order to support'
-                        ' api translation facilities.')
+            logger.debug(f'No variadic keywords in {callers.describe(self.func)}. '
+                          'Decorator will have different function signature that '
+                          'includes variadic keywords (**kws) in order to support'
+                          ' api translation facilities.')
         #     params = (*self.signature.parameters.values(), inspect.Parameter('kws', VKW))
         #     dec.__signature__ = sig.replace(parameters=params)
 

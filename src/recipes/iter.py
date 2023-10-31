@@ -168,8 +168,7 @@ def where(items, *args, start=0):
     nargs = len(args)
     if nargs == 0:
         _, indices = cofilter(items, itt.count(start))
-        yield from indices
-        return
+        return indices
 
     if nargs > 2:
         # print valid call signatures from docstring
@@ -180,6 +179,8 @@ def where(items, *args, start=0):
 
     yield from multi_index(items, rhs, test, start)
 
+
+# ---------------------------------------------------------------------------- #
 # Dispatch for multi-indexing
 
 
@@ -224,8 +225,8 @@ def _(obj, rhs, test=op.eq, start=0):
     for i in indices:
         if next(sentinel):
             raise RuntimeError(
-                'Infinite iterable? If this is wrong, increase the '
-                '`INDEX_MAX`. eg: \n'
+                'Infinite iterable? If this is wrong, increase the `INDEX_MAX`.'
+                ' eg: \n'
                 '>>> import recipes.iter as itr\n'
                 '... itr.INDEX_MAX = 1e9')
         yield i
