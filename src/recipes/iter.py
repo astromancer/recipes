@@ -415,7 +415,7 @@ def _parse_iterable_filter(func_or_iter, its):
         func = func_or_iter
     else:
         raise TypeError(f'Predicate function should be a callable object (or '
-                        f'`None`), not an instance of {type(func)}.')
+                        f'`None`), not an instance of {type(func_or_iter)}.')
 
     return its, func
 

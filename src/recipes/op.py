@@ -170,7 +170,7 @@ class VectorizeMixin:
 
     def filter(self, *args):
         *test, target = args
-        return filter(test or None, self.map(target))
+        return filter((test or None), self.map(target))
 
 
 class ItemVector(VectorizeMixin, ItemGetter):
