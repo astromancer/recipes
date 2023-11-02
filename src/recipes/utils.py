@@ -149,4 +149,8 @@ def ensure_list(obj, coerce=None):
     return ensure_wrapped(obj, list, coerce)
 
 
+def ensure(wrapper, obj, coerce=None, scalars=str):
+    return ensure_wrapped(obj, wrapper, coerce, scalars)
+    
+
 ensure_tuple = EnsureWrapped(tuple)
