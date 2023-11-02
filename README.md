@@ -1,6 +1,6 @@
 # recipes
 
-> A cookbook for the python developer connoisseur
+> A cookbook for the python developer connoisseur 🧑🏽‍🍳🍷🐍
 
 <!-- 
 TODO
