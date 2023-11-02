@@ -15,20 +15,22 @@ from recipes.pprint.formatters import Decimal, Scientific  # , Percentage, Condi
 
 from recipes.pprint import formatters as fmt
 
-styles = Decimal, #Scientific,  # , Metric
-formats = 'ascii', 'unicode', 'latex'
-cases = (0, 0.000123456789, 1.123456789, 1234.56789, 123456789.01, 0.1001)
-significant = (1, 2, 3)
-shorten = (True, ' ', False)
-multi = ('x', '.')
+if __name__ == '__main__':
 
-for kls in styles:
-    for fmt, sig, short, nr in itt.product(formats, significant, shorten, cases):
-        obj = kls(sig, short=short)
-        print(f'{obj}.{fmt}({nr})')
-        # print(fmt, sig, short, nr)
-        print(repr(getattr(obj, fmt)(nr)), '\n')
-        # break
+    styles = Decimal,  # Scientific,  # , Metric
+    formats = 'ascii', 'unicode', 'latex'
+    cases = (0, 0.000123456789, 1.123456789, 1234.56789, 123456789.01, 0.1001)
+    significant = (1, 2, 3)
+    shorten = (True, ' ', False)
+    multi = ('x', '.')
+
+    for kls in styles:
+        for fmt, sig, short, nr in itt.product(formats, significant, shorten, cases):
+            obj = kls(sig, short=short)
+            print(f'{obj}.{fmt}({nr})')
+            # print(fmt, sig, short, nr)
+            print(repr(getattr(obj, fmt)(nr)), '\n')
+            # break
 
     # for times in (multi if kls is Scientific else ['']):
         # spec = dict(short=short)

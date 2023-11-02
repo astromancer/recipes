@@ -28,6 +28,37 @@ def fast_thread_switching():
 # ---------------------------------------------------------------------------- #
 
 
+# class _TestClass:
+#     _computed = False
+
+#     @cached_property
+#     def p1(self):
+#         return 42
+
+#     @cached_property(depends_on=p1)
+#     def p2(self):
+#         self._computed = True
+#         return self.p1 * 10
+
+
+# def test_codelete():
+#     t = _TestClass()
+#     t.p2
+#     del t.p1
+#     t._computed = False
+#     t.p2
+#     assert t._computed
+
+
+# def test_delete_on_overwrite():
+#     t = _TestClass()
+#     t.p2
+#     t.p1 = 41
+#     t._computed = False
+#     t.p2
+#     assert t._computed
+
+
 class _TestClassProperty:
     _name = None
     """Optional `name` attribute. Defaults to class' `__name__` if not
@@ -38,9 +69,9 @@ class _TestClassProperty:
     def name(cls):
         return cls._name or cls.__name__
 
-    @name.setter
-    def name(cls, name):
-        cls.set_name(name)
+    # @name.setter
+    # def name(cls, name):
+    #     cls.set_name(name)
 
     @classmethod
     def set_name(cls, name):

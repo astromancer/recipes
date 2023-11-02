@@ -2,7 +2,7 @@
 # std
 import re
 import random
-from inspect import inspect
+import inspect
 
 # third-party
 from pytest_cases import parametrize

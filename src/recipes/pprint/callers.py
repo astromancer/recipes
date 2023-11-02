@@ -219,13 +219,15 @@ def get_name(obj, name_depth, show_binding_class=True):
         name_parts = name_parts[-name_depth:]
     else:
         # prepend (sub)module/package names
-        module_name = get_module_name(obj, name_depth - local_depth)
+        module_name = ''
+        with ctx.suppress(TypeError):
+            module_name = get_module_name(obj, name_depth - local_depth)
         name_parts = module_name.split('.') + name_parts
 
     # full name to specified depth
     return '.'.join(filter(None, name_parts))
 
-
+import contextlib as ctx
 def signature(sig, args=(), kws=None, wrap=80, indent=1,
               params_per_line=None, hang=None, show_defaults=True,
               value_formatter=repr, pep570_marks=True):

@@ -36,8 +36,8 @@ import types
 import difflib
 import itertools as itt
 from contextlib import nullcontext
-from collections import defaultdict
-from inspect import signature, Signature, Parameter, _ParameterKind
+from collections import abc, defaultdict
+from inspect import Parameter, Signature, _ParameterKind, signature
 
 # third-party
 import pytest
@@ -46,18 +46,19 @@ import pytest
 import motley
 
 # relative
-from . import pprint as pp
+from . import op, pprint as pp
 from .lists import lists
+from .utils import ensure_tuple
 from .logging import LoggingMixin
 from .iter import cofilter, negate
 from .functionals import echo0 as echo
-from recipes import op
 
 
 # ---------------------------------------------------------------------------- #
 POS, PKW, VAR, KWO, VKW = _ParameterKind
 
 # ---------------------------------------------------------------------------- #
+
 
 def to_tuple(obj):
     return obj if isinstance(obj, tuple) else (obj, )
@@ -79,9 +80,11 @@ def show_diff(actual, expected):
     """
 
     return '\n'.join(difflib.ndiff(actual.splitlines(True),
-                                 expected.splitlines(True)))
+                                   expected.splitlines(True)))
 
 # ---------------------------------------------------------------------------- #
+
+
 class WrapArgs:
     def __init__(self, *args, **kws):
         self.args, self.kws = get_hashable_args(*args, **kws)
@@ -184,6 +187,7 @@ def get_transforms(main, left, right):
 # TODO:
 # class Case
 
+
 class Expected(LoggingMixin):
     """
     Testing helper for checking expected return values for functions/ methods.
@@ -227,7 +231,7 @@ class Expected(LoggingMixin):
         name = func.__name__
 
         # whether it's intended to be a test already
-        self.is_test = name.startswith('test_')
+        self.is_test = name.startswith('test_')   # FIXME: THIS IS NEVER USED
         # crude test for whether this function is defined in a class scope
         self.is_method = (name != func.__qualname__)
         self.logger.opt(lazy=True).debug(
@@ -282,12 +286,21 @@ class Expected(LoggingMixin):
             right_transform or self.right_transform
         )
 
-        if isinstance(cases, dict):
+        if isinstance(cases, abc.MutableMapping):
             cases = cases.items()
-        elif isinstance(cases, (list, tuple)):
-            # if passing list, signify that all we want is for the tests to
-            # complete. return values will not be checked
-            cases = zip(cases, itt.repeat(PASS))
+        else:
+            # can be either (params, exected), or (params, ) only if test!
+            argspec, *expected = zip(*map(ensure_tuple, cases))
+            # If cases is not list of (input: expected) pairs, simply check test
+            # passes without error. Any result is produced and checked inside
+            # test
+            if not (expected or self.is_test):
+                raise ValueError('Require an expected result to test against.')
+
+            if not expected:
+                expected = [itt.repeat(PASS)]
+
+            cases = zip(argspec, *expected)
 
         # create test / parse the arguments
         if self.is_test:
@@ -337,13 +350,15 @@ class Expected(LoggingMixin):
         return self(items, *args, left_transform=transform, **kws)
 
     def bind(self, *args, **kws):
-        if self.is_method:
+        if self.is_method and self.is_test:
             args = (None, *args)
 
         bound = self.sig.bind(*args, **kws)
         bound.apply_defaults()
         # return bound.arguments
         params = bound.arguments
+
+        print(params)
 
         if self.is_method:
             params.pop('self', None)
@@ -357,26 +372,31 @@ class Expected(LoggingMixin):
         # containing lists of parameter values for each call.
 
         values = defaultdict(list)
+        items = list(items)
         for spec in items:
             # call signature emulation via mock handled here
-            spec, result = spec
+            spec, expected = spec
+
             if not isinstance(spec, WrapArgs):
                 # simple construction without use of mock function.
                 # ==> No keyword values in arg spec
                 spec = WrapArgs(*to_tuple(spec))
 
+            #
             args, kws = spec
             kws = dict(kws)
             bound = None
-            if result is ECHO:
+            if expected is ECHO:
+                # input same as expected
                 bound = self.bind(*args, **{**self.kws, **kws})
-                result = list(bound.values())[self.is_method]
+                expected = list(bound.values())[self.is_method]
 
             if self.is_test:
-                kws['expected'] = result
+                if 'expected' in self.sig.parameters:
+                    kws['expected'] = expected
             else:
                 # signature of created test function has 1 extra parameter
-                values['expected'].append(result)
+                values['expected'].append(expected)
 
             if not bound:
                 try:

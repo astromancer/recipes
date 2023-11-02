@@ -676,7 +676,7 @@ class Measurement(Number):
 
     __slots__ = ('pm')
 
-    @api.validate()
+    # @api.validate()
     def __init__(self, precision: int = None, significant: int = 3,
                  signed: Union[str, bool] = '-', thousands: str = '',
                  short: bool = True, space: Union[int, tuple] = 1,
