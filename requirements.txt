@@ -1,12 +1,18 @@
-more_itertools
-pytest
-psutil
+click
+loguru
+
+numpy
 scipy
 astropy
-numpy
-stdlib_list
-anytree
 matplotlib
-six
 
-git+https://github.com/astromancer/motley
+PyYAML
+psutil
+decorator
+more_itertools
+
+six
+anytree
+stdlib_list
+
+docsplice
