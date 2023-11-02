@@ -1,6 +1,6 @@
 [project]
 name = "recipes"
-description = "A cookbook for the python developer connoisseur"
+description = "A cookbook for the python developer connoisseur 🧑🏽‍🍳🍷🐍"
 authors = [
     {name = "Hannes Breytenbach", email = "hannes@saao.ac.za"}
 ]

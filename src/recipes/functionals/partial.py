@@ -21,8 +21,8 @@ Partial functions via placeholder syntax.
 
 
 from ..iter import where
-from ..oo.slots import SlotHelper
-from ..decorators import Decorator, Wrapper
+from ..decorators import Decorator
+# from ..oo.slots import SlotHelper # Circilar!
 
 
 # TODO map(partial(sub)(vector(subs.values()), subs))
@@ -38,11 +38,14 @@ class PlaceHolder:
         return _IndexedPlaceHolder(key)
 
 
-class _IndexedPlaceHolder(PlaceHolder, SlotHelper):
-    __slots__ = ('key', )
+class _IndexedPlaceHolder(PlaceHolder):
+    __slots__ = ('key', ) 
+    
+    def __init__(self, key):
+        self.key = key
     
     def __new__(cls, *args, **kws):
-        return object.__new__(cls)
+        return object.__new__(cls) # not a singleton!
 
 
 class PartialAt(Decorator):
@@ -114,8 +117,6 @@ class Partial(Decorator):
     
     def __wrapper__(self, func, *args, **kws):
         return self.task(args, kws)(func)
-
-
 
 
 # aliases

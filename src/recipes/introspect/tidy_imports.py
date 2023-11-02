@@ -19,7 +19,6 @@ import click
 from loguru import logger
 
 # local
-import motley
 from recipes.introspect.imports import STYLES, refactor
 
 
@@ -70,7 +69,7 @@ def _iter_files(file_or_folder):
 
 
 def worker(file, style):
-    logger.info('Tidying import statements in {}', motley.blue(repr(str(file))))
+    logger.info('Tidying import statements in {}', repr(str(file)))
     refactor(file, style)
 
 

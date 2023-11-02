@@ -35,8 +35,8 @@ UNICODE_MAP = {'inf':  '\N{INFINITY}',             # '∞'
                'x':    '\N{MULTIPLICATION SIGN}',  # '×'
                '.':    '\N{MIDDLE DOT}'}           # '·'
 # ⏨  Decimal exponent symbol
-# ⒑  Number Ten Full Stop
-# ⑽ Parenthesized Number Ten
+# ⒑  NumberBase Ten Full Stop
+# ⑽ Parenthesized NumberBase Ten
 
 # LaTeX
 LATEX_MAP = {'inf': R'\infty',
@@ -101,6 +101,10 @@ def resolve_sign(signed, allowed=' -+'):
 # ---------------------------------------------------------------------------- #
 
 
+def _rhs(obj):
+    return 'None' if obj is None else repr(str(obj))
+
+
 class SlotHelper:
     __slots__ = ()
 
@@ -126,9 +130,6 @@ class SlotHelper:
         for key, val in kws.items():
             setattr(self, key, val)
 
-
-def _rhs(obj):
-    return 'None' if obj is None else repr(str(obj))
 
 # ---------------------------------------------------------------------------- #
 
@@ -167,36 +168,7 @@ class Percentage:
 
 
 # ---------------------------------------------------------------------------- #
-
-
-# @dataclass
-class Number(SlotHelper):
-    """Base class for dynamic number formatting."""
-
-    # # _: KW_ONLY    # 3.10+ only
-    # inf: str = field(default='inf', repr=False)
-    # nan: str = field(default='nan', repr=False)
-    # masked: str = field(default='--', repr=False)
-
-    __slots__ = ('inf', 'nan', 'masked')
-
-    _ascii_map = {'inf':        'inf',
-                  'nan':        'nan',
-                  'masked':     '--'}
-    _unicode_map = {'inf':      '\N{INFINITY}',         # '∞'
-                    'nan':      'nan',
-                    'masked':   '\N{BLACK SQUARE}'}     # '■'
-    _latex_map = {'inf':        R'\infty',
-                  'nan':        'nan',
-                  'masked':     '--'}
-
-    def __init__(self, inf: str = 'inf', nan: str = 'nan', masked: str = '--',
-                 **kws):
-
-        kws = {**locals(), **kws}
-        kws.pop('self')
-        super().__init__(**kws)
-
+class FormatterConstructors:
     @classmethod
     def as_percentage_of(cls, total, **kws):
         return Percentage(total, cls(**kws))
@@ -230,13 +202,46 @@ class Number(SlotHelper):
     def latex(cls):  # sourcery skip: instance-method-first-arg-name
         return cls(**cls._latex_map)  # .join(LATEX_WRAP[math])
 
+    def map(self, x: abc.Collection):
+        return list(map(self, x))
+
     def array(self, **kws):
         return Array(self, **kws)
+
+
+# @dataclass
+class NumberBase(FormatterConstructors, SlotHelper):
+    """Base class for dynamic number formatting."""
+
+    # # _: KW_ONLY    # 3.10+ only
+    # inf: str = field(default='inf', repr=False)
+    # nan: str = field(default='nan', repr=False)
+    # masked: str = field(default='--', repr=False)
+
+    __slots__ = ('inf', 'nan', 'masked')
+
+    _ascii_map = {'inf':        'inf',
+                  'nan':        'nan',
+                  'masked':     '--'}
+    _unicode_map = {'inf':      '\N{INFINITY}',         # '∞'
+                    'nan':      'nan',
+                    'masked':   '\N{BLACK SQUARE}'}     # '■'
+    _latex_map = {'inf':        R'\infty',
+                  'nan':        'nan',
+                  'masked':     '--'}
+
+    def __init__(self, inf: str = 'inf', nan: str = 'nan', masked: str = '--',
+                 **kws):
+
+        kws = {**locals(), **kws}
+        kws.pop('self')
+        super().__init__(**kws)
 
     def validate(self, x):
         # ensure we have a scalar
         if not isinstance(x, numbers.Real):
-            raise ValueError('Only scalars are accepted by this function.')
+            raise ValueError('Only scalars are accepted by this function, found'
+                             f' {type(x)}.')
 
     # @api.validate(x=validate)
     def __call__(self, x: numbers.Real):
@@ -307,87 +312,11 @@ class Number(SlotHelper):
         raise NotImplementedError('todo')
 
 
-STD_BRACKETS = object()
-STD_BRACKET_TYPES = {set: '{}',
-                     list: '[]',
-                     tuple: '()'}
-
-
-class Collection(SlotHelper):
-    
-    __slots__ =  ('fmt', 'max_items', 'edge_items', 'sep', 'dots', 'brackets')
-    
-    def __init__(self, fmt=repr,
-                 max_items=10, edge_items=2,
-                 sep=', ', dots='...', brackets=STD_BRACKETS):
-
-        if isinstance(fmt, str):
-            fmt = fmt.format
-        assert callable(fmt)
-
-        if brackets is not STD_BRACKETS:
-            assert len(brackets) == 2
-
-        kws = locals()
-        kws.pop('self')
-        super().__init__(**kws)
-
-    def __call__(self, obj):
-        """
-        Print a pretty representation of a collection of items, trunctated
-        at `max_items`.
-
-        Parameters
-        ----------
-        obj
-        max_items
-        edge_items
-        sep
-
-        Returns
-        -------
-
-        """
-        brackets = self.brackets
-        if brackets is STD_BRACKETS:
-            brackets = STD_BRACKET_TYPES.get(type(obj), '[]')
-
-        if len(obj) <= self.max_items:
-            return self.sep.join(map(self.fmt, obj)).join(brackets)
-
-        return f'{self.sep}{self.dots} '.join(
-            (self.sep.join(map(self.fmt, obj[:self.edge_items])),
-             self.sep.join(map(self.fmt, obj[-self.edge_items:])))
-        ).join(brackets)
-
-
-class Array(SlotHelper):
-
-    __slots__ = ('fmt', 'max_rows', 'max_cols', 'n_edge', 'dots', 'sep')
-
-    def __init__(self, fmt, width=100, max_size=625, n_edge=2, dots='...',
-                 sep=', '):
-
-        # assert callable((fmt))
-        kws = locals()
-        kws.pop('self')
-        super().__init__(**kws)
-
-    def __call__(self, x):
-
-        if x > self.max_size:
-            return self.summarize(x)
-
-        return vectorize(self.fmt)(x)
-
-    def summarize(self, x):
-        ''
-
 # @api.validate(signed=resolve_sign)
 # @dataclass
 
 
-class Decimal(Number):
+class Decimal(NumberBase):
     """
     Decimal number formatter.
     This produces decimal format strings of numeric type objects. The
@@ -453,9 +382,13 @@ class Decimal(Number):
                  signed: Union[str, bool] = '-',
                  short: Union[str, bool] = True,
                  **kws):
+        # if significant == 0 and precision is None:
+        #     precision = 0
+        #     significant = 1
 
-        if significant <= 0:
-            raise ValueError('Number of `significant` digits must be positive.')
+        if significant < 0:
+            raise ValueError('NumberBase of `significant` digits must be positive '
+                             'non-zero.')
 
         kws = {**locals(), **kws}
         kws.pop('self')
@@ -499,17 +432,20 @@ class Decimal(Number):
         if (precision is not None):
             return precision
 
-        if x == 0:
-            return 0
+        if x >= 1:
+            return self.significant
+
+        # if x == 0:
+        #     return 0
 
         # order of magnitude and `significant` determines precision
         m = order_of_magnitude(x)
-        if math.isinf(m):
-            m = 0
+        # if math.isinf(m):
+        #     m = 0
 
         precision = int(self.significant) - min(m, 1) - 1
 
-        # only positive precisions make sense for decimal format
+        # only positive precision value make sense for decimal format
         if precision < 0:
             warnings.warn(f'Negative precision not allowed for '
                           f'{describe(type(self))}. Setting precision to 0.')
@@ -669,7 +605,7 @@ class Metric:
 Engineering = Metric
 
 
-class Measurement(Number):
+class Measurement(NumberBase):
     """
     A measured number with some uncertainty.
     """
@@ -731,6 +667,84 @@ class Measurement(Number):
             return xr
 
         return f'{xr}{self.pm}{self(u, precision)}'
+
+
+STD_BRACKETS = object()
+STD_BRACKET_TYPES = {set: '{}',
+                     list: '[]',
+                     tuple: '()'}
+
+
+class Collection(FormatterConstructors, SlotHelper):
+
+    __slots__ = ('fmt', 'max_items', 'edge_items', 'sep', 'dots', 'brackets')
+
+    def __init__(self, fmt=repr,
+                 # TODO: width
+                 max_items=10, edge_items=2,
+                 sep=', ', dots='...', brackets=STD_BRACKETS):
+
+        if isinstance(fmt, str):
+            fmt = fmt.format
+        assert callable(fmt)
+
+        if brackets is not STD_BRACKETS:
+            assert len(brackets) == 2
+
+        kws = locals()
+        kws.pop('self')
+        super().__init__(**kws)
+
+    def __call__(self, obj):
+        """
+        Print a pretty representation of a collection of items, trunctated
+        at `max_items`.
+
+        Parameters
+        ----------
+        obj
+        max_items
+        edge_items
+        sep
+
+        Returns
+        -------
+
+        """
+        brackets = self.brackets
+        if brackets is STD_BRACKETS:
+            brackets = STD_BRACKET_TYPES.get(type(obj), '[]')
+
+        if len(obj) <= self.max_items:
+            return self.sep.join(map(self.fmt, obj)).join(brackets)
+
+        return f'{self.sep}{self.dots} '.join(
+            (self.sep.join(map(self.fmt, obj[:self.edge_items])),
+             self.sep.join(map(self.fmt, obj[-self.edge_items:])))
+        ).join(brackets)
+
+
+class Array(SlotHelper):
+
+    __slots__ = ('fmt', 'max_rows', 'max_cols', 'n_edge', 'dots', 'sep')
+
+    def __init__(self, fmt, width=100, max_size=625, n_edge=2, dots='...',
+                 sep=', '):
+
+        # assert callable((fmt))
+        kws = locals()
+        kws.pop('self')
+        super().__init__(**kws)
+
+    def __call__(self, x):
+
+        if x > self.max_size:
+            return self.summarize(x)
+
+        return vectorize(self.fmt)(x)
+
+    def summarize(self, x):
+        ''
 
 
 class Conditional:
