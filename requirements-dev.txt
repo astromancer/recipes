@@ -3,4 +3,3 @@
 pytest
 pytest-cases
 numpydoc
-git+https://github.com/astromancer/motley

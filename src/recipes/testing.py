@@ -42,9 +42,6 @@ from inspect import Parameter, Signature, _ParameterKind, signature
 # third-party
 import pytest
 
-# local
-import motley
-
 # relative
 from . import op, pprint as pp
 from .lists import lists
@@ -452,12 +449,10 @@ class Expected(LoggingMixin):
             if answer == expected:
                 return
 
-            message = motley.format(
-                '{end}Result from function {func.__name__:s|green}'
-                ' is not equal to expected answer!',
-                func=self.func, end=motley.codes.END
-            ) + (f'\nRESULT:  \n{answer!r}'
-                 f'\nEXPECTED:\n{expected!r}')
+            message = (f'Result from function {self.func.__name__} '
+                       'is not equal to expected answer!'
+                       f'\nRESULT:  \n{answer!r}'
+                       f'\nEXPECTED:\n{expected!r}')
             if isinstance(answer, str) and isinstance(expected, str):
                 diff_string = show_diff(repr(answer), repr(expected))
                 message += f'\nDIFF\n{diff_string}'
