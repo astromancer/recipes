@@ -10,7 +10,7 @@ from collections import defaultdict
 from .. import op
 from ..lists import cosort
 from ..utils import is_scalar
-from ..functionals import always
+from ..functionals import always, negate
 from ..iter import cofilter, first_true_index
 from ..functionals.partial import partial, placeholder as o
 from .core import AutoVivify, Pprinter, vdict
@@ -46,7 +46,15 @@ def _get_filter_func(keys):
         return always(True)
 
     if keys is None:
-        keys = bool
+        return bool
+
+    return negate(_get_select_func(keys))
+
+
+def _get_select_func(keys):
+
+    if keys is NULL:
+        return always(True)
 
     if callable(keys):
         return keys
@@ -185,6 +193,9 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
     def pop(self, key, *default):
         return _get_val(super().pop(key, *default))
 
+    def get(self, key, *default):
+        return _get_val(super().get(key, *default))
+
     # def merge(self, other):
     #     self.update(other)
     # class _NodeMixin:
@@ -221,7 +232,16 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
         new.update(self._filter(_get_filter_func(keys),
                                 _get_filter_func(values),
                                 levels))
-        # new[keys] = val
+        return new
+
+    def select(self, keys=NULL, values=NULL, levels=all, *args, **kws):
+        new = type(self)()
+        # if callable(keys) and keys.__name__ == 'get':
+        #     from IPython import embed
+        #     embed(header="Embedded interpreter at 'src/recipes/dicts/node.py':243")
+        new.update(self._filter(_get_select_func(keys),
+                                _get_select_func(values),
+                                levels))
         return new
 
     def _filter(self, key_test, val_test, levels):
@@ -232,7 +252,7 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
     def find(self, key, collapse=False, remapped_keys=None):
         # sourcery skip: assign-if-exp, reintroduce-else
         test = op.has(key).within
-        found = self.filtered(test)
+        found = self.select(test)
 
         if not collapse:
             return found

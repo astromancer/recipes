@@ -396,7 +396,6 @@ def cofilter(func_or_iter, *its):
     its, func = _parse_iterable_filter(func_or_iter, its)
 
     # zip(*filter(lambda x: func(x[0]), zip(*its)))
-
     it00, it0 = itt.tee(its[0])
     # NOTE this consumes the iterator in position 0!!
     # find the indices where func evaluates to true
