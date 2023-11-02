@@ -184,10 +184,6 @@ def get_transforms(main, left, right):
     return left, right
 
 
-# TODO:
-# class Case
-
-
 class Expected(LoggingMixin):
     """
     Testing helper for checking expected return values for functions/ methods.
@@ -357,8 +353,6 @@ class Expected(LoggingMixin):
         bound.apply_defaults()
         # return bound.arguments
         params = bound.arguments
-
-        print(params)
 
         if self.is_method:
             params.pop('self', None)
