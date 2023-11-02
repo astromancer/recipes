@@ -11,6 +11,7 @@ import re
 import math
 import pprint
 import numbers
+import warnings
 import itertools as itt
 from collections import namedtuple
 
@@ -22,9 +23,9 @@ import docsplice as doc
 
 # relative
 from .. import op
+from ..string import unicode as uni
 from ..functionals import echo0
-from ..array.misc import vectorize
-from .. import unicode as uni
+from ..array.utils import vectorize
 from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 
@@ -117,9 +118,7 @@ def leading_decimal_zeros(n):
 
     """
     m = order_of_magnitude(n)
-    if m > 0 or math.isinf(m):
-        return 0
-    return -m - 1
+    return 0 if (m > 0 or math.isinf(m)) else -m - 1
 
 
 def get_significant_digits(x, n=3):
@@ -231,59 +230,73 @@ def _to_sexa(t, base_unit='h', precision='s'):
     yield s * t
 
 
-def _ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
+class YMDHMS:
 
-    fill = ('', '', '', '0', '0', '0')
-    width = ('', '', '', 2, 2, 2)
-    # sep = ['y', 'M', 'd ', 'h', 'm', 's']
+    def __init__(self, sep=None, ascii=False,
+                 fill=('', '', '', '0', '0', '0'),
+                 width=('', '', '', 2, 2, 2)):
+        
+        self.sep = tuple(self._resolve_sep(sep, ascii))
+        
+        assert len(fill) == len(width) == 6
+        self.fill = fill
+        self.width = width
 
-    # parse spec
-    mo = REGEX_YMDHMS_SPEC.match(spec)
-    # kws = mo.groupdict()
+    def __call__(self, t, base_unit=None, spec='s9?') -> str:
+        return ''.join(self._iter(t, *self._parse_spec(t, base_unit, spec))).rstrip()
 
-    # generator that computes ydmhms representation
-    mag = 'yMdhms'
-    v = mag.index(base_unit) if base_unit else op.index(TIME_DIVISORS, t, test=op.le)
-    w = mag.index(mo['tail_unit'])
-    if v >= w:
-        raise ValueError(f'Base unit ({mag[v]!r}) must have greater magnitude '
-                         f'than tail unit ({mag[w]!r}).')
+    def _iter(self, t, u, v, p, short):
+        # compute parts and round
+        if t < 0:
+            yield ('-' if ascii else '\N{MINUS SIGN}')
 
-    # sep = kws.pop('sep') or sep
-    if sep is None:
-        sep = (YMDHMS_SUPER, YMDHMS_ASCII)[ascii]
-    # sep = SEP_SPEC.get(sep, sep)
-    nsep = len(sep)
-    assert nsep in {0, 1, 5, 6}
-    if nsep in {0, 1}:
-        sep = itt.repeat(sep, 5)
-    # print(list(sep))
-    sep = itt.islice(iter(sep), v, w + 1)
+        #
+        r = abs(t)
+        sep = itt.islice(iter(self.sep), u, v + 1)
+        for d, f, w in itt.islice(zip(TIME_DIVISORS, self.fill, self.width), u, v):
+            t, r = divmod(r, d)
+            yield f'{int(t):{f}{w}d}'
+            yield next(sep, '')
 
-    # compute parts and round
-    if t < 0:
-        yield ('\N{MINUS SIGN}', '-')[ascii]
+        r /= TIME_DIVISORS[v]
 
-    r = abs(t)
-    for i in range(v, w):  # for d in TIME_DIVISORS[v:w]:
-        d = TIME_DIVISORS[i]
-        # print(r, d)
-        t, r = divmod(r, d)
-        yield f'{int(t):{fill[i]}{width[i]}d}'
-        yield next(sep, '')
+        if w := self.width[v]:
+            w += int(p)
 
-    p = mo['precision'] or 0
-    r /= TIME_DIVISORS[w]
-    s = f'{r:{fill[i]}{width[i]}.{p}f}'
-    if mo['short'] and p:
-        s = s.rstrip('0').rstrip('.')
+        s = f'{r:{self.fill[v]}{w}.{p}f}'
 
-    yield s
-    yield from sep
+        if short and p:
+            s = s.rstrip('0').rstrip('.')
+
+        yield s
+        yield from sep
+
+    def _parse_spec(self, t, base_unit, spec):
+        # parse spec
+        mo = REGEX_YMDHMS_SPEC.match(spec)
+
+        mag = 'yMdhms'
+        v = mag.index(base_unit) if base_unit else op.index(TIME_DIVISORS, t, test=op.le)
+        w = mag.index(mo['tail_unit'])
+        if v > w:
+            raise ValueError(f'Base unit ({mag[v]!r}) must have greater magnitude '
+                             f'than tail unit ({mag[w]!r}).')
+        return v, w, (mo['precision'] or 0), bool(mo['short'])
+
+    def _resolve_sep(self, sep, ascii):
+        if sep is None:
+            return (YMDHMS_ASCII if ascii else YMDHMS_SUPER)
+
+        nsep = len(sep)
+        if nsep in {0, 1}:
+            return itt.repeat(sep, 5)
+
+        assert nsep in {5, 6}
+        return sep
 
 
-def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False):
-    return ''.join(_ymdhms(t, base_unit, spec, sep, ascii)).rstrip()
+def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False, **kws):
+    return YMDHMS(sep, ascii)(t, base_unit, spec)
 
 
 # class ydmhms:
@@ -1041,7 +1054,7 @@ def numeric(n, precision=3, significant=3, log_switch=5, sign='-', times='x',
     precision
     log_switch: int # TODO: tuple  
         Controls switching between decimal/scientific notation. Scientific
-        notation is triggered if `abs(math.log10(abs(n))) > switch`.
+        notation is triggered if `abs(math.log10(abs(n))) > log_switch`.
 
     short
         TODO: If short = True
@@ -1176,6 +1189,9 @@ def decimal_u(x, u, precision=None, short=False,
     -------
 
     """
+    if u is None or u is False or not np.isfinite(u):
+        return decimal(x, precision, 0, sign, short, thousands=thousands)
+
     if precision is None:
         precision = precision_rule_dpg(u)
     precision = int(precision)  # type enforcement
@@ -1198,7 +1214,7 @@ def decimal_u(x, u, precision=None, short=False,
 #         xr = np.ma.filled(xr, str(np.ma.masked))
 
 
-def uarray(x, u, significant=None, switch=5, short=False, times='x',
+def uarray(x, u, significant=None, log_switch=5, short=False, times='x',
            sign='-', thousands='', unicode=True, latex=False, engineering=False):
     """
 
@@ -1241,47 +1257,49 @@ def uarray(x, u, significant=None, switch=5, short=False, times='x',
         raise NotImplementedError('Probably not a good idea. Not yet tested for'
                                   '  large arrays.')
 
+    # check uncertainty ok
+    if u is None or u is False or np.isnan(u).all():
+        warnings.warn('Ignoring invalid uncertainty array.')
+        del u
+        kws = locals()
+        return numeric_array(kws.pop('x'), **kws)
+
     # decide on scientific vs decimal notation
-    logn = np.log10(abs(x))
-    oom = np.floor(np.round(logn, 9)).astype(int)
+    oom = np.floor(np.round(np.log10(abs(x)), 9)).astype(int)
     mmin, mmax = oom.min(), oom.max()
     mag_rng = mmax - mmin  # dynamic range in order of magnitude
-    if mag_rng > switch:
-        'use sci for entire array'
-        raise NotImplementedError
+    if mag_rng > log_switch:
+        raise NotImplementedError('use sci for entire array')
+
+    if significant is None:
+        # get precision values from the Data Particle Group rules
+        precision = vectorize(precision_rule_dpg)(u[np.isfinite(u)]).max()
     else:
-        # use decimal representation for entire array
-        # TODO: def decimal_repr_array():
+        precision = significant
 
-        if significant is None:
-            # get precision values from the Data Particle Group rules
-            precision = vectorize(precision_rule_dpg)(u).max()
-        else:
-            precision = significant
+    # get plus-minus character
+    # if unicode:
+    #     pm = UNI_PM
+    # elif latex:
+    #     pm = '\pm'
+    # else:
+    #     pm = '+-'
+    # # spacing
+    # pm = ' %s ' % pm
 
-        # get plus-minus character
-        # if unicode:
-        #     pm = UNI_PM
-        # elif latex:
-        #     pm = '\pm'
-        # else:
-        #     pm = '+-'
-        # # spacing
-        # pm = ' %s ' % pm
+    # here we can either display all digits for all elements up to
+    # `significant` or we can fill trailing whitespace up to `significant`.
 
-        # here we can either display all digits for all elements up to
-        # `significant` or we can fill trailing whitespace up to `significant`.
+    # option 1
+    return vectorize(decimal_u)(x, u, precision=precision,
+                                short=short, sign=sign, thousands=thousands,
+                                unicode=unicode, latex=latex)
 
-        # option 1
-        return vectorize(decimal_u)(x, u, precision=precision,
-                                    short=short, sign=sign, thousands=thousands,
-                                    unicode=unicode, latex=latex)
+    # return xr
 
-        # return xr
+    # option 2
 
-        # option 2
-
-        # return xr
+    # return xr
 
     # σ = unp.std_devs(a)
     # return list(map(leading_decimal_zeros, σ))
@@ -1329,18 +1347,18 @@ def matrix(a, precision=3):
     from motley.utils import hstack
 
     tbl = Table(a, precision=precision, frame=False, col_borders=' ',
-                minimalist=True, title='', title_props={})
+                minimalist=True, title='', title_style={})
     n_rows, _ = tbl.shape
     left = '\n'.join('┌' + ('│' * n_rows) + '└')
     right = '\n'.join([' ┐'] + [' │'] * n_rows + [' ┘'])
     return hstack([left, tbl, right])
 
 
-# def matrix(a, precision=2, significant=3, switch=5, sign=' ', times='x',
+# def matrix(a, precision=2, significant=3, log_switch=5, sign=' ', times='x',
 #           short=False, unicode=True, latex=False, engineering=False,
 #           thousands=''):
 #     """"""
-#     q = numeric_array(a, precision, significant, switch, sign, times, short,
+#     q = numeric_array(a, precision, significant, log_switch, sign, times, short,
 #                       unicode, latex, engineering, thousands)
 #
 #     return _matrix_repr(q)
@@ -1380,221 +1398,4 @@ class PrettyPrinter(pprint.PrettyPrinter):
             return obj
 
         # TODO: figure out how to do recursively for array_like
-
         return pprint.PrettyPrinter.pformat(self, obj)
-
-# def leading_decimal_zeros(n):  #
-#     """
-#     Gives the number of 0's following the decimal point and preceding the most
-#     significant digit in the decimal representation of a number. Note that this
-#     function will return the correct number of leading zeros for numbers
-#     represented in scientific *as though those numbers where represented as
-#     decimal*.
-#
-#     Parameters
-#     ----------
-#     n: number
-#
-#     Examples
-#     --------
-#     >>> leading_decimal_zeros(0.0000001) # 6
-#     >>> leading_decimal_zeros(100.0000001) # 6
-#     >>> leading_decimal_zeros(12e-23) # returns 21
-#
-#     Returns
-#     -------
-#
-#     """
-#     if not isinstance(n, numbers.Real):
-#         raise ValueError('Only scalars are accepted by this function.')
-#
-#     rn = repr(n)
-#     # try match decimal notation: eg.: '3.14159'
-#     match = DECIMAL_SRE.match(rn)
-#     if match:
-#         return len(match.group(1))
-#
-#     # try match scientific notation: eg.: '1e-05'
-#     match = SCI_SRE.match(rn)
-#     if match:
-#         return int(match.group(1)) - 1
-#
-#     return 0
-
-# def minimalist_decimal_format(n, precision=None):
-#     """
-#     Minimalist decimal representation of float as str with given decimal
-#     precision.
-#
-#     Parameters
-#     ----------
-#     n: int or float
-#         the number to format
-#     precision: int, optional
-#         decimal precision for format.
-#         default is 1 if the abs(number) is larger than 1. Otherwise it is chosen
-#         such that at least 3 non-zero digits are shown: eg: 0.0000345 or 0.985
-#
-#     Returns
-#     -------
-#     str
-#
-#     Examples
-#     --------
-#     >>> minimalist_decimal_format(2.0000001, 3)
-#     '2'
-#     >>> minimalist_decimal_format(3.14159265, 5)
-#     '3.14159'
-#     """
-#
-
-# def leading_decimal_zeros(n):
-#     absn = abs(n)
-#     deci = absn - int(absn)
-#     print(deci, np.log10(deci), -(np.log10(deci) + 1))
-#     if deci == 0:
-#         return 0
-#     return -int(np.log10(deci) + 1)
-
-
-# def minimalist_decimal_format(n, precision=1):
-#     """minimal numeric representation of floats with given precision"""
-#     return '{:g}'.format(round(n, precision))
-
-
-# def sciFormat(x, precision=2, times=r'\times'):
-#
-#     if x == 0:
-#         val = 0
-#     else:
-#         s = np.sign(x)
-#         xus = abs(x)
-#         lx = np.log10(xus)
-#         pwr = np.floor(lx)
-#         val = s * xus * 10 ** -pwr
-#
-#     valstr = '{:.{}f}'.format(val, precision)
-#     return r'$%s%s10^{%i}$' % (valstr, times, pwr)
-
-
-# def switchlogformat(x, precision=2, switch=3, times=r'\times'): #unicode minus???
-#
-#     if x == 0:
-#         return '0'
-#
-#     s = list(' -')[np.sign(x) < 0]
-#     xus = abs(x)
-#     lx = np.log10(xus)
-#     pwr = np.floor(lx)
-#
-#     if abs(pwr) < switch:
-#         return minimalist_decimal_format(x, precision)
-#
-#     val = xus * 10 ** -pwr
-#     valstr = minimalist_decimal_format(val, precision)
-#
-#     if valstr == '1':
-#         return r'$%s10^{%i}$' % (s, pwr)
-#
-#     return r'$%s%s%s10^{%i}$' % (s, valstr, times, pwr)
-
-
-# def minlogformat(x, precision=2, times=r'\times'): #unicode minus???
-#
-#     if x == 0:
-#         return '0'
-#
-#     s = ['', '+', '-'][np.sign(x)]
-#     xus = abs(x)
-#     lx = np.log10(xus)
-#     pwr = np.floor(lx)
-#
-#     if abs(pwr) < precision:
-#         return minimalist_decimal_format(x, precision)
-#
-#     val = xus * 10 ** -pwr
-#     valstr = minimalist_decimal_format(val, precision)
-#
-#     if valstr == '1':
-#         return r'$%s10^{%i}$' % (s, pwr)
-#
-#     return r'$%s%s%s10^{%i}$' % (s, valstr, times, pwr)
-
-# minlogfmt = minlogformat
-
-
-# def switchlogfmt(x, precision=2, switch=3, minimalist=True, times=r'\times'):
-#
-#     v = 10 ** switch
-#     if abs(x) >= v:
-#         fmt = minlogfmt if minimalist else sciFormat
-#         fmt = functools.partial(fmt, times=times, precision=precision)
-#     else:
-#         fmt = minimalist_decimal_format if minimalist else '{:.{precision}f}'.format
-#         fmt = functools.partial(fmt, precision=precision)
-#     return fmt(x)
-
-# def rformat(item, precision=None, minimalist=True):
-#     """
-#     Apply numerical formatting recursively for arbitrarily nested iterators,
-#     optionally applying a conversion function on each item.
-#
-#     precision: int, optional
-#         decimal precision for format.
-#         default is 1 if the abs(number) is larger than 1. Otherwise it is chosen
-#         such that at least 3 non-zero digits are shown: eg: 0.0000345 or 0.985
-#     minimalist: bool
-#         whether to include non-significant decimals in the float representation
-#         if True (default), will always show to given precision.
-#             eg. with precision=5: 7.0001 => 7.00010
-#         if False, show numbers in the shortest possible format given precision.
-#             eg. with precision=3: 7.0001 => 7
-#     """
-#     if isinstance(item, str):
-#         return item
-#
-#     if minimalist:
-#         floatFormatFunc = decimal
-#     else:
-#         floatFormatFunc = '{:.{}f}'.format
-#         precision = precision or 3
-#
-#     if isinstance(item, (int, float)):
-#         return floatFormatFunc(item, precision)
-#
-#     try:
-#         # Handle array_like items with len(item) in [0,1] here
-#         # np.asscalar converts np types to python builtin types (Phew!!)
-#         # NOTE: This will suppress the type representation of the object str
-#         builtin_type = np.asscalar(item)
-#         if isinstance(builtin_type, str):
-#             return str(item)
-#
-#         if isinstance(builtin_type, (int, float)):
-#             return floatFormatFunc(item, precision)
-#
-#     except Exception as err:
-#         # Item is not str, int, float, or convertible to such...
-#         pass
-#
-#     if isinstance(item, np.ndarray):
-#         return np.array2string(item, precision=precision)
-#         # NOTE:  lots more functionality here
-#
-#     return str(item)
-#     # return pformat(item)
-#
-#     # brackets = { tuple : '()', set : '{}', list : '[]' }
-#     # if np.iterable(item):
-#
-#     # if isinstance(item, (tuple, set, list)):
-#     # br = list(brackets[type(item)])
-#     # else:
-#     # warn( 'NEED FMT FOR: {}'.format(type(item)) )
-#     # br = '[]'        #SEE ALSO:  np.set_print_options
-#
-#     # recur = ft.partial(rformat, precision=precision)         #this way it works with iterators that have no __len__
-#     # return ', '.join( map(recur, item) ).join(br)
-#
-#     # else:       #not str, int, float, or iterable
-#     # return str(item)

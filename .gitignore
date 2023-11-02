@@ -4,9 +4,11 @@ dev/
 src/recipes/property.py
 src/recipes/decor/path.py
 src/recipes/io/parse.py
+tests/test_loguru.py
+src/recipes/_logging.py
 
-#########################################
 # Editor temporary/working/backup files #
+#########################################
 .#*
 [#]*#
 *~
@@ -61,13 +63,10 @@ ehthumbs.db
 Icon?
 Thumbs.db
 
-
-
 # Documentation generated files #
 #################################
 # sphinx build directory
 doc/_build
-
 
 # Pytest/Nose generated files #
 ###############################
@@ -78,6 +77,7 @@ doc/_build
 *.py,cover
 cover/
 .noseids
+.hypothesis/
 
 # Conda files #
 ###############
@@ -89,5 +89,6 @@ lib/z.lib
 #################
 .ipynb_checkpoints/
 
-
-tests/test_loguru.py
+# Linters #
+###########
+*.trunk

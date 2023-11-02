@@ -28,7 +28,7 @@ class count_calls(Decorator):
 count = count_calls
 
 
-class Chrono():
+class Chrono:
     # TODO: Singleton so it can be used across multiple modules
     fmt = '{: <50s}{:s}'
 
@@ -65,14 +65,14 @@ class Chrono():
         hline = '-' * 80
         print()
         print(border)
-        print('%s Report: %s' % (self.__class__.__name__, self.title))
+        print(f'{self.__class__.__name__} Report: {self.title}')
         print(hline)
         for t, lbl in zip(self.deltas, self.labels):
             txt = self.fmt.format(lbl, pprint.hms(t))
             print(txt)
 
         for f, t in self.funcs.items():
-            txt = self.fmt.format('Function: %s' % f.__name__, pprint.hms(t))
+            txt = self.fmt.format(f'Function: {f.__name__}', pprint.hms(t))
             print(txt)
 
         print(hline)
@@ -122,8 +122,7 @@ def timer(Decorator):
         # print('func:%s(%r, %r) took: %2.4f sec'
         # % (f.__name__, args, kw, te-ts))
 
-        msg = 'func: %s took:\t%2.4f sec' % (func.__name__, te - ts)
-        print(msg)
+        print(f'func: {func.__name__} took:\t{te - ts:2.4f} sec')
         return result
 
 
@@ -165,7 +164,7 @@ def timer(Decorator):
 #         tstr = codes.apply(pprint.hms(te - ts), bg='y')
 #         tbl = Table([r, tstr],
 #                     title='Timer',
-#                     title_props=dict(c='bold', bg='g'),
+#                     title_style=dict(c='bold', bg='g'),
 #                     row_headers=['func', 'Time'],
 #                     where_row_borders=[0, -1])
 #         print(tbl)

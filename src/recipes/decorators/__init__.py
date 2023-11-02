@@ -15,8 +15,8 @@ A collection of some awesome functional decorators used accross recipes.
 
 # TODO: REALLY NEED A DECORATOR that can flag all methods in a class
 
-
-from ..functionals import *
-from .base import Decorator
-from .common import *
-from .trace import *
+from ..flow import *
+from .oo import *
+from .base import *
+from .core import *
+from .reporting import *

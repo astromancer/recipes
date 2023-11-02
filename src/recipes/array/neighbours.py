@@ -3,7 +3,7 @@ import numpy as np
 
 
 # relative
-from .misc import Grid
+from .utils import Grid
 
 ndgrid = Grid
 
@@ -12,8 +12,8 @@ ndgrid = Grid
 
 def neighbours(a, centre, size, **kws):
     """
-    Return nearest neighbour sub-window centered on *centre*.  N-d implementation with optional
-    padding for edge handling.
+    Return nearest neighbour sub-window centered on *centre*.  N-d
+    implementation with optional padding for edge handling.
 
     Parameters
     ----------
@@ -29,7 +29,8 @@ def neighbours(a, centre, size, **kws):
     mode:               str
         mode by which selection will take place
     favour_upper:       bool
-        For even size - whether the upper neighbourhood should be returned, or the lower.
+        For even size - whether the upper neighbourhood should be returned, or
+        the lower.
     return_index:       int
         Whether to return the indices:
             0 or None           - No indices returned
@@ -37,16 +38,17 @@ def neighbours(a, centre, size, **kws):
             2 or 'slice'        - return slices
             3 or 'all'          - return full window index grid
     fill_first:         bool - optional, default True
-        Whether to fill the missing indices (edge values accoring to mode) before doing the
+        Whether to fill the missing indices (edge values accoring to mode)
+        before doing the
         windowing or after.
     window_first:         bool - optional, default True
-        Does the opposite of fill_first.  Keyword redundancy for convenience.  If both keywords
-        are give, the value of fill_first will supersede.
+        Does the opposite of fill_first.  Keyword redundancy for convenience.
+        If both keywords are give, the value of fill_first will supersede.
 
     Returns
     -------
-    Function always return `size` items except when mode='clip' in which case the number of
-    returned values will be determined by the array shape.
+    Function always return `size` items except when mode='clip' in which case
+    the number of returned values will be determined by the array shape.
     """
 
     # default arguments

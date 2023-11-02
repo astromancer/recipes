@@ -44,16 +44,15 @@ class Null:
     """
     A class for implementing Null objects.
 
-    This class ignores all parameters passed when constructing or
-    calling instances and traps all attribute and method requests.
-    Instances of it always (and reliably) do 'nothing'.
+    This class ignores all parameters passed when constructing or calling
+    instances and traps all attribute and method requests. Instances of it
+    always (and reliably) do 'nothing'.
 
-    The code might benefit from implementing some further special
-    Python methods depending on the context in which its instances
-    are used. Especially when comparing and coercing Null objects
-    the respective methods' implementation will depend very much
-    on the environment and, hence, these special methods are not
-    provided here.
+    The code might benefit from implementing some further special Python methods
+    depending on the context in which its instances are used. Especially when
+    comparing and coercing Null objects the respective methods' implementation
+    will depend very much on the environment and, hence, these special methods
+    are not provided here.
     """
 
     def __init__(self, *_, **__):

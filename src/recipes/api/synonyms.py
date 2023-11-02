@@ -1,5 +1,5 @@
 """
-Parameter and Keyword name translation for understanding inexact human input.
+Parameter and keyword name translation for understanding inexact human input.
 
 Say you have an API function:
 
@@ -20,8 +20,8 @@ We can teach out function these alternatives like so:
 ... def stamp(labeled=True, color='default', center=False):
 ...     'the usual definition goes here'
 
-Now, like magic, our function will work with the alternatives we gave it via the
-regexes above at the cost of a small overhead for each misspelled parameter.
+Now our function will work automagically with the alternatives we gave it via
+the regexes above at the cost of a small overhead for each misspelled parameter.
 """
 
 # Keyword translation on-the-fly for flexible, typo tollerant APIs.
@@ -41,11 +41,19 @@ import itertools as itt
 from loguru import logger
 
 # relative
-from ..functionals import Emit
+from ..flow import Emit
+from ..pprint import callers
 from ..decorators import Decorator
 from ..string.brackets import BracketParser
 
 
+# ---------------------------------------------------------------------------- #
+# Parameter types
+PKIND = POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
+
+
+# ---------------------------------------------------------------------------- #
+# Interpret directive brackets () []
 def _ordered_group(word):
     return '|'.join(itt.accumulate(word)).join(('()'))
 
@@ -58,16 +66,26 @@ OPTION_REGEX_BUILDERS = {'[]': _ordered_group,
                          '()': _unordered_group}
 
 
-class RegexTranslate:
+# ---------------------------------------------------------------------------- #
+class OneToOne:
+    def __init__(self, pattern, answer=''):
+        self.pattern = str(pattern)
+        self.answer = str(answer)
+
+    def __call__(self, s):
+        if s == self.pattern:
+            return self.answer
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.pattern} --> {self.answer})'
+
+
+class RegexTranslate(OneToOne):
     """
     Class to assist many-to-one keyword mappings via regex pattern matching.
     """
 
     def __init__(self, pattern, answer=''):  # ensure_order
-
-        # assert mode in {'simple', 'regex', None}, f'Invalid mode string: {mode!r}'
-
-        self.answer = str(answer)
 
         if isinstance(pattern, str):
             self.regex = re.compile(pattern)
@@ -78,12 +96,12 @@ class RegexTranslate:
         else:
             raise TypeError('Invalid pattern type: {}', type(pattern))
 
+        # assert mode in {'simple', 'regex', None}, f'Invalid mode string: {mode!r}'
+        super().__init__(self.regex.pattern, answer)
+
     def __call__(self, s):
         if self.regex.fullmatch(s):
             return self.answer
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({self.regex.pattern} --> {self.answer})'
 
 
 class KeywordTranslate(RegexTranslate):
@@ -151,16 +169,13 @@ class KeywordTranslate(RegexTranslate):
         return regex
 
 
-POS, PKW, VAR, KWO, VKW = inspect._ParameterKind
-
-
 class Synonyms(Decorator):
     """
     Decorator for function parameter translation.
     """
     # TODO: detect ambiguous mappings
 
-    def __init__(self, mappings=(), /, mode='regex', action='warn'):
+    def __init__(self, mappings=(), /, mode=None, action='warn'):
         # TODO **kws for simple mappings labels=label
         self.emit = Emit(action, TypeError)
         self.resolvers = []
@@ -172,66 +187,94 @@ class Synonyms(Decorator):
         self.func = func
         self.signature = sig = inspect.signature(func)
         self._param_names = tuple(sig.parameters.keys())
-        self._has_vkw = (inspect._ParameterKind.VAR_KEYWORD in
-                         {p.kind for p in sig.parameters.values()})
-        return super().__call__(func)
+        self._no_kws = (inspect._ParameterKind.VAR_KEYWORD not in
+                        {p.kind for p in sig.parameters.values()})
+
+        if self._no_kws:
+            logger.debug(f'No variadic keywords in {callers.describe(self.func)}. '
+                          'Decorator will have different function signature that '
+                          'includes variadic keywords (**kws) in order to support'
+                          ' api translation facilities.')
+        #     params = (*self.signature.parameters.values(), inspect.Parameter('kws', VKW))
+        #     dec.__signature__ = sig.replace(parameters=params)
+
+        # decorate
+        return super().__call__(func, kwsyntax=True)
 
     def __wrapper__(self, func, *args, **kws):
-        if not self._has_vkw:
-            args, kws = self.resolve(args, kws)
-            return func(*args, **kws)
-
-        try:
-            return func(*args, **kws)
-        except TypeError as err:  # NOTE: only works if func has no variadic kws
-            if ((e := str(err)).startswith(func.__name__) and
-                    ('unexpected keyword argument' in e)):
-                #
-                logger.debug('Caught {}\n. Attempting keyword translation.', err)
-                args, kws = self.resolve(args, kws)
-                logger.debug('Re-trying function call {}(...) with synonymous '
-                             'keywords.', func.__name__)
+        if self._no_kws:
+            try:
                 return func(*args, **kws)
+            except TypeError as err:  # NOTE: only works if func has no variadic kws
+                if ((e := str(err)).startswith(func.__name__) and
+                        ('unexpected keyword argument' in e)):
+                    #
+                    logger.debug('Caught {}: {}. Attempting keyword translation.',
+                                 type(err), err)
+                    args, kws = self.resolve(args, kws)
+                    logger.debug('Re-trying function call {}(...) with synonymous '
+                                 'keywords.', func.__name__)
+                    return func(*args, **kws)
+                raise
 
-            raise
+        # NOTE: if the function takes variadic keywords (**kws), we cannot rely
+        # on the function call failing below due to incorrect keyword arguments
+        # since those will be aggregated in the kws dict by the interpreter.
+        args, kws = self.resolve(args, kws)
+        return func(*args, **kws)
 
     def __repr__(self):
         return repr(self.resolvers)
 
-    def update(self, mappings=(), /, _mode='regex'):
+    def update(self, mappings=(), mode=None):
         """
         Update the translation map.
         """
 
-        translator = {'simple': KeywordTranslate,
-                      'regex': RegexTranslate}[_mode]
+        _mode = mode
+        for pattern, target in dict(mappings).items():
+            if mode is None:
+                _mode = 'simple' if pattern.replace('_', '').isalpha() else 'regex'
 
-        for directive, target in dict(mappings).items():
-            # if isinstance(k, str)
-            self.resolvers.append(translator(directive, target))
+            translator = TRANSLATORS[_mode]
+            self.resolvers.append(translator(pattern, target))
 
     def resolve(self, args, kws):    # namespace=None,
         """
         Translate the keys in `kws` dict to the correct one for the hard api.
         """
+        logger.debug('Correcting user call parameters for api {}.',
+                     callers.describe(self.func))
+
         sig = self.signature
         param_types = {par.name: par.kind
                        for par in sig.parameters.values()}
 
         # resolve kws
         kws = {self.resolve_key(key): val
-               for key, val in kws.items()}
+                for key, val in kws.items()}
+
+        # check if any translated kws overlap with args
+        if args:
+            ba = sig.bind_partial(*args).arguments
+            if ambiguous := (set(ba.keys()) & kws.keys()):
+                raise TypeError(f'{callers.describe(self.func)} got multiple '
+                                f'values for argument {ambiguous.pop()!r}.')
 
         new = []
         args = iter(args)
+        sentinel = object()
+        stoplist = [KWO, VKW, *([PKW] * (VAR not in param_types.values()))]
         for (name, kind) in param_types.items():
-            if kind in (KWO, VKW):
+            if kind in stoplist:
                 break
 
-            new.append(kws.pop(name) if name in kws else next(args, ()))
+            if name in kws:
+                new.append(kws.pop(name))
+            elif (val := next(args, sentinel)) is not sentinel:
+                new.append(val)
 
         new.extend(args)
-
         return new, kws
 
     # @ftl.lru_cache()
@@ -240,7 +283,7 @@ class Synonyms(Decorator):
             return key
 
         for func in self.resolvers:
-            if (trial := func(key)) in self._param_names:
+            if (trial := func(key)) and trial != key:
                 logger.debug(msg := f'Keyword translated: {key!r} --> {trial!r}')
                 self.emit(msg)
                 return trial
@@ -250,5 +293,11 @@ class Synonyms(Decorator):
         # raise KeyError(f'Invalid parameter {key!r} for {describe(self.func)}')
 
 
+# ---------------------------------------------------------------------------- #
 # alias
 synonyms = Synonyms
+
+TRANSLATORS = {'simple': OneToOne,
+               'weird': KeywordTranslate,
+               'regex': RegexTranslate}
+# ---------------------------------------------------------------------------- #

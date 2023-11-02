@@ -20,6 +20,7 @@ from ..iter import where
 from ..utils import _delete_immutable, duplicate_if_scalar
 
 
+# ---------------------------------------------------------------------------- #
 # regexes
 REGEX_SPACE = re.compile(r'\s+')
 
@@ -28,6 +29,7 @@ JUSTIFY_MAP = {'r': '>',
                'l': '<',
                'c': '^',
                's': ' '}
+# ---------------------------------------------------------------------------- #
 
 
 class Percentage:
@@ -273,6 +275,7 @@ def sub(string, mapping=(), **kws):
 
     """
 
+    string = str(string)
     mapping = {**dict(mapping), **kws}
     if not mapping:
         return string
@@ -301,7 +304,7 @@ def sub(string, mapping=(), **kws):
     for key in okeys:
         # if any values have the key in them, need to remap them temporarily
         if op.any(ovals, op.contained(key).within):
-            tmp[key] = str(id(key))
+            tmp[key] = str(id(key))  # sourcery skip: remove-unnecessary-cast
             good.pop(key)
 
     inv = {val: mapping[key] for key, val in tmp.items()}
@@ -340,9 +343,13 @@ def title(string, ignore=()):
     if isinstance(ignore, str):
         ignore = [ignore]
 
-    ignore = [*map(str.strip, ignore)]
+    ignore = tuple(map(str.strip, ignore))
     subs = {f'{s.title()} ': f'{s} ' for s in ignore}
-    return sub(string.title(), subs)
+    new = sub(string.title(), subs)
+    if string.endswith(ignore):  # ths one does not get subbed above due to spaces
+        head, last = new.rsplit(maxsplit=1)
+        return f'{head} {last.lower()}'
+    return new
 
 
 def snake_case(string):
@@ -458,50 +465,142 @@ def shared_affix(strings, pre_stops='', post_stops=''):
     suffix = shared_suffix([item[i0:] for item in strings], post_stops)
     return prefix, suffix
 
+
 # ---------------------------------------------------------------------------- #
 # pluralization (experimental)
+_PLURAL_SUFFIX_MAP = {
+    'a':
+        (None, 'e'),
+    # eg:   knife -> knives
+    #       hoof -> hoovesxx
+    'f':
+        (-1, 'ves'),
+    'fe':
+        (-2, 'ves'),
+
+    # eg:   nucleus -> nuclei;
+    #       radius -> radii
+    #       fungus -> fungi
+    # EXCEPTIONS:
+    # eg: genus -> genera
+    #     opus -> opera
+    ('eus', 'ius', 'us'):
+        (-2, 'i'),
+
+    # eg:   synopsis  -> synopses
+    #       thesis -> theses
+    'is':
+        (-2, 'es'),
+    # note: this fails for eg; necropolis which has plural
+    # necropolises or necropoleis or necropoles or necropoli
+
+    # eg: tableau -> tableaux
+    'eau':
+        (None, 'x'),
+
+    # eg:   vortex - > vortices
+    ('ex', 'ix'):
+        (-2, 'ices'),
+
+    # eg: phenomenon -> phenomena
+    #     criterion ->  criteria
+    ('on'):
+        (-2, 'a'),
+
+    # eg:   success -> successes,
+    #       watch -> watches ...
+    ('s', 'sh', 'ch', 'x', 'z'):
+        (None, 'es'),
+
+    # eg:   concerti -> concerto
+    'to':
+        (-1, 'i'),
+
+    # eg:   cilium -> cilia
+    'um':
+        (-2, 'a'),
+
+    # eg:   array -> arrays
+    ('ay', 'ey'):
+        (None, 's'),
+
+    # eg:   agency -> agencies
+    'y':
+        (-1, 'ies')
+}
+
+PLURALIA_TANTUM = {
+    # unchanging / context dependent
+    'aircraft',
+    'bison',
+    'deer',
+    'fish',       # or fishes when refering to species of fishes
+    'faux pas',
+    'moose',
+    'offspring',
+    'grouse',
+    'salmon',
+    'series',
+    'sheep',
+    'shrimp',
+    'software',
+    'species',
+    'swine',
+    'trout',
+    'tuna'
+}
 
 
-def naive_english_plural(text):
-    if text.endswith('s'):
-        return f'{text}es'
+def naive_english_plural(word):
 
-    elif text.endswith('eus'):
-        return remove_suffix(text, 'us') + 'i'
+    if word in PLURALIA_TANTUM:
+        return word
 
-    elif text.endswith('um'):
-        return remove_suffix(text, 'um') + 'a'
+    return next(
+        (
+            f'{word[:n]}{suffix}'
+            for end, (n, suffix) in _PLURAL_SUFFIX_MAP.items()
+            if word.endswith(end)
+        ),
+        # everything else
+        f'{word}s',
+    )
 
-    elif text.endswith('y') and (text[-2] not in 'ae'):  # eg: agency not array
-        return remove_suffix(text, 'y') + 'ies'
 
-    return f'{text}s'
+def pluralise(text, items=(()), plural=None, n=None):
+    """Conditional plural of `text` based on size of `items`."""
+
+    return ((plural or naive_english_plural(text))
+            if _is_plural(items, n)
+            else text)
 
 
-def pluralise(text, collection=(()), plural=None):
-    """Conditional plural of `text` based on size of `collection`."""
-    if isinstance(collection, abc.Collection) and (len(collection) != 1):
-        return plural or naive_english_plural(text)
-    return text
+def _is_plural(items=(()), n=None):
+    return _many(items) if n is None else n != 1
+
+
+def _many(obj):
+    return isinstance(obj, abc.Collection) and (len(obj) != 1)
 
 
 # alias
 pluralize = pluralise
 
 
-def numbered(collection, name, plural=None):
-    return f'{len(collection):d} {pluralise(name, collection, plural):s}'
+def numbered(items, name, plural=None):
+    return f'{len(items):d} {pluralise(name, items, plural):s}'
 
 
-def named_items(collection, name, plural=None, fmt=str, **kws):
+def named_items(items, name, plural=None, fmt=str, **kws):
 
-    if isinstance(collection, abc.Collection) and (len(collection) != 1):
-        from recipes import pprint
+    if not _many(items):
+        return f'{name}: {fmt(next(iter(items)))}'
 
-        return (f'{plural or naive_english_plural(name)}: '
-                f'{pprint.collection(collection, fmt=fmt)}')
+    from recipes import pprint
 
-    return f'{name}: {fmt(collection[0])}'
+    return (f'{plural or naive_english_plural(name)}: '
+            f'{pprint.collection(items, fmt=fmt)}')
+
 
 # ---------------------------------------------------------------------------- #
 # Misc
@@ -710,7 +809,7 @@ def _justify(text, align, width, length_func, formatter):
     width = int(width or widest)
     if widest > width:
         warn(f'Requested paragraph width of {width} is less than the '
-                 f'length of widest line: {widest}.')
+             f'length of widest line: {widest}.')
 
     if align != ' ':
         for lw, line in zip(linewidths, lines):

@@ -1,6 +1,6 @@
 # std
 import sys
-import concurrent
+from concurrent.futures import ThreadPoolExecutor
 
 # third-party
 import pytest
@@ -28,6 +28,37 @@ def fast_thread_switching():
 # ---------------------------------------------------------------------------- #
 
 
+# class _TestClass:
+#     _computed = False
+
+#     @cached_property
+#     def p1(self):
+#         return 42
+
+#     @cached_property(depends_on=p1)
+#     def p2(self):
+#         self._computed = True
+#         return self.p1 * 10
+
+
+# def test_codelete():
+#     t = _TestClass()
+#     t.p2
+#     del t.p1
+#     t._computed = False
+#     t.p2
+#     assert t._computed
+
+
+# def test_delete_on_overwrite():
+#     t = _TestClass()
+#     t.p2
+#     t.p1 = 41
+#     t._computed = False
+#     t.p2
+#     assert t._computed
+
+
 class _TestClassProperty:
     _name = None
     """Optional `name` attribute. Defaults to class' `__name__` if not
@@ -38,9 +69,9 @@ class _TestClassProperty:
     def name(cls):
         return cls._name or cls.__name__
 
-    @name.setter
-    def name(cls, name):
-        cls.set_name(name)
+    # @name.setter
+    # def name(cls, name):
+    #     cls.set_name(name)
 
     @classmethod
     def set_name(cls, name):
@@ -108,7 +139,7 @@ class _TestCaseCacheProperty:
 
 # lazyprop_test_case = _TestCaseCacheProperty()
 
-class TestLazyProperty:
+class TestCachedProperty:
     @pytest.fixture()
     def case(self):
         return _TestCaseCacheProperty()
@@ -226,6 +257,7 @@ class TestLazyProperty:
         """
         Test thread safety of CachedProperty.
         """
+
         # This test is generally similar to test_classproperty_lazy_threadsafe
         # above. See there for comments.
 
@@ -239,7 +271,7 @@ class TestLazyProperty:
                 return object()
 
         workers = 8
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             for p in range(10000):
                 a = A()
                 futures = [executor.submit(lambda: a.foo) for i in range(workers)]
@@ -247,3 +279,4 @@ class TestLazyProperty:
                 assert a.calls == 1
                 assert a.foo is not None
                 assert values == [a.foo] * workers
+

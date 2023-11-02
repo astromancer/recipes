@@ -3,22 +3,25 @@ Introspction utilities.
 """
 
 # std
-import ast
+import re
+import io
+import os
 import sys
 import pkgutil
 import inspect
-import contextlib
+import ast
+import warnings
 import functools as ftl
-from typing import cast
+import contextlib as ctx
 from pathlib import Path
-from warnings import warn
+from typing import Union, cast
 from types import FrameType, MethodType
 
 # third-party
 from stdlib_list import stdlib_list
 
 # relative
-from ..string import remove_suffix
+from ..string import remove_suffix, truncate
 
 
 # list of builtin modules
@@ -57,9 +60,7 @@ def get_caller_name(back=1):
     frame = get_caller_frame(back + 1)
     try:
         name = frame.f_code.co_name
-        if name == '<module>':
-            return get_module_name(frame)
-        return name
+        return get_module_name(frame) if (name == '<module>') else name
     finally:
         # break reference cycles
         # https://docs.python.org/3/library/inspect.html?highlight=signature#the-interpreter-stack
@@ -67,26 +68,9 @@ def get_caller_name(back=1):
 
 
 # ---------------------------------------------------------------------------- #
-# Dispatcher for getting module name import node or path
-
-# @ftl.singledispatch
-# def get_module_name(node):  # rename get_qualname
-#     """Get the full (dot separated) module name from various types."""
-#     raise TypeError(
-#         f'No default dispatch method for type {type(node).__name__!r}.'
-#     )
+# Dispatcher for getting module name from import node or path
 
 def get_module_name(obj=None, depth=None):
-    # called without arguments => get current module name by inspecting the call
-    # stack
-    if obj is None:
-        obj = get_caller_frame(2)
-
-    return _get_module_name(obj, depth)
-
-
-@ftl.singledispatch  # generic type implementation
-def _get_module_name(obj, depth=None):
     """
     Get full (or partial) qualified (dot-separated) name of an object's parent
     (sub)modules and/or package, up to namespace depth `depth`.
@@ -95,22 +79,48 @@ def _get_module_name(obj, depth=None):
     if depth == 0:
         return ''
 
+    # called without arguments => get current module name by inspecting the call
+    # stack
+    if obj is None:
+        obj = get_caller_frame(2)
+
+    # dispatch
+    name = _get_module_name(obj)
+
+    if (name == 'builtins') and (depth is None):
+        return ''
+
+    if depth in (-1, None):
+        depth = 0
+    
+    return '.'.join(name.split('.')[-depth:])
+    
+# @ftl.singledispatch
+# def get_module_name(node):
+#     """Get the full (dot separated) module name from various types."""
+#     raise TypeError(
+#         f'No default dispatch method for type {type(node).__name__!r}.'
+#     )
+
+
+@ftl.singledispatch  # generic type implementation
+def _get_module_name(obj):
+
     module = inspect.getmodule(obj)
+    if module is None:
+        raise TypeError(f'Could not determine module for object {obj} of type {type(obj)}.')
+
     name = module.__name__
 
     if name == '__main__':
-        from pathlib import Path
-
         # if module has no '__file__' attribute, we are either
         # i)  running file as a script
         # ii) in an interactive session
         if not hasattr(module, '__file__'):
-            return ('' if depth is None else '__main__')
+            return '__main__'
 
-        name = Path(module.__file__).stem
-
-    if (name == 'builtins') and (depth is None):
-        return ''
+        # 
+        name = _get_module_name(module.__file__)
 
         # return Path(mod.__file__).stem
 
@@ -133,33 +143,30 @@ def _get_module_name(obj, depth=None):
         # else:
         #     raise ValueError
 
-    if depth in (-1, None):
-        depth = 0
-
-    return '.'.join(name.split('.')[-depth:])
+    return name
 
 
 # @_get_module_name.register(type(None))
 # # called without arguments => get current module name
-# def _(obj, depth=None):
+# def _(obj):
 #     obj = get_caller_frame(4)
 #     return get_module_name(obj, depth)
 
 
 @_get_module_name.register(ast.Import)
-def _(node, depth=None):
+def _(node):
     # assert len(node.names) == 1
     return node.names[0].name
 
 
 @_get_module_name.register(ast.ImportFrom)
-def _(node, depth=None):
+def _(node):
     return f'{"." * node.level}{node.module or ""}'
 
 
 @_get_module_name.register(str)
 @_get_module_name.register(Path)
-def _(path, depth=None):
+def _(path):
     # get full module name from path
     path = Path(path)
     candidates = []
@@ -169,7 +176,7 @@ def _(path, depth=None):
         if trial in stop:
             break
 
-        with contextlib.suppress(ImportError):
+        with ctx.suppress(ImportError):
             if pkgutil.get_loader(trial.name):
                 candidates.append(trial)
         trial = trial.parent
@@ -189,8 +196,17 @@ def _(path, depth=None):
         name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
         return name.rstrip('/').replace('/', '.')
 
-    warn(f"Could not find package name for '{path}'.")
+    warnings.warn(f"Could not find package name for '{path}'.")
 
+
+def get_package_name(node_or_path: Union[str, Path, ast.Import]):
+    fullname = get_module_name(node_or_path)
+    # if fullname.startswith('.'):
+    #     return '.' * node.level
+    if fullname is None:
+        raise ValueError(f'Could not get package name for file {node_or_path!r}.')
+
+    return fullname.split('.', 1)[0]
 
 # def get_module_name(filename, depth=1):
 
@@ -231,7 +247,7 @@ def get_class_name(obj, depth=None):
     return '.'.join((get_module_name(kls, depth), kls.__name__))
 
 
-def get_class_that_defined_method(method: MethodType):
+def get_defining_class(method: MethodType):
     """
     Get the class that defined a method.
 
@@ -263,3 +279,39 @@ def get_class_that_defined_method(method: MethodType):
 
     # handle special descriptor objects
     return getattr(method, '__objclass__', None)
+
+
+# ---------------------------------------------------------------------------- #
+# detect executable python script
+REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
+
+
+def is_script(source: str):
+    return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
+
+
+# ---------------------------------------------------------------------------- #
+# maximal filename size. Helps distinguish source code strings from filenames
+F_NAMEMAX = os.statvfs('.').f_namemax
+
+
+def get_stream(file_or_source):
+    if isinstance(file_or_source, io.IOBase):
+        return file_or_source
+
+    if isinstance(file_or_source, str):
+        if len(file_or_source) < F_NAMEMAX and Path(file_or_source).exists():
+            return file_or_source
+
+        # assume string is raw source code
+        return io.StringIO(file_or_source)
+
+    if isinstance(file_or_source, Path):
+        if file_or_source.exists():
+            return file_or_source
+
+        raise FileNotFoundError(f'{truncate(file_or_source, 100)}')
+
+    raise TypeError(
+        f'Cannot interpret {type(file_or_source)} as file-like object.'
+    )

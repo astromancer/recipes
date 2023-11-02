@@ -4,15 +4,12 @@ Refactor import statements in python source code.
 
 
 # std
-import os
 import io
-import re
 import ast
 import math
 import warnings as wrn
 import functools as ftl
 import itertools as itt
-from typing import Union
 from pathlib import Path
 from collections import defaultdict
 
@@ -22,19 +19,19 @@ from loguru import logger
 
 # relative
 from .. import api, cosort, op, pprint as pp
-from ..io import open_any
+from ..utils import not_null
 from ..iter import unduplicate
-from ..dicts import AttrReadItem
+from ..config import ConfigNode
 from ..functionals import negate
 from ..logging import LoggingMixin
 from ..string import remove_prefix
 from ..pprint.callers import describe
-from .utils import BUILTIN_MODULE_NAMES
-from ..string import remove_prefix, truncate
 from ..io import open_any, read_lines, safe_write
-from .utils import BUILTIN_MODULE_NAMES, get_module_name
+from .utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
+                    get_stream, is_script)
 
 
+# ---------------------------------------------------------------------------- #
 # FIXME: unscoped imports do not get added to top!!!
 # FIXME: inline comments get removed
 
@@ -51,34 +48,25 @@ from .utils import BUILTIN_MODULE_NAMES, get_module_name
 # from collections.abc import Hashable
 # from collections import OrderedDict, UserDict, abc, defaultdict
 
-# ---------------------------------------------------------------------------- #
-api_synonyms = api.synonyms({'filter':          'filter_unused',
-                             'relative(_to)?':  'relativize',
-                             'module_name':     'relativize'})
+# TODO detect clobbered imports
+# from x import y
+# from y import y
+
+# FIXME:
+# import ast, warnings
+# import math
+# import warnings as wrn
+
 
 # ---------------------------------------------------------------------------- #
-CONFIG = AttrReadItem(
-    log_warnings=True,
-
-    # sorting style
-    style='aesthetic',
-    # filter_unused=None,
-    # split=0,
-    # merge=1,
-    # relativize=None
-
-    # internal sorting codes
-    module_group_names=['std', 'third-party', 'local', 'relative'],
-    module_group_name_suffix='',  # libs
-
-    # list of local module names
-    user_local_modules=Path.home() / '.config/recipes/local_libs.txt'
+api_synonyms = api.synonyms(
+    {'filter':          'filter_unused',
+     'relative(_to)?':  'relativize',
+     'module_name':     'relativize'}
 )
 
-
-# LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
-LOCAL_MODULES = read_lines(CONFIG.user_local_modules)
-
+# ---------------------------------------------------------------------------- #
+CONFIG = ConfigNode.load_module(__file__, 'yaml')
 
 # warning control
 if CONFIG.log_warnings:
@@ -91,40 +79,14 @@ if CONFIG.log_warnings:
     wrn.showwarning = showwarning
 
 # ---------------------------------------------------------------------------- #
-# list of builtin modules
-
+# module constants
 
 # supported styles for sorting
 STYLES = ('alphabetic', 'aesthetic')
 
-# maximal filename size. Helps distinguish source code strings from filenames
-F_NAMEMAX = os.statvfs('.').f_namemax
+# LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
+LOCAL_MODULES = read_lines(Path(CONFIG.user_local_modules).expanduser())
 
-
-# object that finds system location of module from name
-# pathFinder = PathFinder()
-
-# ---------------------------------------------------------------------------- #
-REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
-
-
-def is_script(source: str):
-    return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
-
-# ---------------------------------------------------------------------------- #
-
-
-def is_null(obj):
-    return (obj is None) or (obj is False)
-
-
-def not_null(obj):
-    return not is_null(obj)
-
-
-# alias
-isnull = is_null
-notnull = not_null
 
 # ---------------------------------------------------------------------------- #
 # Functions for sorting / rewriting import nodes
@@ -160,16 +122,6 @@ def get_module_name_list(node):
     return get_module_name(node).split('.')
 
 
-def get_package_name(node_or_path: Union[str, Path, ast.Import]):
-    fullname = get_module_name(node_or_path)
-    # if fullname.startswith('.'):
-    #     return '.' * node.level
-    if fullname is None:
-        raise ValueError(f'Could not get package name for file {node_or_path!r}.')
-
-    return fullname.split('.', 1)[0]
-
-
 def relative_sorter(node):
     # this prioritizes higher relatives '..' above '.'
     # also '..' above '..x'
@@ -178,7 +130,6 @@ def relative_sorter(node):
 
 # ---------------------------------------------------------------------------- #
 # Node writer
-
 
 def rewrite(node, width=80, hang=None, indent=4, one_per_line=False):
     """write an import node as str"""
@@ -232,28 +183,6 @@ def rewrite(node, width=80, hang=None, indent=4, one_per_line=False):
 # Group sorters
 
 
-def get_module_kind(module_name):
-    return CONFIG.module_group_names[get_module_typecode(module_name)]
-
-
-def get_module_typecode(module_name):
-    # get name if Node
-    if is_any_import_node(module_name):
-        module_name = get_package_name(module_name)
-    #
-    assert isinstance(module_name, str)
-
-    if is_builtin(module_name):
-        return 0
-    if is_local(module_name):
-        return 2
-    if not module_name or module_name.startswith('.'):
-        return 3
-    return 1
-    # if is_3rd_party(module_name):
-    #     return 1
-
-
 def is_builtin(name):  # name.split('.')[0]
     return name in BUILTIN_MODULE_NAMES
 
@@ -272,6 +201,33 @@ def is_local(name):
 #         return False
 #
 #     return ('dist-packages' in spec.origin) or ('site-packages' in spec.origin)
+
+
+def get_module_kind(module_name):
+    return CONFIG.module_group_names[get_module_typecode(module_name)]
+
+
+def get_module_typecode(module_name):
+
+    # get name if Node
+    if is_any_import_node(module_name):
+        module_name = get_package_name(module_name)
+    #
+    assert isinstance(module_name, str)
+
+    if is_builtin(module_name):
+        return 0
+
+    if is_local(module_name):
+        return 2
+
+    # sourcery skip: assign-if-exp, reintroduce-else
+    if not module_name or module_name.startswith('.'):
+        return 3
+
+    return 1
+    # if is_3rd_party(module_name):
+    #     return 1
 
 
 def get_group_style(module):
@@ -333,7 +289,6 @@ NODE_SORTERS = {
 
 # ---------------------------------------------------------------------------- #
 # Node Transformers
-
 
 class NodeTypeFilter(ast.NodeTransformer):
     def __init__(self, remove=(), keep=(ast.AST,)):
@@ -443,7 +398,7 @@ class ImportFilter(Parentage):
 
         if node.asname in self.remove:
             logger.info('Removing alias {:s} to imported name {:s}',
-                         node.asname, node.name)
+                        node.asname, node.name)
             node.asname = None
 
         return node
@@ -699,11 +654,11 @@ def _iter_lines(module, headers=None):
 
 
 class GroupHeaders:
-    def __init__(self, names=CONFIG.module_group_names,
-                 suffix=CONFIG.module_group_name_suffix):
+    def __init__(self, names=CONFIG.groups.names,
+                 suffix=CONFIG.groups.suffix):
 
         self.names = dict(enumerate(names))
-        self.suffix = str(suffix)
+        self.suffix = str(suffix or '')
         self.newlines = mit.padded([''], '\n')
 
     def get(self, i):
@@ -723,31 +678,9 @@ def depends_on(file_or_source):
     return ImportRefactory(file_or_source).get_dependencies()
 
 
-def get_stream(file_or_source):
-    if isinstance(file_or_source, io.IOBase):
-        return file_or_source
-
-    if isinstance(file_or_source, str):
-        if len(file_or_source) < F_NAMEMAX and Path(file_or_source).exists():
-            return file_or_source
-
-        # assume string is raw source code
-        return io.StringIO(file_or_source)
-
-    if isinstance(file_or_source, Path):
-        if file_or_source.exists():
-            return file_or_source
-
-        raise FileNotFoundError(f'{truncate(file_or_source, 100)}')
-
-    raise TypeError(
-        f'Cannot interpret {type(file_or_source)} as file-like object.'
-    )
-
-
 @api_synonyms
 def refactor(file_or_source,
-             sort=CONFIG.style,
+             sort=CONFIG.sort,
              filter_unused=None,
              split=0,
              merge=1,
@@ -765,6 +698,37 @@ def refactor(file_or_source,
 
 # aliases
 tidy = refactor
+
+
+def _parse_partial(source, max_remove=5):
+    """
+    Tenacious source code parsing, retrying with invalid syntax lines removed.
+    """
+
+    removed = []
+    for i in range(max_remove + 1):
+        try:
+            module = ast.parse(source)
+            if removed:
+                logger.success('Parsed source code successfully after removing '
+                               'lines: {}.', removed)
+            return module, removed
+
+        except SyntaxError as err:
+            if i == 0:
+                lines = source.splitlines()
+                
+            if i == max_remove:
+                raise err
+
+            logger.info('Could not parse source code due to {}. Removing line '
+                        '{} and retrying.', err, err.lineno)
+
+            # replace offending line with blank
+            n = err.lineno - 1
+            lines[n] = ''
+            removed.append(n)
+            source = '\n'.join(lines)
 
 
 class ImportRefactory(LoggingMixin):
@@ -803,8 +767,13 @@ class ImportRefactory(LoggingMixin):
         if isinstance(file, io.TextIOWrapper):
             self.filename = file.buffer.name
 
+        # parse
+        module, self.invalid_syntax_lines = _parse_partial(self.source)
+
         self.captured = ImportCapture()  # TODO: move inside filter_unused
-        self.module = self.captured.visit(ast.parse(self.source))
+        self.module = self.captured.visit(module)
+
+        # save original module content so we can check if any changes were made
         self._original = ast.dump(self.module)
 
     def __call__(self, *args, **kws):
@@ -818,7 +787,7 @@ class ImportRefactory(LoggingMixin):
 
     @api_synonyms
     def refactor(self,
-                 sort=CONFIG.style,
+                 sort=CONFIG.sort,
                  filter_unused=None,
                  split=0,
                  merge=1,
@@ -834,9 +803,9 @@ class ImportRefactory(LoggingMixin):
             The sorting rules are as follow: # TODO
         filter_unused : bool, optional
             Filter import statements for names that were not used in the source
-            code. Default action is to filter only when the input source has
-            some code beyond the import block, and is not a module initializer
-            `__init__.py` script.
+            code. Default action is to filter unused imports only when the input
+            source has some code beyond the import block, and is not a module
+            initializer (`__init__.py`) script.
         split : {None, False, 0, 1}, optional
             Whether to split import statements:
             * Case `False` or `None`, do not
@@ -921,7 +890,7 @@ class ImportRefactory(LoggingMixin):
         if not_null(merge):
             module = self.merge(module, merge)
 
-        if not_null(split):
+        if not_null(split, [0]):
             module = self.split(module, split)
 
         if relativize is None:
@@ -949,7 +918,7 @@ class ImportRefactory(LoggingMixin):
 
         return module
 
-    def sort_and_group(self, module=None, style=CONFIG.style):
+    def sort_and_group(self, module=None, style=CONFIG.sort):
         """Sort and group"""
         module = module or self.module
 
@@ -1015,6 +984,11 @@ class ImportRefactory(LoggingMixin):
             self.logger.info('Not filtering unused statements for import-only '
                              'script, since this would leave an empty file.')
             return False
+
+        # if self.invalid_syntax_lines:
+        #     self.logger.info('Not filtering unused statements for source code ')
+            # 'containing syntax errors.')
+
         return True
 
     def filter_unused(self, module=None):
@@ -1075,9 +1049,11 @@ class ImportRefactory(LoggingMixin):
                 return module
 
             try:
-                parent_module_name, script_name = get_module_name(self.filename).rsplit('.', 1)
-                logger.info("Discovered parent module name: {!r} for file '{}.py'.",
-                             parent_module_name, script_name)
+                parent_module_name = get_module_name(self.filename)
+                if parent_module_name:
+                    parent_module_name, *script = parent_module_name.rsplit('.', 1)
+                    logger.info("Discovered parent module name: {!r} for file '{}'.",
+                                parent_module_name, Path(self.filename).name)
             except ValueError as err:
                 if (msg := str(err)).startswith('Could not get package name'):
                     logger.warning(msg)
@@ -1127,7 +1103,7 @@ class ImportRefactory(LoggingMixin):
         emit(f'This looks like a {filetype}. Skipping relativize.')
         return False
 
-    def sort(self, module=None, how=CONFIG.style):
+    def sort(self, module=None, how=CONFIG.sort):
         logger.trace('Sorting imports in module {} using {!r} sorter.',
                      module, how)
         module = module or self.module
@@ -1267,7 +1243,10 @@ def excision_flagger(lines, line_nrs):
 
 
 def is_group_header_comment(line):
-    # RGX = re.compile(rf'# ({"|".join(CONFIG.module_group_names)}) {CONFIG.module_group_name_suffix}')
-    return (line.startswith('# ') and
-            line[2:].startswith(tuple(CONFIG.module_group_names)) and
-            line.strip().endswith(CONFIG.module_group_name_suffix))
+    # RGX = re.compile(rf'# ({"|".join(CONFIG.groups.names)}) {CONFIG.groups.suffix}')
+    return (
+        line.startswith('# ') and
+        line[2:].startswith(tuple(CONFIG.groups.names)) and
+        ((not (s := CONFIG.groups.suffix))
+         or line.strip().endswith(s))
+    )

@@ -7,18 +7,19 @@ import math
 import numbers
 import warnings
 from typing import Union
+from collections import abc
 from fractions import Fraction
-from dataclasses import dataclass
 
 # third-party
 import numpy as np
 from loguru import logger
 
 # relative
-from .. import api, dicts, unicode
+from .. import api, dicts
+from ..string import unicode
+from ..array import vectorize
 from ..oo import classproperty
 from ..dicts import AttrReadItem
-from ..array.misc import vectorize
 from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 from .callers import describe
@@ -675,7 +676,7 @@ class Measurement(Number):
 
     __slots__ = ('pm')
 
-    @api.validate()
+    # @api.validate()
     def __init__(self, precision: int = None, significant: int = 3,
                  signed: Union[str, bool] = '-', thousands: str = '',
                  short: bool = True, space: Union[int, tuple] = 1,

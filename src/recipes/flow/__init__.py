@@ -3,24 +3,82 @@ Some common decorators.
 """
 
 # std
+import numbers
 import warnings
 from collections import abc
 from textwrap import dedent
 
+# third-party
+from loguru import logger
+
 # relative
-from .. import pprint as pp
-from ..functionals import Emit
-from . import Decorator
-
-# # pylint: disable=invalid-name
-
-# def raises(exception):
-#     """raises an exception of type `exception`."""
-#     def _raises(msg):
-#         raise exception(msg)
-#     return _raises
+from ..decorators.base import Decorator
+from ..functionals import noop, raises
 
 
+# ---------------------------------------------------------------------------- #
+# pylint: disable=invalid-name
+
+
+# ---------------------------------------------------------------------------- #
+class Emit:
+    """
+    Helper class for emitting messages of variable severity.
+    """
+
+    _action_ints = dict(enumerate(('ignore', 'info', 'warn', 'raise'), -1))
+    _equivalence = {'error': 'raise'}
+
+    _actions = {
+        'ignore':   noop,               # silently ignore
+        'info':     logger.info,
+        'warn':     warnings.warn,      # emit warning
+        'raise':    raises(Exception)   # raise
+    }
+
+    def __init__(self, action='ignore', exception=Exception):
+
+        if exception is not None:
+            self._actions['raise'] = raises(exception)
+
+        self.action = action
+
+    def __call__(self, message, *args, **kws):
+        self.emit(message, *args, **kws)
+
+    def __enter__(self):
+        return self
+
+    @property
+    def action(self):
+        """set message action"""
+        return self._action
+
+    @action.setter
+    def action(self, val):
+        if callable(val):
+            # custom action (emit function)
+            self._action = 'custom'
+            self.emit = val
+        else:
+            self._action = self._resolve_action(val)
+            self.emit = self._actions[self._action]
+
+    def _resolve_action(self, action):
+        if action is None:
+            return 'ignore'
+
+        if isinstance(action, numbers.Integral):
+            return self._action_ints[action]
+
+        if isinstance(action, str):
+            action = action.rstrip('s')
+            return self._equivalence.get(action, action)
+
+        raise TypeError(f'Invalid type for `action`: {action}')
+
+
+# ---------------------------------------------------------------------------- #
 class catch(Decorator):
     """
     Catch an exception and log it, or raise an alternate exception.
@@ -102,10 +160,10 @@ class fallback(Decorator):
             return self.fallback
 
 
-class post(Decorator):
+class post:
     """Run `func(*args, **kws) after running the wrapped function."""
 
-    def __init__(self, func, *args, **kws):
+    def __init__(self, func: abc.Callable, *args, **kws):
         assert callable(func)
         self.post = func
         self.post_args = args
@@ -116,6 +174,8 @@ class post(Decorator):
         try:
             self.post(*self.post_args, **self.post_kws)
         except Exception as err:
+            from recipes import pprint as pp
+            
             warnings.warn(dedent(f'''
                 Exception during post function execution:
                 {pp.caller(self.post, self.post_args, self.post_kws)}
@@ -124,7 +184,7 @@ class post(Decorator):
         return result
 
 
-class pre(Decorator):
+class pre:
     """Run `func(*args, **kws) after running the wrapped function."""
 
     def __init__(self, func, *args, **kws):
@@ -137,6 +197,8 @@ class pre(Decorator):
         try:
             self.pre(*self.pre_args, **self.pre_kws)
         except Exception as err:
+            from recipes import pprint as pp
+            
             warnings.warn(dedent(f'''
                 Exception during pre function execution:
                 {pp.caller(self.pre, self.pre_args, self.pre_kws)}

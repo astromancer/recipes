@@ -26,7 +26,7 @@ import docsplice as doc
 
 # relative
 from ..string import sub
-from ..bash import brace_expand_iter
+from ..shell.bash import brace_expand_iter
 from ..string.brackets import BracketParser
 from ..functionals import echo0
 
@@ -62,7 +62,7 @@ def guess_format(filename):
     if formatter is None:
         raise ValueError(
             'Could not guess file format from filename. Please provide the '
-            'expected format for deserialization of file: {filename!r}'
+            'expected format for deserialization of file: {filename!r}.'
         )
     return formatter
 
@@ -70,7 +70,7 @@ def guess_format(filename):
 def deserialize(filename, formatter=None, **kws):
     path = Path(filename)
     if not path.exists():
-        raise FileNotFoundError
+        raise FileNotFoundError(str(path))
 
     formatter = formatter or guess_format(path)
     with path.open(f'r{FILEMODES[formatter]}') as fp:
@@ -173,7 +173,7 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
     for file in _iter_files(path_or_pattern, extensions, recurse):
         for ignored in ignore:
             if fnm.fnmatchcase(str(file), ignored):
-                logger.debug("Ignoring '{!s}' matching pattern {!r}", file, ignored)
+                logger.debug("Ignoring '{!s}' matching pattern {!r}.", file, ignored)
                 break
         else:
             yield file
@@ -219,8 +219,10 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
         return
 
     if not path.exists():
-        raise ValueError(f"'{path!s}' is not a valid directory or a glob "
-                         f"pattern")
+        raise ValueError('Could not any resolve files for the input pattern: '
+                         f"'{path!s}'. Please supply a path to a valid existing"
+                         ' directory, or alternitively a glob pattern, or bash '
+                         'brace expansion pattern.')
 
     # Return the input if it is an existing file. This break the recurrence.
     yield path
@@ -239,7 +241,7 @@ def iter_ext(files, extensions='*'):
         All file extensions to consider
 
     Yields
-    -------
+    ------
     Path
         [description]
     """
@@ -295,7 +297,7 @@ def iter_lines(filelike, *section, mode='r', strip=None):
     >>>
 
     Yields
-    -------
+    ------
     str
         lines from the file
     """
@@ -621,8 +623,8 @@ def show_tree(folder, use_dynamic_spacing=False):
     """
 
     from ..tree import FileSystemNode
-
-    tree = FileSystemNode.from_list(iter_files(folder))
+    
+    tree = FileSystemNode.from_path(folder)
     tree.use_dynamic_spacing = bool(use_dynamic_spacing)
     return tree.render()
 

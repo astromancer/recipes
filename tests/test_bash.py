@@ -3,7 +3,7 @@
 import textwrap as txw
 
 # local
-from recipes import bash
+from recipes.shell import bash
 from recipes.testing import Expected, expected, Throws
 
 
@@ -31,6 +31,28 @@ filenames = ('20130616.0030',
              'SHA_20171002.0010',
              'SHA_20171002.0011',
              'SHA_20200721.0030')
+
+
+# ---------------------------------------------------------------------------- #
+# helper
+
+
+def invert(dict_):
+    return zip(dict_.values(), dict_.keys())
+
+
+# tests
+# ---------------------------------------------------------------------------- #
+# test splitter
+test_splitter = Expected(bash.csplit)(
+    {'{4..6}':           ['{4..6}'],
+     '{4,6}':            ['{4,6}'],
+     '4,6':              ['4', '6'],
+     'ch{1,2,{4..6}}':   ['ch{1,2,{4..6}}']},
+    transform=list)
+
+# ---------------------------------------------------------------------------- #
+# brace expand
 
 expand_once_patterns = {
     'test7.test': ['test7.test'],
@@ -76,26 +98,6 @@ expand_multi_patterns = {
          'root/2test/*.png']}
 all_expand_patterns = {**expand_once_patterns, **expand_multi_patterns}
 
-# ---------------------------------------------------------------------------- #
-# helper
-
-
-def invert(dict_):
-    return zip(dict_.values(), dict_.keys())
-
-
-# tests
-# ---------------------------------------------------------------------------- #
-# test splitter
-test_splitter = Expected(bash.csplit)(
-    {'{4..6}':           ['{4..6}'],
-     '{4,6}':            ['{4,6}'],
-     '4,6':              ['4', '6'],
-     'ch{1,2,{4..6}}':   ['ch{1,2,{4..6}}']},
-    transform=list)
-
-# ---------------------------------------------------------------------------- #
-# brace expand
 test_brace_expand = Expected(bash.brace_expand)(
     all_expand_patterns, transform=sorted
 )
@@ -122,7 +124,7 @@ test_single_contraction = Expected(bash.contract)(
 test_full_contraction = Expected(bash.brace_contract)(
     (*invert(expand_multi_patterns),
      ([], Throws(ValueError))),
-    transform=components
+    # transform=components
 )
 # def test_full_contraction(bash.brace_contract):
 #     result = bash.brace_contract(items)
@@ -217,7 +219,7 @@ def make_ids(names, n=10):
               └200721.0030
         """
      },
-    ids=make_ids(['strings', 'depth'])
+    # ids=make_ids(['strings', 'depth'])
 )
 def test_tree(strings, depth, expected):
     root = bash.get_tree(strings, depth)

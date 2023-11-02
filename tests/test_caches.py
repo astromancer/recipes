@@ -14,7 +14,7 @@ import numpy as np
 # local
 from recipes.caching.manager import CacheManager as Cache
 from recipes.caching.decor import (CacheRejectionWarning, Ignore, Reject,
-                                   cached, check_hashable_defaults, to_file)
+                                   cached, check_hashable_defaults)
 
 
 # TODO: Test inheritance with decorated methods!
@@ -70,7 +70,7 @@ def cache(request):
 
 class Case0:
     # test decorating the constructor methods
-    @to_file(get_tmp_filename())
+    @cached.to_file(get_tmp_filename())
     def __new__(cls, *args):
         return super().__new__(cls)
 
@@ -78,7 +78,7 @@ class Case0:
         self.args = args
 
 
-# @to_file(get_tmp_filename())  # FIXME
+# @cached.to_file(get_tmp_filename())  # FIXME
 # class Case1:
 #     def __init__(self, *args):
 #         self.args = args
@@ -115,12 +115,12 @@ def case_func_non_hash(a, b=[1], *c, **kws):
     pass
 
 
-@to_file(get_tmp_filename())
+@cached.to_file(get_tmp_filename())
 def case0(a=1):
     pass
 
 
-@to_file(get_tmp_filename())
+@cached.to_file(get_tmp_filename())
 def case1(a, b=0, *c, **kws):
     return a * 7 + b
 
@@ -292,7 +292,7 @@ class TestDecorator():
 
     # @pytest.mark.parametrize('ext', ['pkl'])
     def test_class(self):  # , ext):
-        # decor = to_file(get_tmp_filename(ext))
+        # decor = cached.to_file(get_tmp_filename(ext))
         # kls = decor(Case1)
 
         obj = Case2()

@@ -1,0 +1,26 @@
+imports:
+    # sorting style
+    sort:                       aesthetic
+    # filter_unused:            None
+    #   whether to filter unused imports
+    split:                      0  # int or tuple
+    #    0: split csv package imports
+    #    1: split csv modules from same package
+    # merge:                     1
+    #    0: merge package imports into csv:             import os, sys
+    #    1: merge module from same package into csv:    from a import b, c
+    # relativize:             None
+    #   whether to relativize absolute imports from the same package. Done
+    #   by default for files that are not module initializers "__init__.py"
+    width:                      80
+    #   line width for code style 
+
+    # names for package groups
+    groups:
+        names:                  [std, third-party, local, relative]
+        suffix:                 # libs
+
+    # list of local module names
+    user_local_modules:         ~/.config/recipes/local_libs.txt
+
+    log_warnings:               True

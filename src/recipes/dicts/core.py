@@ -1,5 +1,5 @@
 """
-Recipes involving dictionaries.
+Recipes extending mutable mapping functionality.
 """
 
 
@@ -14,16 +14,24 @@ from collections import OrderedDict, UserDict, abc, defaultdict
 import more_itertools as mit
 
 # relative
-from .string import indent
-from .functionals import Emit
+from ..flow import Emit
+from ..string import indent
+from ..utils import is_scalar
 
 
-# TODO: a factory function which takes requested props, eg: indexable=True,
-# attr=True, ordered=True)
-# TODO: factory methods to get class based on what you want: attribute
-# lookup, indexability,
+# TODO: a factory function which takes requested props, eg:
+# indexable=True, attr='r', ordered=True)
+
+# ---------------------------------------------------------------------------- #
+
+def isdict(obj):
+    return isinstance(obj, abc.MutableMapping)
 
 
+is_dict = isdict
+
+
+# ---------------------------------------------------------------------------- #
 def pformat(mapping, name=None,
             lhs=repr, equal=': ', rhs=repr,
             sep=',', brackets='{}',
@@ -116,9 +124,7 @@ def pformat(mapping, name=None,
                       ignore)
     ispace = 0 if hang else len(name)
     string = indent(string, ispace)  # f'{" ": <{pre}}
-    if name:
-        return f'{name}{string}'
-    return string
+    return f'{name}{string}' if name else string
 
 
 def _get_formatters(fmt):
@@ -255,7 +261,7 @@ def merge(*mappings, **kws):
 
     Examples
     --------
-    >>> merge(*({f'{(l := case(letter))}': ord(l)} 
+    >>> merge(*({f'{(l := case(letter))}': ord(l)}
     ...        for case in (str.upper, str.lower) for letter in 'abc'),
     ...       z=100)
     {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99, 'z': 100}
@@ -272,11 +278,33 @@ def merge(*mappings, **kws):
     out.update(kws)
     return out
 
+
+# ---------------------------------------------------------------------------- #
+
+
+def _split(mapping, keys):
+    for key in keys:
+        if key in mapping:
+            yield key, mapping.pop(key)
+
+
+def split(mapping, keys, *extra):
+    if isinstance(keys, str):
+        keys = keys,
+
+    keys = (*keys, *extra)
+    return mapping, dict(_split(mapping, keys))
+
+
+def remove(mapping, keys, *extra):
+    split(mapping, keys, *extra)
+    return mapping
+
 # ---------------------------------------------------------------------------- #
 
 
 class Pprinter:
-    """Mixin class that pretty prints dictionary content"""
+    """Mixin class that pretty prints dictionary content."""
 
     def __str__(self):
         return pformat(self)  # self.__class__.__name__
@@ -289,6 +317,10 @@ class Pprinter:
 
     def pprint(self, **kws):
         print(self.pformat(**kws))
+
+
+# alias
+PPrinter = Pprinter
 
 
 class Invertible:
@@ -332,7 +364,34 @@ class DefaultDict(defaultdict):
         return new
 
 
-class AccessControl:
+# ---------------------------------------------------------------------------- #
+
+
+class vdict(dict):
+    """
+    Dictionary with vectorized item lookup.
+    """
+    _wrapper = list
+
+    def __getitem__(self, key):
+        # dispatch on list, np.ndarray for vectorized item getting with
+        # arbitrary nesting
+        try:
+            return super().__getitem__(key)
+        except (KeyError, TypeError) as err:
+            # vectorization
+            if not is_scalar(key):
+                # Container and not str
+                return self._wrapper(self[_] for _ in key)
+
+            if key in (Ellipsis, None):
+                return self._wrapper(self.values())
+
+            raise err from None
+
+
+# ---------------------------------------------------------------------------- #
+class _AccessManager:
     """
     Mixin that toggles read/write access.
     """
@@ -351,6 +410,9 @@ class AccessControl:
     def freeze(self):
         self.readonly = True
 
+    def unfreeze(self):
+        self.readonly = False
+
     def __missing__(self, key):
         if self.readonly:
             raise KeyError(self._message.format(self=self))
@@ -358,14 +420,14 @@ class AccessControl:
         super().__missing__(key)
 
 
-class AutoVivify(AccessControl):
+class AutoVivify(_AccessManager):
     """
     Mixin that implements auto-vivification for dictionary types.
     """
 
     @classmethod
     def autovivify(cls, b):
-        """Turn auto-vivification on / off"""
+        """Turn auto-vivify on / off *for all instances of this class*."""
         cls._readonly = not bool(b)
 
     def __missing__(self, key):
@@ -380,51 +442,17 @@ class AutoVivify(AccessControl):
         return value
 
 
-class DictNode(AutoVivify, Pprinter, defaultdict):
-    """
-    A defaultdict that generates instances of itself.  Used to create arbitrary 
-    data trees without prior knowledge of final structure. 
-    """
-
-    # def attr_lookup
-
-    def __init__(self, factory=None, *args, **kws):
-        defaultdict.__init__(self, factory or DictNode, *args, **kws)
-
-
-# alias
-NodeDict = DictNode
-
 # ---------------------------------------------------------------------------- #
-
 # TODO AttrItemWrite
 
 
 class AttrBase(dict):
     def copy(self):
-        """Ensure instance of same class is returned"""
+        """Ensure instance of same class is returned."""
         return self.__class__(super().copy())
 
 
-class AttrReadItem(AttrBase):
-    """
-    Dictionary with item read access through attribute lookup.
-
-    Note: Items keyed on names that are identical to method names of the `dict`
-    builtin, eg. 'keys', will not be accessible through attribute lookup.
-
-    Setting attributes on instances of this class is prohibited since it can
-    lead to ambiguity. If you want item write access through attributes, use 
-    `AttrDict`.
-
-    >>> x = AttrReadItem(hello=0, world=2)
-    >>> x.hello, x.world
-    (0, 2)
-    >>> x['keys'] = None
-    >>> x.keys
-    <function AttrReadItem.keys>
-
-    """
+class _AttrReadItem:
 
     def __getattr__(self, key):
         """
@@ -433,10 +461,35 @@ class AttrReadItem(AttrBase):
         """
         return self[key] if key in self else super().__getattribute__(key)
 
+
+class AttrReadItem(AttrBase, _AttrReadItem):
+    """
+    Dictionary with item read access through attribute lookup.
+
+    >>> x = AttrReadItem(hello=0, world=2)
+    >>> x.hello, x.world
+    (0, 2)
+
+    Note: Items keyed on names that are identical to method names of `dict`
+    eg. 'keys', will not be accessible through attribute lookup.
+
+    >>> x['keys'] = None
+    >>> x.keys
+    <function AttrReadItem.keys>
+    >>> print(x)
+    {'hello': 0, 'world': 2, 'keys': None}
+
+    Setting attributes on instances of this class is prohibited since it can
+    lead to ambiguity. If you want item write access through attributes, use the
+    `AttrDict` object.
+    """
+
     # def __setattr__(self, name: str, value):
-    # TODO maybe warn once instead
+    # # TODO maybe warn once instead
     #     raise AttributeError(
-    #         'Setting attributes on {} instances is not allowed. Use `recipes.dicts.AttrDict` if you need item write access through attributes.')
+    #         'Setting attributes on {} instances is not allowed. Use '
+    #         '`recipes.dicts.AttrDict` if you need item write access through '
+    #         'attributes.')
 
 
 class AttrDict(AttrBase):
@@ -445,11 +498,12 @@ class AttrDict(AttrBase):
     # pros: IDE autocomplete works on keys
     # cons: clobbers build in methods like `keys`, `items` etc...
     #     : inheritance: have to init this superclass before all others
-    # FIXME: clobbers build in methods like `keys`, `items` etc...
-    # check: dict.__dict__
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    # FIXME: clobbers build in methods like `keys`, `items` etc...
+    # disallowed = tuple(dict.__dict__.keys())
+
+    def __init__(self, *args, **kws):
+        super().__init__(*args, **kws)
         self.__dict__ = self
 
     def __setstate__(self, state):
@@ -464,24 +518,9 @@ class AttrDict(AttrBase):
 class OrderedAttrDict(OrderedDict, AttrBase):
     """OrderedDict with key access through attribute lookup."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args, **kws):
+        super().__init__(*args, **kws)
         self.__dict__ = self
-
-
-# class TreeLike(AttrDict, AutoVivify):
-#     def __init__(self, mapping=(), **kws):
-#         super().__init__()
-#         kws.update(mapping)
-#         for a, v in kws.items():
-#             self[a] = v
-
-#     def __setitem__(self, key, val):
-#         if '.' in key:
-#             key, tail = key.split('.', 1)
-#             self[key][tail] = val
-#         else:
-#             super().__setitem__(key, val)
 
 
 class Indexable:
@@ -622,14 +661,14 @@ class TransDict(UserDict):
 
     """
 
-    def __init__(self, dic=None, **kwargs):
-        super().__init__(dic, **kwargs)
+    def __init__(self, dic=None, **kws):
+        super().__init__(dic, **kws)
         self.dictionary = {}
 
-    def add_mapping(self, dic=None, **kwargs):
+    def add_mapping(self, dic=None, **kws):
         """Add translation dictionary"""
         dic = dic or {}
-        self.dictionary.update(dic, **kwargs)
+        self.dictionary.update(dic, **kws)
 
     # aliases
     add_trans = add_vocab = add_translations = add_mapping
@@ -657,7 +696,7 @@ class TransDict(UserDict):
 
         Examples
         --------
-        >>> d.many_to_one({'all', 'these', 'keys', 'will', 'map to':
+        >>> d.many_to_one({('all', 'these', 'keys', 'will', 'map to'):
                            'THIS VALUE')
         ... d['all'] == d['these'] == 'THIS VALUE'
         True
@@ -677,8 +716,8 @@ class ManyToOneMap(TransDict):
 
     emit = Emit('raise')
 
-    def __init__(self, dic=None, **kwargs):
-        super().__init__(dic, **kwargs)
+    def __init__(self, dic=None, **kws):
+        super().__init__(dic, **kws)
         # equivalence mappings - callables that return the desired item.
         self._mappings = []
 
@@ -759,10 +798,11 @@ class IndexableOrderedDict(OrderedDict):
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
     # Note: dict order is gauranteed since pyhton 3.7
+
     def __init__(self, default_factory=None, mapping=(), **kws):
         if not (default_factory is None or callable(default_factory)):
             raise TypeError(
-                'First argument to {self.__class__.__name__} must be callable.'
+                f'First argument to {self.__class__.__name__} must be callable.'
             )
 
         OrderedDict.__init__(self, mapping, **kws)

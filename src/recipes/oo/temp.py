@@ -12,7 +12,10 @@ from loguru import logger
 
 @ctx.contextmanager
 def temporarily(obj, **kws):
-    """Temporarily set attribute value(s). Restore previous value(s) at exit."""
+    """
+    Temporarily set attribute value(s). Restore previous value(s) at context
+    exit.
+    """
 
     original = {atr: getattr(obj, atr) for atr in kws}
     try:

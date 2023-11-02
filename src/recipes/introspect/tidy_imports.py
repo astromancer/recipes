@@ -29,7 +29,8 @@ logger.configure(activation=[('recipes', 'INFO')])
 
 @click.command()
 @click.argument('files_or_folders', nargs=-1)
-@click.option('-s', '--style', default='aesthetic', show_default=True,
+@click.option('-s', '--style',
+              default='aesthetic', show_default=True,
               type=click.Choice(STYLES))
 def main(files_or_folders, style,):
     #   filter_unused=None,
@@ -63,9 +64,9 @@ def _iter_files(file_or_folder):
         elif path.suffix == '.py':
             yield path
         else:
-            logger.warning('Not a valid python file: \'{}\'.', path)
+            logger.warning("Not a valid python file: '{}'.", path)
     else:
-        logger.warning('File or directory does not exist: \'{}\'.', path)
+        logger.warning("File or directory does not exist: '{}'.", path)
 
 
 def worker(file, style):

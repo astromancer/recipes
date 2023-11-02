@@ -462,10 +462,12 @@ class BracketParser:
 
         # If we're here `must_close == 0`: fill None for missing bracket indices
         for b, idx in positions.items():
+            # If opening and closing brackets are distinct characters:
             # Check if b is opening, Items will be unordered, we have to keep
             # track of the state if we want to deliver the pairs in a requested
             # order
-            if b in self.opening and idx and idx != [len(string) + 1]:
+            if (self.opening != self.closing and b in self.opening 
+                and idx and idx != [len(string) + 1]):
                 wrn.warn('Unclosed opening brackets in string. Items will be '
                          'out of order. Use the `findall` method for obtaining '
                          'an index-ordered list braces.', UnpairedBracketWarning)
@@ -491,7 +493,7 @@ class BracketParser:
              1 or True  : raises ValueError
 
         Yields
-        -------
+        ------
         match : BracketPair
         """
 
@@ -749,7 +751,7 @@ class BracketParser:
     def _isplit_slice_pairs(self, string, must_close, condition):
         # for splitting like (pre-bracket, bracketed)
         slices = self.isplit_slices(string, must_close, condition)
-        yield from mit.grouper(slices, 2, slice(len(string), None))
+        yield from mit.grouper(slices, 2, fillvalue=slice(len(string), None))
 
     def isplit_pairs(self, string, must_close=False, condition=always_true):
         for pre, bracketed in self._isplit_slice_pairs(string, must_close, condition):

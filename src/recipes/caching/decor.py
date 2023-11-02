@@ -1,25 +1,24 @@
 """
-Memoization decorators and helpers
+Cache / Memoization decorators and helpers.
 """
 
 
 # std
-import types
 import numbers
 import warnings
 from collections import abc
-from inspect import signature, _empty, _VAR_KEYWORD
+from inspect import _VAR_KEYWORD, _empty, signature
 
-# local
-from recipes.functionals import echo0
-from recipes.string import named_items
-
-# relative libs
-from .manager import CacheManager
+# relative
+from ..functionals import echo0
+from ..string import named_items
 from ..decorators import Decorator
 from ..logging import LoggingMixin
 from ..pprint.callers import describe
+from .manager import CacheManager
 from .caches import DEFAULT_CAPACITY
+
+# ---------------------------------------------------------------------------- #
 
 
 def check_hashable_defaults(func):
@@ -45,7 +44,7 @@ def _check_hashers(mapping, ignore=()):
             continue
 
         if not callable(f):
-            raise TypeError(f'Hashing functions should be callable, received '
+            raise TypeError('Hashing functions should be callable, received '
                             f'{type(f).__name__}.')
     return typed
 
@@ -68,6 +67,7 @@ def _ignore_params(typed, ignore=()):
 
     return typed
 
+# ---------------------------------------------------------------------------- #
 
 # class HashableParameters():
 #     def __hash__(self):
@@ -122,7 +122,7 @@ class Cached(Decorator, LoggingMixin):
         ----------
         filename : str or Path, optional
             Location on disc for persistent caching. If None, the default, the
-            cache will be active for the duration of the main programme only. 
+            cache will be active for the duration of the main programme only.
         capacity : int, optional
             Size limit in number of items, by default 128.
         policy : str, optional
@@ -142,6 +142,7 @@ class Cached(Decorator, LoggingMixin):
 
         Examples
         --------
+        Persistent caching:
         >>> @to_file('/tmp/foo_cache.pkl')
         ... def foo(a, b=0, *c, **kws):
         ...     '''this my compute heavy function'''
@@ -149,24 +150,34 @@ class Cached(Decorator, LoggingMixin):
         ...
         ... foo(6)
         ... foo.__cache__
-        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
-
-        >>> foo([1], [0])
-        UserWarning: Refusing memoization due to unhashable argument passed
-        to function 'foo': 'a' = [1]
-
-        >>> foo.__cache__
-        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42)])
+        CacheManager[size: 1/128,
+                     file: '/tmp/foo_cache.pkl']{
+            (6, 0, (), ()): 42
+        }
 
         The cache remains unchanged for function calls with unhashable
         parameters values.
+        >>> foo([1], [0])
+        CacheRejectionWarning: Function 'foo' received unhashable argument: 
+        'a' = [1]
+        Return value for call will not be cached.
 
+        >>> foo.__cache__
+        CacheManager[size: 1/128,
+                     file: '/tmp/foo_cache.pkl']{
+            (6, 0, (), ()): 42
+        }
+
+        Keywords are supported:
         >>> foo(6, hello='world')
         ... foo.__cache__
-        LRUCache([((('a', 6), ('b', 0), ('c', ())), 42),
-                    ((('a', 6), ('b', 0), ('c', ()), ('hello', 'world')), 42)])
-
-        A new cache entry was made for the keyword arguments.
+        CacheManager[size: 2/128,
+                     file: '/tmp/foo_cache.pkl']{
+            (6, 0, (), ()):                    42,
+            (6, 0, (), (('hello', 'world'),)): 42
+        }
+        We see that a new cache entry was made for the invocation with keyword
+        arguments.
         """
 
         self.sig = None
@@ -188,14 +199,10 @@ class Cached(Decorator, LoggingMixin):
         if not callable(func):
             # Emit a warning and return the original object
             warnings.warn(f'Cannot memoize {type(func)} {func} which is not '
-                          f'callable.')
+                          f'callable. Results will not be cached.')
             return func
 
-        if not isinstance(func, (types.MethodType,
-                                 types.FunctionType,
-                                 types.BuiltinFunctionType,
-                                 types.BuiltinMethodType)):
-
+        if isinstance(func, type):
             # if self.cache.filename and self.cache.path.suffix == '.json':
             #     raise ValueError('Classes are not JSON serializable')
 
@@ -215,10 +222,11 @@ class Cached(Decorator, LoggingMixin):
             # return the patched object
             return func
 
+        # create decorator
         decorated = super().__call__(func)
 
         # check for non-hashable defaults: it is generally impossible to
-        #  correctly memoize something that depends on non-hashable arguments
+        #  correctly memoize something that depends on non-hashable arguments.
         self.sig = check_hashable_defaults(func)
 
         if not self.sig.parameters:
@@ -355,7 +363,7 @@ class Cached(Decorator, LoggingMixin):
         except Exception:
             # since caching is not mission critical, just log the error and
             # then run the function
-            self.logger.exception('Cache lookup for {:s} failed! Executing.',
+            self.logger.exception('Cache lookup for {:s} failed! Executing call.',
                                   describe(func))
             return func(*args, **kws)
 
@@ -366,11 +374,16 @@ class Cached(Decorator, LoggingMixin):
         # If function call succeeded, add result to cache
         try:
             self.cache[key] = answer
+            self.logger.debug('Result has been cached.')
         except Exception:
             self.logger.exception('Caching result for {:s} call failed!',
                                   describe(func))
 
         return answer
+
+
+# alias
+cached = Cached
 
 
 class Ignore:

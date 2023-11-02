@@ -68,7 +68,7 @@ def parameter_estimate(samples, percentiles=(16, 50, 84), names=None,
         sl = list(map('$%s = %s$'.__mod__, zip(names, s)))
 
     if echo:
-        from recipes.interactive import is_interactive
+        from recipes.shell.interactive import is_interactive
         if is_interactive():
             from IPython.display import Latex, display
             for s in sl:

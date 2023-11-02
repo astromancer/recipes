@@ -24,6 +24,7 @@ import docsplice as doc
 from .functionals import echo0, raises
 
 
+# ---------------------------------------------------------------------------- #
 class NULL:
     "Null singleton"
 
@@ -74,7 +75,7 @@ class ItemGetter:
     (Multi-)Item getter with optional default substitution.
     """
     _worker = staticmethod(getitem)
-    _excepts = LookupError # (KeyError, IndexError)
+    _excepts = LookupError  # (KeyError, IndexError)
     _raises = KeyError
 
     def __init__(self, *keys, default=NULL, defaults=None):
@@ -108,7 +109,7 @@ class ItemGetter:
             try:
                 yield self._worker(target, i)
             except self._excepts:
-                # note. Next line will raise KeyError if no default provided at init
+                # NOTE. Next line raises KeyError if no default provided at init
                 yield self.get_default(i)
 
 
@@ -150,7 +151,6 @@ class AttrSetter:
             setattr(get_obj(target), attr, value)
 
 
-
 class AttrDict(AttrGetter):
     """
     Like attrgetter, but returns a dict keyed on requested attributes. 
@@ -170,7 +170,7 @@ class VectorizeMixin:
 
     def filter(self, *args):
         *test, target = args
-        return filter(test or None, self.map(target))
+        return filter((test or None), self.map(target))
 
 
 class ItemVector(VectorizeMixin, ItemGetter):
@@ -234,6 +234,7 @@ class MethodVector(MethodCaller):
         return list(map(super().__call__, target))
 
 
+# ---------------------------------------------------------------------------- #
 def index(collection, item, start=0, test=eq, default=NULL):
     """
     Find the index position of `item` in `collection`, or if a test function is
@@ -277,7 +278,7 @@ def index(collection, item, start=0, test=eq, default=NULL):
     #  -> only if default parameter was explicitly given do we return that
     #   instead of raising a ValueError
     if default is NULL:
-        raise ValueError(f'{item} is not in {type(collection)}')
+        raise ValueError(f'{item!r} is not in {type(collection).__name__}')
 
     return default
 
@@ -296,12 +297,26 @@ class contained:  # pylint: disable=invalid-name
     def __init__(self, item):
         self.item = item
 
-    # def __call__(self, item, container):
-    #     """ item in container"""
-    #     return item in container
+    def __call__(self, container):
+        """ item in container"""
+        return self.item in container
 
     def within(self, container):
-        return self.item in container
+        return self(container)
+
+
+class startswith:
+
+    __slots__ = 'item'
+
+    def __new__(cls, *args):
+        return (args[0].startswith(args[1])) if len(args) == 2 else super().__new__(cls)
+
+    def __init__(self, item):
+        self.item = item
+
+    def __call__(self, container):
+        return container.startswith(self.item)
 
 
 # aliases

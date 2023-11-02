@@ -225,7 +225,7 @@ class TestImportMerger(TestNodeTransformer):
             from .calibrate import calibrate
             from . import logs, WELCOME_BANNER, FolderTree
             ''',
-            
+
         '''
         from .. import api
         from .. import cosort, op, pprint as pp
@@ -240,41 +240,58 @@ class TestImportMerger(TestNodeTransformer):
 class TestImportSplitter(TestNodeTransformer):
     Transformer = ImportSplitter
 
-    @expected(
-        code='''
-             import os, re, this
-             from xx import yy as uu, zz as vv
-             ''',
-        cases={
-            # package / builtin level split
-            mock(level=0):
-                '''
-                import os
-                import re
-                import this
-                from xx import yy as uu, zz as vv
-                ''',
-            # (sub)module level split
-            mock(level=1):
-                '''
-                import os, re, this
-                from xx import yy as uu
-                from xx import zz as vv
-                ''',
+    case1 = '''
+    import os, re, this
+    from xx import yy as uu, zz as vv
+    '''
+    
+    case2 = '''
+    import sys, itertools as itt
+    from collections import defaultdict, deque
+    '''
 
-            mock(level=(0, 1)):
-                '''
-                import os
-                import re
-                import this
-                from xx import yy as uu
-                from xx import zz as vv
-                '''
-        })
+    @expected({
+        # package / builtin level split
+        mock(code=case1, level=0):
+            '''
+            import os
+            import re
+            import this
+            from xx import yy as uu, zz as vv
+            ''',
+        # (sub)module level split
+        mock(code=case1, level=1):
+            '''
+            import os, re, this
+            from xx import yy as uu
+            from xx import zz as vv
+            ''',
+
+        mock(code=case1, level=(0, 1)):
+            '''
+            import os
+            import re
+            import this
+            from xx import yy as uu
+            from xx import zz as vv
+            ''',
+        #
+        mock(code=case2, level=0):
+            '''
+            import sys
+            import itertools as itt
+            from collections import defaultdict, deque
+            '''
+    })
     def test_split(self, code, level, expected):
         _, module = self.parse(code, level=level)
         new = '\n'.join(map(rewrite, module.body))
         assert new == dedent(expected)
+
+    # def test_split2(self):
+    #     _, module = self.parse('import ast, warnings')
+    #     new = '\n'.join(map(rewrite, module.body))
+    #     assert new == 'import ast\nimport warnings'
 
 
 class TestImportRelativizer(TestNodeTransformer):
@@ -478,7 +495,7 @@ test_refactor = Expected(refactor, right_transform=dedent)({
         from .xlsx import XlsxWriter
         from .column import resolve_column
         ''',
-            
+
     mock(dedent('''
         from recipes import api
         from recipes import api
@@ -491,7 +508,7 @@ test_refactor = Expected(refactor, right_transform=dedent)({
         from ..string import remove_prefix, truncate
         from ..io import open_any, read_lines, safe_write
         from .utils import BUILTIN_MODULE_NAMES, get_module_name
-        '''), 
+        '''),
          relativize='recipes.pprint'):
         '''
         from .. import api, cosort, op, pprint as pp
@@ -712,5 +729,5 @@ from obstools.phot.proc import TaskExecutor
 from obstools.phot.tracking.core import SegmentedImage, SlotModeTracker, \
     check_image_drift  # multiline
 
-from scrawl.imagine import ImageDisplay
+from scrawl.image import ImageDisplay
 '''

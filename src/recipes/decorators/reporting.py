@@ -12,9 +12,10 @@ from loguru import logger
 
 # relative
 from ..string import indent
-from .. import pprint as pp
 from .base import Decorator
 
+
+# ---------------------------------------------------------------------------- #
 
 def format_print(string, *args, **kws):
     print(string.format(*args, **kws))
@@ -45,11 +46,13 @@ class trace(Decorator):
     """
 
     def __init__(self,
-                 pre='Tracing function call:\n >>> {signature}',
-                 post='{func.__name__} returned result in {elapsed}:\n > {result}',
+                 pre='Tracing function call:\n>>> {signature}',
+                 post='{func.__name__} returned in {elapsed}:\n > {result}',
                  emit=logger.info,
-                 formatter=None, **options):
+                 formatter=None,
+                 **options):
 
+        from recipes import pprint as pp
         formatter = formatter or pp.caller  # avoid circular import
 
         self.pre = pre
@@ -67,7 +70,7 @@ class trace(Decorator):
 
         try:
             if '{signature}' in self.pre:
-                signature = indent(self.formatter(self.func, args, kws,
+                signature = indent(self.formatter(func, args, kws,
                                                   **self.options))
             self.emit(self.pre, **locals())
         except Exception as err:
@@ -86,7 +89,7 @@ class trace(Decorator):
                 self.emit(self.post, **locals())
         except Exception as err:
             logger.exception(
-                '{} while printing the trace info for func call for {}:\n{}\n'
+                '{} while printing the trace info for call to {}:\n{}\n'
                 'Continuing program execution: The result will now '
                 'be returned.', type(err).__name__, func, err
             )
@@ -96,7 +99,7 @@ class trace(Decorator):
 
 
 # alias
-args = params = trace
+args = params = Trace = trace
 
 
 class suppress(Decorator):
@@ -115,38 +118,3 @@ class suppress(Decorator):
         sys.stdout.flush()
 
         return result
-
-
-# def get_inner(func, args=(), kws=None):
-#     """ """
-#     kws = kws or {}
-#     while isinstance(func, ftl.partial):
-#     kws.update(func.keywords)
-#     args += func.args
-#     func = func.func
-#     return func, args, kws
-
-
-# class InfoPrintWrapper(DecoratorBase):
-#     def setup(self, pre='', post=''):
-#         self.pre = pre
-#         self.post = post
-
-#     def __call__(self)
-#     # def make_wrapper(self, func):
-#     #     @ftl.wraps(func)
-#     #     def wrapper(*args, **kw):
-#     #         print(self.pre)
-#     #         r = func(*args, **kw)
-#     #         print(self.post)
-#     #         return r
-
-#     #     return wrapper
-
-
-# class SameLineDone(InfoPrintWrapper):
-#     def setup(self, pre='', post='', **kws):
-#         self.pre = pre
-#         up = '\033[1A'
-#         right = '\033[%iC' % (len(pre) + 3)
-#         self.post = up + right + post

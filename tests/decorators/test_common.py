@@ -1,6 +1,9 @@
 
-from recipes.decorators import catch
+# third-party
 import pytest
+
+# local
+from recipes.flow import catch
 
 
 class TestCatch:

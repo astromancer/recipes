@@ -3,55 +3,6 @@ Some object oriented code patterns.
 """
 
 
-def coerce(obj, to, wrap, ignore=()):
-    if isinstance(obj, ignore):
-        return obj
-    return to([obj] if isinstance(obj, wrap) else obj)
-
-
-def iter_subclasses(cls, _seen=None):
-    """
-    Generator over all subclasses of a given class, in depth first order.
-
-    >>> list(iter_subclasses(int)) == [bool]
-    True
-
-    >>> class A: pass
-    >>> class B(A): pass
-    >>> class C(A): pass
-    >>> class D(B,C): pass
-    >>> class E(D): pass
-    >>> list(iter_subclasses(A))
-    [__main__.B, __main__.D, __main__.E, __main__.C]
-
-    >>> # get ALL (new-style) classes currently defined
-    >>> [cls.__name__ for cls in iter_subclasses] #doctest: +ELLIPSIS
-    ['type', ... 'tuple', ...]
-    """
-
-    # recipe adapted from:
-    # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
-
-    if not isinstance(cls, type):
-        raise TypeError('iter_subclasses must be called with '
-                        'new-style classes, not %.100r' % cls)
-    if _seen is None:
-        _seen = set()
-
-    try:
-        subs = cls.__subclasses__()
-    except TypeError:  # fails only when cls is type
-        subs = cls.__subclasses__(cls)
-
-    for sub in subs:
-        if sub not in _seen:
-            _seen.add(sub)
-            yield sub
-            yield from iter_subclasses(sub, _seen)
-
-
-def list_subclasses(cls):
-    return list(iter_subclasses(cls))
 
 # ---------------------------------------------------------------------------- #
 
@@ -89,7 +40,7 @@ class SelfAware(metaclass=SelfAwareness):
     ... a is A(A(A(a)))
     True
     """
-    
+
 # ---------------------------------------------------------------------------- #
 
 

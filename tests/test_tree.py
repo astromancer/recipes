@@ -1,6 +1,9 @@
 
-from recipes.tree import DynamicRender, Node
+# third-party
 import pytest
+
+# local
+from recipes.tree import DynamicIndentRender, Node
 
 case1 = ['Domitian-Bold.otf',
          'Domitian-BoldItalic.otf',
@@ -18,19 +21,47 @@ case1 = ['Domitian-Bold.otf',
          'EBGaramond-SemiBold.otf',
          'EBGaramond-SemiBoldItalic.otf']
 
+render1 = """
+├Domitian-
+│        ├Bold
+│        │   ├.otf
+│        │   ╰Italic.otf
+│        ├Italic.otf
+│        ╰Roman.otf
+╰EBGaramond-
+           ├Bold
+           │   ├.otf
+           │   ╰Italic.otf
+           ├ExtraBold
+           │        ├.otf
+           │        ╰Italic.otf
+           ├I
+           │├nitials.otf
+           │╰talic.otf
+           ├Medium
+           │     ├.otf
+           │     ╰Italic.otf
+           ├Regular.otf
+           ╰SemiBold
+                   ├.otf
+                   ╰Italic.otf\
+"""
+
 # @pytest.fixture()
 
 
-def string_data_tree():
-    return Node.from_list(case1)
+def test_from_list():
+    Node.from_list(case1)
 
 
-def test_dynamic_space_render(string_data_tree):
-    r = DynamicRender(string_data_tree)
-    # from IPython import embed
-    # embed(header="Embedded interpreter at 'tests/test_tree.py':28")
-    print(r.by_attr("name"))
-    print(r)
+# def test_from_dict():
+#     ''
 
 
-test_dynamic_space_render(string_data_tree())
+def test_dynamic_space_render():
+
+    root = Node.from_list(case1)
+    render = DynamicIndentRender(root)
+    
+    assert render.by_attr('name') == render1
+    assert str(render) == render1
