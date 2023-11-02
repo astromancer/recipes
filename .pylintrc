@@ -142,10 +142,16 @@ disable=print-statement,
         import-outside-toplevel,
         protected-access,
         non-ascii-name,
+        superfluous-parens,
+        broad-except,
         too-many-instance-attributes,
         too-many-arguments,
         too-many-lines,
-        too-many-ancestors
+        too-many-ancestors,
+        inconsistent-return-statements,
+        redefined-outer-name,
+        redefined-argument-from-local
+        misplaced-comparison-constant
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -269,7 +275,8 @@ contextmanager-decorators=contextlib.contextmanager
 generated-members=numpy.*, np.*,
                   astropy.constants.*,
                   cmasher.*, cmr.*,
-                  motley.*
+                  obstools.image.segmentation.SegmentedImage
+                  
 
 
 # Tells whether missing members accessed in mixin class should be ignored. A
@@ -305,7 +312,8 @@ ignored-classes=optparse.Values,
 # (useful for modules/projects where namespaces are manipulated during runtime
 # and thus existing member attributes cannot be deduced by static analysis). It
 # supports qualified module names, as well as Unix pattern matching.
-ignored-modules=astropy.units, astropy.constants
+ignored-modules=astropy.units, astropy.constants, motley
+
 
 # Show a hint with possible names when a member name was not found. The aspect
 # of finding the hint is based on edit distance.
