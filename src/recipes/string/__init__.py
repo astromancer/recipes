@@ -1,2 +1,6 @@
+"""
+Tools for woking on strings.
+"""
+
 from .string import *
-# from .brackets import * # circular import!
+# from .brackets import BracketParser # circular import!

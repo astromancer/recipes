@@ -1,18 +1,77 @@
+"""
+Pretty printing callable objects and call signatures.
+"""
 
-# import builtins
-# import math
+# std
 import inspect
-import functools as ftl
-from ..introspect.utils import get_module_name
 import textwrap as txw
-# import types
+import functools as ftl
 
-from ..introspect import get_class_that_defined_method
+# relative
+from ..introspect.utils import get_module_name
 
 
+# ---------------------------------------------------------------------------- #
 POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 VAR_MARKS = {VAR: '*', VKW: '**'}
 _empty = inspect.Parameter.empty
+
+# ---------------------------------------------------------------------------- #
+
+
+def describe(obj, sep=' ', repr=repr):
+    """
+    Object type and fully qualified name.
+
+    Parameters
+    ----------
+    obj : callable
+        Any callable object
+    sep : str
+        Character(s) separating object class name and qualname
+
+    Examples
+    --------
+    >>> describe(str)
+    "class 'str'"
+
+    >>> describe(id)
+    "builtin_function_or_method 'id'"
+
+    >>> class X:
+    ...     def __call__(self):
+    ...         pass
+
+    >>> describe(X)
+    "class '__main__.X'"
+
+    >>> describe(X())
+    "instance of class '__main__.X'"
+
+    Returns
+    -------
+    str
+        Description of `obj` type and its name.
+    """
+    assert callable(obj)
+
+    if isinstance(obj, type):
+        if obj.__module__ == 'builtins':
+            return f'class {repr(obj.__name__)}'
+
+        # obj is a class
+        return f"class {repr(f'{obj.__module__}.{obj.__name__}')}"
+        # return str(obj).strip("<>")
+
+    if hasattr(obj, '__qualname__'):
+        # any function or method
+        # TODO: distinguish between functions and methods
+        # if get_defining_class(obj):
+        #     ' method'
+        return f'{obj.__class__.__name__}{sep}{repr(obj.__qualname__)}'
+
+    # any other callable
+    return f'instance of{sep}{describe(type(obj), repr=repr)}'
 
 
 def parameter(par, val_formatter=repr):
@@ -21,8 +80,7 @@ def parameter(par, val_formatter=repr):
 
     # Add annotation and default value
     if par._annotation is not _empty:
-        formatted = '{}: {}'.format(formatted,
-                                    inspect.formatannotation(par._annotation))
+        formatted = f'{formatted}: {inspect.formatannotation(par._annotation)}'
 
     if par._default is not _empty:
         space = ' ' * (par._annotation is not _empty)
@@ -32,20 +90,21 @@ def parameter(par, val_formatter=repr):
     return VAR_MARKS.get(kind, '') + formatted
 
 
-def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
-           params_per_line=None, hang=None, show_defaults=True,
+def caller(obj, args=(), kws=None, show_defaults=True,
+           show_binding_class=True, name_depth=2,
+           params_per_line=None, hang=None, wrap=80,
            value_formatter=repr):
     """
-    Pretty format a callable object, optionally with paramater values for the 
-    call signature.
+    Pretty format a callable object, optionally with paramater values for
+    representing the call signature.
 
     This is a flexible formatter for producing string representations of call
-    signatures of any callable python object. Optional arguments allows one to
-    print the parameter values of objects passed to the function. One can also
-    choose whether or not to print the default parameter values. This function
-    can therefore be used to represent callable objects themselves, ie. the 
-    function without parameters, or a call signature ie. how a call will be 
-    typed out in the source code.
+    signatures for any callable python object. Optional `args` and `kws`
+    parameters allows one to print the values of parameters as they would be
+    passed to the function. A switch for printing the default parameter values
+    is also available in `show_defaults`. This function can therefore be used to
+    represent callable objects themselves, ie. the function without parameters,
+    or a call signature ie. how the call will be seen by the interpreter.
 
     Wrapping the call signature across multiple lines for calls with many
     parameters, is also supported, as is fine tuning parameters for the depth of
@@ -56,42 +115,46 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
     Parameters
     ----------
     obj : object
-        The callable object
+        A callable object.
     args : tuple, optional
-        Positional and variadic positional arguments for the function call, by 
-        default ()
+        Positional and variadic positional arguments for the represented call,
+        by default ().
     kws : dict, optional
         Variadic keywords for the call, by default None
-    wrap : int, optional
-        Line width for hard wrapping, by default 80
+    show_defaults : bool, optional
+        Whether or not to include parameters with default values, by default
+        True.
+    show_binding_class : bool
+        If the callable is a method, show the name of the class that the method
+        is bound to, instead of the name of class which defined the method.
     name_depth : int, optional
-        Controls the function name representation. The number of parents object
-        names to include in the qualified name of the object. The default, 1,
-        will only give the function name itself. Any higher integer will include
-        the the dot-seperated name(s) of the class, (sub)module(s), package, (or
-        <locals>) in the name up to the requested number. 
-        For fully qualified names (up to (sub)module level), use 
+        Controls how the function's (qualified) name is represented. This
+        parameter gives the namespace depth, number of parent object names to
+        include in the qualified name of the callable. The default, 1, will only
+        give the object name itself. Any higher integer will include the the
+        dot-seperated name(s) of the class, (sub)module(s), package, (or
+        <locals>) in the name up to the requested number.
+        For fully qualified names (up to (sub)module level), use
             `name_depth='module'`.
-        For the full name spec up to the package level, use 
-            `name_depth=-1` or `name_depth='package'`
+        For the full name spec up to the package level, use
+            `name_depth=-1` or `name_depth='package'`.
     params_per_line : ine, optional
         Number of parameters to print per line. If None (the default) a variable
         number of parameters are printed per line while respecting requested
         *wrap* value.
     hang : bool, optional
-        Whether function parameters start on a new line. The default behaviour, 
-        `hang=None`, chooses to hang the parameter spec (if *params_per_line* 
+        Whether function parameters start on a new line. The default behaviour,
+        `hang=None`, chooses to hang the parameter spec (if *params_per_line*
         not given) if the number of parameters in the call is greater than 7, or
-        if one of the parameters has a long repr
-    show_defaults : bool, optional
-        Whether or not to include parameters with default values, by default 
-        True.
+        if one of the parameters has a long repr.
+    wrap : int, optional
+        Line width for hard wrapping, by default 80.
     value_formatter : callable, optional
         Function to use for formatting parameter values, by default repr.
 
     Examples
     --------
-    >>> 
+    >>>
 
     Returns
     -------
@@ -109,13 +172,47 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
     #           : safe_repr
     # TODO: interject str formatter for types eg. np.ndarray?
     # TODO: colourise elements  / defaults / non-defaults
-    # 
+    #
 
     if not callable(obj):
-        raise TypeError(f'Object {obj} is not a callable')
+        raise TypeError(f'Object {obj} is not a callable.')
 
+    # mutable default
+    kws = kws or {}
+
+    # special handling for partial objects!
+    if partial := isinstance(obj, ftl.partial):
+        obj = obj.func
+        args = (*obj.args, *args)
+        kws = {**obj.keywords, **kws}
+
+    name = get_name(obj, name_depth, show_binding_class)
+    if partial:
+        name = f'functools.partial({name})'
+
+    # format signature
+    sig = signature(inspect.signature(obj), args, kws,
+                    wrap, (n := len(name)) + 1, params_per_line,
+                    hang, show_defaults, value_formatter)
+    return name + sig.replace('\n', f'{" ":<{n}}\n')
+
+
+def get_name(obj, name_depth, show_binding_class=True):
     # get object name string with module
-    name_parts = obj.__qualname__.split('.')
+    if not name_depth:
+        return ''
+
+    if hasattr(obj, '__qualname__'):
+        name = obj.__qualname__
+    else:
+        kls = type(obj)
+        name = f'{kls.__module__}{kls.__name__}'
+
+    if show_binding_class and name_depth > 1 and hasattr(obj, '__self__'):
+        defining_class_name, _ = name.split('.', 1)
+        name = name.replace(defining_class_name, obj.__self__.__class__.__name__)
+
+    name_parts = name.split('.')
     local_depth = len(name_parts)
     name_depth = 100 if name_depth == -1 else name_depth
     if name_depth < local_depth:
@@ -126,13 +223,7 @@ def caller(obj, args=(), kws=None, wrap=80, name_depth=1,
         name_parts = module_name.split('.') + name_parts
 
     # full name to specified depth
-    name = '.'.join(filter(None, name_parts))
-
-    # format signature
-    sig = signature(inspect.signature(obj), args, kws,
-                    wrap, len(name) + 1, params_per_line,
-                    hang, show_defaults, value_formatter)
-    return name + sig.replace('\n', (' ' * len(name)) + '\n')
+    return '.'.join(filter(None, name_parts))
 
 
 def signature(sig, args=(), kws=None, wrap=80, indent=1,
@@ -140,10 +231,9 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
               value_formatter=repr, pep570_marks=True):
 
     # format each parameter as 'param=value' pair
-    with_params = (args or kws)
-    if with_params:
+    if (args or kws):
         # with parameter values provided
-        ba = sig.bind(*args, **(kws or {}))
+        ba = sig.bind_partial(*args, **(kws or {}))
         if show_defaults:
             ba.apply_defaults()
         pars = ['='.join((p, value_formatter(val)))
@@ -216,9 +306,9 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     if wrap:
         wrap -= indent
 
-    if widest > wrap:
-        # truncate!!
-        pass
+    # if widest > wrap:
+    #     # truncate!!
+    #     pass
 
     ppl = ppl or 100
 
@@ -241,55 +331,9 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     s += line
     s = txw.indent(s, ' ' * indent).lstrip('\n')
 
-    if hang:
-        s = f'\n{s}\n'
-    else:
-        s = s.lstrip()
-
+    s = f'\n{s}\n' if hang else s.lstrip()
     return s.join('()')
 
 
-def method(func, show_class=True, submodule_depth=1):
-    """
-    Get a nice string representing the method.
-
-    Parameters
-    ----------
-    func: Callable
-        The callable to represent
-    show_class: bool
-        whether to show the class name eg: 'MyClass.method'
-    submodule_depth: int
-        number of sub-module levels to show.
-        eg: 'foo.sub.MyClass.method'  for depth of 2
-
-    Returns
-    -------
-    str
-
-    """
-
-    if show_class:
-        cls = get_class_that_defined_method(func)
-    else:
-        cls = None
-        submodule_depth = 0
-
-    if cls is None:
-        # handle partial
-        if isinstance(func, ftl.partial):
-            func = func.func
-            # represent missing arguments with unicode centre dot
-            cdot = '·'  # u'\u00B7'
-            argstr = str(func.args).strip(')') + ', %s)' % cdot
-            return 'partial(%s%s)' % (method(func.func), argstr)
-        # just a plain function # FIXME: module???
-        return func.__name__
-    else:
-        # a class method
-        # FIXME: this gives the wrong module.submodule structure if
-        #  show_class=True
-        parents = cls.__module__.split('.')
-        prefixes = parents[:-submodule_depth - 1:-1]
-        parts = prefixes + [cls.__name__, func.__name__]
-        return '.'.join(parts)
+# alias
+pformat = method = caller

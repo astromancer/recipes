@@ -1,13 +1,12 @@
 
-from recipes.string.brackets import braces
-
-import pytest
-
-from recipes import bash
+# std
 import textwrap as txw
 
+# local
+from recipes.shell import bash
+from recipes.testing import Expected, expected, Throws
 
-from recipes.testing import Expect, mock, expected, Throws
+
 # from recipes.dicts import invert
 
 
@@ -88,7 +87,7 @@ def invert(dict_):
 # tests
 # ---------------------------------------------------------------------------- #
 # test splitter
-test_splitter = Expect(bash.xsplit)(
+test_splitter = Expected(bash.csplit)(
     {'{4..6}':           ['{4..6}'],
      '{4,6}':            ['{4,6}'],
      '4,6':              ['4', '6'],
@@ -97,14 +96,14 @@ test_splitter = Expect(bash.xsplit)(
 
 # ---------------------------------------------------------------------------- #
 # brace expand
-test_brace_expand = Expect(bash.brace_expand)(
+test_brace_expand = Expected(bash.brace_expand)(
     all_expand_patterns, transform=sorted
 )
 
 # ---------------------------------------------------------------------------- #
 # test single contraction
 expand_once_patterns.pop('test{7}.test')
-test_single_contraction = Expect(bash.contract)(
+test_single_contraction = Expected(bash.contract)(
     [*invert(expand_once_patterns),
      (range(10),                        '{0..9}'),
      (['*001{0..9}.*', '*002{0,1}.*'],  '*00{1{0..9},2{0,1}}.*'),
@@ -116,11 +115,11 @@ test_single_contraction = Expect(bash.contract)(
 # test_full_contraction
 
 
-def components(s):
-    return sorted(braces.match(s, False).split(','))
+# def components(s):
+#     return sorted(braces.match(s, False).split(','))
 
 
-test_full_contraction = Expect(bash.brace_contract)(
+test_full_contraction = Expected(bash.brace_contract)(
     (*invert(expand_multi_patterns),
      ([], Throws(ValueError))),
     transform=components
@@ -130,7 +129,7 @@ test_full_contraction = Expect(bash.brace_contract)(
 #     assert components(result) == components(expected)
 
 
-test_contract_expand = Expect(bash.brace_contract)(
+test_contract_expand = Expected(bash.brace_contract)(
     [([items], items) for items in (*all_expand_patterns.values(), filenames)],
     transform=sorted
 )

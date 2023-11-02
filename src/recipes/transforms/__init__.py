@@ -1,3 +1,8 @@
+"""
+A few basic coordinate transformers
+"""
+
+
 from .rotation import *
 
 
@@ -14,8 +19,8 @@ def pol2cart(r, theta):
     -------
 
     """
-    return (r * np.cos(theta),
-            r * np.sin(theta))
+    return (r * np.cos(theta), # x
+            r * np.sin(theta)) # y
 
 
 def cart2pol(x, y):
@@ -35,9 +40,31 @@ def cart2pol(x, y):
             np.arctan2(y, x))        # θ
 
 
-def sph2cart(r, theta, phi, key=None):
+def sph2cart(r, theta, phi):
     """
-    Spherical polar to cartesian transformation
+    Transform spherical polar (r,θ,φ) to Cartesian (x,y,z) coordinates.
+    Parameter definitions are as per physics (ISO 80000-2:2019) convention with
+    φ the azimuth and θ the colatitude.
+
+    Parameters
+    ----------
+    r
+    theta
+    phi
+
+    Returns
+    -------
+
+    """
+    r_sinθ = r * np.sin(theta)
+    return (r_sinθ * np.cos(phi),
+            r_sinθ * np.sin(phi),
+            r * np.cos(theta))
+
+
+def cart2sph(x, y, z):
+    """
+    Transform Cartesian (x,y,z) to spherical polar (r,θ,φ).
 
     Parameters
     ----------
@@ -48,15 +75,14 @@ def sph2cart(r, theta, phi, key=None):
 
     Returns
     -------
-
+    (r,θ,φ) : float, np.ndarray
+        Definitions are as per physics (ISO 80000-2:2019) convention with θ the
+        azimuth and φ the colatitude.
     """
-    if key == 'grid':
-        theta = np.atleast_2d(theta).T
+    return (r := np.sqrt(x*x + y*y + z*z),
+            np.arccos(z / r),
+            np.arctan2(y, x))
 
-    r_sinθ = r * np.sin(theta)
-    return (r_sinθ * np.cos(phi),
-            r_sinθ * np.sin(phi),
-            r * np.cos(theta))
 
 def rotate(xy, theta):
     # Xnew = (rot @ np.transpose(X)).T
@@ -78,9 +104,9 @@ def rigid(xy, p):
     Parameters
     ----------
     xy: np.ndarray
-         shape (n_samples, 2)
+        Data array shape (n, 2)
     p: np.ndarray
-         δx, δy, θ
+        Parameter array (δx, δy, θ)
 
     Returns
     -------
@@ -88,6 +114,7 @@ def rigid(xy, p):
 
     """
     return rotate(xy, p[-1]) + p[:2]
+
 
 def affine(xy, p, scale=1):
     return rigid(xy * scale, p)

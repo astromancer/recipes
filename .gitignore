@@ -4,6 +4,8 @@ dev/
 src/recipes/property.py
 src/recipes/decor/path.py
 src/recipes/io/parse.py
+tests/test_loguru.py
+src/recipes/_logging.py
 
 # Editor temporary/working/backup files #
 #########################################

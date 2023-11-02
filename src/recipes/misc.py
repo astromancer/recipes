@@ -3,55 +3,20 @@ Host of useful miscellaneous classes and functions.
 """
 
 
-# std libs
+# std
 import sys
 import shutil
-import logging
 from numbers import Number
 from collections import abc, deque
 
-# third-party libs
-import numpy as np
+# third-party
+from loguru import logger
 
-# local libs
-from recipes.logging import logging, get_module_logger
-
-# relative libs
-from .interactive import is_interactive
-
-
-
-# module level logger
-logger = get_module_logger()
-logging.basicConfig()
-logger.setLevel(logging.INFO)
+# relative
+from .shell.interactive import is_interactive
 
 
 ZERO_DEPTH_BASES = (str, bytes, Number, range, bytearray)
-
-
-def duplicate_if_scalar(a, n=2, raises=True):
-    """
-
-    Parameters
-    ----------
-    a : number or array-like
-
-    Returns
-    -------
-
-    """
-    # if isinstance(a, numbers.Number):
-    #     return [a] * n
-
-    if np.size(a) == 1:
-        # preserves duck type arrays
-        return np.asanyarray([a] * n).squeeze()
-
-    if (np.size(a) != n) and raises:
-        raise ValueError(f'Input should be of size 1 or {n}')
-
-    return a
 
 
 def get_terminal_size(fallback=(80, 24)):
@@ -78,8 +43,7 @@ def get_terminal_size(fallback=(80, 24)):
     with config_file.open() as fp:
         raw = fp.read()
         for j, s in enumerate(('width', 'height')):
-            mo = re.search(rf'c.ConsoleWidget.console_{s} = (\d+)', raw)
-            if mo:
+            if mo := re.search(rf'c.ConsoleWidget.console_{s} = (\d+)', raw):
                 w_h = int(mo.group(1))
             else:
                 # fallback
@@ -124,7 +88,7 @@ def getsize(obj_0):
     return inner(obj_0)
 
 
-class Unbuffered(object):
+class Unbuffered:
     """Class to make stdout unbuffered"""
 
     def __init__(self, stream):

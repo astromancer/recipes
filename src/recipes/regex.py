@@ -53,6 +53,12 @@ def unname(pattern):
     """
     return RGX_NAMED_GROUP.sub(r'(', pattern)
 
+def unflag(pattern):
+    """
+    Remove in-pattern flags
+    (?x)
+    """
+    return RGX_VERBOSE_FLAG.sub(r'\1\2\3', pattern)
 
 def glob_to_regex(pattern):
     # Translate unix glob expression to regex for emulating bash wrt item
@@ -126,3 +132,10 @@ def match_all(l, pattern):
         if m:
             matches[i] = m.group()
     return matches
+
+
+def split_iter(string, sep='\s+'):
+    # source : https://stackoverflow.com/a/9770397
+    regex = f'(?:^|{sep})((?:(?!{sep}).)*)'
+    for match in re.finditer(regex, string):
+        yield match.group(1)

@@ -1,3 +1,8 @@
+"""
+Pretty printing utilities.
+"""
+
+# from . import formatters
 from .nrs import *
-from .misc import dicts
-from .callers import caller
+from .callers import caller, describe
+from .dispatch import pformat, pprint

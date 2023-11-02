@@ -1,3 +1,7 @@
+"""
+Utilities for working with sets.
+"""
+
 from collections import abc
 
 
@@ -60,10 +64,3 @@ class OrderedSet(abc.MutableSet):
             return len(self) == len(other) and list(self) == list(other)
         return set(self) == set(other)
 
-
-if __name__ == '__main__':
-    s = OrderedSet('abracadaba')
-    t = OrderedSet('simsalabim')
-    print(s | t)
-    print(s & t)
-    print(s - t)

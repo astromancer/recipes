@@ -1,26 +1,28 @@
 # pylint: skip-file
-import logging
-from inspect import signature
-from collections import OrderedDict as odict
-from recipes.caches import to_file, Cache, CacheEncoder, CacheDecoder
-from recipes.caches.decor import check_hashable_defaults
-from pathlib import Path
-import pickle
-import tempfile
-import pytest
-import itertools as itt
-import json
-from collections import defaultdict
 
-# setup logging
-logging.basicConfig()
-rootlog = logging.getLogger()
-rootlog.setLevel(logging.DEBUG)
+
+# std
+import tempfile
+import itertools as itt
+from pathlib import Path
+from collections import defaultdict, OrderedDict as odict
+
+# third-party
+import pytest
+import numpy as np
+
+# local
+from recipes.caching.manager import CacheManager as Cache
+from recipes.caching.decor import (CacheRejectionWarning, Ignore, Reject,
+                                   cached, check_hashable_defaults, to_file)
+
+
+# TODO: Test inheritance with decorated methods!
 
 
 # import pickle
 # from collections import OrderedDict as odict
-# from recipes.caches import LRUCache
+# from recipes.caching import LRUCache
 
 # class _Test(LRUCache, odict):
 #     def __reduce__(self):
@@ -60,10 +62,14 @@ def cache(request):
     return request.param
 
 
-# these test classes have to be globally scoped in order to be picklable
+# -------------------------------- Test Cases -------------------------------- #
+# some template classes / functions for testing exceptions on non-hashable
+# default arguments. These test classes have to be globally scoped so we can
+# pickle them
 
 
-class _TestCase0:
+class Case0:
+    # test decorating the constructor methods
     @to_file(get_tmp_filename())
     def __new__(cls, *args):
         return super().__new__(cls)
@@ -72,153 +78,269 @@ class _TestCase0:
         self.args = args
 
 
-class _TestCase1:
-    def __init__(self, *args):
-        self.args = args
+# @to_file(get_tmp_filename())  # FIXME
+# class Case1:
+#     def __init__(self, *args):
+#         self.args = args
+
+
+class Case2:
+    def __call__(self, a):
+        pass
+
+
+class _CheckIfCalled:
+    # helper that simply sets the `called` attribute to True when called
+    called = False
+
+    @cached
+    def __call__(self, a, b=None):
+        self.called = True
+
+
+class CaseNonHashableDefaults:
+
+    def foo(self, a, b=[1], *c, **kws):
+        # sourcery skip: default-mutable-arg
+        pass
+
+    @classmethod
+    def bar(cls, a, b=[1], *c,  **kws):
+        # sourcery skip: default-mutable-arg
+        pass
+
+
+def case_func_non_hash(a, b=[1], *c, **kws):
+    # sourcery skip: default-mutable-arg
+    pass
+
+
+@to_file(get_tmp_filename())
+def case0(a=1):
+    pass
+
+
+@to_file(get_tmp_filename())
+def case1(a, b=0, *c, **kws):
+    return a * 7 + b
+
+
+@cached
+def case1b(a, b=0, *c, **kws):
+    return a * 7 + b
+
+
+@cached(ignore='verbose')
+def case2(a, verbose=True):
+    return
+
+
+@cached(typed={'verbose': Ignore()})
+def case3(a, verbose=True):
+    return
+
+
+@cached(typed={'verbose': Ignore(silent=False)})
+def case4(a, verbose=True):
+    return
+
+
+@cached(typed={'a': int})
+def case5(a):
+    return
+
+
+@cached(typed={'file': lambda _: _ or Reject(silent=False)})
+def case6(file, **kws):
+    if file:
+        return 1
 
 
 # ----------------------------------- Tests ---------------------------------- #
-def test_serialize(cache):
-    cache[1] = 1   # this will save the cache
-    if cache.filename is None:
-        return
-
-    clone = Cache.load(cache.filename)
-    assert type(clone) is type(cache)
-    assert clone == cache
-    assert clone.capacity == cache.capacity
-    assert clone.filename == cache.filename
 
 
 class TestLRUCache:
     def test_queue(self, cache):
         cache[1] = 1
-        assert cache == odict([(1, 1)])
+        assert cache.data == odict([(1, 1)])
+
         cache[2] = 2
-        assert cache == odict([(1, 1), (2, 2)])
+        assert cache.data == odict([(1, 1), (2, 2)])
+
         cache[1]
-        assert cache == odict([(2, 2), (1, 1)])
+        assert cache.data == odict([(2, 2), (1, 1)])
+
         cache[3] = 3
-        assert cache == odict([(1, 1), (3, 3)])
+        assert cache.data == odict([(1, 1), (3, 3)])
+
         cache.get(2)
-        assert cache == odict([(1, 1), (3, 3)])
+        assert cache.data == odict([(1, 1), (3, 3)])
+
         cache[4] = 4
-        assert cache == odict([(3, 3), (4, 4)])
+        assert cache.data == odict([(3, 3), (4, 4)])
+
         cache.get(1)
-        assert cache == odict([(3, 3), (4, 4)])
+        assert cache.data == odict([(3, 3), (4, 4)])
+
         cache.get(3)
-        assert cache == odict([(4, 4), (3, 3)])
+        assert cache.data == odict([(4, 4), (3, 3)])
+
         cache[4]
-        assert cache == odict([(3, 3), (4, 4)])
+        assert cache.data == odict([(3, 3), (4, 4)])
 
 
 class TestPersistence():
-    # def test_load(tmpdir):
+
+    filename = get_tmp_filename()
+
+    def test_serialize(self, cache):
+        cache[1] = 1   # this will save the cache
+        if cache.filename is None:
+            return
+
+        clone = Cache.load(cache.filename)
+        assert type(clone) is type(cache)
+        assert clone == cache
+        assert clone.capacity == cache.capacity
+        assert clone.filename == cache.filename
 
     def test_save(self):
-        filename = get_tmp_filename()
+        filename = self.filename
         cache = Cache(2, filename)
         cache[1] = 1
 
         clone = Cache(2, filename)
         assert clone[1] == 1
 
-# -------------------------------- Test Cases -------------------------------- #
-
-# some template classes / functions for testing exceptions on non-hashable
-# default arguments
-
-
-class _TestCaseNonHashableDefaults():
-    def foo(self, a, b=[1], *c, **kws):
-        pass
-
-    @classmethod
-    def bar(cls, a, b=[1], *c,  **kws):
-        pass
+    def test_load(self):
+        filename = self.filename
+        cache = Cache(2, filename)
+        1 in cache
 
 
-def _test_func_non_hash(a, b=[1], *c, **kws):
-    pass
-
-
-@to_file(get_tmp_filename())
-def _test_func0(a=1):
-    pass
-
-
-@to_file(get_tmp_filename())
-def _test_func1(a, b=0, *c, **kws):
-    return a * 7 + b
-
-# ---------------------------------------------------------------------------- #
-
-
-class TestCachedDecorator():
+class TestDecorator():
 
     @pytest.mark.parametrize(
         'func',
-        [_TestCaseNonHashableDefaults().foo,
-         _TestCaseNonHashableDefaults.bar,
-         _test_func_non_hash])
+        [CaseNonHashableDefaults().foo,
+         CaseNonHashableDefaults.bar,
+         case_func_non_hash])
     def test_hashable_defaults(self, func):
         with pytest.raises(TypeError):
             check_hashable_defaults(func)
 
     def test_nonhashable_warns(self):
+        with pytest.warns(CacheRejectionWarning):
+            case0([1])
+
+    def test_warn_no_params(self):
         with pytest.warns(UserWarning):
-            _test_func0([1])
+            @cached
+            def case7():
+                pass
+
+    def test_warn_not_callable(self):
+        with pytest.warns(UserWarning):
+            cached()(Case0())
 
     def test_no_call(self):
-        class Foo:
-            called = False
+        chk = _CheckIfCalled()
+        chk(1)
+        chk.called = False
+        chk(1)
+        assert not chk.called
 
-            @to_file(None)
-            def __call__(self, a):
-                self.called = True
+    @pytest.mark.parametrize('func', [case1])
+    def test_caching_basic(self, func):
 
-        foo = Foo()
-        foo(1)
-        foo.called = False
-        foo(1)
-        assert foo.called is False
+        func(6)
+        initial = (6, 0, (), ())
+        assert func.__cache__ == {initial: 42}
 
-    def test_caching(self):
-
-        _test_func1(6)
-        current = (6, 0, (), ())
-        assert _test_func1.cache == {current: 42}
-
-        with pytest.warns(UserWarning):
-            _test_func1([1], [0])
+        with pytest.warns(CacheRejectionWarning):
+            func([1], [0])
             # UserWarning: Refusing memoization due to unhashable argument
-            # passed to function '_test_func1': 'a' = [1]
+            # passed to function 'func': 'a' = [1]
 
         # cache unchanged
-        assert _test_func1.cache == {current: 42}
+        assert func.__cache__ == {initial: 42}
 
-        _test_func1(6, hello='world')
+        func(6, hello='world')
         # new cache item for keyword arguments
-        assert _test_func1.cache == {
-            current: 42,
+        assert func.__cache__ == {
+            initial: 42,
             (6, 0, (), (('hello', 'world'),)): 42
         }
 
+    def test_auto_init(self):
+        self.test_caching_basic(case1b)
+
+    def test_caching_kws(self):
+        chk = _CheckIfCalled()
+        chk(a=1, b=2)
+        chk.called = False
+        chk(b=2, a=1)
+        assert not chk.called
+
     def test_new(self):
 
-        obj = _TestCase0(1)
-        # print(Foo.__new__.cache)
-        assert (_TestCase0.__new__.cache[(('cls', _TestCase0), ('args', (1,)))]
-                is obj)
-        assert _TestCase0(1) is obj
-
-    @pytest.mark.parametrize('ext', ['pkl', 'json'])
-    def test_class(self, ext):
-        decor = to_file(get_tmp_filename(ext))
-        kls = decor(_TestCase1)
-        obj = kls(1)
+        obj = Case0(1)
         # print(Foo.__new__.cache)
 
-        assert (kls.__new__.cache[(('cls', kls), ('args', (1,)))]
-                is obj)
-        assert kls(1) is obj
+        assert Case0.__new__.__cache__[(Case0, (1,))] is obj
+        assert Case0(1) is obj
+
+    # @pytest.mark.parametrize('ext', ['pkl'])
+    def test_class(self):  # , ext):
+        # decor = to_file(get_tmp_filename(ext))
+        # kls = decor(Case1)
+
+        obj = Case2()
+        cached()(obj)
+
+        # obj = Case1(1)
+        # print(Foo.__new__.cache)
+
+        # assert kls.__new__.cache[(kls, (1,))] is obj
+        # Case1.__cache__[((1, ),)] is obj
+        # assert Case1(1) is obj
+
+    @pytest.mark.parametrize('func', [case2, case3])
+    def test_ignore(self, func):
+
+        func(1, verbose=True)
+        initial = dict(func.__cache__)
+
+        func(1, verbose=False)
+        assert func.__cache__ == initial
+        func(1, True)
+        assert func.__cache__ == initial
+
+    # def test_ignore_warns(self):
+    #     with pytest.warns(UserWarning):
+    #         self.test_ignore(case4)
+
+    def test_rejection(self):
+        func = case6
+        func(1)
+        initial = dict(func.__cache__)
+
+        with pytest.warns(CacheRejectionWarning):
+            func(None)
+
+        assert func.__cache__ == initial
+
+    def test_typed(self):
+        func = case5
+        func(1)
+        initial = dict(func.__cache__)
+
+        for a in (1., '1', np.array(1)):
+            func(a)
+            assert func.__cache__ == initial
+
+    def test_typed_raises_on_invalid_name(self):
+        with pytest.raises(ValueError):
+            @cached(typed={'a': int})
+            def case6(b):
+                return

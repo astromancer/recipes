@@ -1,7 +1,6 @@
 # !/usr/bin/env python
 
-"""null.py
-
+"""
 source: http://code.activestate.com/recipes/68205-null-object-design-pattern/
 
 This is a sample implementation of the 'Null Object' design pattern.
@@ -41,19 +40,19 @@ August 2001
 """
 
 
-class Null(object):
-    """A class for implementing Null objects.
+class Null:
+    """
+    A class for implementing Null objects.
 
-    This class ignores all parameters passed when constructing or
-    calling instances and traps all attribute and method requests.
-    Instances of it always (and reliably) do 'nothing'.
+    This class ignores all parameters passed when constructing or calling
+    instances and traps all attribute and method requests. Instances of it
+    always (and reliably) do 'nothing'.
 
-    The code might benefit from implementing some further special
-    Python methods depending on the context in which its instances
-    are used. Especially when comparing and coercing Null objects
-    the respective methods' implementation will depend very much
-    on the environment and, hence, these special methods are not
-    provided here.
+    The code might benefit from implementing some further special Python methods
+    depending on the context in which its instances are used. Especially when
+    comparing and coercing Null objects the respective methods' implementation
+    will depend very much on the environment and, hence, these special methods
+    are not provided here.
     """
 
     def __init__(self, *_, **__):
@@ -80,56 +79,24 @@ class Null(object):
         return self.__class__.__name__
 
     def __bool__(self):
+        """Always False"""
         return False
 
 
 # singleton
-# null = Null()
+NULL = Null()
 
 
-# class NullSingleton(object):
-#     instance = Null()
-#
-#     def __getattr__(self, name):
-#         return getattr(self.instance, name)
+class NullSingleton:
+    
+    instance = None
+
+    def __init__(self):
+        kls = self.__class__
+        if kls.instance is None:
+            kls.instance = Null()
+
+    def __getattr__(self, name):
+        return getattr(self.instance, name)
 
 
-def test():
-    """Perform some decent tests, or rather: demos."""
-
-    # constructing and calling
-
-    n = Null()
-    n = Null('value')
-    n = Null('value', param='value')
-
-    n()
-    n('value')
-    n('value', param='value')
-
-    # attribute handling
-
-    n.attr1
-    n.attr1.attr2
-    n.method1()
-    n.method1().method2()
-    n.method('value')
-    n.method(param='value')
-    n.method('value', param='value')
-    n.attr1.method1()
-    n.method1().attr1
-
-    n.attr1 = 'value'
-    n.attr1.attr2 = 'value'
-
-    del n.attr1
-    del n.attr1.attr2.attr3
-
-    # representation and conversion to a string
-
-    assert repr(n) == '<Null>'
-    assert str(n) == 'Null'
-
-
-if __name__ == '__main__':
-    test()

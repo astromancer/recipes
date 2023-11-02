@@ -1,4 +1,5 @@
-"""Resolve metaclass conflicts.
+"""
+Resolve metaclass conflicts.
 Large part copied from Michele's recipe
 http://code.activestate.com/recipes/204197-solving-the-metaclass-conflict/
 modified for flake8 purposes and to add some utilities at the end.
@@ -6,18 +7,16 @@ Licensed under the `PSF license<https://docs.python.org/3/license.html>`_, and
 written by Michele Simionato, David Park and with input by others.
 And many thanks to him because this solves a thorny problem, good work!
 """
-from __future__ import absolute_import
-
-from functools import partial
 import inspect
-import types
-
-from six import iteritems, PY2
+from functools import partial
 
 
+__all__ = ['classmaker', 'classbuilder']
 #
 # preliminary: two utility functions
 #
+
+
 def _skip_redundant(iterable, skipset=None):
     """Redundant items are repeated items or items in the original skipset."""
     if skipset is None:
@@ -29,10 +28,10 @@ def _skip_redundant(iterable, skipset=None):
 
 
 def _remove_redundant(metaclasses):
-    if PY2:
-        skipset = set([types.ClassType])
-    else:
-        skipset = set()
+    # if PY2:
+    #     skipset = set([types.ClassType])
+    # else:
+    skipset = set()
     for meta in metaclasses:  # determines the metaclasses to be skipped
         skipset.update(inspect.getmro(meta)[1:])
     return tuple(_skip_redundant(metaclasses, skipset))
@@ -90,15 +89,11 @@ def _full_class_builder(mc, bases, shell_class):
     # We can't just put the shell class in the inheritance hierarchy,
     # because this will break super() within the shell class, so rip out its
     # innards to create an entirely new class.
-    new_class = classmaker(left_metas=lms)(
+    return classmaker(left_metas=lms)(
         shell_class.__name__, bases, {
-            k: v for k, v in iteritems(shell_class.__dict__)
+            k: v for k, v in shell_class.__dict__.items()
             if k != '__dict__'})
-    return new_class
 
 
 def classbuilder(bases=(), mc=()):
     return partial(_full_class_builder, mc, bases)
-
-
-__all__ = ['classmaker', 'classbuilder']

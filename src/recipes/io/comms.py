@@ -7,7 +7,7 @@ from collections import defaultdict
 #from IPython import embed
 
 
-class ProcessCommunicator(object):
+class ProcessCommunicator:
     #TODO: update docstrings
     #====================================================================================================
     def __init__(self):
