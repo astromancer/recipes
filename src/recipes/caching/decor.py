@@ -15,8 +15,10 @@ from ..string import named_items
 from ..decorators import Decorator
 from ..logging import LoggingMixin
 from ..pprint.callers import describe
+from ..oo.property import CachedProperty
 from .manager import CacheManager
 from .caches import DEFAULT_CAPACITY
+
 
 # ---------------------------------------------------------------------------- #
 
@@ -113,6 +115,10 @@ class Cached(Decorator, LoggingMixin):
         # this here simply to make `filename` a required arg
         return cls(filename, capacity, policy, ignore, typed, enabled)
 
+    @staticmethod
+    def property(depends_on=(), read_only=False):
+        return CachedProperty(depends_on, read_only)
+    
     def __init__(self, filename=None, capacity=DEFAULT_CAPACITY, policy='lru',
                  ignore=(), typed=(), enabled=True):
         """
