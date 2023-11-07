@@ -757,10 +757,12 @@ class ManyToOneMap(TransDict):
         for func in self._mappings:
             # yield catch(func, message=message)(key)
             try:
-                yield func(key)
+                translated = func(key)
+                if translated is not None:
+                    yield translated
             except Exception as err:
                 self.emit(
-                    f'{type(self).__name__}: Equivalence mapping function '
+                    f'{type(self).__name__}: Keyword translation function '
                     f'failed with:\n{err!s}.'
                 )
 
