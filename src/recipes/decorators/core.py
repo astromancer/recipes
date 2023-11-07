@@ -17,16 +17,19 @@ class delayed(Decorator):
 # ---------------------------------------------------------------------------- #
 class update_defaults(Decorator):
 
-    def __init__(self, *args, **kws):
-        if args and not kws:
-            kws, = args
-
-        self.defaults = kws
+    def __init__(self, mapping=(), **kws):
+        self.defaults = dict(mapping, **kws)
 
     def __call__(self, func, kwsyntax=False):
 
-        defaults = dict(self.defaults)
-        param_names = func.__code__.co_varnames[:func.__code__.co_argcount]
+        code = func.__code__
+        param_names = code.co_varnames[:code.co_argcount]
+        defaults = {}
+        if current_defaults := func.__defaults__:
+            defaults.update(
+                zip(param_names[-len(current_defaults):], current_defaults)
+            )
+        defaults.update(self.defaults)
 
         func.__defaults__ = tuple(defaults.pop(name)
                                   for name in param_names if name in defaults)
@@ -34,7 +37,8 @@ class update_defaults(Decorator):
         if defaults:
             func.__kwdefaults__ = {**(func.__kwdefaults__ or {}), **defaults}
 
-        return super().__call__(func, kwsyntax)
+        #                             emulate
+        return super().__call__(func, True, kwsyntax)
 
 
 # ---------------------------------------------------------------------------- #
