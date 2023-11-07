@@ -1,6 +1,5 @@
 # std
 import inspect
-from collections import deque
 
 # third-party
 import pytest
@@ -8,7 +7,6 @@ from loguru import logger
 
 # local
 from recipes import api, dicts
-from recipes.pprint import callers
 from recipes.functionals.factory import FunctionFactory
 
 
