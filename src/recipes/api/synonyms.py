@@ -68,9 +68,9 @@ OPTION_REGEX_BUILDERS = {'[]': _ordered_group,
 
 # ---------------------------------------------------------------------------- #
 class OneToOne:
-    def __init__(self, pattern, answer=''):
+    def __init__(self, pattern, answer):
         self.pattern = str(pattern)
-        self.answer = str(answer)
+        self.answer = answer
 
     def __call__(self, s):
         if s == self.pattern:
@@ -85,7 +85,7 @@ class RegexTranslate(OneToOne):
     Class to assist many-to-one keyword mappings via regex pattern matching.
     """
 
-    def __init__(self, pattern, answer=''):  # ensure_order
+    def __init__(self, pattern, answer):  # ensure_order
 
         if isinstance(pattern, str):
             self.regex = re.compile(pattern)
