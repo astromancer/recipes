@@ -82,7 +82,7 @@ class OneToOne:
 
 class RegexTranslate(OneToOne):
     """
-    Class to assist many-to-one keyword mappings via regex pattern matching.
+    Class to assist many-to-one keyword mapping via regex pattern matching.
     """
 
     def __init__(self, pattern, answer):  # ensure_order
@@ -173,13 +173,13 @@ class Synonyms(Decorator):
     """
     Decorator for function parameter translation.
     """
-    # TODO: detect ambiguous mappings
+    # TODO: detect ambiguous mapping
 
-    def __init__(self, mappings=(), /, mode=None, action='warn'):
-        # TODO **kws for simple mappings labels=label
+    def __init__(self, mapping=(), /, mode=None, action='warn', **kws):
+        # TODO **kws for simple mapping labels=label
         self.emit = Emit(action, TypeError)
         self.resolvers = []
-        self.update(mappings, mode)
+        self.update((mapping or kws), mode)
         self.func = None
         self._param_names = ()
 
@@ -226,13 +226,13 @@ class Synonyms(Decorator):
     def __repr__(self):
         return repr(self.resolvers)
 
-    def update(self, mappings=(), mode=None):
+    def update(self, mapping=(), mode=None):
         """
         Update the translation map.
         """
 
         _mode = mode
-        for pattern, target in dict(mappings).items():
+        for pattern, target in dict(mapping).items():
             if mode is None:
                 _mode = 'simple' if pattern.replace('_', '').isalpha() else 'regex'
 
