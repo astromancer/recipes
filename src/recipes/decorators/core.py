@@ -2,6 +2,7 @@
 
 # std
 import functools as ftl
+from collections import ChainMap
 
 # relative
 from .base import Decorator
@@ -17,8 +18,8 @@ class delayed(Decorator):
 # ---------------------------------------------------------------------------- #
 class update_defaults(Decorator):
 
-    def __init__(self, mapping=(), **kws):
-        self.defaults = dict(mapping, **kws)
+    def __init__(self, *mappings, **kws):
+        self.defaults = ChainMap(kws, *reversed(mappings))
 
     def __call__(self, func, kwsyntax=False):
 
@@ -35,7 +36,13 @@ class update_defaults(Decorator):
                                   for name in param_names if name in defaults)
 
         if defaults:
-            func.__kwdefaults__ = {**(func.__kwdefaults__ or {}), **defaults}
+            func.__kwdefaults__ = {
+                param: val 
+                for param, val in {**(func.__kwdefaults__ or {}),
+                                   **defaults}.items()
+                if param in param_names
+            }
+            # unused = set(defaults) - set(func.__kwdefaults__)
 
         #                             emulate
         return super().__call__(func, True, kwsyntax)
