@@ -38,10 +38,6 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
     overwrite : bool, optional
         Whether to overwrite an existing file, by default False
 
-    Examples
-    --------
-    >>> 
-
     Returns
     -------
     numpy.memmap
@@ -75,14 +71,14 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
 
     if shape:
         shape = ensure_wrapped(shape, tuple)
-    
+
     # update mode if existing file, else read
     new = not loc.exists() or overwrite
     if new:
-        mode = 'w+' # FIXME w+ r+ same??
+        mode = 'w+'  # FIXME w+ r+ same??
         # default dtype for writing
         dtype = dtype or (float if fill is None else type(fill))
-        
+
         logger.debug('Creating memmap of shape {!s} and dtype {!r:} at {!r:}.',
                      shape, dtype, filename)
     else:
@@ -95,11 +91,11 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
     data = np.lib.format.open_memmap(filename, mode, dtype, shape, **kws)
 
     # check shape and dtype match
-    # dtype=np.dtype(dtype)
+    dtype = np.dtype(dtype)
     for what, val in dict(shape=shape, dtype=dtype).items():
         if val and val != (dval := getattr(data, what)):
-            raise ValueError(f'Loaded memmap has {what} {dval}, which is '
-                             f'different to that requested: {val}. Overwrite: '
+            raise ValueError(f'Loaded memmap has {what}:\n    {dval}\nwhich is '
+                             f'different to that requested:\n    {val}.\nOverwrite: '
                              f'{overwrite}.')
 
     # overwrite data
