@@ -2,8 +2,14 @@
 Utilities for operations on strings
 """
 
+# std
+import operator as op
 
-from .. import op
+# third-party
+import more_itertools as mit
+
+# relative
+from .. import op, string
 from ..iter import where
 from ..utils import _delete_immutable
 
@@ -260,3 +266,41 @@ def strip_non_ascii(string):
 
 #     re.compile(rf'(?s)((?![\\]).){mark}([^\n]*)')
 
+# ---------------------------------------------------------------------------- #
+
+def _partition_whitespace_indices(text):
+    n = len(text)
+    i0 = 0
+    while i0 < n:
+        i1 = next(string.where(text, op.ne, ' ', start=i0), n)
+        yield (i0, i1)
+
+        i2 = next(string.where(text, ' ', start=i1), n)
+        yield (i1, i2)
+        i0 = i2
+
+
+def _split_whitespace(text):
+    for i0, i1 in _partition_whitespace_indices(text):
+        yield text[i0:i1]
+
+
+def _partition_whitespace(text, min_length=5):
+    buffer = ''
+    for space, nonspace in mit.grouper(_split_whitespace(text), 2):
+        if len(space) >= min_length:
+            if buffer:
+                yield buffer
+            yield space
+            buffer = nonspace
+        else:
+            if not buffer:
+                yield ''
+
+            buffer += space + nonspace
+
+    yield buffer
+
+
+def partition_whitespace(text, min_length=5):
+    yield from mit.grouper(_partition_whitespace(text, min_length), 2)
