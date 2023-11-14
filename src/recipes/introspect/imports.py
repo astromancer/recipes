@@ -59,13 +59,6 @@ from .utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
 
 
 # ---------------------------------------------------------------------------- #
-api_synonyms = api.synonyms(
-    {'filter':          'filter_unused',
-     'relative(_to)?':  'relativize',
-     'module_name':     'relativize'}
-)
-
-# ---------------------------------------------------------------------------- #
 CONFIG = ConfigNode.load_module(__file__, 'yaml')
 
 # warning control
@@ -80,6 +73,12 @@ if CONFIG.log_warnings:
 
 # ---------------------------------------------------------------------------- #
 # module constants
+api_synonyms = api.synonyms({
+    'filter':          'filter_unused',
+    'relative(_to)?':  'relativize',
+    'module_name':     'relativize'
+})
+
 
 # supported styles for sorting
 STYLES = ('alphabetic', 'aesthetic')
@@ -179,9 +178,9 @@ def rewrite(node, width=80, hang=None, indent=4, one_per_line=False):
     s += ')'  # ('\n' * hang + ')')
     return s
 
+
 # ---------------------------------------------------------------------------- #
 # Group sorters
-
 
 def is_builtin(name):  # name.split('.')[0]
     return name in BUILTIN_MODULE_NAMES
@@ -573,7 +572,7 @@ class ImportRelativizer(ast.NodeTransformer):
 
 
 class HandleFuncs:
-    """Base class that checks that inputs are callable"""
+    """Base class that checks that inputs are callable."""
 
     def __init__(self, *functions):
         for func in filter(negate(callable), functions):
@@ -600,7 +599,7 @@ class ImportGrouper(HandleFuncs, ast.NodeVisitor):
     def pprint(self):
         return pp.mapping(self.groups, '', brackets='', hang=True,
                           # lhs=GroupHeaders().get,
-                          rhs=lambda _: '\n'.join(('', *_iter_lines(_))))
+                          rhs=lambda _: '\n'.join(('', *_iter_import_lines(_))))
 
 
 class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
@@ -632,7 +631,7 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
 # #
 #      visit_ImportFrom = visit_Import
 
-def _iter_lines(module, headers=None):
+def _iter_import_lines(module, headers=None):
     # generate source code lines from ast.Module, including import group header
     # comments and empty lines.
 
@@ -649,14 +648,17 @@ def _iter_lines(module, headers=None):
     headers = GroupHeaders(*(() if headers else [()]))
 
     for node in module.body:
+        if not is_any_import_node(node):
+            # There are no import staetments (left)
+            return
+
         yield from headers.next(node)
         yield rewrite(node)
 
 
 class GroupHeaders:
-    def __init__(self, names=CONFIG.groups.names,
-                 suffix=CONFIG.groups.suffix):
 
+    def __init__(self, names=CONFIG.groups.names, suffix=CONFIG.groups.suffix):
         self.names = dict(enumerate(names))
         self.suffix = str(suffix or '')
         self.newlines = mit.padded([''], '\n')
@@ -717,7 +719,7 @@ def _parse_partial(source, max_remove=5):
         except SyntaxError as err:
             if i == 0:
                 lines = source.splitlines()
-                
+
             if i == max_remove:
                 raise err
 
@@ -871,10 +873,11 @@ class ImportRefactory(LoggingMixin):
         #     are imports from multiple groups.
 
         module = self.module
+        path = repr(str(self.path)) if self.path else 'source code'
 
         # check if there are any import statements
         if not self.captured.line_nrs:
-            self.logger.info('No import statements in {}.', self.path or 'source code')
+            self.logger.info('No import statements in {}.', path)
             return module
 
         # if unscope:
@@ -905,21 +908,23 @@ class ImportRefactory(LoggingMixin):
 
         delocalize = False
         if delocalize:
-            module = self.delocalize(module)  # TODO
+            # TODO
+            module = self.delocalize(module)
         else:
             module = NodeScopeFilter(0).visit(module)
 
         if sort:
             module = self.sort_and_group(module, sort)
 
-        if module is self.module:
-            logger.info('Import statements are already well sorted for \'{}\''
-                        ' style!', sort)
+        if module == self.module:
+            logger.info('Import statements in {} are already well sorted for '
+                        '{!r} style!', path, sort)
 
         return module
 
     def sort_and_group(self, module=None, style=CONFIG.sort):
-        """Sort and group"""
+        """Sort and group."""
+
         module = module or self.module
 
         if not module.body:
@@ -930,6 +935,9 @@ class ImportRefactory(LoggingMixin):
         grouper.visit(module)
         groups = {g: self.sort(mod, style)
                   for g, mod in grouper.groups.items()}
+
+        if not groups:
+            return module
 
         # reorder the groups
         modules = groups.values()
@@ -1055,8 +1063,10 @@ class ImportRefactory(LoggingMixin):
                     logger.info("Discovered parent module name: {!r} for file '{}'.",
                                 parent_module_name, Path(self.filename).name)
             except ValueError as err:
-                if (msg := str(err)).startswith('Could not get package name'):
-                    logger.warning(msg)
+                if (msg := str(err)).startswith(s := 'Could not get package name'):
+                    logger.warning(
+                        msg.replace(s, f'{s}. Skipping import relativization')
+                    )
                     return module
                 raise err from None
 
@@ -1134,7 +1144,7 @@ class ImportRefactory(LoggingMixin):
         yield from lines[:first]
 
         # write the ordered import statements (with group headings)
-        yield from _iter_lines(module, headers)
+        yield from _iter_import_lines(module, headers)
 
         # finally rebuild the remaining source code, omitting the previously
         # extracted import lines
