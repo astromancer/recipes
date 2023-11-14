@@ -437,6 +437,8 @@ def write_lines(stream, lines, eol='\n', eof=''):
         stream.write(eof)
 
 
+# ---------------------------------------------------------------------------- #
+
 @ctx.contextmanager
 def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
     """
@@ -547,8 +549,8 @@ def write_replace(filename, replacements):
         fp.write(sub(text, replacements))
         fp.truncate()
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 @ctx.contextmanager
 def working_dir(path):

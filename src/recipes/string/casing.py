@@ -14,7 +14,7 @@ REGEX_SPACE = re.compile(r'\s+')
 
 def snake_case(string):
     new, _ = REGEX_CAPS.subn(r'_\1', string.replace(' ', '_'))
-    return new
+    return new.lstrip('_').lower()
 
 
 def pascal_case(string):

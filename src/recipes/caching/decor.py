@@ -80,18 +80,18 @@ class Cached(Decorator, LoggingMixin):
     Decorator for memoization on callable objects.
 
     Features:
-        : Keyword parameters fully supported.
-        : Works on any callable object that is picklable.
-        : Optional type coercion of parameter values prior to caching (typing).
-        : Conditionally ignore specific parameters, or entirely reject an entry,
+        * Keyword parameters fully supported.
+        * Works on any callable object that is picklable.
+        * Optional type coercion of parameter values prior to caching (typing).
+        * Conditionally ignore specific parameters, or entirely reject an entry,
           based on user specified conditionals.
-        : Cache contents are referenced as the `__cache__` attribute on the
-            decorated function.
-        : Gracefully handle any exceptions that happen on attempted cache
+        * Cache contents are referenced as the `__cache__` attribute on the
+          decorated function.
+        * Gracefully handle any exceptions that happen on attempted cache
           insertion, for example: When attempting to cache a call that has
           non-hashable parameter values, a informative warning is emitted and
           the caching is merely skipped instead of raising a TypeError.
-        : Raises TypeError when attempting to decorate a function with
+        * Raises TypeError when attempting to decorate a function with
           non-hashable default arguments.
 
     TODO:
@@ -118,7 +118,7 @@ class Cached(Decorator, LoggingMixin):
     @staticmethod
     def property(depends_on=(), read_only=False):
         return CachedProperty(depends_on, read_only)
-    
+
     def __init__(self, filename=None, capacity=DEFAULT_CAPACITY, policy='lru',
                  ignore=(), typed=(), enabled=True):
         """
@@ -366,11 +366,12 @@ class Cached(Decorator, LoggingMixin):
                 self.logger.debug('Intercepted {:s} call: Loading result from '
                                   'cache.', describe(func))
                 return self.cache[key]
-        except Exception:
+        except Exception as error:
             # since caching is not mission critical, just log the error and
             # then run the function
-            self.logger.exception('Cache lookup for {:s} failed! Executing call.',
-                                  describe(func))
+            self.logger.exception('Cache lookup for {:s} failed with\n{}.\n'
+                                  'Function will now be called.',
+                                  describe(func), error)
             return func(*args, **kws)
 
         # If we are here, it means there is no cache entry for this call
