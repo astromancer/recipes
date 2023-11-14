@@ -7,10 +7,9 @@ import re
 import io
 import os
 import sys
+import ast
 import pkgutil
 import inspect
-import ast
-import warnings
 import functools as ftl
 import contextlib as ctx
 from pathlib import Path
@@ -24,6 +23,7 @@ from stdlib_list import stdlib_list
 from ..string import remove_suffix, truncate
 
 
+# ---------------------------------------------------------------------------- #
 # list of builtin modules
 BUILTIN_MODULE_NAMES = [  # TODO: generate at install time for version
     # builtins
@@ -33,6 +33,64 @@ BUILTIN_MODULE_NAMES = [  # TODO: generate at install time for version
     # auto-generated module for builtin keywords
     'keyword'
 ]
+
+
+# Regex to detect executable python script from source text
+REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
+
+
+# maximal filename size. Helps distinguish source code strings from filenames
+F_NAMEMAX = os.statvfs('.').f_namemax
+
+
+# ---------------------------------------------------------------------------- #
+#
+def is_script(source: str):
+    """Detect executable python script from source text."""
+    return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
+
+
+# ---------------------------------------------------------------------------- #
+
+def get_stream(file_or_source):
+
+    if isinstance(file_or_source, io.IOBase):
+        return file_or_source
+
+    if isinstance(file_or_source, str):
+        if len(file_or_source) < F_NAMEMAX and Path(file_or_source).exists():
+            return file_or_source
+
+        # assume string is raw source code
+        return io.StringIO(file_or_source)
+
+    if isinstance(file_or_source, Path):
+        if file_or_source.exists():
+            return file_or_source
+
+        raise FileNotFoundError(f'{truncate(file_or_source, 100)}')
+
+    raise TypeError(
+        f'Cannot interpret {type(file_or_source)} as file-like object.'
+    )
+
+# ---------------------------------------------------------------------------- #
+
+
+def get_caller_name(back=1):
+    """
+    Return the calling function or module name.
+    """
+    # Adapted from: https://stackoverflow.com/a/57712700/
+
+    frame = get_caller_frame(back + 1)
+    try:
+        name = frame.f_code.co_name
+        return get_module_name(frame) if (name == '<module>') else name
+    finally:
+        # break reference cycles
+        # https://docs.python.org/3/library/inspect.html?highlight=signature#the-interpreter-stack
+        del frame
 
 
 def get_caller_frame(back=1):
@@ -51,20 +109,61 @@ def get_caller_frame(back=1):
         del frame
 
 
-def get_caller_name(back=1):
-    """
-    Return the calling function or module name.
-    """
-    # Adapted from: https://stackoverflow.com/a/57712700/
+# ---------------------------------------------------------------------------- #
 
-    frame = get_caller_frame(back + 1)
-    try:
-        name = frame.f_code.co_name
-        return get_module_name(frame) if (name == '<module>') else name
-    finally:
-        # break reference cycles
-        # https://docs.python.org/3/library/inspect.html?highlight=signature#the-interpreter-stack
-        del frame
+def get_class_name(obj, depth=None):
+    """
+    Get the fully (or partially) qualified (dot-separated) name of an object and
+    its parent (sub)modules and/or package.
+
+    Parameters
+    ----------
+    obj : object
+        The object to be named
+    depth : int, optional
+        Namespace depth, by default None.
+        # eg:. foo.sub.Klass #for depth of 2
+
+    Examples
+    --------
+    >>> 
+    """
+    kls = obj if isinstance(obj, type) else type(obj)
+    return '.'.join((get_module_name(kls, depth), kls.__name__))
+
+
+def get_defining_class(method: MethodType):
+    """
+    Get the class that defined a method.
+
+    Parameters
+    ----------
+    method : types.MethodType
+        The method for which the defining class will be retrieved.
+
+    Returns
+    -------
+    type
+        Class that defined the method.
+    """
+    # source: https://stackoverflow.com/questions/3589311/#25959545
+
+    # handle bound methods
+    if inspect.ismethod(method):
+        for cls in inspect.getmro(method.__self__.__class__):
+            if cls.__dict__.get(method.__name__) is method:
+                return cls
+        method = method.__func__  # fallback to __qualname__ parsing
+
+    # handle unbound methods
+    if inspect.isfunction(method):
+        name = method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0]
+        cls = getattr(inspect.getmodule(method), name)
+        if isinstance(cls, type):
+            return cls
+
+    # handle special descriptor objects
+    return getattr(method, '__objclass__', None)
 
 
 # ---------------------------------------------------------------------------- #
@@ -92,9 +191,10 @@ def get_module_name(obj=None, depth=None):
 
     if depth in (-1, None):
         depth = 0
-    
-    return '.'.join(name.split('.')[-depth:])
-    
+
+    if name:
+        return '.'.join(name.split('.')[-depth:])
+
 # @ftl.singledispatch
 # def get_module_name(node):
 #     """Get the full (dot separated) module name from various types."""
@@ -108,7 +208,9 @@ def _get_module_name(obj):
 
     module = inspect.getmodule(obj)
     if module is None:
-        raise TypeError(f'Could not determine module for object {obj} of type {type(obj)}.')
+        raise TypeError(
+            f'Could not determine module for object {obj} of type {type(obj)}.'
+        )
 
     name = module.__name__
 
@@ -119,7 +221,7 @@ def _get_module_name(obj):
         if not hasattr(module, '__file__'):
             return '__main__'
 
-        # 
+        #
         name = _get_module_name(module.__file__)
 
         # return Path(mod.__file__).stem
@@ -196,7 +298,7 @@ def _(path):
         name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
         return name.rstrip('/').replace('/', '.')
 
-    warnings.warn(f"Could not find package name for '{path}'.")
+    raise ValueError(f"Could not get package name for file '{path!s}'.")
 
 
 def get_package_name(node_or_path: Union[str, Path, ast.Import]):
@@ -207,111 +309,3 @@ def get_package_name(node_or_path: Union[str, Path, ast.Import]):
         raise ValueError(f'Could not get package name for file {node_or_path!r}.')
 
     return fullname.split('.', 1)[0]
-
-# def get_module_name(filename, depth=1):
-
-#     name = inspect.getmodulename(filename)
-#     # for modules that have `__init__.py`
-#     if name == '__init__':
-#         return '.'.join(filename.split('/')[-depth - 1:-1])
-
-#     # note the following block merely splits the filename.  no checks
-#     #  are done to see if the path is actually a valid python module
-#     current_depth = name.count('.')
-#     if depth > current_depth:
-#         parts = filename.split('/')[-depth - 1:-1]
-#         parts.append(name)
-#         return '.'.join(parts)
-
-#     return name.split('.', name.count('.') - depth)[-1]
-
-
-def get_class_name(obj, depth=None):
-    """
-    Get the fully (or partially) qualified (dot-separated) name of an object and
-    its parent (sub)modules and/or package.
-
-    Parameters
-    ----------
-    obj : object
-        The object to be named
-    depth : int, optional
-        Namespace depth, by default None.
-        # eg:. foo.sub.Klass #for depth of 2
-
-    Examples
-    --------
-    >>> 
-    """
-    kls = obj if isinstance(obj, type) else type(obj)
-    return '.'.join((get_module_name(kls, depth), kls.__name__))
-
-
-def get_defining_class(method: MethodType):
-    """
-    Get the class that defined a method.
-
-    Parameters
-    ----------
-    method : types.MethodType
-        The method for which the defining class will be retrieved.
-
-    Returns
-    -------
-    type
-        Class that defined the method.
-    """
-    # source: https://stackoverflow.com/questions/3589311/#25959545
-
-    # handle bound methods
-    if inspect.ismethod(method):
-        for cls in inspect.getmro(method.__self__.__class__):
-            if cls.__dict__.get(method.__name__) is method:
-                return cls
-        method = method.__func__  # fallback to __qualname__ parsing
-
-    # handle unbound methods
-    if inspect.isfunction(method):
-        name = method.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0]
-        cls = getattr(inspect.getmodule(method), name)
-        if isinstance(cls, type):
-            return cls
-
-    # handle special descriptor objects
-    return getattr(method, '__objclass__', None)
-
-
-# ---------------------------------------------------------------------------- #
-# detect executable python script
-REGEX_MAIN_SCRIPT = re.compile(r'if __name__\s*[=!]=\s*__main__')
-
-
-def is_script(source: str):
-    return source.startswith('#!') or REGEX_MAIN_SCRIPT.search(source)
-
-
-# ---------------------------------------------------------------------------- #
-# maximal filename size. Helps distinguish source code strings from filenames
-F_NAMEMAX = os.statvfs('.').f_namemax
-
-
-def get_stream(file_or_source):
-    if isinstance(file_or_source, io.IOBase):
-        return file_or_source
-
-    if isinstance(file_or_source, str):
-        if len(file_or_source) < F_NAMEMAX and Path(file_or_source).exists():
-            return file_or_source
-
-        # assume string is raw source code
-        return io.StringIO(file_or_source)
-
-    if isinstance(file_or_source, Path):
-        if file_or_source.exists():
-            return file_or_source
-
-        raise FileNotFoundError(f'{truncate(file_or_source, 100)}')
-
-    raise TypeError(
-        f'Cannot interpret {type(file_or_source)} as file-like object.'
-    )
