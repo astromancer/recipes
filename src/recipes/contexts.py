@@ -6,12 +6,15 @@ import contextlib as ctx
 
 
 # ---------------------------------------------------------------------------- #
+
 class ContextStack(ctx.ExitStack):
-    def __init__(self, context=None):
+    """
+    Manage nested contexts.
+    """
+
+    def __init__(self, contexts=()):
         super().__init__()
-        self.contexts = []
-        if context:
-            self.add(context)
+        self.contexts = list(contexts)
 
     def __enter__(self):
         return next(filter(None, map(self.enter_context, self.contexts)), None)
