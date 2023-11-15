@@ -217,10 +217,9 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
         if isinstance(levels, numbers.Integral):
             levels = [levels]
 
-        keys = []
-        return dict(self._leaves(levels, 0, keys))
+        return dict(self._leaves(levels, 0))
 
-    def _leaves(self, levels, _level=0, _keys=None):
+    def _leaves(self, levels, _level=0, _keys=()):
         for key, child in self.items():
             if isinstance(child, type(self)):
                 yield from child._leaves(levels, _level + 1, (*_keys, key))
@@ -228,7 +227,14 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
                 yield (*_keys, key), child
 
     def flatten(self, levels=all):
-        return self.leaves(levels)
+
+        leaves = self.leaves(levels)
+
+        if levels != 0:
+            return leaves
+
+        # flatten 1-tuples
+        return dict(zip(next(zip(*leaves.keys())), leaves.values()))
 
     def filter(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()
