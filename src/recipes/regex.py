@@ -1,9 +1,9 @@
+# std
+import re
 import pathlib
 
-
-import re
-
-from recipes.string import sub
+# relative
+from .string import sub
 
 
 # translate unix brace expansion patterns to regex pattern

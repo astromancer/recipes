@@ -1,2 +1,2 @@
-from .classmaker import classmaker
 from .tagger import *
+from .classmaker import classmaker

@@ -5,8 +5,8 @@ Recipes involving arrays.
 # third-party
 import numpy as np
 
-# local
-from recipes.lists import flatten, where_duplicate
+# relative
+from ..lists import flatten, where_duplicate
 
 
 # ---------------------------------------------------------------------------- #

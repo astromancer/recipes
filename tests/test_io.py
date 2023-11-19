@@ -1,10 +1,11 @@
 
+# third-party
 import pytest
 
-from pathlib import Path
-
+# local
 from recipes import io
 from recipes.testing import Expected, mock
+
 
 # ---------------------------------------------------------------------------- #
 # Helper functions
@@ -34,7 +35,6 @@ def filename(tmp_path_factory):
         for i in range(10):
             fp.write(f'{i}\n')
     return filename
-
 
 
 # @pytest.fixture(scope="session")

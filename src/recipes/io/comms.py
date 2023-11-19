@@ -1,6 +1,6 @@
-import threading
 import queue
-from subprocess import Popen, PIPE
+import threading
+from subprocess import PIPE, Popen
 from collections import defaultdict
 
 

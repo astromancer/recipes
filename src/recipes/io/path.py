@@ -1,13 +1,12 @@
 import re
-import pathlib
-import operator as op
+from pathlib import Path
 
 
 def false(_):
     return False
 
 
-class Path(type(pathlib.Path())):  # HACK to get proper path type on all systems
+class Path(type(Path())):  # HACK to get proper path type on all systems
     def reglob(self, exp, ignore=None):
         """
         Filename matching with regular expressions
@@ -21,7 +20,7 @@ class Path(type(pathlib.Path())):  # HACK to get proper path type on all systems
 
         Yields
         ------
-        pathlib.Path
+        Path
             The matching paths
         """
         include = re.compile(exp)

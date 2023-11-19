@@ -5,10 +5,10 @@ Some miscellaneous utility functions.
 # std
 import typing
 import numbers
-import builtins
 from collections import abc
 
 # relative
+import builtins
 from .functionals import negate
 
 

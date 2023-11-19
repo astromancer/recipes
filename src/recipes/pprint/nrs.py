@@ -23,9 +23,9 @@ import docsplice as doc
 
 # relative
 from .. import op
-from ..string import unicode as uni
 from ..functionals import echo0
 from ..array.utils import vectorize
+from ..string import unicode as uni
 from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 

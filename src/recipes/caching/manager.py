@@ -10,8 +10,8 @@ from loguru import logger
 # relative
 from ..dicts import pformat
 from ..logging import LoggingMixin
-from ..io import serialize, deserialize, guess_format
-from . import Cache, DEFAULT_CAPACITY
+from ..io import deserialize, guess_format, serialize
+from . import DEFAULT_CAPACITY, Cache
 
 
 # TODO: serializing the Cache class is error prone and hard to maintain.

@@ -9,6 +9,7 @@ from warnings import warn
 # relative
 from ..iter import where
 
+
 # ---------------------------------------------------------------------------- #
 JUSTIFY_MAP = {
     'r': '>',

@@ -4,9 +4,8 @@ import sys
 import math
 
 # relative
-from .misc import overlay
 from ..misc import get_terminal_size
-from ..string import resolve_percentage
+from ..strng import overlay, resolve_percentage
 
 
 def move_cursor(val):

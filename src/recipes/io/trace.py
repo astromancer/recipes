@@ -1,8 +1,11 @@
-import sys, os
+# std
+import os
+import sys
 import warnings
 import traceback
 
-from warnings import formatwarning as original_formatwarning
+# third-party
+import formatwarning as original_formatwarning
 
 
 class MessageWrapper:

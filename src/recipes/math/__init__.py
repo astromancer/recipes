@@ -1,4 +1,6 @@
-import numbers, math
+
+import math
+import numbers
 
 
 def signum(n):

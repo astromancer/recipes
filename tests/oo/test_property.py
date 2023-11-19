@@ -7,7 +7,7 @@ import pytest
 from loguru import logger
 
 # local
-from recipes.oo.property import ClassProperty, CachedProperty
+from recipes.oo.property import CachedProperty, ClassProperty
 
 
 # ---------------------------------------------------------------------------- #

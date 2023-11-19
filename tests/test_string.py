@@ -4,7 +4,7 @@ import pytest
 
 # local
 from recipes.testing import ECHO, Expected, mock
-from recipes.string import Percentage, justify, sub, title, pluralize
+from recipes.string import Percentage, justify, pluralize, sub, title
 
 
 test_pluralize = Expected(pluralize)({
@@ -122,8 +122,6 @@ test_pluralize = Expected(pluralize)({
     'criterion':    'criteria',
 
 
-
-
     # irregular
     'foot':         'feet',
     'goose':        'geese',
@@ -145,7 +143,6 @@ test_pluralize = Expected(pluralize)({
     'phenomenon':   'phenomena',
     'quiz':         'quizzes',
     'fez':          'fezzes',  # or fezes
-
 
 
     # unchanging / context dependent

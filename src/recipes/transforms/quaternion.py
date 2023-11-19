@@ -1,5 +1,6 @@
-from collections import namedtuple
+
 import math
+from collections import namedtuple
 
 
 class Quaternion(namedtuple('Quaternion', 'real, i, j, k')):

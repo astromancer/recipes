@@ -1,13 +1,13 @@
-# std 
+# std
 import time
 import inspect
 import functools
 from collections import defaultdict
 
-# relative 
+# relative
 from .. import pprint
-from .base import Decorator
 from ..dicts import DefaultOrderedDict
+from .base import Decorator
 
 
 class count_calls(Decorator):

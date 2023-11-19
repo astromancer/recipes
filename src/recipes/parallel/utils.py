@@ -16,7 +16,7 @@ from loguru import logger
 from .. import pprint
 from ..io import load_memmap
 from ..string import Percentage
-from ..logging import LoggingMixin#, ProgressLogger
+from ..logging import LoggingMixin
 
 
 # class Monitor

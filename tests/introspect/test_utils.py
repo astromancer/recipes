@@ -4,12 +4,12 @@ import ast
 
 # local
 from recipes.testing import Expected
-from recipes.introspect.utils import get_module_name, get_package_name
 from recipes.introspect.imports import ImportRefactory
+from recipes.introspect.utils import get_module_name, get_package_name
+
 
 def parse(code):
     return ast.parse(code).body[0]
-
 
 
 test_get_package_name = Expected(get_package_name)({

@@ -15,8 +15,9 @@ import docsplice as doc
 
 # relative
 from . import op, iter as _iter
-from .functionals import always, echo0 as _echo
 from .utils import _delete
+from .functionals import always, echo0 as _echo
+
 
 # function that always returns 0
 _zero = always(0)

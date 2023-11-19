@@ -1,5 +1,4 @@
 from recipes.testing import Expected, Throws, mock
-import pytest
 
 # pylint: disable=unused-argument
 # pylint: disable=missing-function-docstring
@@ -34,8 +33,6 @@ class SomeClass:
 # test_fun0 = Expected(fun0)({(): None})
 
 
-
-
 for f in (fun1, ):#SomeClass().meth0, SomeClass.meth1):
     test = Expected(f)({
         mock(1):            (1, 2, 3, (), {}),
@@ -49,7 +46,6 @@ for f in (fun1, ):#SomeClass().meth0, SomeClass.meth1):
     exec(f'test_{f.__name__} = test')
 
 test_throws = Expected(throws1)({(): Throws(ValueError)})
-
 
 
 # test_fun1 = Expected(fun1)({

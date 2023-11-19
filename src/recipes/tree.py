@@ -570,7 +570,6 @@ class TreeBuilder:
         return changed
 
 
-
 class Node(PrettyNode, TreeBuilder):
 
     def __getitem__(self, key):

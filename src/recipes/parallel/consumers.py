@@ -3,10 +3,9 @@ import traceback
 import multiprocessing as mp
 
 # relative
+from ..decorators import Decorator
 from ..logging import LoggingMixin
 from ..pprint import caller, describe
-
-from recipes.decorators import Decorator
 
 
 class Delayed(Decorator):

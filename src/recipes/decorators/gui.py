@@ -1,5 +1,8 @@
+
+# std
 import functools
 
+# third-party
 from PyQt5.QtCore import pyqtRemoveInputHook, pyqtRestoreInputHook
 
 

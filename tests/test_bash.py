@@ -4,7 +4,7 @@ import textwrap as txw
 
 # local
 from recipes.shell import bash
-from recipes.testing import Expected, expected, Throws
+from recipes.testing import Expected, Throws, expected
 
 
 # from recipes.dicts import invert

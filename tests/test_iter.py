@@ -1,5 +1,6 @@
-from recipes.iter import where
+
 from recipes import op
+from recipes.iter import where
 
 
 list(where('akdjkjsdkmlvkmlvcl;ldl;dl;vds;l', 'ak'))

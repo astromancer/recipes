@@ -1,7 +1,7 @@
 
 
 from recipes.oo.meta import tagger
-from recipes.oo.meta.tagger import TagManagerBase, MethodTaggerFactory
+from recipes.oo.meta.tagger import MethodTaggerFactory, TagManagerBase
 
 # ---------------------------------------------------------------------------- #
 

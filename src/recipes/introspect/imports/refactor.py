@@ -28,7 +28,7 @@ from ...string import remove_prefix
 from ...pprint.callers import describe
 from ...io import open_any, read_lines, safe_write
 from ..utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
-                    get_stream, is_script)
+                     get_stream, is_script)
 
 
 # ---------------------------------------------------------------------------- #

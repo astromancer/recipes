@@ -10,7 +10,6 @@ import operator as op
 import functools as ftl
 from collections import abc
 from types import FunctionType
-from typing import Collection, Dict
 
 # third-party
 from loguru import logger
