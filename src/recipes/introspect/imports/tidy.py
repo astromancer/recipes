@@ -1,15 +1,6 @@
-#! /usr/bin/env python
-
 """
 Script for tidying import statements in python source files.
 """
-
-
-# pylint: disable=wrong-import-position
-
-if __name__ != '__main__':
-    raise SystemExit()
-
 
 # std
 from pathlib import Path
@@ -22,9 +13,11 @@ from loguru import logger
 from recipes.introspect.imports import STYLES, refactor
 
 
-#
+# ---------------------------------------------------------------------------- #
 logger.configure(activation=[('recipes', 'INFO')])
 
+
+# ---------------------------------------------------------------------------- #
 
 @click.command()
 @click.argument('files_or_folders', nargs=-1)
@@ -45,12 +38,17 @@ def main(files_or_folders, style,):
     (packages/modules) to be traversed and refactored.
     """
     file = None
-    for item in files_or_folders:
-        for file in _iter_files(item):
-            worker(file, style)
+    for file in get_workload(files_or_folders):
+        worker(file, style)
 
     if file is None:
         logger.info('No files found! Exiting.')
+
+
+def get_workload(files_or_folders):
+    for item in files_or_folders:  # TODO parallel!
+        for file in _iter_files(item):
+            yield file
 
 
 def _iter_files(file_or_folder):
@@ -71,7 +69,3 @@ def _iter_files(file_or_folder):
 def worker(file, style):
     logger.info('Tidying import statements in {}', repr(str(file)))
     refactor(file, style)
-
-
-if __name__ == '__main__':
-    main()
