@@ -182,9 +182,9 @@ def caller(obj, args=(), kws=None, show_defaults=True,
 
     # special handling for partial objects!
     if partial := isinstance(obj, ftl.partial):
-        obj = obj.func
         args = (*obj.args, *args)
         kws = {**obj.keywords, **kws}
+        obj = obj.func
 
     name = get_name(obj, name_depth, show_binding_class)
     if partial:
