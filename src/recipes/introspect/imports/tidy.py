@@ -9,12 +9,9 @@ from pathlib import Path
 import click
 from loguru import logger
 
-# local
-from recipes.introspect.imports import STYLES, refactor
-
-
-# ---------------------------------------------------------------------------- #
-logger.configure(activation=[('recipes', 'INFO')])
+# relative
+from ...io.gitignore import GitIgnore
+from . import STYLES, refactor
 
 
 # ---------------------------------------------------------------------------- #
@@ -24,7 +21,10 @@ logger.configure(activation=[('recipes', 'INFO')])
 @click.option('-s', '--style',
               default='aesthetic', show_default=True,
               type=click.Choice(STYLES))
-def main(files_or_folders, style,):
+@click.option('-r', '--recurse',
+              default=True, show_default=True,
+              type=click.BOOL)
+def main(files_or_folders, style, recurse):
     #   filter_unused=None,
     #   split=0,
     #   merge=1,
@@ -37,33 +37,50 @@ def main(files_or_folders, style,):
     number of input parameters: the file(s) to be refactored, and/or folder(s) 
     (packages/modules) to be traversed and refactored.
     """
+
+    # turn on logging
+    logger.configure(activation=[('recipes', 'INFO')])
+
     file = None
-    for file in get_workload(files_or_folders):
+    for file in get_workload(files_or_folders, recurse):
         worker(file, style)
 
     if file is None:
         logger.info('No files found! Exiting.')
 
 
-def get_workload(files_or_folders):
+def get_workload(files_or_folders, recurse):
     for item in files_or_folders:  # TODO parallel!
-        for file in _iter_files(item):
+        for file in _iter_files(item, recurse):
             yield file
 
 
-def _iter_files(file_or_folder):
+def _iter_files(file_or_folder, recurse):
 
     path = Path(file_or_folder).resolve()
 
-    if path.exists():
-        if path.is_dir():
-            yield from path.rglob('*.py')
-        elif path.suffix == '.py':
-            yield path
-        else:
-            logger.warning("Not a valid python file: '{}'.", path)
-    else:
+    if not path.exists():
         logger.warning("File or directory does not exist: '{}'.", path)
+        return
+
+    if path.is_dir():
+        if (gitignore := path / '.gitignore').exists():
+            files = GitIgnore(gitignore).iter(depth=(1, any)[recurse])
+            files = filter(_py_file, files)
+        else:
+            files = (path.glob, path.rglob)[recurse]('*.py')
+
+        yield from files
+
+    elif _py_file(path):
+        yield path
+
+    else:
+        logger.warning("Not a valid python file: '{}'.", path)
+
+
+def _py_file(path):
+    return path.suffix == '.py'
 
 
 def worker(file, style):
