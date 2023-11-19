@@ -250,9 +250,30 @@ def invert(d, conversion=None):
     return inverted
 
 
-def groupby(items, func):
-    """Convert itt.groupby to a dict"""
-    return {group: list(itr) for group, itr in itt.groupby(items, func)}
+def groupby(func, items):
+    """
+    Group objects by function return value.
+
+    Parameters
+    ----------
+    func : callable
+        The group id function.
+    items : Iterable
+        Objects to be grouped.
+
+    Examples
+    --------
+    >>> groupby(str.isupper, 'abcDEF')
+    {False: ['a', 'b', 'c'], True: ['D', 'E', 'F']}
+
+    Returns
+    -------
+    dict[Any, list]
+        (group_id, items)
+    """
+    items = sorted(items, key=func)
+    return {group: list(itr) 
+            for group, itr in itt.groupby(items, func)}
 
 
 def merge(*mappings, **kws):
