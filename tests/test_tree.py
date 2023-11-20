@@ -1,9 +1,6 @@
 
-# third-party
-import pytest
-
-# local
 from recipes.tree import DynamicIndentRender, Node
+
 
 case1 = ['Domitian-Bold.otf',
          'Domitian-BoldItalic.otf',

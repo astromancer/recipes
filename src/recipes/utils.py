@@ -5,10 +5,10 @@ Some miscellaneous utility functions.
 # std
 import typing
 import numbers
-import builtins
 from collections import abc
 
 # relative
+import builtins
 from .functionals import negate
 
 
@@ -88,7 +88,7 @@ def _resolve_indices(indices, n, reverse=False):
     from recipes.dicts import groupby
 
     # ensure list
-    indices = groupby(ensure_list(indices), type)
+    indices = groupby(type, ensure_list(indices))
     integers = _integers_from_slices(indices.pop(slice, ()), n)
     for kls, idx in indices.items():
         if not issubclass(kls, numbers.Integral):

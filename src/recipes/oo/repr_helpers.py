@@ -1,6 +1,5 @@
 
 from .. import dicts as dic
-from ..iter import superclasses
 
 
 DEFAULT_STYLE = dict(lhs=str,

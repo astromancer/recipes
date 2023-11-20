@@ -6,6 +6,7 @@ Pretty printing callable objects and call signatures.
 import inspect
 import textwrap as txw
 import functools as ftl
+import contextlib as ctx
 
 # relative
 from ..introspect.utils import get_module_name
@@ -182,9 +183,9 @@ def caller(obj, args=(), kws=None, show_defaults=True,
 
     # special handling for partial objects!
     if partial := isinstance(obj, ftl.partial):
-        obj = obj.func
         args = (*obj.args, *args)
         kws = {**obj.keywords, **kws}
+        obj = obj.func
 
     name = get_name(obj, name_depth, show_binding_class)
     if partial:
@@ -227,7 +228,6 @@ def get_name(obj, name_depth, show_binding_class=True):
     # full name to specified depth
     return '.'.join(filter(None, name_parts))
 
-import contextlib as ctx
 def signature(sig, args=(), kws=None, wrap=80, indent=1,
               params_per_line=None, hang=None, show_defaults=True,
               value_formatter=repr, pep570_marks=True):

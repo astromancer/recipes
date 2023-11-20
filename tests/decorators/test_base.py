@@ -5,7 +5,7 @@ import pickle
 import pytest
 
 # local
-from recipes.decorators import decorator, Wrapper
+from recipes.decorators import decorator
 
 
 # ---------------------------------------------------------------------------- #

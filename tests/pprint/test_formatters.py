@@ -2,18 +2,13 @@
 
 # std
 import itertools as itt
-import random
 
 # third-party
-import pytest
-import numpy as np
+import numpy
 
 # local
-from recipes.testing import Expected, mock
-from recipes.pprint.formatters import Decimal, Scientific  # , Percentage, Conditional
+from recipes.pprint.formatters import Decimal
 
-
-from recipes.pprint import formatters as fmt
 
 if __name__ == '__main__':
 

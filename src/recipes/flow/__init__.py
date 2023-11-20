@@ -12,8 +12,8 @@ from textwrap import dedent
 from loguru import logger
 
 # relative
-from ..decorators.base import Decorator
 from ..functionals import noop, raises
+from ..decorators.base import Decorator
 
 
 # ---------------------------------------------------------------------------- #
@@ -87,7 +87,7 @@ class catch(Decorator):
     _default_message_template = \
         'Caught the following {err.__class__.__name__}: {err}'
 
-    def __init__(self, *, exceptions=Exception, action='ignore',
+    def __init__(self, *, exceptions=Exception, action='warn',
                  alternate=None, message=None, raise_from=True, warn=None,
                  **kws):
 
@@ -141,6 +141,21 @@ class catch(Decorator):
         raise self.alternate from err
 
 
+class catch_warnings(catch):
+
+    def __init__(self, *, exceptions=Warning, action='error',
+                 message='', raise_from=True, **kws):
+        super().__init__(exceptions=exceptions, action=action,
+                         message=message, raise_from=raise_from, **kws)
+
+    def __wrapper__(self, func, *args, **kws):
+        with warnings.catch_warnings():
+            warnings.filterwarnings(self.emit.action, self.message, self.exceptions)
+            return super().__wrapper__(func, *args, **kws)
+
+
+# ---------------------------------------------------------------------------- #
+
 class fallback(Decorator):
     """Return the fallback value in case of exception."""
 
@@ -175,7 +190,7 @@ class post:
             self.post(*self.post_args, **self.post_kws)
         except Exception as err:
             from recipes import pprint as pp
-            
+
             warnings.warn(dedent(f'''
                 Exception during post function execution:
                 {pp.caller(self.post, self.post_args, self.post_kws)}
@@ -198,7 +213,7 @@ class pre:
             self.pre(*self.pre_args, **self.pre_kws)
         except Exception as err:
             from recipes import pprint as pp
-            
+
             warnings.warn(dedent(f'''
                 Exception during pre function execution:
                 {pp.caller(self.pre, self.pre_args, self.pre_kws)}

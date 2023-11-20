@@ -15,8 +15,9 @@ import docsplice as doc
 
 # relative
 from . import op, iter as _iter
-from .functionals import always, echo0 as _echo
 from .utils import _delete
+from .functionals import always, echo0 as _echo
+
 
 # function that always returns 0
 _zero = always(0)
@@ -129,7 +130,7 @@ def _make_cosort_key(master_key, funcs):
     return sort_key
 
 
-@doc.splice(op.index, omit='Parameters[default]')
+# @ doc.splice(op.index, omit='Parameters[default]')
 def where(l, *args, start=0):
     """
     A multi-indexer for lists. Return index positions of all occurances of

@@ -3,10 +3,9 @@ import traceback
 import multiprocessing as mp
 
 # relative
+from ..decorators import Decorator
 from ..logging import LoggingMixin
 from ..pprint import caller, describe
-
-from recipes.decorators import Decorator
 
 
 class Delayed(Decorator):
@@ -184,7 +183,7 @@ class TriggerBase(ConsumerBase):
                 'no output queue to add returned items to')  # %post
             return
 
-        #self.logger.debug('{} has size {:i}',(self.outq, self.outq.qsize()))
+        #self.logger.debug('{} has size {:d}',(self.outq, self.outq.qsize()))
         self.logger.debug('Attempting to trigger {:s}', str(self._target))
         # avoid error for empty trigger generators (i does not get defined)
         i = 0
@@ -193,7 +192,7 @@ class TriggerBase(ConsumerBase):
             self.outq.put(args)
 
         self.logger.debug('%i items added to queue', i)
-        self.logger.debug('{} has size {:i}', self.outq, self.outq.qsize())
+        self.logger.debug('{} has size {:d}', self.outq, self.outq.qsize())
 
     def triggers(self, args):
         yield from ()
@@ -352,12 +351,12 @@ class AutoTriggerConsumer(mp.Process, LoggingMixin):
                 'no output queue to add returned {:s} to', args)
             return
 
-        self.logger.debug('Triggered {:i} tasks', len(tasks))
+        self.logger.debug('Triggered {:d} tasks', len(tasks))
         q = self.outq
         for task in tasks:
             q.put(task)
 
-        self.logger.debug('{} has size {:i}', (q, q.qsize()))
+        self.logger.debug('{} has size {:d}', (q, q.qsize()))
         # NOTE: since task are homogeneous, we can estimate size of queue in memory
 
 
@@ -394,12 +393,12 @@ class AutoTriggerConsumer2(
             self.logger.warning('no output queue to add returned {:s} to',
                                 returned)
         else:
-            self.logger.debug('Triggered {:i} tasks', len(data))
+            self.logger.debug('Triggered {:d} tasks', len(data))
             q = self.allqs[qi+1]
             for datum in data:
                 q.put(datum)
 
-            self.logger.debug('{} has size {:i}', q, q.qsize())
+            self.logger.debug('{} has size {:d}', q, q.qsize())
 
     # def add_trigger(self, func, args=()):
         ##"""Add task that will be triggered upon return of the call - somehow"""

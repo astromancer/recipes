@@ -1,5 +1,8 @@
-from motley import profiler
+# std
 import time
+
+# local
+from motley import profiler
 
 profiler = profile()
 

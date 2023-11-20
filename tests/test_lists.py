@@ -2,8 +2,8 @@
 # pylint: disable=missing-function-docstring
 
 
-from recipes.lists import split, split_like
 from recipes.testing import Expected
+from recipes.lists import split, split_like
 
 
 # def lists(iters):

@@ -23,9 +23,9 @@ import docsplice as doc
 
 # relative
 from .. import op
-from ..string import unicode as uni
 from ..functionals import echo0
 from ..array.utils import vectorize
+from ..string import unicode as uni
 from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 
@@ -379,7 +379,7 @@ def ymdhms(t, base_unit=None, spec='s9?', sep=None, ascii=False, **kws):
 #             sep = getattr(self, part)
 
 
-@doc.splice(to_sexagesimal)
+# @ doc.splice(to_sexagesimal)
 def resolve_precision(precision):
     """
     Resolve the unit and number of significant digits for a precision specifier
@@ -412,7 +412,7 @@ def resolve_precision(precision):
     raise ValueError(f'Invalid precision specifier {precision!r}')
 
 
-@doc.splice(to_sexagesimal)
+# @ doc.splice(to_sexagesimal)
 def hms(t, precision=None, sep='hms', base_unit='h', short=False, unicode=False):
     """
     Create sexagesimal time representation string from input float seconds.

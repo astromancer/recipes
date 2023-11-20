@@ -6,10 +6,10 @@ A cookbook for the python developer connoisseur 🧑🏽‍🍳🍷🐍.
 from loguru import logger
 
 # relative
+from . import functionals, string
 from .utils import *
 from .lists import cosort
-from . import string
-from . import functionals
+
 
 # aliases
 strings = string

@@ -3,14 +3,15 @@ import ast
 import textwrap as txw
 from pathlib import Path
 
+# third-party
+from loguru import logger
+
 # local
 from recipes.testing import ECHO, Expected, Warns, expected, mock
 from recipes.introspect.imports import (
     ImportCapture, ImportFilter, ImportMerger, ImportRelativizer,
     ImportSplitter, NodeTypeFilter, Parentage, refactor, rewrite)
 
-
-from loguru import logger
 
 logger.enable('recipes.introspect')
 logger.enable('recipes.introspect.imports')

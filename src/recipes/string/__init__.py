@@ -1,6 +1,11 @@
 """
-Tools for woking on strings.
+Utilites for woking with strings.
 """
 
-from .string import *
+from .utils import *
+from .casing import *
+from .affixes import *
+from .justify import *
+from .plurals import *
+from .percentage import Percentage
 # from .brackets import BracketParser # circular import!

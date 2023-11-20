@@ -2,4 +2,3 @@
 # the documentation) but not necessarily required for _using_ it.
 pytest
 pytest-cases
-numpydoc

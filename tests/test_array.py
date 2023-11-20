@@ -1,7 +1,9 @@
-# from decor.profiler import profile
-from recipes.array import neighbours, fold
 
+# third-party
 import numpy as np
+
+# local
+from recipes.array import fold
 
 
 # TODO: test for a bunch of different size / window / overlap combinations
@@ -18,7 +20,6 @@ def test_fold():
 
     assert fold.fold(a, 2, 1).shape == (n, 2)
     assert fold.fold(a, 2, 1, pad=False).shape == (n, 2)
-
 
 
 # a = np.arange(12).reshape(4, 3)

@@ -33,12 +33,6 @@ NULL = object()
 #             [child[key] for child in self if isinstance(child, vdict)]
 #         )
 
-def _get_val(item):
-    return item._val if isinstance(item, LeafNode) else item
-    # new = item._val if isinstance(item, LeafNode) else item
-    # print(type(item), '--->', type(new))
-    # return new
-
 
 def _get_filter_func(keys):
 
@@ -99,6 +93,16 @@ def _filter_keys(keys, test):
         new_keys[i] = tuple(new)
 
     return new_keys
+
+
+def _get_val(item):
+    return item._val if isinstance(item, LeafNode) else item
+
+
+def _unwrap(node, unwrap=True):
+    if unwrap:
+        return _get_val(node)
+    return node
 
 
 class _NodeIndexing:
@@ -190,11 +194,18 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
     def items(self):
         yield from zip(self.keys(), self.values())
 
-    def pop(self, key, *default):
-        return _get_val(super().pop(key, *default))
+    def pop(self, key, *default, unwrap=True):
+        return _unwrap(super().pop(key, *default), unwrap)
 
-    def get(self, key, *default):
-        return _get_val(super().get(key, *default))
+    def get(self, key, *default, unwrap=True):
+        return _unwrap(super().get(key, *default), unwrap)
+
+    def update(self, mapping=(), **kws):
+        
+        if isinstance(mapping, DictNode):
+            mapping = mapping.flatten() # so we don't overwrite nested dicts
+
+        super().update(mapping, **kws)
 
     # def merge(self, other):
     #     self.update(other)
@@ -213,10 +224,9 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
         if isinstance(levels, numbers.Integral):
             levels = [levels]
 
-        keys = []
-        return dict(self._leaves(levels, 0, keys))
+        return dict(self._leaves(levels, 0))
 
-    def _leaves(self, levels, _level=0, _keys=None):
+    def _leaves(self, levels, _level=0, _keys=()):
         for key, child in self.items():
             if isinstance(child, type(self)):
                 yield from child._leaves(levels, _level + 1, (*_keys, key))
@@ -224,15 +234,25 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
                 yield (*_keys, key), child
 
     def flatten(self, levels=all):
-        return self.leaves(levels)
 
-    def filtered(self, keys=NULL, values=NULL, levels=all, *args, **kws):
+        leaves = self.leaves(levels)
+
+        if levels != 0:
+            return leaves
+
+        # flatten 1-tuples
+        return dict(zip(next(zip(*leaves.keys())), leaves.values()))
+
+    def filter(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()
 
         new.update(self._filter(_get_filter_func(keys),
                                 _get_filter_func(values),
                                 levels))
         return new
+
+    # alias
+    filtered = filter
 
     def select(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()

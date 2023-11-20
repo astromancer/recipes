@@ -7,7 +7,7 @@ import functools as ftl
 from collections import abc
 
 # relative
-from ..string import strings
+from ..utils import strings
 
 
 # TODO: class for these : unicode.subscript('i=1') # 'ᵢ₌₀'
@@ -195,5 +195,3 @@ subcript = subscripts = ScriptTranslate(nrs.sub, SUB_LATIN_ALPHA, SUB_SYMBOLS)
 def scriptcase(string, which):
     dictionaries = {'sub': subscripts, 'super': superscripts}
     return dictionaries[which](string)
-    
-    

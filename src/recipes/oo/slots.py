@@ -3,9 +3,10 @@
 import more_itertools as mit
 
 # relative
+from ..dicts import remove
 from ..iter import superclasses
 from .repr_helpers import ReprHelper
-from recipes.dicts import remove
+
 
 # ---------------------------------------------------------------------------- #
 

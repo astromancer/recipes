@@ -26,9 +26,9 @@ import docsplice as doc
 
 # relative
 from ..string import sub
+from ..functionals import echo0
 from ..shell.bash import brace_expand_iter
 from ..string.brackets import BracketParser
-from ..functionals import echo0
 
 
 # ---------------------------------------------------------------------------- #
@@ -319,7 +319,7 @@ def iter_lines(filelike, *section, mode='r', strip=None):
             yield s.strip(strip)
 
 
-@doc.splice(iter_lines)
+# @ doc.splice(iter_lines)
 def read_lines(filename, *section, mode='r', strip=None, filtered=None,
                log=False):
     """
@@ -437,6 +437,8 @@ def write_lines(stream, lines, eol='\n', eof=''):
         stream.write(eof)
 
 
+# ---------------------------------------------------------------------------- #
+
 @ctx.contextmanager
 def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
     """
@@ -512,10 +514,10 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
             raise
 
 
-@doc.splice(backed_up, 'summary',
-            omit='Parameters[backupfile]',
-            replace={'operation': 'write',
-                     'read / ': ''})  # FIXME: replace not working here
+# @ doc.splice(backed_up, 'summary',
+#             omit='Parameters[backupfile]',
+#             replace={'operation': 'write',
+#                      'read / ': ''})  # FIXME: replace not working here
 def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
     """
     {Parameters}
@@ -547,8 +549,8 @@ def write_replace(filename, replacements):
         fp.write(sub(text, replacements))
         fp.truncate()
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 @ctx.contextmanager
 def working_dir(path):

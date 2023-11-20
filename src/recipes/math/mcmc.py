@@ -3,9 +3,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# local
-from recipes import pprint
-
+# relative
+from .. import pprint
 
 
 def plot_chains_ts(samples, names=None, truths=None, truth_color='k',

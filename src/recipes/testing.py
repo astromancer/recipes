@@ -363,7 +363,6 @@ class Expected(LoggingMixin):
         # containing lists of parameter values for each call.
 
         values = defaultdict(list)
-        items = list(items)
         for spec in items:
             # call signature emulation via mock handled here
             spec, expected = spec

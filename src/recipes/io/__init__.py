@@ -1,3 +1,3 @@
 
-from .utils import *
 from .mmap import *
+from .utils import *

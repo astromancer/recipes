@@ -250,9 +250,30 @@ def invert(d, conversion=None):
     return inverted
 
 
-def groupby(items, func):
-    """Convert itt.groupby to a dict"""
-    return {group: list(itr) for group, itr in itt.groupby(items, func)}
+def groupby(func, items):
+    """
+    Group objects by function return value.
+
+    Parameters
+    ----------
+    func : callable
+        The group id function.
+    items : Iterable
+        Objects to be grouped.
+
+    Examples
+    --------
+    >>> groupby(str.isupper, 'abcDEF')
+    {False: ['a', 'b', 'c'], True: ['D', 'E', 'F']}
+
+    Returns
+    -------
+    dict[Any, list]
+        (group_id, items)
+    """
+    items = sorted(items, key=func)
+    return {group: list(itr) 
+            for group, itr in itt.groupby(items, func)}
 
 
 def merge(*mappings, **kws):
@@ -757,10 +778,12 @@ class ManyToOneMap(TransDict):
         for func in self._mappings:
             # yield catch(func, message=message)(key)
             try:
-                yield func(key)
+                translated = func(key)
+                if translated is not None:
+                    yield translated
             except Exception as err:
                 self.emit(
-                    f'{type(self).__name__}: Equivalence mapping function '
+                    f'{type(self).__name__}: Keyword translation function '
                     f'failed with:\n{err!s}.'
                 )
 

@@ -15,7 +15,7 @@ import numpy as np
 from loguru import logger
 
 # relative
-from .. import api, dicts
+from .. import dicts
 from ..string import unicode
 from ..array import vectorize
 from ..oo import classproperty
