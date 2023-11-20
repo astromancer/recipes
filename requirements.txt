@@ -14,5 +14,3 @@ more_itertools
 six
 anytree
 stdlib_list
-
-docsplice

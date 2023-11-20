@@ -57,7 +57,7 @@ def any(itr, test=bool):
     return builtins.any(map(test, itr))
 
 
-@doc.splice(any, replace={'any': 'all', 'False': 'True'})
+# @ doc.splice(any, replace={'any': 'all', 'False': 'True'})
 def all(itr, test=bool):
     return builtins.all(map(test, itr))
 

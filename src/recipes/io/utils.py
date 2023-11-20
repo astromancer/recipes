@@ -319,7 +319,7 @@ def iter_lines(filelike, *section, mode='r', strip=None):
             yield s.strip(strip)
 
 
-@doc.splice(iter_lines)
+# @ doc.splice(iter_lines)
 def read_lines(filename, *section, mode='r', strip=None, filtered=None,
                log=False):
     """
@@ -514,10 +514,10 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
             raise
 
 
-@doc.splice(backed_up, 'summary',
-            omit='Parameters[backupfile]',
-            replace={'operation': 'write',
-                     'read / ': ''})  # FIXME: replace not working here
+# @ doc.splice(backed_up, 'summary',
+#             omit='Parameters[backupfile]',
+#             replace={'operation': 'write',
+#                      'read / ': ''})  # FIXME: replace not working here
 def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
     """
     {Parameters}

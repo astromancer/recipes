@@ -291,7 +291,7 @@ def contract_range(seq):
     return f'{{{first:>0{len(last)}}{sep}{last}}}'  # .join(brace)
 
 
-@doc.splice(contract, 'examples', 'Parameters[items]')
+# @ doc.splice(contract, 'examples', 'Parameters[items]')
 def brace_contract(items, depth=-1):
     """
     Brace contract a sequence of strings. Return a brace expression à la bash.
