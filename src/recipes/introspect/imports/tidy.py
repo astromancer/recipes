@@ -3,6 +3,8 @@ Script for tidying import statements in python source files.
 """
 
 # std
+import itertools as itt
+import contextlib as ctx
 from pathlib import Path
 
 # third-party
@@ -18,13 +20,11 @@ from . import STYLES, refactor
 
 @click.command()
 @click.argument('files_or_folders', nargs=-1)
-@click.option('-s', '--style',
-              default='aesthetic', show_default=True,
-              type=click.Choice(STYLES))
-@click.option('-r', '--recurse',
-              default=True, show_default=True,
-              type=click.BOOL)
-def main(files_or_folders, style, recurse):
+@click.option('-s', '--style', default='aesthetic', show_default=True, type=click.Choice(STYLES))
+@click.option('-r', '--recurse', default=True, show_default=True, type=click.BOOL)
+@click.option('-j', '--njobs', default=1, show_default=True, type=click.INT)
+@click.option('-v', '--verbose', count=True)
+def main(files_or_folders, style, recurse, njobs, verbose):
     #   filter_unused=None,
     #   split=0,
     #   merge=1,
@@ -41,18 +41,46 @@ def main(files_or_folders, style, recurse):
     # turn on logging
     logger.configure(activation=[('recipes', 'INFO')])
 
-    file = None
-    for file in get_workload(files_or_folders, recurse):
-        worker(file, style)
-
-    if file is None:
+    workload = get_workload(files_or_folders, recurse)
+    ok, workload = check_workload(workload)
+    if not ok:
         logger.info('No files found! Exiting.')
+        return 0
+
+    #
+    _worker, context = setup_compute(worker, njobs, verbose=verbose * 20)
+    with context as compute:
+        compute(_worker(file, style) for file in workload)
+
+    return 0
+
+
+def setup_compute(worker, njobs, backend='multiprocessing', **kws):
+
+    # NOTE: object serialization is about x100-150 times faster with
+    # "multiprocessing" backend. ~0.1s vs 10s for "loky".
+    if njobs == 1:
+        return worker, ctx.nullcontext(list)
+
+    context = ContextStack()
+    worker = delayed(worker)
+    executor = Parallel(njobs, backend, **kws)
+    context.add(executor)
+    return worker, context
 
 
 def get_workload(files_or_folders, recurse):
-    for item in files_or_folders:  # TODO parallel!
+    for item in files_or_folders:
         for file in _iter_files(item, recurse):
             yield file
+
+
+def check_workload(itr):
+    first = next(itr, None)
+    if first is None:
+        return False, ()
+
+    return True, itt.chain([first], itr)
 
 
 def _iter_files(file_or_folder, recurse):
