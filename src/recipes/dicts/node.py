@@ -200,6 +200,13 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
     def get(self, key, *default, unwrap=True):
         return _unwrap(super().get(key, *default), unwrap)
 
+    def update(self, mapping=(), **kws):
+        
+        if isinstance(mapping, DictNode):
+            mapping = mapping.flatten() # so we don't overwrite nested dicts
+
+        super().update(mapping, **kws)
+
     # def merge(self, other):
     #     self.update(other)
     # class _NodeMixin:
