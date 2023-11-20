@@ -3,7 +3,7 @@
 import more_itertools as mit
 
 # relative
-from ..dicts import remove
+from .. import dicts
 from ..iter import superclasses
 from .repr_helpers import ReprHelper
 
@@ -12,7 +12,7 @@ from .repr_helpers import ReprHelper
 
 
 def _sanitize_locals(kws, *ignore):
-    return remove(kws, {'self', 'kws', '__class__', *ignore})
+    return dicts.remove(kws, {'self', 'kws', '__class__', *ignore})
 
 
 def _get_slots(cls):
@@ -22,6 +22,8 @@ def _get_slots(cls):
     for base in (*superclasses(cls), cls):
         yield from getattr(base, '__slots__', ())
 
+
+# ---------------------------------------------------------------------------- #
 
 class SlotRepr(ReprHelper):
     """
