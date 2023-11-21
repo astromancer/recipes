@@ -3,9 +3,6 @@
 # std
 import itertools as itt
 
-# third-party
-import numpy
-
 # local
 from recipes.pprint.formatters import Decimal
 

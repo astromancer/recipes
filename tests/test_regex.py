@@ -4,6 +4,7 @@ import pytest
 # local
 from recipes.regex import RGX_VERBOSE_FLAG, terse
 
+
 @pytest.mark.parametrize(
   'pattern, cleaned',
   [('(?aiLmsux)', '(?aiLmsu)'),
