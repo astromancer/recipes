@@ -306,7 +306,8 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
         return new
 
     def split(self, keys):
-        return tuple(self.transform(_split_trans, keys).values())
+        new = self.transform(_split_trans, keys)
+        return (new[False], new[True])
 
     def sorted(self, keys):
 
