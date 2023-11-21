@@ -4,6 +4,7 @@ import time
 # local
 from motley import profiler
 
+
 profiler = profile()
 
 @profiler.histogram

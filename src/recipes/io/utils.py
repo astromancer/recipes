@@ -21,9 +21,6 @@ from warnings import warn
 import more_itertools as mit
 from loguru import logger
 
-# local
-import docsplice as doc
-
 # relative
 from ..string import sub
 from ..functionals import echo0

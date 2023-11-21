@@ -16,9 +16,6 @@ import operator as _op
 import functools as ftl
 from collections import abc
 
-# local
-import docsplice as doc
-
 # relative
 import builtins
 from .functionals import echo0, raises

@@ -18,9 +18,6 @@ from collections import namedtuple
 # third-party
 import numpy as np
 
-# local
-import docsplice as doc
-
 # relative
 from .. import op
 from ..functionals import echo0

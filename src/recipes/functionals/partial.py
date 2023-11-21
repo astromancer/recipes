@@ -110,13 +110,13 @@ class PartialAt(Decorator):
 
 class Partial(Decorator):
     
-    task = PartialAt
+    Task = PartialAt
 
     def __call__(self, func, emulate=False, kwsyntax=False):
         return super().__call__(func, emulate, kwsyntax)
     
     def __wrapper__(self, func, *args, **kws):
-        return self.task(args, kws)(func)
+        return self.Task(args, kws)(func)
 
 
 # aliases

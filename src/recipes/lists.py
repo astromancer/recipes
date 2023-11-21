@@ -10,11 +10,8 @@ from collections import defaultdict
 # third-party
 import more_itertools as mit
 
-# local
-import docsplice as doc
-
 # relative
-from . import op, iter as _iter
+from . import iter as _iter
 from .utils import _delete
 from .functionals import always, echo0 as _echo
 

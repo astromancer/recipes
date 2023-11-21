@@ -7,9 +7,6 @@ Emulate bash brace expansion
 import re
 import math
 
-# local
-import docsplice as doc
-
 # relative
 from .. import op
 from ..tree import Node
