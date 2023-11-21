@@ -111,7 +111,7 @@ def find_config(filename, format=None, raises=False):
 
     pkg = get_package_name(filename)
     if pkg is None:
-        logger.warning('Could not find package name for {!s}', filename)
+        logger.warning('Could not find package name for {!s}.', filename)
 
     path = Path(filename)
     parts = path.parts

@@ -57,7 +57,7 @@ class JSONCacheEncoder(json.JSONEncoder):
 
 
 def cache_decoder(mapping):
-    # logger.debug('cache_decoder: {:s}', mapping)
+    # logger.debug('cache_decoder: {:s}.', mapping)
     if not mapping:
         return mapping
 
@@ -271,7 +271,7 @@ class CacheManager(LoggingMixin):
             serialize(filename, self, fmt,
                       **{**kws, **SAVE_KWS.get(fmt, {})})
         #
-        self.logger.debug('Saved: {!r}', filename)
+        self.logger.debug('Saved: {!r}.', filename)
 
         # except PicklingError as err:
         #     warnings.warn(

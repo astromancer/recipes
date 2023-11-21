@@ -66,7 +66,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
 
     # create folder if needed
     if not folder.exists():
-        logger.info('Creating folder: {!r:}', str(folder))
+        logger.info('Creating folder: {!r:}.', str(folder))
         folder.mkdir(parents=True)
 
     if shape:

@@ -97,7 +97,7 @@ class TagManagerMeta(type):
         # #
         # for which in ('tag', ):#'collection'):
 
-        logger.debug('New class: {!r}', name)
+        logger.debug('New class: {!r}.', name)
 
         if (attr := kws.pop('tag', None)):
             namespace['tag'] = MethodTaggerFactory(attr)
@@ -125,18 +125,18 @@ class TagManagerMeta(type):
 
         # set the collection attribute as a class variable
         namespace[collection] = collected = {}
-        logger.debug('collection attribute is: {!r}', collection)
+        logger.debug('collection attribute is: {!r}.', collection)
 
         # emulate inheritance for the tagged methods
         for base in bases:
-            logger.debug('Updated collection for {!r} from base {}', name, base)
+            logger.debug('Updated collection for {!r} from base {}.', name, base)
             collected.update(getattr(base, collection, {}))
 
         # collect
         collected.update({func.__name__: getattr(func, tag)
                           for _, func in namespace.items()
                           if hasattr(func, tag)})
-        logger.debug('Collected the following tagged methods: {}', collected)
+        logger.debug('Collected the following tagged methods: {}.', collected)
 
         # Create `TagManager` class
         return super().__new__(cls, name, bases, namespace)

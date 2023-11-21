@@ -99,15 +99,15 @@ class _TestCaseCacheProperty:
 
     @CachedProperty
     def count(self):
-        logger.debug('Incrementing count')
+        logger.debug('Incrementing count.')
         self._count += 1
-        logger.debug('_count = {}',  self._count)
+        logger.debug('_count = {}.',  self._count)
         return self._count
 
     @count.deleter
     def count(self):
         self._count = 0
-        logger.debug('Count reset to {}',  self._count)
+        logger.debug('Count reset to {}.',  self._count)
 
     @CachedProperty(read_only=True)
     def read_only(self):

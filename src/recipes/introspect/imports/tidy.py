@@ -112,5 +112,5 @@ def _py_file(path):
 
 
 def worker(file, style):
-    logger.info('Tidying import statements in {}', repr(str(file)))
+    logger.info('Tidying import statements in {}.', repr(str(file)))
     refactor(file, style)

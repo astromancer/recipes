@@ -81,16 +81,16 @@ class ProcessPool(LoggingMixin):
             worker = self._pool[i]
             if worker.exitcode is not None:
                 # worker exited
-                self.logger.info('cleaning up worker %d' % i)
+                self.logger.info('cleaning up worker %d.' % i)
                 worker.join()
-                self.logger.info('joined {:s}', worker)
+                self.logger.info('joined {:s}.', worker)
                 cleaned = True
                 del self._pool[i]
 
         #alive = sum([p.is_alive() for p in self._pool])
         #worked = [p._completed.value() for p in self._pool]
         #names = [p.name for p in self._pool]
-        # self.logger.info('Done cleaning. workers: {:d}; active: {:d};\n{:s}\n{:s}'
+        # self.logger.info('Done cleaning. workers: {:d}; active: {:d};\n{:s}\n{:s}.'
                 # '' % (len(self._pool), alive, str(names), str(worked)))
         return cleaned
 
@@ -104,10 +104,10 @@ class ProcessPool(LoggingMixin):
             #w.name = w.name.replace('Process', 'PoolWorker')
             w.daemon = False
             w.start()
-            self.logger.info('Added worker')
+            self.logger.info('Added worker.')
 
         #alive = sum([p.is_alive() for p in self._pool])
-        self.logger.info('Repopulated: workers: {:d};', len(self._pool))
+        self.logger.info('Repopulated: workers: {:d};.', len(self._pool))
 
     @staticmethod
     def _handle_workers(pool):
@@ -119,11 +119,11 @@ class ProcessPool(LoggingMixin):
             i += 1
             if not (i % 5):
                 worked = [p._completed.value() for p in pool._pool]
-                pool.logger.debug('Tasks completed: {:s}' % str(worked))
+                pool.logger.debug('Tasks completed: {:s}.' % str(worked))
             pool._maintain_pool()
             time.sleep(0.1)
 
-        pool.logger.debug('worker handler exiting')
+        pool.logger.debug('worker handler exiting.')
 
     # @staticmethod
     # def _monitor_workers(pool):
@@ -131,38 +131,38 @@ class ProcessPool(LoggingMixin):
 
         # while pool.maintain.is_set():#thread._state == RUN:
         ##alive = sum([p.is_alive() for p in pool._pool])
-        # pool.logger.info('# workers: {:d}' % (len(pool._pool),))
+        # pool.logger.info('# workers: {:d}.' % (len(pool._pool),))
         # time.sleep(0.1)
 
         ##alive = sum([p.is_alive() for p in pool._pool])
         #worked = [p._completed.value() for p in pool._pool]
         #names = [p.name for p in pool._pool]
-        # pool.logger.info('workers: {:d};\n{:s}\n{:s}'
+        # pool.logger.info('workers: {:d};\n{:s}\n{:s}.'
         # '' % (len(pool._pool), str(names), str(worked)))
 
-        #pool.logger.debug('_monitor_workers exiting')
+        #pool.logger.debug('_monitor_workers exiting.')
 
     #
     # def kill_switch(self, sentinel=None):
-        #self.logger.info('%s adding %i sentinels' %(self, len(self._pool)))
+        #self.logger.info('%s adding %i sentinels.' %(self, len(self._pool)))
         # for w in self._pool:
         # self.inq.put(sentinel)
 
     # def close(self):
-        #self.logger.info('closing pool')
+        #self.logger.info('closing pool.')
 
         # if self._state == RUN:
         #self._state = CLOSE
         #self._worker_handler._state = CLOSE
 
-        #self.logger.info('Adding {:d} sentinels' %len(self._pool))
+        #self.logger.info('Adding {:d} sentinels.' %len(self._pool))
         # for w in self._pool:
         # self.inq.put(None)
-        #self.logger.debug('sentinel added')
+        #self.logger.debug('sentinel added.')
 
     def join(self):
 
-        self.logger.debug('joining pool: {:s}', self)
+        self.logger.debug('joining pool: {:s}.', self)
         self.logger.info('# workers: {:d}; ', len(self._pool))
 
         # Add a poison pill for each process in the pool
@@ -183,7 +183,7 @@ class ProcessPool(LoggingMixin):
             if any(p.is_alive() for p in self._pool):
                 time.sleep(.1)  # Just to avoid hogging the CPU
             else:
-                self.logger.info('All processes successfully joined')
+                self.logger.info('All processes successfully joined.')
                 break
         else:
             self.logger.warning('TIMEOUT!')
@@ -192,7 +192,7 @@ class ProcessPool(LoggingMixin):
         # stop worker handler that has been trying to join the exited processes
         self._worker_handler._state = CLOSE
         self._worker_handler.join()
-        self.logger.debug('_worker_handler joined')
+        self.logger.debug('_worker_handler joined.')
 
         # We only enter this if we didn't 'break' above.
         if kill_switch:
@@ -204,7 +204,7 @@ class ProcessPool(LoggingMixin):
                 p.terminate()
                 p.join()
 
-            self.logger.info('Killing spree complete')
+            self.logger.info('Killing spree complete.')
 
         # the queue may not be empty because of passive workers
         # (or some other reason!!??)
@@ -217,9 +217,9 @@ class ProcessPool(LoggingMixin):
                 logging.debug('Queue is empty!')
                 break
         if len(leftover):
-            self.logger.warning('The following was left in the queue: %s'
+            self.logger.warning('The following was left in the queue: %s.'
                                 % str(leftover))
 
         # All the processes in the pool are now stopped
         self.inq.join()
-        self.logger.info('Queue joined: %s' % self)
+        self.logger.info('Queue joined: %s.' % self)

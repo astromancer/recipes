@@ -200,7 +200,7 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
                glob.iglob(path_or_pattern, recursive=recurse))
         for path in itr:
             # recurse
-            # logger.trace('Recursing into: {!s}', path)
+            # logger.trace('Recursing into: {!s}.', path)
             yield from iter_files(path, extensions, recurse)
         return
 

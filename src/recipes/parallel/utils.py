@@ -85,15 +85,15 @@ def queue_monitor(q, done, trigger, threshold, interval):
     """
     # logger = logging.getLogger(
     #     'phot.lll.monitor')  # TODO: queue_monitor.__module__ + queue_monitor.__name__?
-    logger.info('Starting: threshold={:d}', threshold)
+    logger.info('Starting: threshold={:d}.', threshold)
 
     while not done.is_set():
         qsz = q.qsize()
         if qsz < threshold:
-            logger.info('Triggering next load')
+            logger.info('Triggering next load.')
             trigger.set()
         else:
-            logger.debug('Waiting: qsize~{:d}, threshold={:d}', qsz, threshold)
+            logger.debug('Waiting: qsize~{:d}, threshold={:d}.', qsz, threshold)
             trigger.clear()
 
         logger.debug('Waiting for {:.2f} sec.', interval)
@@ -110,23 +110,23 @@ def queues_monitor(qs, done, trigger, thresholds, interval):
     Note: interval should be larger than data load time.
     """
 
-    logger.info('Starting: threshold={:s}', thresholds)
+    logger.info('Starting: threshold={:s}.', thresholds)
 
     while not done.is_set():
         qi = [(qn, q.qsize()) for qn, q in qs.items()]
-        logger.debug('Queue sizes: {:s}', qi)
+        logger.debug('Queue sizes: {:s}.', qi)
         qn, qsz = zip(*qi)
         l = np.less(qsz, thresholds)
         if can_load := l.all():
-            logger.info('Triggering next load')
+            logger.info('Triggering next load.')
             trigger.set()
         else:
             ssize = '; '.join(map(' ~ '.join, np.array(qi)[~l]))
-            logger.debug('Waiting on queues: {:s}, threshold={:s}',
+            logger.debug('Waiting on queues: {:s}, threshold={:s}.',
                          ssize, thresholds)
             trigger.clear()
 
-        logger.debug('Waiting for {:1.2f} sec', interval)
+        logger.debug('Waiting for {:1.2f} sec.', interval)
         time.sleep(interval)
 
 #
@@ -142,11 +142,11 @@ def queue_loader_task(trigger, queue, done, func, data, batch_size, args=()):
     batches = mit.ichunked(with_sentinel, batch_size)
     for i, chunk in enumerate(batches):
         # wait for trigger before loading the data
-        logger.info('Waiting on trigger {:d}', i)
+        logger.info('Waiting on trigger {:d}.', i)
         trigger.wait()
 
-        logger.info('Load {:d} commencing', i)
-        logger.info('Adding {:d} data to queue', len(chunk))
+        logger.info('Load {:d} commencing.', i)
+        logger.info('Adding {:d} data to queue.', len(chunk))
         for item in chunk:
             # stop loading upon sentinel value
             if item is not sentinel:
@@ -156,11 +156,11 @@ def queue_loader_task(trigger, queue, done, func, data, batch_size, args=()):
             else:
                 queue.put(item)  # SENTINAL
                 done.set()  # triggers sentinels for consumers
-                logger.info('All data loaded')
+                logger.info('All data loaded.')
                 break
 
         if not done.is_set():
-            logger.info('Load {:d} done', i)
+            logger.info('Load {:d} done.', i)
         trigger.clear()
 
 # TODO: update docstring
@@ -191,24 +191,24 @@ def queue_loader(queue, trigger, done, data, batch_size=1, wrapper=None,
     # load loop
     for i, batch in enumerate(mit.ichunked(data, batch_size)):
         # wait for trigger before loading the data
-        logger.info('Waiting on trigger {:d}', i)
+        logger.info('Waiting on trigger {:d}.', i)
         trigger.wait()
 
         logger.info('Loading batch {:d} of {} objects.', i, len(batch))
         for item in batch:
             queue.put(item)
 
-        logger.info('Load {:d} done', i)
+        logger.info('Load {:d} done.', i)
         trigger.clear()
 
     # done loading - add sentinel value
     logger.info('All data loaded.')
     if load_sentinel:
-        logger.debug('Adding sentinel {:s}', sentinel)
+        logger.debug('Adding sentinel {:s}.', sentinel)
         queue.put(sentinel)
     done.set()  # set done event
 
-    logger.debug('queue_loader returning')
+    logger.debug('queue_loader returning.')
 
 
 # ****************************************************************************************************
@@ -256,13 +256,13 @@ class QueueLoader(mp.Process, LoggingMixin):
     
     def _target(self, data, batch_size, sentinel, timeout):
 
-        self.logger.debug('Running: {:s}', self.name)
+        self.logger.debug('Running: {:s}.', self.name)
 
         with_sentinel = itt.chain(data, [sentinel])
         batches = mit.ichunked(with_sentinel, batch_size)
         for i, batch in enumerate(batches):
             # wait for trigger before loading the data
-            self.logger.debug('Waiting on trigger {:d}', i)
+            self.logger.debug('Waiting on trigger {:d}.', i)
             self._trigger.wait(timeout)
 
             logger.debug('Loading batch {:d} of {} objects.', i, len(batch))
@@ -349,7 +349,7 @@ class TaskExecutor(LoggingMixin):
         # if np.isfinite(max_fail):
         n = self.compute_size
 
-        self.logger.info('Exception threshold is {:.2%} ({:d}/{:d})' % (
+        self.logger.info('Exception threshold is {:.2%} ({:d}/{:d}).' % (
             (self.max_fail / n), self.max_fail, n))
 
         return self.catch
@@ -431,13 +431,13 @@ class TaskExecutor(LoggingMixin):
         self.logger.info('Processed {:d}/{:d} frames. {:d} successful; {:d} failed.',
                          n_done, self.compute_size, n_done - n_fail, n_fail)
         if len(failures):
-            self.logger.info('The following frames failed: {:s}', list(failures))
+            self.logger.info('The following frames failed: {:s}.', list(failures))
         elif n_done > 0:
             self.logger.info('No failures in main compute!')
 
         if self.time:
             #  print timing info
-            self.logger.info('Timing results for {:s}: {:.3f} ± {:.3f} s',
+            self.logger.info('Timing results for {:s}: {:.3f} ± {:.3f} s.',
                              self.name, self.timings.mean(), self.timings.std())
 
         return failures

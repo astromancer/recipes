@@ -459,8 +459,8 @@ class TreeBuilder:
         for child in self.children:
             changed |= child.collapse(max_depth)
 
-        # logger.debug('{}: depth={}, changed {}', self.name, self.depth, changed)
-        # logger.debug('\n{}', self.root.render())
+        # logger.debug('{}: depth={}, changed {}.', self.name, self.depth, changed)
+        # logger.debug('\n{}.', self.root.render())
 
         return changed
 

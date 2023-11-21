@@ -310,7 +310,7 @@ class Expected(LoggingMixin):
         names, values = list(names), lists(values)
 
         # if logger.getEffectiveLevel() == logging.DEBUG:
-        #     logger.debug('parametrizing {:s}', pp.caller(test))
+        #     logger.debug('parametrizing {:s}.', pp.caller(test))
         #     logger.debug(f'{names=}')  # , {values=}')
 
         # return ParametrizedTestHelper(test, names, values, *args, **kws)
@@ -409,7 +409,7 @@ class Expected(LoggingMixin):
         # -------------------------------------------------------------------- #
         def test(*args, **kws):
             #
-            self.logger.debug('test received: {!s}, {!s}', args, kws)
+            self.logger.debug('test received: {!s}, {!s}.', args, kws)
 
             # pop expected answer from kws dict
             expected = kws.pop('expected')
@@ -426,7 +426,7 @@ class Expected(LoggingMixin):
             if not args and self.is_dispatch:
                 args = (kws.pop(self.pnames[0]), )
 
-            self.logger.debug('passing to {:s}: {!s}; {!s}',
+            self.logger.debug('passing to {:s}: {!s}; {!s}.',
                               self.func.__name__, args, kws)
 
             ctx = nullcontext()
@@ -466,7 +466,7 @@ class Expected(LoggingMixin):
         params.append(Parameter('expected', KWO))
         test.__signature__ = Signature(params)
 
-        self.logger.debug('Created test for function\n{:s}',
+        self.logger.debug('Created test for function\n{:s}.',
                           pp.caller(self.func))
 
         return test
@@ -480,8 +480,8 @@ class ParametrizedTestHelper(LoggingMixin):  # ParametrizedTest:
 
     def __init__(self, test, names, values, *args, **kws):
         self.test = test
-        self.logger.debug('parametrizing {:s}', pp.caller(test))
-        # self.logger.debug('signature: {:s}', pp.caller(test))
+        self.logger.debug('parametrizing {:s}.', pp.caller(test))
+        # self.logger.debug('signature: {:s}.', pp.caller(test))
         # self.logger.debug(f'{names=}')  # , {values=}')
         self.runner = pytest.mark.parametrize(
             list(names), lists(values), *args, **kws
@@ -491,7 +491,7 @@ class ParametrizedTestHelper(LoggingMixin):  # ParametrizedTest:
         return self.runner(*args, **kws)
 
     def __set_name__(self, kls, name):
-        self.logger.debug('Binding {:s} onto class {:s} with name {!r:}',
+        self.logger.debug('Binding {:s} onto class {:s} with name {!r:}.',
                           self.test, kls, name)
         if not name.startswith('test'):
             self.logger.debug(

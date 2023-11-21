@@ -194,7 +194,7 @@ class CachedProperty(property):
                     ', (or ForwardProperty) descriptor object, not '
                     f'{type(parent)}.')
 
-            logger.debug('Adding dependent to parent {}', parent)
+            logger.debug('Adding dependent to parent {}.', parent)
             parent._dependents.append(self)
 
     def __call__(self, fget, fset=None, fdel=None, doc=None):
@@ -250,7 +250,7 @@ class CachedProperty(property):
     def _delete_dependents(self, obj):
         # delete dependents
         for child in self._dependents:
-            logger.debug('delete child {}', child)
+            logger.debug('delete child {}.', child)
             child.__delete__(obj)
 
 ALLOWED_DEPENDANT_TYPES = (CachedProperty, ForwardProperty)

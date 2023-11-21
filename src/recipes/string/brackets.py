@@ -354,7 +354,7 @@ class BracketPair:
 #     if left not in string:
 #         return (None, (None, None))
 
-#     # logger.debug('Searching {!r} in {!r}', brackets, string)
+#     # logger.debug('Searching {!r} in {!r}.', brackets, string)
 
 #     # 'hello(world)()'
 #     pre, match = string.split(left, 1)
@@ -435,7 +435,7 @@ class BracketParser:
                 # opening bracket
                 positions[b].append(j)
                 open_[b] += 1
-                # logger.debug('Opening bracket: {} at {}', b, j)
+                # logger.debug('Opening bracket: {} at {}.', b, j)
             else:
                 # closing bracket
                 o = self.pair_map[b]
@@ -497,7 +497,7 @@ class BracketParser:
         match : BracketPair
         """
 
-        # logger.debug('Iterating {!r} brackets in {!r} with condition: {}',
+        # logger.debug('Iterating {!r} brackets in {!r} with condition: {}.',
         #              self.brackets, string, condition)
         itr = self._iter(string, must_close)
 

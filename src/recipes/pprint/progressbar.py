@@ -136,7 +136,7 @@ class ProgressLogger(ProgressBarBase):
             return
 
         bar = self.get_bar(i)
-        logger.info('Progress: \n{:s}' % bar)
+        logger.info('Progress: \n{:s}.' % bar)
 
 # class SyncedProgressLogger(ProgressLogger):
 #     """can be used from multiple processes"""
@@ -160,7 +160,7 @@ class ProgressLogger(ProgressBarBase):
 #     def progress(self, state, info=None):
 #         if self.needs_update(state):
 #             bar = self.get_bar(state)
-#             logger.info('Progress: %s' % bar)
+#             logger.info('Progress: %s.' % bar)
 
 
 # class ProgressPrinter(ProgressBar):

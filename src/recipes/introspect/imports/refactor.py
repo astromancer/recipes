@@ -320,12 +320,12 @@ class Parentage(ast.NodeTransformer):
     parent = None
 
     def visit(self, node):
-        logger.trace('\n{} parent set to {}', node, self.parent)
+        logger.trace('\n{} parent set to {}.', node, self.parent)
         node.parent = self.parent
         self.parent = node
         new = super().visit(node)
         self.parent = new.parent if isinstance(new, ast.AST) else node.parent
-        logger.trace('\nParentage is now {}', self.parent)
+        logger.trace('\nParentage is now {}.', self.parent)
         return new
 
 
@@ -392,11 +392,11 @@ class ImportFilter(Parentage):
         node = self.generic_visit(node)
 
         if node.name in self.remove:
-            logger.info('Removing import: {:s}', node.name)
+            logger.info('Removing import: {:s}.', node.name)
             return  # entire node filtered
 
         if node.asname in self.remove:
-            logger.info('Removing alias {:s} to imported name {:s}',
+            logger.info('Removing alias {:s} to imported name {:s}.',
                         node.asname, node.name)
             node.asname = None
 
