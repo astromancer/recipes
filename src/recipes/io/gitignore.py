@@ -25,27 +25,31 @@ def get_ignore_list(folder):
     return list(GitIgnore(file).search(folder))
 
 
-# ---------------------------------------------------------------------------- #
 
 class GitIgnore:
     """
     Class to read `.gitignore` patterns and filter source trees.
     """
 
+    __slots__ = ('root', 'names', 'patterns')
+
     def __init__(self, path='.gitignore'):
         self.names = self.patterns = ()
         path = Path(path)
+        self.root = path.parent
+
         if not path.exists():
             return
 
         # read .gitignore patterns
-        lines = read_lines(path, strip='\n /', filtered=negate(op.startswith('#')))
+        lines = (line.strip(' /')
+                 for line in path.read_text().splitlines()
+                 if not line.startswith('#'))
 
         items = names, patterns = [], []
         for line in filter(None, lines):
             items[glob.has_magic(line)].append(line)
 
-        self.root = path.parent
         self.names = (*IGNORE_IMPLICIT, *names)
         self.patterns = tuple(patterns)
 
@@ -81,10 +85,8 @@ class GitIgnore:
         rpath = path.relative_to(self.root)
         filename = str(rpath)
         for pattern in self.patterns:
-            # folder pattern
-            # if folder in rpath.parents:
-
             if fnmatch.fnmatchcase(filename, pattern):
                 return True
 
         return filename.endswith(self.names)
+
