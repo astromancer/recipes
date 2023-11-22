@@ -4,13 +4,14 @@ loguru
 numpy
 scipy
 astropy
+
 matplotlib
 
 PyYAML
 psutil
+joblib
 decorator
 more_itertools
 
-six
 anytree
 stdlib_list
