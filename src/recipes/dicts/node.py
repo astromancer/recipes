@@ -187,6 +187,9 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
     def __setitem__(self, key, val):
         return super().__setitem__(key, self._attach(val))
 
+    def __reduce__(self):
+        return type(self), (), {}, None, self.items()
+
     # ------------------------------------------------------------------------ #
     def values(self):
         yield from map(_get_val, super().values())
@@ -201,9 +204,9 @@ class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
         return _unwrap(super().get(key, *default), unwrap)
 
     def update(self, mapping=(), **kws):
-        
+
         if isinstance(mapping, DictNode):
-            mapping = mapping.flatten() # so we don't overwrite nested dicts
+            mapping = mapping.flatten()  # so we don't overwrite nested dicts
 
         super().update(mapping, **kws)
 
