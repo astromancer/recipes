@@ -6,7 +6,8 @@ from pathlib import Path
 from loguru import logger
 
 # relative
-from .dicts import DictNode
+from .flow import Emit
+from .dicts.node import DictNode
 from .dicts.core import _AttrReadItem
 from .introspect.utils import get_module_name, get_package_name
 
@@ -90,7 +91,9 @@ class ConfigNode(DictNode, _AttrReadItem):
 #         return super().__getattr__(key)
 
 
-def find_config(filename, format=None, raises=False):
+# ---------------------------------------------------------------------------- #
+
+def find_config(filename, format=None, emit=logger.debug):
     """
     Search upwards in the folder tree for a config file matching the requested
     format.
@@ -121,22 +124,25 @@ def find_config(filename, format=None, raises=False):
 
     parent = path.parent
     extensions = [format] if format else CONFIG_PARSERS
-    while parent != package_root:
+    while True:
         for name in extensions:
+            logger.debug('Searching: {} for *.{}', parent, name)
             for filename in parent.glob(f'*.{name}'):
                 logger.info("Found config file: '{}' in {!r} module (sub-"
                             "folder) of package {}.", filename, parent, pkg)
                 return filename
 
+        if parent == package_root:
+            break
+
         parent = parent.parent
 
-    message = ('Could not find config file in any of the parent folders down to'
-               f' the package root for {filename = :}, {format = :}')
-
-    if raises:
-        raise FileNotFoundError(message)
-
-    logger.debug(message)
+    # raise / warn / whatever
+    Emit(emit, FileNotFoundError)(
+        'Could not find config file in any of the parent folders down to'
+        ' the package root for {filename = :}, {format = :}',
+        filename, format
+    )
 
 
 def load_yaml(filename):

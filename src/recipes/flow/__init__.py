@@ -38,9 +38,16 @@ class Emit:
 
     def __init__(self, action='ignore', exception=Exception):
 
+        action = action or 'ignore'
+
+        if isinstance(action, Exception):
+            exception = action
+            action = 'raises'
+
         if exception is not None:
             self._actions['raise'] = raises(exception)
 
+        # resolve action
         self.action = action
 
     def __call__(self, message, *args, **kws):
