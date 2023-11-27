@@ -38,8 +38,8 @@ test_get_module_name = Expected(get_module_name)({
     '/recipes/src/recipes/oo/property.py':          'recipes.oo.property',
     ('/recipes/src/recipes/oo/property.py', 1):     'property',
     #
-    ImportRefactory:                                'recipes.introspect.imports',
-    (ImportRefactory, 1):                           'imports'
+    ImportRefactory:                                'recipes.introspect.imports.refactor',
+    (ImportRefactory, 1):                           'refactor'
 })
 
 
