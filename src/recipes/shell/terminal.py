@@ -17,7 +17,7 @@ from .interactive import is_interactive
 ZERO_DEPTH_BASES = (str, bytes, Number, range, bytearray)
 
 
-def get_terminal_size(fallback=(80, 24)):
+def get_size(fallback=(80, 24)):
     """Returns the initial terminal size."""
 
     # NOTE: NOT DYNAMIC. ie. resizing a window voids this ?
