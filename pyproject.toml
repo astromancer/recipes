@@ -21,16 +21,16 @@ dependencies = [
     "click",
     "loguru",
     "anytree",
-    "stdlib_list",
     "decorator",
+    "stdlib_list",
     "more_itertools",
 
     "PyYAML",
     "psutil",
-    "joblib",
 
     "numpy",
     "scipy",
+    "joblib"
 ]
 
 [project.urls]
@@ -73,7 +73,6 @@ envlist = py38
 # install testing framework
 # ... or install anything else you might need here
 deps = 
-    -rrequirements.txt
     -rrequirements-dev.txt
 # run the tests
 # ... or run any other command line tool you need to run here
