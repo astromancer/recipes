@@ -1,12 +1,10 @@
 [project]
 name = "recipes"
-description = "A cookbook for the python developer connoisseur 🧑🏽‍🍳🍷🐍"
+description = "A cookbook for the python developer connoisseur 🐍🧑🏽‍🍳🍷"
 authors = [
     {name = "Hannes Breytenbach", email = "hannes@saao.ac.za"}
 ]
-dynamic = ["version", "readme"]
 license = {text = "MIT"}
-requires-python = ">=3.8"
 classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python :: 3.8",
@@ -17,6 +15,26 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux"
 ]
+dynamic = ["version", "readme"]
+requires-python = ">=3.8"
+dependencies = [
+    "click",
+    "loguru",
+    "anytree",
+    "stdlib_list",
+    "decorator",
+    "more_itertools",
+
+    "PyYAML",
+    "psutil",
+    "joblib",
+
+    "numpy",
+    "scipy",
+    "astropy",
+
+    "matplotlib"
+]
 
 [project.urls]
 "Homepage" = "https://github.com/astromancer/recipes"
@@ -25,9 +43,8 @@ classifiers = [
 [project.scripts]
 tidy_imports = "recipes.introspect.imports.tidy:main"
 
-[project.optional-dependencies]
-tests = ["pytest"]
 
+# ---------------------------------------------------------------------------- #
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
@@ -41,12 +58,15 @@ requires = [
 where = ["src"]
 
 [tool.setuptools.dynamic]
-readme = {file = "README.md", content-type = "text/markdown"}
 version = {attr = "recipes._version.version"}
+readme = {file = "README.md", content-type = "text/markdown"}
+optional-dependencies.test = { file = ["requirements-dev.txt"] }
+
 
 [tool.setuptools_scm]
 write_to = "src/recipes/_version.py"
 
+# ---------------------------------------------------------------------------- #
 [tool.tox]
 legacy_tox_ini = """
 [tox]
