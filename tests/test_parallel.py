@@ -6,7 +6,7 @@ import multiprocessing as mp
 from joblib.parallel import Parallel, delayed
 
 # local
-from recipes.contexts import ContextStack
+from recipes.flow.contexts import ContextStack
 from recipes.concurrent.joblib import initialized
 
 
