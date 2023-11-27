@@ -1,14 +1,8 @@
 
-# std
 import math
 import glob
 import fnmatch
 from pathlib import Path
-
-# relative
-from .. import op
-from ..functionals import negate
-from . import read_lines
 
 
 # ---------------------------------------------------------------------------- #
@@ -23,7 +17,6 @@ def get_ignore_list(folder):
         raise FileNotFoundError(f"Could not find '{file!s}.'")
 
     return list(GitIgnore(file).search(folder))
-
 
 
 class GitIgnore:

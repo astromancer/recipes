@@ -4,7 +4,7 @@ import sys
 import math
 
 # relative
-from ..misc import get_terminal_size
+from ..shell import terminal
 from ..strng import overlay, resolve_percentage
 
 
@@ -24,7 +24,7 @@ class ProgressBarBase:
         self.sides = str(sides)
         self.align = align  # centering for percentage, info
         if width is None:
-            width = get_terminal_size()[0]
+            width = terminal.get_size()[0]
         self.width = int(width)
         # self.bar = ''
         # if pfmt is None:

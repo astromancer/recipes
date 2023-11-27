@@ -35,6 +35,8 @@ FORMATS = {'json': json,
 FILEMODES = {pickle: 'b',
              json: ''}
 
+# for getting object size
+
 braces = BracketParser('{}')
 
 # ---------------------------------------------------------------------------- #
@@ -644,3 +646,4 @@ def walk(folder, depth=1):
         level = root.count(os.path.sep)
         if n_sep + depth <= level:
             del dirs[:]
+

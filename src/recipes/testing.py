@@ -416,8 +416,9 @@ class Expected(LoggingMixin):
             # unpack position only
             # args = (*(kws.pop(p) for p in self.pos), *args)
             # unpack variadic keywords
+            if vkw := kws.pop(self.vkw, None):
+                kws = {**kws, **vkw}
 
-            kws = {**kws, **kws.pop(self.vkw, {})}
             args = (*(kws.pop(name) for name in
                       self.pnames[:op.index(self.pkinds, VAR, default=0)]),
                     *kws.pop(self.var, ()))
