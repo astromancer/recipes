@@ -63,8 +63,8 @@ class Percentage:
     def __format__(self, format_spec):
         return self.frac.format(format_spec)
 
-    def __call__(self, number):
-        return self.of(n)
+    def __call__(self, total):
+        return self.of(total)
 
     def of(self, total):
         """
@@ -81,12 +81,13 @@ class Percentage:
         float or np.ndarray
         """
         try:
-            if isinstance(number, numbers.Real):
-                return self.frac * number
+            if isinstance(total, numbers.Real):
+                return self.frac * total
 
-            if isinstance(number, abc.Collection):
-                return self.frac * np.asanyarray(number, float)
+            if isinstance(total, abc.Collection):
+                return self.frac * np.asanyarray(total, float)
 
         except ValueError:
-            raise TypeError('Not a valid number or numeric array type.') \
-                from None
+            raise TypeError(
+                f'Not a valid number or numeric array type: {total}.'
+            ) from None
