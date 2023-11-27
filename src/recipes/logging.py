@@ -73,8 +73,10 @@ class LoggingMixin:
                 # catch interactive use
                 return
 
-            parent = get_defining_class(getattr(parent, fname))
-            parent = '' if parent is None else parent.__name__
+            if method := getattr(parent, fname, None):
+                parent = get_defining_class(method)
+                parent = '' if parent is None else parent.__name__
+
             record['function'] = f'{parent}.{fname}'
 
         def __get__(self, obj, kls=None):

@@ -409,7 +409,7 @@ class Expected(LoggingMixin):
         # -------------------------------------------------------------------- #
         def test(*args, **kws):
             #
-            self.logger.debug('test received: {!s}, {!s}.', args, kws)
+            self.logger.debug('test received: {!s}, {!s}.', args, kws, depth=1)
 
             # pop expected answer from kws dict
             expected = kws.pop('expected')
