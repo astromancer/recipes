@@ -25,47 +25,52 @@ from ..decorators import Decorator
 # from ..oo.slots import SlotHelper # Circilar!
 
 
-def _resolve_object(obj, placeholder):
+# ---------------------------------------------------------------------------- #
 
-    while placeholder is not PlaceHolder:
-        if isinstance(placeholder, _FutureSlice):
-            obj = obj[placeholder.key]
-        elif isinstance(placeholder, _FutureLookup):
-            obj = getattr(obj, placeholder.key)
-        placeholder = placeholder.parent
+class _ParameterPlaceHolder:
 
-    return obj
-
-
-class PlaceHolder:
-    # Singleton representing any omitted parameter
-    def __new__(cls):
-        return PlaceHolder
-
-    def __class_getitem__(cls, key):
-        return _FutureSlice(key, cls)
-
-    def __getattr__(cls, attr):
-        return _FutureLookup(attr, cls)
-
-
-class _FutureSlice(PlaceHolder):
-    # object representing an indexed placeholder
-
-    __slots__ = ('key', )
-
-    def __init__(self, key, parent=None):
-        self.key = key
-        self.parent = parent
-
-    def __new__(cls, *args, **kws):
-        return object.__new__(cls)  # not a singleton!
-
-    def __getattr__(self, attr):
-        return _FutureLookup(attr, self)
+    __slots__ = ()
 
     def __getitem__(self, key):
         return _FutureSlice(key, self)
+
+    def __getattr__(self, attr):
+        if attr.startswith('__') or attr in self.__slots__:
+            return super().__getattribute__(attr)
+
+        return _FutureLookup(attr, self)
+
+    def _resolve(self, obj):
+
+        if self is PlaceHolder:
+            return obj
+
+        node = self
+        chain = []
+        while node is not PlaceHolder:
+            chain.append(node)
+            node = node._parent
+
+        for action in reversed(chain):
+            if isinstance(action, _FutureLookup):
+                obj = getattr(obj, action._key)
+
+            elif isinstance(action, _FutureSlice):
+                obj = obj[action._key]
+
+            logger.debug('{} resolved {}', action, obj)
+
+        return obj
+
+
+class _FutureSlice(_ParameterPlaceHolder):
+    # object representing an indexed placeholder
+
+    __slots__ = ('_key', '_parent')
+
+    def __init__(self, key, parent=None):
+        self._key = key
+        self._parent = parent
 
 
 class _FutureLookup(_FutureSlice):
@@ -73,14 +78,16 @@ class _FutureLookup(_FutureSlice):
     pass
 
 
+# ---------------------------------------------------------------------------- #
+
 class PartialAt(Decorator):
 
     def __init__(self, args, kws):
         self.args = list(args)
-        self._positions = tuple(where(args, PlaceHolder))
+        self._positions = tuple(where(args, isinstance, _ParameterPlaceHolder))
 
         self.kws = kws = dict(kws)
-        self._keywords = tuple(where(kws, PlaceHolder))
+        self._keywords = tuple(where(kws, isinstance, _ParameterPlaceHolder))
 
     def __call__(self, func):
         return super().__call__(func, emulate=False, kwsyntax=True)
@@ -88,7 +95,7 @@ class PartialAt(Decorator):
     def __wrapper__(self, func, *args, **kws):
         return func(*self._get_args(args), **self._get_kws(kws))
 
-    @property  # cache?
+    @property
     def nfree(self):
         return len(self._positions)
 
@@ -97,7 +104,7 @@ class PartialAt(Decorator):
         # to get final positional args tuple for the function call
         if (nargs := len(args)) != self.nfree:
             raise ValueError(
-                f'{self} requires {self.nfree} parameters, received {nargs}.'
+                f'{self} requires {self.nfree} parameters, but received {nargs}.'
             )
 
         # shallow copy
@@ -105,7 +112,7 @@ class PartialAt(Decorator):
 
         # fill
         for i, a in zip(self._positions, args):
-            _args[i] = _resolve_object(a, self.args[i])
+            _args[i] = self.args[i]._resolve(a)
 
         return tuple(_args)
 
@@ -116,12 +123,12 @@ class PartialAt(Decorator):
         if undespecified := set(self._keywords) - set(kws.keys()):
             raise ValueError(f'Required keyword arguments {undespecified} not found.')
 
-        # shallow copy
-        out = self.kws.copy()
+        # fill static
+        out = {**self.kws, **kws}
 
-        # fill
+        # fill dynamic
         for key in self._keywords:
-            out[key] = _resolve_object(kws[key], self.kws[key])
+            out[key] = self.kws[key]._resolve(kws[key])
 
         return out
 
@@ -137,6 +144,8 @@ class Partial(Decorator):
         return self.Task(args, kws)(func)
 
 
+# ---------------------------------------------------------------------------- #
 # aliases
 partial = Partial
-placeholder = PlaceHolder
+# singleton
+placeholder = PlaceHolder = _ParameterPlaceHolder()

@@ -1,53 +1,56 @@
 
+# std
+import itertools as itt
+
+# third-party
+import pytest
+
+# local
 from recipes.functionals.partial import partial, placeholder as o
 
 
 def func(a, b, c, q=0, **kws):
-    return (a, b, c, q)
+    return (a, b, c, q), kws
 
 
-def test_partial():
+# def func(a, b, c=0, *x, y=0, **kws):
+#     return (a, b, c, *x, q)
 
-    kws = {'hi': 0}
+@pytest.mark.parametrize('n, kws',
+                         itt.product((0, 1, 2),
+                                     ({}, {'test': 1})))
+def test_partial_basic(n, kws):
+    factory = partial(func)
 
-    # New partial function with one free parameter (originally position)
-    partial_at_2 = partial(func)('a', 'b', o, q=1, **kws)
-    # later
-    result = partial_at_2(2)
-    assert result == ('a', 'b', 2, 1)
-    # >>> func('a', 'b', 2)
+    m = 4
+    l = m - n
+    args = list(range(m))
+    constructor_args = args[:]  # shallow copy
+    constructor_args[:n] = (o, ) * n  # fill `n` placeholders
+    partial_func = factory(*constructor_args)
 
-    func_partial_at_1_and_2 = partial(func)('a', o, o, q=1, **kws)
-    #  later
-    result = func_partial_at_1_and_2(1, 2)
-    assert result == ('a', 1, 2, 1)
-    # >>> func('a', 1, 2)
+    result = partial_func(*args[:n], **kws)
+    assert result == (tuple(args), kws)
 
-    partial_none = partial(func)(1, 2, 3, 4)
-    result = partial_none(hi=1)
-    assert result == (1, 2, 3, 4)
+    # check raise on too many params
+    with pytest.raises(ValueError):
+        partial_func(*range(m))
 
 
-def test_partial_indexed():
+@pytest.fixture(params=({}, {'test': 1}))
+def kws(request):
+    return request.params
 
-    kws = {'hi': 0}
 
-    # New partial function with one free parameter (originally position)
-    func_partial_at_2_only = partial(func)('a', 'b', o[0], q=1, **kws)
-    # later
-    result = func_partial_at_2_only('12')
-    assert result == ('a', 'b', '1', 1)
-    # >>> func('a', 'b', '12'[0])
+def test_partial_sliced(**kws):
+    # New partial function with one free parameter
+    partial_func = partial(func)('a', 'b', o[0], q=1, **kws)
+    result = partial_func('12')
+    assert result == (('a', 'b', '1', 1), {})
 
-    func_partial_at_1_and_2 = partial(func)('a', o[0], o[1], q=1, **kws)
-    #  later
-    result = func_partial_at_1_and_2('01', '01')
-    assert result == ('a', '0', '1', 1)
-    # >>> func('a', '01'[0], '01'[1], 2)
-
-    partial_none = partial(func)(1, 2, 3, 4)
-    result = partial_none(hi=1)
-    assert result == (1, 2, 3, 4)
+    # check raise on too many params
+    with pytest.raises(ValueError):
+        partial_func(*range(4))
 
 
 # ---------------------------------------------------------------------------- #
@@ -56,16 +59,24 @@ class _TestObject:
     y = 'abc'
 
 
-def test_partial_lookup():
-    kws = {'hi': 0}
+class _TestObject2:
+    z = _TestObject
+
+
+def test_partial_lookup(**kws):
     partial_lookup = partial(func)('a', 'b', o.x, q=1, **kws)
     result = partial_lookup(_TestObject)
-    assert result == ('a', 'b', 1, 1)
+    assert result == (('a', 'b', 1, 1), {})
     # >>> func('a', 'b', _TestObject.x, 1)
 
 
-def test_partial_lookup_slice():
-    kws = {'hi': 0}
-    partial_lookup_slice = partial(func)('a', 'b',  o.y[2], q=1, **kws)
-    result = partial_lookup_slice('a', _TestCase, '1')
-    assert result == ('a', 'b', 'c', 1)
+def test_partial_lookup_slice(**kws):
+    partial_lookup_slice = partial(func)('a', 'b', o.y[2], q=1, **kws)
+    result = partial_lookup_slice(_TestObject)
+    assert result == (('a', 'b', 'c', 1), {})
+
+
+def test_partial_lookup_chain(**kws):
+    partial_lookup_slice = partial(func)(o.z.y[0], 'b', 'c', **kws)
+    result = partial_lookup_slice(_TestObject2)
+    assert result == (('a', 'b', 'c', 0), {})
