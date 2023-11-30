@@ -176,12 +176,7 @@ def neighbours(a, centre, size, **kws):
 
     # print(padwidth)
     # pad the array / mask
-    try:
-        padded = np.pad(a, padwidth, pad, **kws)
-    except:
-        from IPython import embed
-        embed()
-        raise
+    padded = np.pad(a, padwidth, pad, **kws)
 
     # save return indices if requested
     if return_index == 1:
@@ -212,7 +207,6 @@ def neighbours(a, centre, size, **kws):
         return sub, ix
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def spillage(a, ixl, ixu):
     """check which index ranges are smaller/larger than the array dimensions"""
     under = ixl < 0
@@ -220,7 +214,6 @@ def spillage(a, ixl, ixu):
     return under, over
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def shift(a, ixl, ixu):
     """so they start at 0"""
     under, over = spillage(a, ixl, ixu)
@@ -230,14 +223,13 @@ def shift(a, ixl, ixu):
 
 
 # @print_args()
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def take_from_ranges(a, ixl, ixu):
     """Return items within index ranges from the array"""
     return a[tuple(map(slice, ixl, ixu))]
     # return a[tuple(ndgrid.from_ranges(ixl, ixu))]
 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 def _return(a, ixl, ixu, return_index):
     """return stuff"""
     if return_index == 0:
@@ -307,7 +299,7 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     if not method in known_methods:
         raise ValueError('Unrecognised method: {}'.format(method))
 
-    with_sigma_clipping = kw.pop('with_sigma_clipping', True)
+    # with_sigma_clipping = kw.pop('with_sigma_clipping', True)
 
     return_filled = kw.pop('return_filled', True)  # return the filled array
     return_filling = kw.pop('return_filling',
@@ -365,15 +357,15 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     nn = data[tuple(ix.T)]  # nearest neighbour pixel value
     nn = np.atleast_2d(nn)
 
-    if with_sigma_clipping:  # HACK
-        from astropy.stats import sigma_clip
+    # if with_sigma_clipping:  # HACK
+    #     from astropy.stats import sigma_clip
 
-        nn = sigma_clip(nn, )
-        p = (~nn.mask).astype(float)
-        p /= p.sum(0)
-    else:
-        nn = np.ma.array(nn)  # make it masked array
-        p = np.ones_like(nn) / nn.size
+    #     nn = sigma_clip(nn, )
+    #     p = (~nn.mask).astype(float)
+    #     p /= p.sum(0)
+    # else:
+    nn = np.ma.array(nn)  # make it masked array
+    p = np.ones_like(nn) / nn.size
 
     # av= {'mean'         :       np.mean,
     # 'median'       :       np.median,
@@ -388,7 +380,7 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     if method == 'mode':
         from scipy.stats import mode
         fillvals = np.squeeze(
-                mode(nn, axis=0)[0])  # Will not work with sigma clipping
+            mode(nn, axis=0)[0])  # Will not work with sigma clipping
 
     if method == 'weighted':
         weights = kw['weights']
@@ -413,8 +405,10 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
         filled = data.copy()
         filled[tuple(bad)] = fillvals
         out += (filled,)
+
     if return_filling:
         out += (fillvals,)
+
     if return_index:
         out += (ix,)
 
