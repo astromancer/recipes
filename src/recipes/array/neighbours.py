@@ -303,7 +303,7 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     # TODO: OO
     # TODO: N-d implementation
     # TODO: Debug option!!
-    known_methods = {'mean', 'median', 'mode', 'weighted', 'random'}
+    known_methods = {'mean', 'median', 'weighted', 'random'} #  'mode', 
     if not method in known_methods:
         raise ValueError('Unrecognised method: {}'.format(method))
 
@@ -385,10 +385,10 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     if method == 'median':
         fillvals = np.ma.median(nn, axis=0)
 
-    if method == 'mode':
-        from scipy.stats import mode
-        fillvals = np.squeeze(
-                mode(nn, axis=0)[0])  # Will not work with sigma clipping
+    # if method == 'mode':
+    #     from scipy.stats import mode
+    #     fillvals = np.squeeze(
+    #         mode(nn, axis=0)[0])  # Will not work with sigma clipping
 
     if method == 'weighted':
         weights = kw['weights']
