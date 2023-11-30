@@ -6,6 +6,7 @@ src/recipes/decor/path.py
 src/recipes/io/parse.py
 tests/test_loguru.py
 src/recipes/_logging.py
+dep-graph.svg
 
 # Editor temporary/working/backup files #
 #########################################
