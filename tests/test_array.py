@@ -1,5 +1,6 @@
 
 # third-party
+import pytest
 import numpy as np
 
 # local
@@ -9,6 +10,7 @@ from recipes.array import fold
 # TODO: test for a bunch of different size / window / overlap combinations
 # TODO: test higher dimension fold.
 # TODO: test memory conservation
+
 
 def test_fold():
     n = 10
@@ -34,3 +36,11 @@ def test_fold():
 
 
 # def test_fold(a, size, overlap, axis):
+
+@pytest.skip
+def test_neighbours():
+    # do some tests here
+    a = np.random.randn(10, 10)
+
+    for pad in ('shift', 'clip', 'mask'):
+        neighbours(a, (8, 8), (4, 4), pad=pad)

@@ -415,11 +415,3 @@ def fill(data, fill_these=None, hood=None, method='median', k=5, **kw):
     if len(out) == 1:
         out = out[0]
     return out
-
-
-if __name__ == '__main__':
-    # do some tests here
-    a = np.random.randn(10, 10)
-
-    for pad in ('shift', 'clip', 'mask'):
-        neighbours(a, (8, 8), (4, 4), pad=pad)
