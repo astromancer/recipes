@@ -18,15 +18,15 @@ import more_itertools as mit
 from loguru import logger
 
 # relative
-from ... import api, cosort, op, pprint as pp
+from ... import api, cosort, op, user_packages, pprint as pp
 from ...utils import not_null
 from ...iter import unduplicate
-from ...config import ConfigNode
 from ...functionals import negate
 from ...logging import LoggingMixin
 from ...string import remove_prefix
+from ...io import open_any, safe_write
 from ...pprint.callers import describe
-from ...io import open_any, read_lines, safe_write
+from ...config import ConfigNode, load_yaml
 from ..utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
                      get_stream, is_script)
 
@@ -57,6 +57,9 @@ from ..utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
 # import math
 # import warnings as wrn
 
+# FIXME:  THIS WAS A LIE!!
+# This file is an initializer for a module: 'recipes'
+# Only imports from the standard library will be filtered. 
 
 # ---------------------------------------------------------------------------- #
 CONFIG = ConfigNode.load_module(__file__, 'yaml')
@@ -83,8 +86,8 @@ api_synonyms = api.synonyms({
 # supported styles for sorting
 STYLES = ('alphabetic', 'aesthetic')
 
-# LOCAL_MODULES_DB = Path.home() / '.config/recipes/local_libs.txt'
-LOCAL_MODULES = read_lines(Path(CONFIG.user_local_modules).expanduser())
+# USER_PACKAGES_DB = Path.home() / '.config/recipes/local_libs.txt'
+USER_PACKAGES = load_yaml(user_packages)['local']
 
 
 # ---------------------------------------------------------------------------- #
@@ -187,7 +190,7 @@ def is_builtin(name):  # name.split('.')[0]
 
 
 def is_local(name):
-    return name in LOCAL_MODULES
+    return name in USER_PACKAGES
 
 
 # def is_3rd_party(name):
