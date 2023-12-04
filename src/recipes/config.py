@@ -20,7 +20,7 @@ from .introspect.utils import get_module_name, get_package_name
 # ---------------------------------------------------------------------------- #
 CACHE = {}
 
-REGEX_VERSION = re.compile(R'v\.(\d+).(\d+).(.+)')
+REGEX_VERSION = re.compile(R'v?(\d+).(\d+).(.+)')
 
 # ---------------------------------------------------------------------------- #
 
@@ -58,10 +58,11 @@ class ConfigNode(DictNode, _AttrReadItem):
             return node
 
         nl = '\n    '
-        raise ValueError(f'Config file {config_file} does not contain any section'
-                         f' matching module names in the package tree: {candidates}\n'
-                         'The following config sections are available:'
-                         f' {nl.join(("", *map(repr, keys)))}')
+        raise ValueError(
+            f'Config file {config_file} does not contain any section matching '
+            f'module names in the package tree: {candidates}\nThe following '
+            f'config sections are available: {nl.join(("", *map(repr, keys)))}'
+        )
 
     def __getattr__(self, key):
         """
@@ -71,36 +72,46 @@ class ConfigNode(DictNode, _AttrReadItem):
         """
         return super().__getitem__(key) if key in self else super().__getattribute__(key)
 
+
 # ---------------------------------------------------------------------------- #
 
-def create_user_config(filename, caller, overwrite=True, version_stamp=''):
+def create_user_config(filename, caller, overwrite=None, version_stamp=''):
 
     pkg = get_package_name(caller)
     source = Path(caller).parent / filename
 
     configpath = user_config_path(pkg) / filename
     if configpath.exists():
+        if overwrite is None:
+            overwrite = _should_overwrite(configpath, version_stamp)
+
         if overwrite is False:
             return configpath
 
-        if overwrite is None:
-            if not version_stamp:
-                return configpath
-
-            # check latest version
-            version = filter(REGEX_VERSION.search, read_lines(configpath, 5))
-            if version := next(version, None):
-                from IPython import embed
-                embed(header="Embedded interpreter at 'src/recipes/config.py':117")
-                overwrite = (version != version_stamp)
-            else:
-                logger.warning(
-                    'No version info found in {}. Overwriting from source at version {}.',
-                    configpath, version_stamp)
-                overwrite = True
-
     #
-    return _create_user_config(pkg, configpath, source, overwrite)
+    return _create_user_config(pkg, configpath, source, overwrite, version_stamp)
+
+
+def _should_overwrite(configpath, version_stamp):
+
+    if not version_stamp:
+        return False
+
+    # check latest version
+    version = map(REGEX_VERSION.search, read_lines(configpath, 5))
+    if version := next(filter(None, version), None):
+        version_stamp = REGEX_VERSION.match(version_stamp)
+        for current, incoming in zip(version.groups(), version_stamp.groups()):
+            if current > incoming:
+                return False
+        return True
+
+    else:
+        logger.warning(
+            'No version info found in {}. Overwriting from source at version {}.',
+            configpath, version_stamp
+        )
+        return True
 
 
 def _create_user_config(pkg, path, source=None, overwrite=None,
@@ -120,6 +131,10 @@ def _create_user_config(pkg, path, source=None, overwrite=None,
         text = source.read_text()
         if not '{version}' in text:
             raise ValueError(f'"{{version}}" not in source: {source}.')
+
+        # add v marker
+        if not version_stamp.startswith('v'):
+            version_stamp = f'v{version_stamp}'
 
         logger.info('Adding version stamp: {!s}.', version_stamp)
         path.write_text(text.format(version=version_stamp))
