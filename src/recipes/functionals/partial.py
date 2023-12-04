@@ -20,10 +20,13 @@ Partial functions via placeholder syntax.
 """
 
 
+# third-party
+from loguru import logger
+
+# relative
 from ..iter import where
 from ..decorators import Decorator
 # from ..oo.slots import SlotHelper # Circilar!
-
 
 # ---------------------------------------------------------------------------- #
 
