@@ -7,6 +7,7 @@ Logging helpers.
 import sys
 import time
 import atexit
+import numbers
 import logging
 import functools as ftl
 
@@ -124,27 +125,48 @@ class TimeDeltaFormatter:
         return hms(self.timedelta.total_seconds(), **self._kws)
 
 
+class ParagraphWrapper:
+
+    def __init__(self, target=sys.stderr,  width=100, indent=4):
+        self.target = target
+        self.width = int(width)
+        self.indent = ' ' * indent
+        # self.newline = f'\n{self.indent}'
+
+    def write(self, message):
+        #
+        indent = True
+        if (record := getattr(message, 'record', None)):
+            indent = record['extra'].get('indent', True)
+
+        # resolve indent
+        if isinstance(indent, numbers.Integral):
+            indent = indent * self.indent
+        elif not isinstance(indent, str):
+            raise TypeError('Invalid indent.')
+
+            # indent
+            message = message[:-1].replace('\n', indent + '\n') + '\n'
+
+        # send to target stream
+        self.target.write(message)
+
+
 class RepeatMessageHandler:
     """
     A loguru sink that filters repeat log messages and instead emits a 
     custom summary message.
     """
 
-    _keys = (
-        # 'file',
-        'function', 'line',
-        'message',
-        'exception', 'extra'
-    )
+    # Message attributes to use as cache key
+    _keys = ('function', 'line', 'message', 'exception', 'extra')  # 'file'
+
     #
     formatter = staticmethod(str.format)
 
-    def __init__(self,
-                 target=sys.stderr,
+    def __init__(self, target=sys.stderr, buffer_size=12,
                  template=' ⤷ [Previous {n_messages} {n_repeats} in {t}]\n',
-                 x='×',
-                 xn=' {x}{n:d}',
-                 buffer_size=12):
+                 x='×', xn=' {x}{n:d}'):
 
         self._target = target
         self._repeats = 0
