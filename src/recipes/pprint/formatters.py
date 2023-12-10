@@ -169,13 +169,14 @@ class Percentage:
 
 # ---------------------------------------------------------------------------- #
 class FormatterConstructors:
+
     @classmethod
     def as_percentage_of(cls, total, **kws):
         return Percentage(total, cls(**kws))
 
     @classproperty
     def ascii(cls):  # sourcery skip: instance-method-first-arg-name
-        return cls(**cls._ascii_map)
+        return cls(*cls._presets['ascii'])
 
     @classproperty
     def unicode(cls):  # sourcery skip: instance-method-first-arg-name
@@ -195,12 +196,12 @@ class FormatterConstructors:
         >>> 
         """
         # for atr in self.__slots__:
-        return cls(**cls._unicode_map)
+        return cls(*cls._presets['unicode'])
         # return strings.sub(self(x), UNICODE_MAP)
 
     @classproperty
     def latex(cls):  # sourcery skip: instance-method-first-arg-name
-        return cls(**cls._latex_map)  # .join(LATEX_WRAP[math])
+        return cls(*cls._presets['latex'])  # .join(LATEX_WRAP[math])
 
     def map(self, x: abc.Collection):
         return list(map(self, x))
@@ -220,15 +221,11 @@ class NumberBase(FormatterConstructors, SlotHelper):
 
     __slots__ = ('inf', 'nan', 'masked')
 
-    _ascii_map = {'inf':        'inf',
-                  'nan':        'nan',
-                  'masked':     '--'}
-    _unicode_map = {'inf':      '\N{INFINITY}',         # '∞'
-                    'nan':      'nan',
-                    'masked':   '\N{BLACK SQUARE}'}     # '■'
-    _latex_map = {'inf':        R'\infty',
-                  'nan':        'nan',
-                  'masked':     '--'}
+    _presets = {
+        'ascii':    ('inf', 'nan', '--'),
+        'unicode':  ('\N{INFINITY}', 'nan', '\N{BLACK SQUARE}'),  # '∞' '■'
+        'latex':    (R'\infty', 'nan', '--')
+    }
 
     def __init__(self, inf: str = 'inf', nan: str = 'nan', masked: str = '--',
                  **kws):

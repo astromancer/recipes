@@ -1345,7 +1345,7 @@ def matrix(a, precision=3):
 
     tbl = Table(a, precision=precision, frame=False, col_borders=' ',
                 minimalist=True, title='', title_style={})
-    n_rows, _ = tbl.shape
+    n_rows, _ = tbl.data.shape
     left = '\n'.join('┌' + ('│' * n_rows) + '└')
     right = '\n'.join([' ┐'] + [' │'] * n_rows + [' ┘'])
     return hstack([left, tbl, right])

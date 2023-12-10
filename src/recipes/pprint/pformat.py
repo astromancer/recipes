@@ -7,9 +7,8 @@ Miscellaneous functions for pretty printing
 import os
 
 # relative
-from .. import dicts
 from ..string import overlay
-
+from .mapping import pformat as mapping
 
 # ---------------------------------------------------------------------------- #
 STD_BRACKETS = object()
@@ -18,24 +17,6 @@ STD_BRACKET_TYPES = {set: '{}',
                      tuple: '()'}
 
 # ---------------------------------------------------------------------------- #
-
-
-def mapping(dict_, name=None, **kws):
-    """
-    Pretty print a dict-like mapping
-
-    Parameters
-    ----------
-    dict_ : [type]
-        [description]
-    name : [type], optional
-        [description], by default None
-
-    Examples
-    --------
-    >>> 
-    """
-    return dicts.pformat(dict_, name, **kws)
 
 
 def collection(obj, max_items=10, edge_items=1, sep=',', dots='...',

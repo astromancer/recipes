@@ -13,8 +13,8 @@ from ..utils import is_scalar
 from ..functionals import always, negate
 from ..iter import cofilter, first_true_index
 from ..functionals.partial import partial, placeholder as o
-from .core import AutoVivify, Pprinter, vdict
-
+from .core import AutoVivify, vdict
+from recipes.pprint.mapping import PrettyPrint
 
 # ---------------------------------------------------------------------------- #
 NULL = object()
@@ -149,7 +149,7 @@ class LeafNode:
         return str(self._val)
 
 
-class DictNode(_NodeIndexing, AutoVivify, Pprinter, defaultdict, vdict):
+class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
     """
     A defaultdict that generates instances of itself. Used to create arbitrary 
     data trees without prior knowledge of final structure. 

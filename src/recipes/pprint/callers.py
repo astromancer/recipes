@@ -13,12 +13,13 @@ from ..introspect.utils import get_module_name
 
 
 # ---------------------------------------------------------------------------- #
+# module constants
 POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 VAR_MARKS = {VAR: '*', VKW: '**'}
 _empty = inspect.Parameter.empty
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 def describe(obj, sep=' ', repr=repr):
     """
@@ -91,10 +92,70 @@ def parameter(par, val_formatter=repr):
     return VAR_MARKS.get(kind, '') + formatted
 
 
+
+def parameters(sig, args=(), kws=None, show_defaults=True, rhs=None,
+               pep570_marks=True):
+
+    if rhs is None:
+        from recipes.pprint import pformat as rhs
+
+    # format each parameter as 'param=value' pair
+    if (args or kws):
+        # with parameter values provided
+        ba = sig.bind_partial(*args, **(kws or {}))
+        if show_defaults:
+            ba.apply_defaults()
+
+        params = ['='.join((p, rhs(val)))
+                  for p, val in ba.arguments.items()]
+        if params:
+            return params
+        
+        return '()'
+
+    # This prints the function signature with default values
+    params = sig.parameters
+
+    if not show_defaults:
+        # drop parameters which have defaults
+        params = {name: par
+                    for name, par in params.items()
+                    if par.default == par.empty}
+
+    if not params:
+        return '()'
+
+    # format individual paramter value pairs
+    params, kinds = zip(*((parameter(p, rhs), p.kind)
+                            for p in params.values()))
+    params = list(params)
+
+    # inject special / and * markers PEP570
+    # NOTE: this is OK
+    # >>> def foo(a, /, *, b):
+    # ...   pass
+    # BUT this is a syntax error
+    # >>> def foo(a, *, /, b):
+    # ...   pass
+    if pep570_marks:
+        add = 0
+        if (POS in kinds) and (len(set(kinds)) > 1):
+            # everything preceding / is position only
+            params.insert(kinds.index(POS) + 1, '/')
+            add = 1
+
+        if (KWO in kinds) and (VAR not in kinds):
+            # everything following * in keyword only
+            params.insert(kinds.index(KWO) + add, '*')
+
+    return params
+
+
+
 def caller(obj, args=(), kws=None, show_defaults=True,
            show_binding_class=True, name_depth=2,
            params_per_line=None, hang=None, wrap=80,
-           value_formatter=repr):
+           rhs=None):
     """
     Pretty format a callable object, optionally with paramater values for
     representing the call signature.
@@ -150,7 +211,7 @@ def caller(obj, args=(), kws=None, show_defaults=True,
         if one of the parameters has a long repr.
     wrap : int, optional
         Line width for hard wrapping, by default 80.
-    value_formatter : callable, optional
+    rhs : callable, optional
         Function to use for formatting parameter values, by default repr.
 
     Examples
@@ -194,7 +255,7 @@ def caller(obj, args=(), kws=None, show_defaults=True,
     # format signature
     sig = signature(inspect.signature(obj), args, kws,
                     wrap, (n := len(name)) + 1, params_per_line,
-                    hang, show_defaults, value_formatter)
+                    hang, show_defaults, rhs)
     return name + sig.replace('\n', f'{" ":<{n}}\n')
 
 
@@ -228,60 +289,16 @@ def get_name(obj, name_depth, show_binding_class=True):
     # full name to specified depth
     return '.'.join(filter(None, name_parts))
 
+
 def signature(sig, args=(), kws=None, wrap=80, indent=1,
               params_per_line=None, hang=None, show_defaults=True,
-              value_formatter=repr, pep570_marks=True):
-
-    # format each parameter as 'param=value' pair
-    if (args or kws):
-        # with parameter values provided
-        ba = sig.bind_partial(*args, **(kws or {}))
-        if show_defaults:
-            ba.apply_defaults()
-        pars = ['='.join((p, value_formatter(val)))
-                for p, val in ba.arguments.items()]
-        if not pars:
-            return '()'
-    else:
-        # This prints the function signature with default values
-        pars = sig.parameters
-
-        if not show_defaults:
-            # drop parameters which have defaults
-            pars = {name: par
-                    for name, par in pars.items()
-                    if par.default == par.empty}
-
-        if not pars:
-            return '()'
-
-        # format individual paramter value pairs
-        pars, kinds = zip(*((parameter(p, value_formatter), p.kind)
-                            for p in pars.values()))
-        pars = list(pars)
-
-        # inject special / and * markers PEP570
-        # NOTE: this is OK
-        # >>> def foo(a, /, *, b):
-        # ...   pass
-        # BUT this is a syntax error
-        # >>> def foo(a, *, /, b):
-        # ...   pass
-        if pep570_marks:
-            add = 0
-            if (POS in kinds) and (len(set(kinds)) > 1):
-                # everything preceding / is position only
-                pars.insert(kinds.index(POS) + 1, '/')
-                add = 1
-
-            if (KWO in kinds) and (VAR not in kinds):
-                # everything following * in keyword only
-                pars.insert(kinds.index(KWO) + add, '*')
-
+              rhs=None, pep570_marks=True):
+    
+    # list of formatted parameters
+    params = parameters(sig, args, kws, show_defaults, rhs, pep570_marks)
+    
     # format!
-
-    # item_widths = list(map(len, pars))
-    widest = max(map(len, pars))
+    widest = max(map(len, params))
 
     # get default choices for repr
     ppl = params_per_line
@@ -297,7 +314,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     #
     # indent = len(name) + 1
     if hang is None:
-        hang = ((not ppl and len(pars) > 7)
+        hang = ((not ppl and len(params) > 7)
                 or
                 (wrap and widest > wrap - indent))
 
@@ -317,7 +334,7 @@ def signature(sig, args=(), kws=None, wrap=80, indent=1,
     # make the signature rep
     s = ''
     line = ''
-    for i, v in enumerate(pars):
+    for i, v in enumerate(params):
         if i > 0:
             line += ', '
 
