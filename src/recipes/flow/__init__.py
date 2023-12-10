@@ -86,7 +86,7 @@ class Emit:
 
 
 # ---------------------------------------------------------------------------- #
-class catch(Decorator):
+class Catch(Decorator):
     """
     Catch an exception and log it, or raise an alternate exception.
     """
@@ -94,8 +94,10 @@ class catch(Decorator):
     _default_message_template = \
         'Caught the following {err.__class__.__name__}: {err}'
 
-    def __init__(self, *, exceptions=Exception, action='warn',
-                 alternate=None, message=None, raise_from=True, warn=None,
+    def __init__(self, *, 
+                 exceptions=Exception, action='warn',
+                 alternate=None, message=None, 
+                 raise_from=True, warn=None,
                  **kws):
 
         if isinstance(warn, str):
@@ -148,7 +150,7 @@ class catch(Decorator):
         raise self.alternate from err
 
 
-class catch_warnings(catch):
+class CatchWarnings(Catch):
 
     def __init__(self, *, exceptions=Warning, action='error',
                  message='', raise_from=True, **kws):
@@ -163,7 +165,7 @@ class catch_warnings(catch):
 
 # ---------------------------------------------------------------------------- #
 
-class fallback(Decorator):
+class Fallback(Decorator):
     """Return the fallback value in case of exception."""
 
     def __init__(self, value=None, exceptions=(Exception, ), warns=False):
@@ -182,7 +184,7 @@ class fallback(Decorator):
             return self.fallback
 
 
-class post:
+class Post:
     """Run `func(*args, **kws) after running the wrapped function."""
 
     def __init__(self, func: abc.Callable, *args, **kws):
@@ -206,7 +208,7 @@ class post:
         return result
 
 
-class pre:
+class Pre:
     """Run `func(*args, **kws) after running the wrapped function."""
 
     def __init__(self, func, *args, **kws):
@@ -227,3 +229,11 @@ class pre:
                 {err}''')
                           )
         return func(*args, **kws)
+
+
+# aliases
+catch = Catch
+catch_warnings = CatchWarnings
+fallback = Fallback
+pre = Pre
+post = Post
