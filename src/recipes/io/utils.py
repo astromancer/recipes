@@ -218,10 +218,11 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
         return
 
     if not path.exists():
-        raise ValueError('Could not any resolve files for the input pattern: '
-                         f"'{path!s}'. Please supply a path to a valid existing"
-                         ' directory, or alternitively a glob pattern, or bash '
-                         'brace expansion pattern.')
+        raise ValueError(
+            "Could not any resolve files for the input pattern: '{path!s}'. "
+            'Please supply a path to a valid existing directory, or '
+            'alternitively a glob pattern, or bash brace expansion pattern.'
+        )
 
     # Return the input if it is an existing file. This break the recurrence.
     yield path
@@ -251,8 +252,8 @@ def iter_ext(files, extensions='*'):
         for ext in extensions:
             yield from file.parent.glob(f'{file.stem}.{ext.lstrip(".")}')
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 def open_any(filelike, mode='r'):
     # handle stream
@@ -439,11 +440,13 @@ def write_lines(stream, lines, eol='\n', eof=''):
 # ---------------------------------------------------------------------------- #
 
 @ctx.contextmanager
-def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
+def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
+              exception_hook=None):
     """
-    Context manager for doing file operations under backup. This will backup
-    your file before any read / writes are attempted. If something goes terribly
-    wrong during the attempted operation, the original content will be restored.
+    Context manager for doing file operations under backup. This will make a
+    copy of your file before any read / writes are attempted. If something goes
+    terribly wrong during the attempted operation, the original content will be
+    restored.
 
 
     Parameters
@@ -457,8 +460,8 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
         is the temporary file created by `tempfile.mkstemp`, using the prefix
         "backup." and suffix being the original `filename`.
     exception_hook : callable, optional
-        Hook to run on the event of an exception if you wish to modify the
-        error message. The default, None, will leave the exception unaltered.
+        Hook to run on the event of an exception if you wish to modify the error
+        message. The default, None, will leave the exception unaltered.
 
     Examples
     --------
@@ -486,7 +489,8 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
     if backup_needed:
         if backupfile is None:
             # create tmp backup file if no filename given for backup
-            bid, backupfile = tempfile.mkstemp(prefix='backup.',
+            bid, backupfile = tempfile.mkstemp(dir=folder,
+                                               prefix=f'{__name__}.backup.',
                                                suffix=f'.{path.name}')
         else:
             backupfile = Path(backupfile)
@@ -503,7 +507,11 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
                 # close files
                 fp.close()
                 os.close(bid)
+
                 # restore backup
+                logger.info('There was an error during a file operation on {!s}.'
+                            'Restoring original file from backup: {!s}',
+                            path, backupfile)
                 shutil.copy(backupfile, filename)
 
             # raise custom exception hook if provided
@@ -511,13 +519,18 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
                 raise exception_hook(err, filename) from err
 
             raise
+        finally:
+            if backup_needed and not keep:
+                logger.debug('Removing backup: {!scoping}', backupfile)
+                backupfile.unlink()
 
 
 # @ doc.splice(backed_up, 'summary',
 #             omit='Parameters[backupfile]',
 #             replace={'operation': 'write',
 #                      'read / ': ''})  # FIXME: replace not working here
-def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
+def safe_write(filename, lines, eol='\n',
+               backupfile=None, folder=None, keep=True, exception_hook=None):
     """
     {Parameters}
     lines : list
@@ -526,11 +539,12 @@ def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
     assert isinstance(eol, str)
     append = str.__add__ if eol else echo0
 
-    with backed_up(filename, mode, exception_hook=exception_hook) as fp:
-        # write lines
+    with backed_up(filename, 'w', backupfile, folder, keep, exception_hook) as fp:
         try:
+            # write lines
             for i, line in enumerate(lines):
                 fp.write(append(line, eol))
+
         except Exception as err:
             if exception_hook:
                 raise exception_hook(err, filename, line, i) from err
@@ -624,7 +638,7 @@ def show_tree(folder, use_dynamic_spacing=False):
     """
 
     from ..tree import FileSystemNode
-    
+
     tree = FileSystemNode.from_path(folder)
     tree.use_dynamic_spacing = bool(use_dynamic_spacing)
     return tree.render()
@@ -646,4 +660,3 @@ def walk(folder, depth=1):
         level = root.count(os.path.sep)
         if n_sep + depth <= level:
             del dirs[:]
-
