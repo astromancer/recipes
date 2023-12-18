@@ -8,48 +8,37 @@ import sys
 import time
 import atexit
 import numbers
-import logging
 import functools as ftl
+import contextlib as ctx
 
 # third-party
 from loguru import logger
 
 # relative
-from . import pprint as pp
 from .pprint.nrs import hms
-from .decorators import Decorator
-from .introspect.utils import (get_caller_frame, get_class_name,
-                               get_defining_class, get_module_name)
+from .introspect.utils import get_defining_class
 
 
 # ---------------------------------------------------------------------------- #
-def get_module_logger(depth=-1):
+@ctx.contextmanager
+def disabled(*libraries):
     """
-    Create a logger for a module by calling this function from the module
-    namespace.
+    Temporarily disable logging for `libraries`.
     """
-    return logging.getLogger(get_module_name(get_caller_frame(2), depth))
+
+    for lib in libraries:
+        logger.disable(lib)
+
+    try:
+        yield
+
+    finally:
+        # re-enable
+        for lib in libraries:
+            logger.enable(lib)
 
 
 # ---------------------------------------------------------------------------- #
-
-
-class LoggingDescriptor:
-    # use descriptor so we can access the logger via logger and cls().logger
-    # Making this attribute a property also avoids pickling errors since
-    # `logging.Logger` cannot be picked
-
-    def __init__(self, namespace_depth=-1):
-        self.namespace_depth = int(namespace_depth)
-
-    def __get__(self, obj, kls=None):
-        return logging.getLogger(self.get_log_name(kls or type(obj)))
-
-    @ftl.lru_cache
-    def get_log_name(self, kls):
-        return get_class_name(kls, self.namespace_depth)
-
-
 class LoggingMixin:
     class Logger:
 
@@ -87,26 +76,6 @@ class LoggingMixin:
 
     logger = Logger()
 
-# ---------------------------------------------------------------------------- #
-
-
-class Catch(Decorator, LoggingMixin):
-    """
-    Decorator that catches and logs errors instead of actively raising
-    exceptions.
-    """
-
-    def __wrapper__(self, func, *args, **kws):
-        try:
-            return func(*args, **kws)
-        except Exception:
-            logger.exception('Caught exception in {:s}: ',
-                             pp.caller(func, args, kws))
-
-
-# alias
-catch_and_log = catch = Catch
-
 
 # ---------------------------------------------------------------------------- #
 class TimeDeltaFormatter:
@@ -125,28 +94,52 @@ class TimeDeltaFormatter:
         return hms(self.timedelta.total_seconds(), **self._kws)
 
 
+# ---------------------------------------------------------------------------- #
+
+def _resolve_indent(indent, extra=''):
+
+    if indent in (False, None):
+        return ''
+
+    if isinstance(indent, str):
+        return indent
+
+    if isinstance(indent, numbers.Integral):
+        return ' ' * indent
+
+    raise TypeError(
+        f'Invalid object of type {type(indent).__name__!r} for `indent`: {indent!r}.'
+    )
+
+
+def resolve_indent(indent, extra=''):
+    return _resolve_indent(indent) + _resolve_indent(extra)
+
+
 class ParagraphWrapper:
 
-    def __init__(self, target=sys.stderr,  width=100, indent=4):
+    def __init__(self, target=sys.stderr, width=100, indent=4):
         self.target = target
         self.width = int(width)
-        self.indent = ' ' * indent
+        self.indent = resolve_indent(indent)
         # self.newline = f'\n{self.indent}'
 
+    def resolve_indent(self, indent, extra=''):
+
+        if indent is True:
+            return self.indent
+
+        return resolve_indent(indent)
+
     def write(self, message):
-        #
-        indent = True
-        if (record := getattr(message, 'record', None)):
-            indent = record['extra'].get('indent', True)
 
         # resolve indent
-        if isinstance(indent, numbers.Integral):
-            indent = indent * self.indent
-        elif not isinstance(indent, str):
-            raise TypeError('Invalid indent.')
-
-            # indent
-            message = message[:-1].replace('\n', indent + '\n') + '\n'
+        indent = False
+        if (record := getattr(message, 'record', None)):
+            kws = record['extra']
+            if indent := kws.pop('indent', False):
+                indent = self.resolve_indent(indent, **kws)
+                message = message[:-1].replace('\n', f'\n{indent}') + '\n'
 
         # send to target stream
         self.target.write(message)

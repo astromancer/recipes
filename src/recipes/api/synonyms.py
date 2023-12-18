@@ -175,7 +175,7 @@ class Synonyms(Decorator):
     """
     # TODO: detect ambiguous mapping
 
-    def __init__(self, mapping=(), /, mode=None, action='warn', **kws):
+    def __init__(self, mapping=(), /, mode=None, action='debug', **kws):
         # TODO **kws for simple mapping labels=label
         self.emit = Emit(action, TypeError)
         self.resolvers = []
@@ -212,8 +212,8 @@ class Synonyms(Decorator):
                     logger.debug('Caught {}: {}. Attempting keyword translation.',
                                  type(err), err)
                     args, kws = self.resolve(args, kws)
-                    logger.debug('Re-trying function call {}(...) with synonymous '
-                                 'keywords.', func.__name__)
+                    logger.debug('Re-trying function with translated '
+                                 'keywords:\n>>> {}.', func.__name__)
                     return func(*args, **kws)
                 raise
 
