@@ -1,27 +1,19 @@
 """
-Decorators for exposing function arguments / returns
+Decorators for exposing function call and return details.
 """
 
 # std
-import sys
 import time
-from io import StringIO
 
 # third-party
 from loguru import logger
 
 # relative
 from ..string import indent
-from .base import Decorator
+from ..decorators import Decorator
 
 
-# ---------------------------------------------------------------------------- #
-
-def format_print(string, *args, **kws):
-    print(string.format(*args, **kws))
-
-
-class trace(Decorator):
+class Trace(Decorator):
     """
     Decorator to print function call details - parameters names and effective 
     values optional arguments specify stuff to print before and after, as well 
@@ -97,24 +89,3 @@ class trace(Decorator):
         # sys.stdout.flush()
         return result
 
-
-# alias
-args = params = Trace = trace
-
-
-class suppress(Decorator):
-    """Suppress all print statements during a function call"""
-
-    def __wrapper__(self, func, *args, **kws):
-        # shadow stdout temporarily
-        actualstdout = sys.stdout
-        sys.stdout = StringIO()
-
-        # call the actual function
-        result = func(*args, **kws)
-
-        # restore stdout
-        sys.stdout = actualstdout
-        sys.stdout.flush()
-
-        return result

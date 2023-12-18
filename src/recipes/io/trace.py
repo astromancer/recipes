@@ -143,7 +143,7 @@ class TracePrints(MessageWrapper):
         self.stdout.flush()
 
 
-class WarningTraceback(MessageWrapper):
+class TraceWarnings(MessageWrapper):
     """
     Class that help to track down warning statements in unknowns source code
     """
@@ -159,11 +159,11 @@ class WarningTraceback(MessageWrapper):
 
         Examples
         --------
-        >>> wtb = WarningTraceback()
+        >>> wtb = TraceWarnings()
         >>> warnings.warn('Dinosaurs!')
         # TODO: generate this output dynamically ???
 
-        ------------------------------- WarningTraceback -------------------------------
+        ------------------------------- TraceWarnings -------------------------------
         /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:5: UserWarning: Dinosaurs!
           File "/usr/lib/python3.5/runpy.py", line 193, in _run_module_as_main
             "__main__", mod_spec)
@@ -194,14 +194,3 @@ class WarningTraceback(MessageWrapper):
         self.active = False
         warnings.formatwarning = original_formatwarning
 
-
-if __name__ == '__main__':
-    sys.stdout = TracePrints()
-    print('Hello World!')
-    # restore
-    sys.stdout = sys.stdout.stdout
-
-    wtb = WarningTraceback()
-    warnings.warn('Dinosaurs!!')
-    # restore
-    wtb.off()

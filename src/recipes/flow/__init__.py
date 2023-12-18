@@ -3,86 +3,14 @@ Some common decorators.
 """
 
 # std
-import numbers
 import warnings
 from collections import abc
 from textwrap import dedent
 
-# third-party
-from loguru import logger
-
 # relative
-from ..functionals import noop, raises
 from ..decorators.base import Decorator
-
-
-# ---------------------------------------------------------------------------- #
-# pylint: disable=invalid-name
-
-
-# ---------------------------------------------------------------------------- #
-class Emit:
-    """
-    Helper class for emitting messages of variable severity.
-    """
-
-    _action_ints = dict(enumerate(('ignore', 'info', 'warn', 'raise'), -1))
-    _equivalence = {'error': 'raise'}
-
-    _actions = {
-        'ignore':   noop,               # silently ignore
-        'info':     logger.info,
-        'warn':     warnings.warn,      # emit warning
-        'raise':    raises(Exception)   # raise
-    }
-
-    def __init__(self, action='ignore', exception=Exception):
-
-        action = action or 'ignore'
-
-        if isinstance(action, Exception):
-            exception = action
-            action = 'raises'
-
-        if exception is not None:
-            self._actions['raise'] = raises(exception)
-
-        # resolve action
-        self.action = action
-
-    def __call__(self, message, *args, **kws):
-        self.emit(message, *args, **kws)
-
-    def __enter__(self):
-        return self
-
-    @property
-    def action(self):
-        """set message action"""
-        return self._action
-
-    @action.setter
-    def action(self, val):
-        if callable(val):
-            # custom action (emit function)
-            self._action = 'custom'
-            self.emit = val
-        else:
-            self._action = self._resolve_action(val)
-            self.emit = self._actions[self._action]
-
-    def _resolve_action(self, action):
-        if action is None:
-            return 'ignore'
-
-        if isinstance(action, numbers.Integral):
-            return self._action_ints[action]
-
-        if isinstance(action, str):
-            action = action.rstrip('s')
-            return self._equivalence.get(action, action)
-
-        raise TypeError(f'Invalid type for `action`: {action}')
+from .emit import Emit
+from .trace import Trace
 
 
 # ---------------------------------------------------------------------------- #
@@ -94,9 +22,9 @@ class Catch(Decorator):
     _default_message_template = \
         'Caught the following {err.__class__.__name__}: {err}'
 
-    def __init__(self, *, 
+    def __init__(self, *,
                  exceptions=Exception, action='warn',
-                 alternate=None, message=None, 
+                 alternate=None, message=None,
                  raise_from=True, warn=None,
                  **kws):
 
@@ -159,7 +87,8 @@ class CatchWarnings(Catch):
 
     def __wrapper__(self, func, *args, **kws):
         with warnings.catch_warnings():
-            warnings.filterwarnings(self.emit.action, self.message, self.exceptions)
+            warnings.filterwarnings(
+                self.emit.action, self.message, self.exceptions)
             return super().__wrapper__(func, *args, **kws)
 
 
@@ -232,6 +161,7 @@ class Pre:
 
 
 # aliases
+trace = Trace
 catch = Catch
 catch_warnings = CatchWarnings
 fallback = Fallback
