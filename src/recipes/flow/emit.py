@@ -1,3 +1,8 @@
+"""
+Emit messages or warnings, or raise exceptions. Suppress output from overly
+talkative functions.
+"""
+
 # std
 import sys
 import numbers
@@ -15,20 +20,23 @@ from ..functionals import noop, raises
 # ---------------------------------------------------------------------------- #
 class Emit:
     """
-    Helper class for emitting messages of variable severity.
+    Emit messages or warnings, or raise exceptions depending on requested action.
+    Custom actions are also supported.
     """
 
+    __slots__ = ('_action', 'emit')
+
     _action_ints = dict(enumerate(('ignore', 'info', 'warn', 'raise'), -1))
-    _equivalence = {
-        'error':  'raise',
-        'silent': 'ignore'
-    }
     _actions = {
         'ignore':   noop,               # silently ignore
         'info':     logger.info,
         'debug':    logger.debug,
         'warn':     warnings.warn,      # emit warning
         'raise':    raises(Exception)   # raise
+    }
+    _action_synonyms = {
+        'error':  'raise',
+        'silent': 'ignore'
     }
 
     def __init__(self, action='ignore', exception=Exception):
@@ -75,7 +83,7 @@ class Emit:
 
         if isinstance(action, str):
             action = action.rstrip('s')
-            return self._equivalence.get(action, action)
+            return self._action_synonyms.get(action, action)
 
         raise TypeError(f'Invalid type for `action`: {action}')
 
