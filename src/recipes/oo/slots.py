@@ -1,26 +1,46 @@
 
-# third-party
-import more_itertools as mit
+# std
+import fnmatch as fnm
+import itertools as itt
 
 # relative
 from .. import dicts
-from ..iter import superclasses
+from ..utils import ensure_tuple
+from .utils import superclasses
 from .repr_helpers import ReprHelper
 
 
 # ---------------------------------------------------------------------------- #
 
-
 def _sanitize_locals(kws, *ignore):
     return dicts.remove(kws, {'self', 'kws', '__class__', *ignore})
 
 
-def _get_slots(cls):
+def get_slots(cls, ignore='_*', ancestors=all):
+    attrs = _get_slots(cls, ancestors)
+
+    if ignore:
+        return [atr for atr in attrs if _include(atr, ignore)]
+
+    return attrs
+
+
+def _include(atr, patterns):
+    for pattern in ensure_tuple(patterns):
+        if fnm.fnmatch(atr, pattern):
+            return False
+    return True
+
+
+def _get_slots(cls, ancestors=all, ):
     if not isinstance(cls, type) and hasattr(cls, '__slots__'):
         cls = type(cls)
 
-    for base in (*superclasses(cls), cls):
-        yield from getattr(base, '__slots__', ())
+    bases = itt.chain([cls], superclasses(cls))
+    bases = (base for base in bases if hasattr(base, '__slots__'))
+    ancestors = None if ancestors is all else int(ancestors)
+    for base in itt.islice(bases, ancestors):
+        yield from ensure_tuple(getattr(base, '__slots__', ()))
 
 
 # ---------------------------------------------------------------------------- #
@@ -32,16 +52,13 @@ class SlotRepr(ReprHelper):
 
     __slots__ = ()
 
-    def __repr__(self, extra=(), **kws):
+    def __repr__(self, extra=(), ignore='_*', **kws):
         kws = {**self._repr_style, **kws}
         if not (attrs := kws.pop('attrs', ())):
             # loop through the slots of all the bases and make a repr from that
-            attrs = _get_slots(type(self))
+            attrs = get_slots(type(self), ignore)
 
-        return super().__repr__(attrs=mit.collapse(attrs, extra), **kws)
-
-
-__non_init_params = {'self', 'args', 'kws'}
+        return super().__repr__(attrs=(*attrs, *extra), **kws)
 
 
 class SlotHelper(SlotRepr):
@@ -50,11 +67,12 @@ class SlotHelper(SlotRepr):
     """
 
     __slots__ = ()
+    __non_init_params = {'self', 'args', 'kws'}
 
     @classmethod
     def from_dict(cls, kws):
         init_params = set(_get_slots(cls))
-        init_params |= set(cls.__init__.__code__.co_varnames) - __non_init_params
+        init_params |= set(cls.__init__.__code__.co_varnames) - cls.__non_init_params
         return cls(**{s: kws.pop(s) for s in init_params if s in kws})
 
     def __init__(self, *args, **kws):

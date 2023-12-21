@@ -1,5 +1,5 @@
 
-from .. import dicts as dic
+from recipes.pprint import pformat
 
 
 DEFAULT_STYLE = dict(lhs=str,
@@ -21,7 +21,7 @@ def get_attrs(obj, keys, maybe=()):
 
 def _repr(obj, attrs, maybe=(), enclose=DEFAULT_STYLE['enclose'], **kws):
     opn, *close = enclose
-    return ''.join((dic.pformat(get_attrs(obj, attrs, maybe),
+    return ''.join((pformat(get_attrs(obj, attrs, maybe),
                                 f'{opn}{type(obj).__name__}',
                                 **kws),
                     *close))
