@@ -26,6 +26,11 @@ def pformat(obj, **kws):
     # raise TypeError(f'No dispatch method for pprinting objects of type {type(obj)}.')
 
 
+@pformat.register(str)
+def _(obj, _=None, **__):
+    return repr(obj)
+
+
 @pformat.register(abc.MutableMapping)
 def _(obj, name=None, **kws):
     return mapping(obj, name, **kws)

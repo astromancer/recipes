@@ -10,6 +10,7 @@ import os
 from ..string import overlay
 from .mapping import pformat as mapping
 
+
 # ---------------------------------------------------------------------------- #
 STD_BRACKETS = object()
 STD_BRACKET_TYPES = {set: '{}',

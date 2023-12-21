@@ -12,7 +12,8 @@ from collections import OrderedDict, UserDict, abc, defaultdict
 # relative
 from ..flow import Emit
 from ..utils import is_scalar
-from recipes.pprint.mapping import pformat, PrettyPrint
+from ..pprint.mapping import PrettyPrint, pformat
+
 
 # TODO: a factory function which takes requested props, eg:
 # indexable=True, attr='r', ordered=True)

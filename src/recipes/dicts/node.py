@@ -11,10 +11,11 @@ from .. import op
 from ..lists import cosort
 from ..utils import is_scalar
 from ..functionals import always, negate
+from ..pprint.mapping import PrettyPrint
 from ..iter import cofilter, first_true_index
 from ..functionals.partial import partial, placeholder as o
 from .core import AutoVivify, vdict
-from recipes.pprint.mapping import PrettyPrint
+
 
 # ---------------------------------------------------------------------------- #
 NULL = object()
