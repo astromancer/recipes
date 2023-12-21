@@ -5,29 +5,39 @@ Pretty printing callable objects and call signatures.
 # std
 import inspect
 import textwrap as txw
+import itertools as itt
 import functools as ftl
 import contextlib as ctx
 
 # relative
-from .. import api, dicts
-from ..iter import cofilter
-from ..string import indent as indented
+from .. import api, dicts, string
+from ..oo.repr_helpers import DEFAULT_STYLE
 from ..introspect.utils import get_module_name
 from ..oo.slots import SlotHelper, _sanitize_locals
 
 
 # ---------------------------------------------------------------------------- #
-# module constants
+# TODO: safety limit for large parameter values
+#           : safe_repr
+# TODO: colourise elements  / defaults / non-defaults
+
+# ---------------------------------------------------------------------------- #
+# Module constants
+DEFAULT = object()
+EMPTY = inspect.Parameter.empty
 POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 VAR_MARKS = {VAR: '*', VKW: '**'}
 
-_default = object()
 
 # ---------------------------------------------------------------------------- #
-
-
 def isempty(obj):
-    return obj is inspect.Parameter.empty
+    return obj is EMPTY
+
+
+def _var_name(par):
+    return f'{VAR_MARKS.get(par.kind, "")}{par._name}'
+
+# ---------------------------------------------------------------------------- #
 
 
 def describe(obj, sep=' ', repr=repr):
@@ -202,47 +212,170 @@ def get_name(obj, name_depth, show_binding_class=True):
 #         If the object is not callable.
 #     """
 
-# TODO: option to not print param names
-# TODO: safety limit for large parameter values
-#           : safe_repr
-# TODO: colourise elements  / defaults / non-defaults
+class BaseFormatter(SlotHelper):
 
-class Formatter(SlotHelper):
-    """
-    Pretty format call signatures and invocations.
-    """
+    __slots__ = ('_parent', )
+    _repr_style = {**DEFAULT_STYLE, 'hang': True}
 
-    __slots__ = ('lhs', 'equal', 'rhs', 'align',
-                 'ppl', 'wrap', 'indent', 'hang')
+    def __init__(self, *args, parent=None, **kws):
+        super().__init__(*args, **kws)
+        self._parent = parent
 
-    def __init__(self, name_depth=2, show_binding_class=True,
-                 lhs=str, equal='=', rhs=None, align=False,
-                 ppl=None, wrap=80, indent=True, hang=None):
+    def __str__(self):
+        return self.format()
 
+    def __call__(self, *args, **kws):
+        return self.format(*args, **kws)
+
+    def format(self, *args, **kws):
+        raise NotImplementedError
+
+
+class Parameter(BaseFormatter):
+    # Paramater formatter
+
+    __slots__ = ('lhs', 'equal', 'rhs', 'align')
+
+    def __init__(self, lhs=str, equal='=', rhs=None, align=False):
+
+        # default value formatter
         if rhs is None:
             from recipes.pprint import pformat as rhs
 
         # save local state on instance
         super().__init__(**_sanitize_locals(locals()))
 
-    def __call__(self, obj, **kws):
-        return Signature(obj, **kws)
+    def format(self, par, name=True, annotated=None, value=DEFAULT, width=0):
+        return ''.join(self._parts(par, name, annotated, value, width))
 
-    def name(self, obj):
-        return get_name(obj, self.name_depth, self.show_binding_class)
+    def name(self, par, name=True):
+        # get name
+        if name is None:
+            # default is only name keyword-only
+            name = par.kind is KWO
+
+        if name is True:
+            # add prefix '*' / '**'
+            # name = par._name
+            name = f'{VAR_MARKS.get(par.kind, "")}{par._name}'
+
+        # Fill empty if name is null
+        name = name or ''
+        return name
+
+    def annotation(self, anno):
+        return inspect.formatannotation(anno)
+
+    def _parts(self, par, name, annotated, value, width):
+        # get formatted "name(:annotation)(=value)" and value for
+        # name value pair (par, value)
+
+        # self._parent._parent : Signature / Invocation
+
+        # get name
+        name = self.name(par, name)
+        assert isinstance(name, str)
+
+        # fill default if no value given
+        if value is DEFAULT:
+            # default is to print annotation only when parameter takes default value
+            value = par.default
+            annotated = (annotated is None)
+
+        # add annotation if meaningful
+        if name and annotated and (par._annotation is not EMPTY):
+            name = f'{name}: {self.annotation(par._annotation)}'
+
+        return self._align(name, value, width)
+
+    def _align(self, lhs, rhs, width):
+        # get formatted name (possibly with annotation and equal) and value for
+        # key value pair (lhs, rhs)
+        lhs = lhs or ''
+        have_value = not isempty(rhs)
+        rhs = string.indent(self.rhs(rhs), width) if have_value else ''
+        eq = self.equal if (lhs and have_value) else ''
+
+        if align := self.align:
+            if align == '<':
+                lhs = f'{lhs + eq: <{width}}'
+            elif align == '>':
+                lhs = f'{lhs: <{width - len(eq)}}{eq}'
+        else:
+            lhs += eq
+
+        return lhs, rhs
+
+
+class ParameterList(BaseFormatter):
+
+    __slots__ = ('ppl', 'wrap', 'indent', 'hang', 'align',
+                 'parameter')  # fmt?
+
+    def __init__(self, ppl=None, align=False, wrap=80, indent=True, hang=None, **kws):
+
+        # parameter formatter
+        parameter = Parameter(align=align, **kws)
+        parameter.parent = self
+
+        # save local state on instance
+        super().__init__(**_sanitize_locals(locals()))
+
+    def format(self, params, **fmt):
+        # parameters as block wrapped string
+        if not params:
+            return
+
+        params = list(self._parts(params, **fmt))
+        return self.wrapped(params)
+
+    def _parts(self, params, names=True, values=(), width=None, **fmt):
+        # yield formatted parameter(:annotation)(=value) strings
+
+        assert (not values) or (len(values) == len(params))
+
+        # if names is True:
+        #     # add prefix '*' / '**'
+        #     names = [_var_name(p) for p in params]
+
+        if not params:
+            return
+
+        if self.align and width is None:
+            if not names:
+                # format lhs only first
+                names, _ = zip(*(self.parameter._parts(p, value=EMPTY, **fmt) for p in params))
+
+            # get width (widest name)
+            width = string.width(names)
+
+        # now format rhs values indented at width of lhs =
+        width = width or 0
+        if names in (True, None, False):
+            names = [names] * len(params)
+
+        for par, name, value in itt.zip_longest(params, names, values, fillvalue=DEFAULT):
+            if not name:
+                # unpack variadics in invocation
+                if (par.kind is VAR):
+                    yield from map(self.parameter.rhs, value)
+                    continue
+
+                if (par.kind is VKW):
+                    if value is DEFAULT:
+                        value = par.default
+                    for name, val in value.items():
+                        yield self.parameter(None, name, False, val, width)
+                    continue
+
+            yield self.parameter(par, name=name, value=value, width=width, **fmt)
 
     # ------------------------------------------------------------------------ #
-    def _align(self, text, width):
 
-        if self.align == '<':
-            return f'{text + self.equal: <{width}}'
+    def wrapped(self, params):
 
-        if self.align == '>':
-            return f'{text: <{width}}{self.equal}'
-
-        return f'{text}{self.equal}'
-
-    def _wrap(self, params):
+        if not params:
+            return '()'
 
         ppl = self.ppl
         wrap = self.wrap
@@ -305,6 +438,30 @@ class Formatter(SlotHelper):
         return s.join('()')
 
 
+class Formatter(BaseFormatter):
+    """
+    Pretty format call signatures and invocations.
+    """
+
+    __slots__ = ('show_binding_class', 'name_depth', 'parameters')
+
+    def __init__(self, name_depth=2, show_binding_class=True, **kws):
+
+        # parameter list fomatter
+        parameters = ParameterList(**kws)
+        parameters.parent = self
+
+        # save local state on instance
+        super().__init__(**_sanitize_locals(locals()))
+
+    def __call__(self, obj, **kws):
+        return Signature(obj, **kws)
+
+    def name(self, obj):
+        return get_name(obj, self.name_depth, self.show_binding_class)
+
+
+# ---------------------------------------------------------------------------- #
 class Callable(SlotHelper):
     """
     A wrapper class for formatting callable objects and represent call
@@ -334,20 +491,10 @@ class Callable(SlotHelper):
         super().__init__(**state)
 
     def __call__(self, *args, **kws):
+        args, kws = self._get_args_kws(*args, **kws)
+        return Signature(self)(*args, **kws)
 
-        formatter = Signature(self)
-        args, kws = self._get_user_args(*args, **kws)
-
-        if (args or kws):
-            # format each parameter as 'param=value' pair
-            return formatter(*args, **kws)
-
-        return formatter
-
-    def __str__(self):
-        return self.format()
-
-    def _get_user_args(self, *args, **kws):
+    def _get_args_kws(self, *args, **kws):
         obj = self.obj
 
         # special handling for partial objects!
@@ -360,13 +507,10 @@ class Callable(SlotHelper):
     def format(self, *params, **fmt):
 
         name = self.name()
-
         if fmt.get('indent') is True:
             fmt['indent'] = len(name) + 1
 
-        params = self.parameters(*params, **fmt)
-
-        return f'{name}{params}'
+        return f'{name}{self.parameters(*params, **fmt)}'
 
     # ------------------------------------------------------------------------ #
     def name(self):
@@ -378,53 +522,19 @@ class Callable(SlotHelper):
         return name
 
     # ------------------------------------------------------------------------ #
-    def parameters(self, *params, **fmt):
-        # parameters block wrapped string
-        params = self.parameter_list(*params, **fmt)
+    # def _parameter(self, par, *args, **kws):
+    #     return self.fmt.parameters.parameter._parts(par, *args, **kws)
 
-        if not params:
-            return '()'
+    # def parameter(self, par, *args, **kws):
+    #     return ''.join(self._parameter(par, *args, **kws))
 
-        return self.wrap(params)
+    def _parameters(self, *args, **kws):
+        return self.fmt.parameters._parts(*args, **kws)
 
-    def parameter_list(self, *params, **fmt):
-        # formatted list of "name(:annotation)(=value)" strings
-        return list(self._parameters(*params, **fmt))
-
-    def _parameters(self, *params, **fmt):
-        # yield formatted parameter(:annotation)(=value) strings
-        raise NotImplementedError
-
-    def parameter(self, par, name=None, annotated=True, value=_default, width=0):
-
-        if name is None:
-            name = par._name
-
-        name = f'{VAR_MARKS.get(par.kind, "")}{name}'
-
-        lhs, rhs = self._parameter(par, name, annotated, value)
-
-        if rhs is par.empty:
-            return self.fmt.lhs(lhs)
-
-        lhs = self.fmt._align(lhs, width)
-        return f'{lhs}{indented(self.fmt.rhs(rhs), len(lhs))}'
-
-    def _parameter(self, par, name=None, annotated=True, value=_default):
-
-        if name is not False:
-            # Add annotation and default value
-            if annotated and par._annotation is not par.empty:
-                name = f'{name}: {self.annotationn(par._annotation)}'
-
-        if value is _default:
-            value = par.default
-
-        # prefix '*' / '**'
-        return name, value
-
-    def wrap(self, params):
-        return self.fmt._wrap(params)
+    def parameters(self, *args, **kws):
+        return self.fmt.parameters.wrapped(
+            list(self._parameters(*args, **kws))
+        )
 
 
 class Signature(Callable):
@@ -432,12 +542,13 @@ class Signature(Callable):
     def __call__(self, *args, **kws):
         return Invocation(self, args, kws)
 
-    def _get_user_args(self, *_, **__):
-        return super()._get_user_args()
+    def _get_args_kws(self, *_, **__):
+        return super()._get_args_kws()
 
     def format(self, annotated=True, show_defaults=True, pep570_marks=True):
         # This prints the function signature [optionally with default valus]
         # TODO: return annotation
+
         return super().format(annotated=annotated,
                               show_defaults=show_defaults,
                               pep570_marks=pep570_marks)
@@ -446,36 +557,27 @@ class Signature(Callable):
     def annotation(self, anno):
         return inspect.formatannotation(anno)
 
+    # def parameter(self, par, annotated=None, value=DEFAULT, width=0):
+    #     # get formatted name (possibly with annotation and equal) and value for
+    #     # name value pair (par, value)
+    #     # prefix '*' / '**'
+    #     name = f'{VAR_MARKS.get(par.kind, "")}{par._name}'
+    #     return self._parameter(par, name, annotated, value, width)
+
     def _parameters(self, annotated, show_defaults, pep570_marks):
         # yield formatted parameter(:annotation)(=value) string
 
-        params = self.sig.parameters
+        params = self.sig.parameters.values()
 
         if not show_defaults:
             # drop parameters which have defaults
-            params = {name: par
-                      for name, par in params.items()
-                      if par.default == par.empty}
+            params = [par for par in params if par.default == EMPTY]
 
-        if not params:
-            return
+        # add prefix '*' / '**'
+        # names = {_var_name(p): p for p in params.values()}
 
         # Get mapping: formatter parameter name (possibly with annotation) -> default value
-        names, values = zip(*(self._parameter(p, annotated=annotated)
-                              for p in params.values()))
-
-        width = 0
-        if align := self.fmt.align:
-            width = max(map(len, cofilter(isempty, values, names)[1]))
-            if align == '<':
-                width += len(self.fmt.equal)
-
-        # format
-        values = dict(zip(params, values))
-        formatted = (self.parameter(par, name, False,
-                                    values.get(par._name, par.default),
-                                    width)
-                     for name, par in zip(names, params.values()))
+        formatted = list(self.fmt.parameters._parts(params, annotated=annotated))
 
         if pep570_marks:
             yield from self._pep570(params, formatted)
@@ -484,29 +586,26 @@ class Signature(Callable):
         yield from formatted
 
     def _pep570(self, params, formatted):
-
-        # inject special / and * markers PEP570
-        # everything preceding / is position only
-        # everything following * in keyword only
+        """
+        inject special / and * markers PEP570
+        everything preceding / is position only
+        everything following * in keyword only
+        """
 
         # NOTE: this is OK
-        # >>> def foo(a, /, *, b):
-        # ...     pass
+        # >>> def foo(a, /, *, b): ...
 
         # ALSO OK:
-        # >>> def x(*, q):
-        # ...     pass
+        # >>> def x(*, q): ...
 
         # ALSO OK
-        # >>> def x(a, /, q):
-        # ...    pass
+        # >>> def x(a, /, q): ...
 
         # BUT this is a syntax error
-        # >>> def foo(a, *, /, b):
-        # ...     pass
+        # >>> def foo(a, *, /, b): ...
 
         formatted = list(formatted)
-        kinds = [p.kind for p in params.values()]
+        kinds = [p.kind for p in params]
 
         add = 0
         if POS in kinds:
@@ -522,36 +621,22 @@ class Signature(Callable):
 
 
 class Invocation(Callable):
-    """Formatter for caall invocations."""
+    """Formatter for call invocations."""
 
     __slots__ = ('args', 'kws')
 
     def __init__(self, obj, args=(), kws=None, /, **fmt):
-        assert args or kws
         super().__init__(obj, **fmt)
         self.args = args
         self.kws = dict(kws or {})
 
     def format(self, show_param_names=None, show_defaults=True):
         # format each parameter as 'param=value' pair
-        return super().format(show_defaults=show_defaults)
+        return super().format(show_param_names=show_param_names,
+                              show_defaults=show_defaults)
 
-    def parameter(self, par, name=True, annotated=True, value=_default, width=0):
-
-        if name is None:
-            # default is only name keyword-only
-            name = par.kind is KWO
-
-        if name is True:
-            name = f'{VAR_MARKS.get(par.kind, "")}{par._name}'
-
-        lhs, rhs = self._parameter(par, name, annotated, value)
-
-        if rhs is par.empty:
-            return self.fmt.lhs(lhs)
-
-        lhs = self.fmt._align(lhs, width)
-        return f'{lhs}{indented(self.fmt.rhs(rhs), len(lhs))}'
+    # def parameter(self, par, name=None, value=DEFAULT, width=0):
+    #     return super().parameter(par, name, False, value, width)
 
     def _parameters(self, show_param_names=None, show_defaults=True):
 
@@ -559,27 +644,74 @@ class Invocation(Callable):
         ba = self.sig.bind_partial(*self.args, **self.kws)
 
         if show_defaults:
+            # set default values for missing arguments.
             ba.apply_defaults()
 
-        # Get mapping: formatter parameter name (possibly with annotation) -> default value
-        width = 0
-        if align := self.fmt.align:
-            width = max(map(len, ba.arguments))
-            if align == '<':
-                width += len(self.equal)
+        if not ba.arguments:
+            # this means the function takes no parameters
+            return
 
+        # Get mapping: formatter parameter name -> value
         params = self.sig.parameters
-        for name, value in ba.arguments.items():
-            yield self.parameter(params[name], name, annotated=False,
-                                 value=value, width=width)
+        params = [params[name] for name in ba.arguments]
+
+        yield from self.fmt.parameters._parts(params, show_param_names, ba.arguments.values())
+
+        # yield from super()._parameters(params, ba.arguments.values(), name=named)
+
 
 # ---------------------------------------------------------------------------- #
-
-
+#
 @api.synonyms({'params_per_line': 'ppl'}, action='silent')
-def caller(obj, args=(), kws=None, **fmt):
-    invocation, fmt = dicts.split(fmt, Formatter.__slots__)
-    return Callable(obj, **fmt)(*args, **(kws or {})).format(**invocation)
+def caller(obj, args=EMPTY, kws=EMPTY, **fmt):
+
+    # split Formatter init params
+    fmt_call_kws, fmt_init_kws = dicts.split(fmt, Formatter.__slots__)
+
+    try:
+        formatter = Signature(obj, **fmt_init_kws)
+
+        if args is EMPTY and kws is EMPTY:
+            # format as signature
+            return formatter.format(**fmt_call_kws)
+
+        # format as invocation
+        inv = formatter(*args, **kws)
+        return inv.format(**fmt_call_kws)
+    except Exception as err:
+        import sys
+        import textwrap
+        from IPython import embed
+        from better_exceptions import format_exception
+        embed(header=textwrap.dedent(
+            f"""\
+                Caught the following {type(err).__name__} at 'callers.py':626:
+                %s
+                Exception will be re-raised upon exiting this embedded interpreter.
+                """) % '\n'.join(format_exception(*sys.exc_info()))
+        )
+        raise
+
+        # if isinstance(formatter, Signature):
+        #     return
+
+        # from IPython import embed
+        # embed(header="Embedded interpreter at 'src/recipes/pprint/callers.py':604")
+
+        # # if formatter.sig.parameters:
+        # #     return formatter.format(**invocation)
+
+        # if args or kws or not formatter.sig.parameters:
+        #     # format each parameter as 'param=value' pair
+        #     formatter = formatter(*args, **kws)
+        #     return formatter.format(**invocation)
+
+        # return str(formatter)
+
+        # if formatter.sig.parameters:
+        #     return formatter.format(**invocation)
+
+        # return formatter()
 
 
 # ---------------------------------------------------------------------------- #
