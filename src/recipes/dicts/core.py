@@ -6,11 +6,13 @@ Recipes extending mutable mapping functionality.
 # std
 import numbers
 import itertools as itt
+import contextlib as ctx
 from pathlib import Path
 from collections import OrderedDict, UserDict, abc, defaultdict
 
 # relative
 from ..flow import Emit
+from ..iter import cofilter
 from ..utils import is_scalar
 from ..pprint.mapping import PrettyPrint, pformat
 
@@ -83,8 +85,9 @@ def groupby(func, items):
     dict[Any, list]
         (group_id, items)
     """
-    items = sorted(items, key=func)
-    return {group: list(itr) 
+    with ctx.suppress(TypeError):
+        items = sorted(items, key=func)
+    return {group: list(itr)
             for group, itr in itt.groupby(items, func)}
 
 
@@ -112,13 +115,21 @@ def merge(*mappings, **kws):
     return out
 
 
-# ---------------------------------------------------------------------------- #
+def filter(func_or_mapping, mapping=None):
+    func = func_or_mapping if mapping else None
+    mapping = (mapping or func_or_mapping)
+    new = zip(*cofilter(func, mapping.values(), mapping.keys())[::-1])
+
+    if isinstance(mapping, defaultdict):
+        return type(mapping)(mapping.default_factory, new)
+
+    return type(mapping)(new)
 
 
-def _split(mapping, keys):
-    for key in keys:
-        if key in mapping:
-            yield key, mapping.pop(key)
+def remove(mapping, keys, *extra):
+    # remove keys
+    split(mapping, keys, *extra)
+    return mapping
 
 
 def split(mapping, keys, *extra):
@@ -129,12 +140,15 @@ def split(mapping, keys, *extra):
     return mapping, dict(_split(mapping, keys))
 
 
-def remove(mapping, keys, *extra):
-    split(mapping, keys, *extra)
-    return mapping
+def _split(mapping, keys):
+    for key in keys:
+        if key in mapping:
+            yield key, mapping.pop(key)
+
 
 # ---------------------------------------------------------------------------- #
-
+# TODO: a factory function which takes requested props, eg:
+# def factory(attrs='read-only', ordered=True, indexed=True):
 
 class Invertible:
     """
