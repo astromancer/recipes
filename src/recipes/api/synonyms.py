@@ -44,7 +44,7 @@ from loguru import logger
 from ..flow import Emit
 from ..pprint import callers
 from ..decorators import Decorator
-from ..string.brackets import BracketParser
+from ..string import brackets
 
 
 # ---------------------------------------------------------------------------- #
@@ -139,7 +139,7 @@ class KeywordTranslate(RegexTranslate):
     'row_nrs'
     """
 
-    parser = BracketParser('[]', '()')
+    parser = brackets.Parser('[]', '()')
 
     def __init__(self, pattern, answer=''):
         super().__init__(self._build_regex(pattern), answer)

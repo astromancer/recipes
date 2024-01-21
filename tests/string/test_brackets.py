@@ -6,7 +6,7 @@ import pytest
 from recipes import op
 from recipes.functionals import negate
 from recipes.testing import Expected, Throws, expected, mock
-from recipes.string.brackets import (BracketPair, BracketParser, Condition,
+from recipes.string.brackets import (Condition, MatchedDelimiters, Parser,
                                      braces, csplit, is_outer, level, match,
                                      remove)
 
@@ -29,18 +29,18 @@ def test_match_brackets(string, pair, expected):
 
 test_brackets_must_close = Expected(match)({
     #
-    mock('open((((((', '()', must_close=0):     BracketPair('()', None, (4, None)),
-    mock('((())', '()', must_close=0):          BracketPair('()', None, (0, None)),
+    mock('open((((((', '()', must_close=0):     MatchedDelimiters('()', None, (4, None)),
+    mock('((())', '()', must_close=0):          MatchedDelimiters('()', None, (0, None)),
     #
-    mock('foo{bla', '{}', must_close=0):        BracketPair('{}', None, (3, None)),
+    mock('foo{bla', '{}', must_close=0):        MatchedDelimiters('{}', None, (3, None)),
     mock('foo{bla', '{}', must_close=-1):       None,
 
-    mock('open((((((', '()', must_close=0):     BracketPair('()', None, (4, None)),
+    mock('open((((((', '()', must_close=0):     MatchedDelimiters('()', None, (4, None)),
     mock('open((((((', '()', must_close=-1):    None,
     mock('open((((((', '()', must_close=1):     Throws(ValueError),
 
-    mock('((())', '()', must_close=0):          BracketPair('()', None, (0, None)),
-    mock('((())', '()', must_close=-1):         BracketPair('()', '', (2, 3), level=2),
+    mock('((())', '()', must_close=0):          MatchedDelimiters('()', None, (0, None)),
+    mock('((())', '()', must_close=-1):         MatchedDelimiters('()', '', (2, 3), level=2),
     mock('((())', '()', must_close=1):          Throws(ValueError),
     #
     mock('(', '()', must_close=1):              Throws(ValueError),
@@ -50,10 +50,10 @@ test_brackets_must_close = Expected(match)({
 
 test_iter = Expected(braces.iterate)(
     {'{}{}{}{}':
-        [BracketPair('{}', '', (0, 1)),
-         BracketPair('{}', '', (2, 3)),
-         BracketPair('{}', '', (4, 5)),
-         BracketPair('{}', '', (6, 7))]},
+        [MatchedDelimiters('{}', '', (0, 1)),
+         MatchedDelimiters('{}', '', (2, 3)),
+         MatchedDelimiters('{}', '', (4, 5)),
+         MatchedDelimiters('{}', '', (6, 7))]},
     transform=list
 )
 
@@ -142,4 +142,4 @@ test_depth = Expected(braces.depth)({
 
 
 def test_new_parser():
-    BracketParser()._index('[this(nested{set<of>[brackets]})]')
+    Parser()._index('[this(nested{set<of>[brackets]})]')

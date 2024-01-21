@@ -25,7 +25,7 @@ from loguru import logger
 from ..string import sub
 from ..functionals import echo0
 from ..shell.bash import brace_expand_iter
-from ..string.brackets import BracketParser
+from ..string.brackets import braces
 
 
 # ---------------------------------------------------------------------------- #
@@ -35,9 +35,7 @@ FORMATS = {'json': json,
 FILEMODES = {pickle: 'b',
              json: ''}
 
-# for getting object size
 
-braces = BracketParser('{}')
 
 # ---------------------------------------------------------------------------- #
 

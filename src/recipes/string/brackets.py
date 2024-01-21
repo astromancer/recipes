@@ -1,5 +1,5 @@
 """
-Tools for parsing and editing strings containing (nested) brackets.
+Tools for parsing and editing strings containing (arbitrarily nested) brackets.
 """
 
 # std
@@ -25,7 +25,7 @@ from . import delete, named_items
 
 
 # Braces(string) # TODO / .tokenize / .parse
-# # __all__ = ['BracketParser', 'braces', 'square', 'round', 'chevrons']
+# # __all__ = ['Parser', 'braces', 'square', 'round', 'chevrons']
 
 ALL_BRACKET_PAIRS = ('()', '[]', '{}', '<>')
 COMPARE_SYMBOLS = {op.eq: '==',
@@ -38,6 +38,7 @@ INFINT = 2 ** 32
 CARET = '^'
 
 
+# utils
 # ---------------------------------------------------------------------------- #
 # function that always returns True
 always_true = always(True)
@@ -62,10 +63,14 @@ def sort_match(match):
 
     # return match.indices
 
+
+# exceptions
 # ---------------------------------------------------------------------------- #
+class UnpairedDelimiterWarning(Warning):
+    pass
 
 
-class UnpairedBracketError(ValueError):
+class UnpairedDelimiterError(ValueError):
     """
     Exception used when unpaired brackets encountered and `must_close=True`.
     """
@@ -79,10 +84,6 @@ class UnpairedBracketError(ValueError):
                 + '\n'.join(f'{open_!r} at {named_items(pos, "position")}'
                             for open_, pos in positions.items())
                 + show_unpaired(string, positions))
-
-
-class UnpairedBracketWarning(Warning):
-    pass
 
 
 def show_unpaired(string, positions, caret=CARET):
@@ -100,14 +101,16 @@ def show_unpaired(string, positions, caret=CARET):
     return (f'\n> {string}'
             f'\n  {"".join(x)}')
 
+
+# conditional matching
 # ---------------------------------------------------------------------------- #
 
 
 @dataclass
 class Condition:
     """
-    Collection of conditional tests on BracketPair attributes. Used for 
-    filtering BracketPair from iterable.
+    Collection of conditional tests on MatchedDelimiters attributes. Used for 
+    filtering MatchedDelimiters from iterable.
 
     """
     enclosed:   Union[Callable, str] = always_true
@@ -287,9 +290,10 @@ def get_test(condition, string):
     #                  f'{pp.caller(condition)}')
 
 
+# Matched Delimiters
 # ---------------------------------------------------------------------------- #
 @dataclass
-class BracketPair:
+class MatchedDelimiters:
     """
     Object representing a pair of brackets at some position and nesting level in
     a string, possibly enclosing some content.
@@ -310,7 +314,7 @@ class BracketPair:
 
     @classmethod
     def null(cls):
-        """Constructor for a non-existent BracketPair which may be used as a
+        """Constructor for a non-existent MatchedDelimiters which may be used as a
         sentinel."""
         return cls('{}', None, (None, None))
 
@@ -324,7 +328,10 @@ class BracketPair:
         yield self.indices
 
     def __str__(self):
-        return '<UNCLOSED>' if self.enclosed is None else self.enclosed
+        if self.enclosed is None:
+            return '<UNCLOSED>'
+        else:
+            return self.enclosed.join(self.brackets)
 
     def __bool__(self):
         return any((self.enclosed, *self.indices))
@@ -338,9 +345,9 @@ class BracketPair:
         return self.indices[1]
 
     # @ftl.cached_property
-    @property
-    def full(self):
-        return self.enclosed.join(self.brackets)
+    # @property
+    # def full(self):
+    #     return self.enclosed.join(self.brackets)
 
     def is_open(self):
         return None in self.indices
@@ -387,7 +394,7 @@ class BracketPair:
 #         self.value = yield from self.gen
 
 
-class BracketParser:
+class Parser:
     """
     Class for matching, iterating, splitting, filtering, replacing paired
     delimiters in strings.
@@ -425,7 +432,7 @@ class BracketParser:
 
     def _iter(self, string, must_close=0):
         # TODO: filter level here to avoid unnecessary construction of
-        # BracketPair and possible performance cost.
+        # MatchedDelimiters and possible performance cost.
         assert must_close in {-1, 0, 1}
 
         positions = defaultdict(list)
@@ -442,20 +449,20 @@ class BracketParser:
                 open_[o] -= 1
                 if pos := positions[o]:
                     i = pos.pop(-1)
-                    yield BracketPair((o, b), string[i + 1:j], (i, j),
-                                      len(positions[o]))
+                    yield MatchedDelimiters((o, b), string[i + 1:j], (i, j),
+                                            len(positions[o]))
 
                 elif must_close == 0:
-                    yield BracketPair((o, b), None, (None, j), 0)
+                    yield MatchedDelimiters((o, b), None, (None, j), 0)
 
                 elif must_close == 1:
-                    raise UnpairedBracketError(string, 'opening', {b: j})
+                    raise UnpairedDelimiterError(string, 'opening', {b: j})
 
                 # NOTE: `must_close == -1` doesn't yield anything, just continue
 
         # Handle unclosed brackets
         if (must_close == 1) and any(positions.values()):
-            raise UnpairedBracketError(string, 'closing', positions)
+            raise UnpairedDelimiterError(string, 'closing', positions)
 
         if must_close == -1:
             return
@@ -466,16 +473,16 @@ class BracketParser:
             # Check if b is opening, Items will be unordered, we have to keep
             # track of the state if we want to deliver the pairs in a requested
             # order
-            if (self.opening != self.closing and b in self.opening 
-                and idx and idx != [len(string) + 1]):
+            if (self.opening != self.closing and b in self.opening
+                    and idx and idx != [len(string) + 1]):
                 wrn.warn('Unclosed opening brackets in string. Items will be '
                          'out of order. Use the `findall` method for obtaining '
-                         'an index-ordered list braces.', UnpairedBracketWarning)
+                         'an index-ordered list braces.', UnpairedDelimiterWarning)
 
             # opening, closing characters
             pair = tuple(sorted([b, self.pair_map[b]]))
             for i in idx:
-                yield BracketPair(pair, None, (i, None), 0)
+                yield MatchedDelimiters(pair, None, (i, None), 0)
 
     def iterate(self, string, must_close=False, condition=always_true,
                 inside_out=False, outside_in=False):
@@ -489,12 +496,12 @@ class BracketParser:
         must_close : {-1, 0, 1}
             Defines the behaviour when an unclosed of bracket is encountered:
             -1          : Silently ignore
-             0 or False : Yield BracketPair with None at missing index
+             0 or False : Yield MatchedDelimiters with None at missing index
              1 or True  : raises ValueError
 
         Yields
         ------
-        match : BracketPair
+        match : MatchedDelimiters
         """
 
         # logger.debug('Iterating {!r} brackets in {!r} with condition: {}.',
@@ -506,7 +513,7 @@ class BracketParser:
 
         # get condition test call signature
         test = get_test(condition, string)
-        
+
         # Check if condition requires `level`
         if ((must_close == 0) and
             (isinstance(test, is_outer) or
@@ -514,7 +521,7 @@ class BracketParser:
             # User asked for filter on `level`. Since `level` may change due to
             # unclosed braces, we have to unpack here if we have any unclosed.
             with wrn.catch_warnings():
-                wrn.simplefilter('ignore', UnpairedBracketWarning)
+                wrn.simplefilter('ignore', UnpairedDelimiterWarning)
                 itr = filter(test, list(self._unclosed_reorder(itr)))
 
         else:
@@ -530,7 +537,7 @@ class BracketParser:
 
             return
 
-        # This just yield pairs at any level in he order that they are closed
+        # This just yield pairs at any level in the order that they are closed
         yield from itr
 
     # alias
@@ -551,7 +558,7 @@ class BracketParser:
 
         n_open = 0
         for match in sorted(itr, key=sort_match):
-            if match.indices[1] is None: # Open bracket with missing closing 
+            if match.indices[1] is None:  # Open bracket with missing closing
                 n_open += 1
             else:
                 match.level -= n_open
@@ -559,13 +566,13 @@ class BracketParser:
             yield match
 
     def match(self, string, must_close=False, condition=always_true,
-              inside_out=False, outside_in=True): 
+              inside_out=False, outside_in=True):
         """
         Search the string for a single (pair of) bracket(s). With the default
         parameters, this method returns the first (and outermost) bracket pair.
         The remaining parameters can be used to control which bracket (pair) will
         be matched, and whether unclosed brackets should be accepted.
-         
+
         To iterate over multiple bracket pairs, use the `iterate` method.
 
         Parameters
@@ -580,29 +587,29 @@ class BracketParser:
             _description_, by default False
         outside_in : bool, optional
             _description_, by default True
-        
+
         Parameters
         ----------
         string : str
-            
+
         must_close : bool, optional
             Defines the behaviour for unclosed pairs of brackets:
             -1          : Silently ignore
-             0 or False : Yield BracketPair with None in place of missing 
+             0 or False : Yield MatchedDelimiters with None in place of missing 
                           start/stop index.
              1 or True  : raises ValueError
 
         Examples
         --------
         >>> s = 'def sample(args=(), **kws):'
-        >>> r, (i, j) = BracketParser('()').match(s)
+        >>> r, (i, j) = Parser('()').match(s)
         ('args=(), **kws' , (10, 25))
         >>> r == s[i+1:j]
         True
 
         Returns
         -------
-        BracketPair
+        MatchedDelimiters
 
         Raises
         ------
@@ -610,6 +617,7 @@ class BracketParser:
         bracket.
         """
 
+        # with ctx.suppress(UnpairedDelimiterError):
         return next(self.iterate(string, must_close, condition,
                                  inside_out, outside_in),
                     None)
@@ -617,11 +625,11 @@ class BracketParser:
     def findall(self, string, must_close=False, condition=always_true,
                 inside_out=False, outside_in=False):
         """
-        List all BracketPairs
+        List all MatchedDelimiterss
         """
 
         with wrn.catch_warnings(record=True) as warnings:
-            wrn.simplefilter('always', UnpairedBracketWarning)
+            wrn.simplefilter('always', UnpairedDelimiterWarning)
 
             # Unclosed opening braces will be yield out of order when iterating,
             # we have to keep track of the state if we want to deliver the pairs
@@ -856,11 +864,16 @@ class BracketParser:
         return dict(depth)
 
 
+# alias
+brackets.Parser = Parser
+
+
+# ---------------------------------------------------------------------------- #
 # predifined parsers for specific pairs
-braces = curly = BracketParser('{}')
-parentheses = parens = round = BracketParser('()')
-square = hard = BracketParser('[]')
-chevrons = angles = BracketParser('<>')
+braces = curly = Parser('{}')
+parentheses = parens = round = Parser('()')
+square = hard = Parser('[]')
+chevrons = angles = Parser('<>')
 
 parsers = {
     '{':  braces,
@@ -874,35 +887,35 @@ parsers = {
 }
 
 # pylint: disable=missing-function-docstring
-# insert = {'Parameters[pair] as brackets': BracketParser}
+# insert = {'Parameters[pair] as brackets': Parser}
 
 
-# @doc.splice(BracketParser.match, insert)
+# @doc.splice(Parser.match, insert)
 def match(string, brackets, must_close=False, condition=always_true):
-    return BracketParser(brackets).match(string, must_close, condition)
+    return Parser(brackets).match(string, must_close, condition)
 
 
-# @doc.splice(BracketParser.iterate, insert)
+# @doc.splice(Parser.iterate, insert)
 def iterate(string, brackets, must_close=False, condition=always_true):
-    return BracketParser(brackets).iterate(string, must_close, condition)
+    return Parser(brackets).iterate(string, must_close, condition)
 
 
-# @doc.splice(BracketParser.remove, insert)
+# @doc.splice(Parser.remove, insert)
 def remove(string, brackets, condition=always_true):
-    return BracketParser(brackets).remove(string, condition)
+    return Parser(brackets).remove(string, condition)
 
 
-# @doc.splice(BracketParser.strip, insert)
+# @doc.splice(Parser.strip, insert)
 def strip(string, brackets):
-    return BracketParser(brackets).strip(string)
+    return Parser(brackets).strip(string)
 
 
-# @doc.splice(BracketParser.depth, insert)
+# @doc.splice(Parser.depth, insert)
 def depth(string, brackets):
-    return BracketParser(brackets).depth(string)
+    return Parser(brackets).depth(string)
 
 
-# @doc.splice(BracketParser.depth, csplit)
+# @doc.splice(Parser.depth, csplit)
 def csplit(string, brackets='{}', delimiter=',', max_split=None):
     # need this for bash brace expansion for nested braces
 
@@ -910,7 +923,7 @@ def csplit(string, brackets='{}', delimiter=',', max_split=None):
     if brackets is None:
         return string.split(delimiter)
 
-    return BracketParser(brackets).csplit(string, delimiter, max_split)
+    return Parser(brackets).csplit(string, delimiter, max_split)
 
 
 # alias
