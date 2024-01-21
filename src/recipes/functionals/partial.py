@@ -25,12 +25,16 @@ from loguru import logger
 
 # relative
 from ..iter import where
-from ..decorators import Decorator
+from ..string import indent
+from ..pprint import callers
+from ..decorators import Decorator, Wrapper
+
+
 # from ..oo.slots import SlotHelper # Circilar!
 
 # ---------------------------------------------------------------------------- #
 
-class _ParameterPlaceHolder:
+class _FutureValue:
 
     __slots__ = ()
 
@@ -42,6 +46,9 @@ class _ParameterPlaceHolder:
             return super().__getattribute__(attr)
 
         return _FutureLookup(attr, self)
+    
+    def __repr__(self):
+        return f'<{type(self).__name__.lstrip("_")}>'
 
     def _resolve(self, obj):
 
@@ -66,7 +73,7 @@ class _ParameterPlaceHolder:
         return obj
 
 
-class _FutureSlice(_ParameterPlaceHolder):
+class _FutureSlice(_FutureValue):
     # object representing an indexed placeholder
 
     __slots__ = ('_key', '_parent')
@@ -83,20 +90,30 @@ class _FutureLookup(_FutureSlice):
 
 # ---------------------------------------------------------------------------- #
 
-class PartialAt(Decorator):
+class PartialTask(Wrapper):
 
-    def __init__(self, args, kws):
+    def __init__(self, func, *args, **kws):
+
+        super().__init__(func, self)
+
+        # index placeholders
         self.args = list(args)
-        self._positions = tuple(where(args, isinstance, _ParameterPlaceHolder))
+        self._positions = tuple(where(args, isinstance, _FutureValue))
 
         self.kws = kws = dict(kws)
-        self._keywords = tuple(where(kws, isinstance, _ParameterPlaceHolder))
+        self._keywords = tuple(where(kws, isinstance, _FutureValue))
 
-    def __call__(self, func):
-        return super().__call__(func, emulate=False, kwsyntax=True)
+    def __repr__(self):
+        name = type(self).__name__
+        from IPython import embed
+        embed(header="Embedded interpreter at 'src/recipes/functionals/partial.py':107")
+        inner = callers.pformat(self.__wrapped__, self.args, self.kws, hang=False)
+        inner = indent(f'\n{inner}', 4)
+        return f'{name}({inner}\n)'
 
-    def __wrapper__(self, func, *args, **kws):
-        return func(*self._get_args(args), **self._get_kws(kws))
+    def __call__(self, *args, **kws):
+        # resolve args, call inner
+        return self.__wrapped__(*self._get_args(args), **self._get_kws(kws))
 
     @property
     def nfree(self):
@@ -138,17 +155,15 @@ class PartialAt(Decorator):
 
 class Partial(Decorator):
 
-    Task = PartialAt
+    __wrapper__ = PartialTask
 
     def __call__(self, func, emulate=False, kwsyntax=False):
+        # create _PartialConstructor
         return super().__call__(func, emulate, kwsyntax)
-
-    def __wrapper__(self, func, *args, **kws):
-        return self.Task(args, kws)(func)
 
 
 # ---------------------------------------------------------------------------- #
 # aliases
 partial = Partial
 # singleton
-placeholder = PlaceHolder = _ParameterPlaceHolder()
+placeholder = PlaceHolder = _FutureValue()
