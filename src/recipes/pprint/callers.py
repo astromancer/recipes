@@ -630,15 +630,15 @@ class Invocation(Callable):
         self.args = args
         self.kws = dict(kws or {})
 
-    def format(self, show_param_names=None, show_defaults=True):
+    def format(self, param_names=True, show_defaults=True):
         # format each parameter as 'param=value' pair
-        return super().format(show_param_names=show_param_names,
+        return super().format(param_names=param_names,
                               show_defaults=show_defaults)
 
     # def parameter(self, par, name=None, value=DEFAULT, width=0):
     #     return super().parameter(par, name, False, value, width)
 
-    def _parameters(self, show_param_names=None, show_defaults=True):
+    def _parameters(self, param_names=True, show_defaults=True):
 
         # with parameter values provided
         ba = self.sig.bind_partial(*self.args, **self.kws)
@@ -655,63 +655,41 @@ class Invocation(Callable):
         params = self.sig.parameters
         params = [params[name] for name in ba.arguments]
 
-        yield from self.fmt.parameters._parts(params, show_param_names, ba.arguments.values())
+        yield from self.fmt.parameters._parts(params, param_names, ba.arguments.values())
 
         # yield from super()._parameters(params, ba.arguments.values(), name=named)
 
 
 # ---------------------------------------------------------------------------- #
 #
+FORMATTER_KWS = {slot
+                 for kls in (Formatter, ParameterList, Parameter)
+                 for slot in kls.__slots__} - {'parameter', 'parameters'}
+
+
 @api.synonyms({'params_per_line': 'ppl'}, action='silent')
 def caller(obj, args=EMPTY, kws=EMPTY, **fmt):
 
     # split Formatter init params
-    fmt_call_kws, fmt_init_kws = dicts.split(fmt, Formatter.__slots__)
 
-    try:
-        formatter = Signature(obj, **fmt_init_kws)
+    fmt_call_kws, fmt_init_kws = dicts.split(fmt, FORMATTER_KWS)
 
-        if args is EMPTY and kws is EMPTY:
-            # format as signature
-            return formatter.format(**fmt_call_kws)
+    formatter = Signature(obj, **fmt_init_kws)
+    no_args = (args is EMPTY)
+    no_kws = (kws is EMPTY)
+    if no_args and no_kws:
+        # format as signature
+        return formatter.format(**fmt_call_kws)
 
-        # format as invocation
-        inv = formatter(*args, **kws)
-        return inv.format(**fmt_call_kws)
-    except Exception as err:
-        import sys
-        import textwrap
-        from IPython import embed
-        from better_exceptions import format_exception
-        embed(header=textwrap.dedent(
-            f"""\
-                Caught the following {type(err).__name__} at 'callers.py':626:
-                %s
-                Exception will be re-raised upon exiting this embedded interpreter.
-                """) % '\n'.join(format_exception(*sys.exc_info()))
-        )
-        raise
+    if no_args:
+        args = ()
 
-        # if isinstance(formatter, Signature):
-        #     return
+    if no_kws:
+        kws = {}
 
-        # from IPython import embed
-        # embed(header="Embedded interpreter at 'src/recipes/pprint/callers.py':604")
-
-        # # if formatter.sig.parameters:
-        # #     return formatter.format(**invocation)
-
-        # if args or kws or not formatter.sig.parameters:
-        #     # format each parameter as 'param=value' pair
-        #     formatter = formatter(*args, **kws)
-        #     return formatter.format(**invocation)
-
-        # return str(formatter)
-
-        # if formatter.sig.parameters:
-        #     return formatter.format(**invocation)
-
-        # return formatter()
+    # format as invocation
+    inv = formatter(*args, **kws)
+    return inv.format(**fmt_call_kws)
 
 
 # ---------------------------------------------------------------------------- #
