@@ -13,9 +13,9 @@ def noop(*_, **__):
 # ---------------------------------------------------------------------------- #
 # Functions that simply return the input parameter(s) unmodified
 
-def echo0(_, *ignored_):
+def echo0(first, *_, **__):
     """simply return the 0th parameter."""
-    return _
+    return first
 
 
 def echo(*_):
@@ -75,13 +75,13 @@ def negate(func=bool):
 # ---------------------------------------------------------------------------- #
 # Raising future exceptions
 
-def raises(kind):
-    """Raises an exception of type `kind`."""
+def raises(exception):
+    """Raises an exception of type `exception`."""
 
-    assert issubclass(kind, BaseException)
+    assert issubclass(exception, BaseException)
 
-    def _raises(msg):
-        raise kind(msg)
+    def _raises(msg, *args, **kws):
+        raise exception(msg.format(*args, **kws))
 
     return _raises
 

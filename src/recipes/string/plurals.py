@@ -3,7 +3,11 @@ Pluralization (experimental).
 """
 
 
+# std
 from collections import abc
+
+# relative
+from ..utils import ensure_list
 
 
 # ---------------------------------------------------------------------------- #
@@ -133,7 +137,7 @@ def numbered(items, name, plural=None):
 
 
 def named_items(items, name, plural=None, fmt=str, **kws):
-
+    items = ensure_list(items)
     if not _many(items):
         return f'{name}: {fmt(next(iter(items)))}'
 

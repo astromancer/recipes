@@ -2,8 +2,11 @@
 Special casing for strings.
 """
 
+# std
 import re
 
+# relative
+from .utils import sub
 
 # ---------------------------------------------------------------------------- #
 REGEX_CAPS = re.compile('([A-Z])')
@@ -53,6 +56,10 @@ def title(string, ignore=()):
     return new
 
 
+# alias
+titlecase = title
+
+
 def strike(text):
     """
     Produce strikethrough text using unicode modifiers.
@@ -93,3 +100,7 @@ def monospaced(text):
         single space " ".
     """
     return REGEX_SPACE.sub(' ', text).strip()
+
+
+# alias
+monospace = monospaced

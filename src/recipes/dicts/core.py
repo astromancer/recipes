@@ -15,15 +15,14 @@ from ..utils import is_scalar
 from ..pprint.mapping import PrettyPrint, pformat
 
 
-# TODO: a factory function which takes requested props, eg:
-# indexable=True, attr='r', ordered=True)
-
 # ---------------------------------------------------------------------------- #
+# utils
 
 def isdict(obj):
     return isinstance(obj, abc.MutableMapping)
 
 
+# alias
 is_dict = isdict
 
 
@@ -54,9 +53,9 @@ def invert(d, conversion=None):
         if not isinstance(val, abc.Hashable):
             raise ValueError(
                 f'Cannot invert dictionary with non-hashable item: {val} of '
-                f'type {type(val)}. You may wish to pass a conversion mapping '
-                f'to this function to aid invertion of dicts containing non-'
-                f'hashable items.'
+                f'type {type(val)}. You may wish to pass a conversion mapping'
+                ' to this function to aid invertingof mappings that contain '
+                f'non-hashable items.'
             )
 
         inverted[val] = key

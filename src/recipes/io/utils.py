@@ -24,6 +24,7 @@ from loguru import logger
 # relative
 from ..string import sub
 from ..functionals import echo0
+from ..utils import ensure_tuple
 from ..shell.bash import brace_expand_iter
 from ..string.brackets import braces
 
@@ -167,7 +168,7 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
 
     ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
 
-    for file in _iter_files(path_or_pattern, extensions, recurse):
+    for file in _iter_files(path_or_pattern, ensure_tuple(extensions), recurse):
         for ignored in ignore:
             if fnm.fnmatchcase(str(file), ignored):
                 logger.debug("Ignoring '{!s}' matching pattern {!r}.", file, ignored)
@@ -181,6 +182,9 @@ def _maybe_newline(string, width=40, indent=' ' * 2):
 
 
 def _iter_files(path_or_pattern, extensions='*', recurse=False):
+
+    logger.debug('Iterating over: {}. extensions = {}, recurse={}',
+                 path_or_pattern, extensions, recurse)
 
     path_or_pattern = str(path_or_pattern)
     recurse = bool(recurse)
@@ -204,26 +208,30 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
     # handle input strings without special patterns here. This can be a file or
     # directory path
     path = Path(path_or_pattern)
-    if path.is_dir():
-        # iterate all files with given extensions
-        if isinstance(extensions, str):
-            extensions = (extensions, )
-
-        # recurse
-        extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
-        yield from iter_files(f'{path!s}/{"**/" * recurse}*.{extensions}',
-                              recurse=recurse)
-        return
-
-    if not path.exists():
-        raise ValueError(
-            "Could not any resolve files for the input pattern: '{path!s}'. "
-            'Please supply a path to a valid existing directory, or '
-            'alternitively a glob pattern, or bash brace expansion pattern.'
-        )
 
     # Return the input if it is an existing file. This break the recurrence.
-    yield path
+    if path.is_file():
+        yield path
+        return
+
+    # iterate all files with given extensions
+    extensions = ensure_tuple(extensions)
+    extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
+    # recurse?
+    pattern = f'{path!s}/{"**/" * recurse}*.{extensions}'
+
+    if path.is_dir():
+        logger.debug('Received folder: {}', path)
+        logger.debug('Recursing on: {}', pattern)
+        yield from iter_files(pattern, recurse=recurse)
+        return
+
+    # Non-existing path
+    raise ValueError(
+        f"Could not any resolve files for the input pattern: '{pattern!s}'. "
+        'Please supply a path to a valid existing directory, or '
+        'alternitively a glob pattern, or bash brace expansion pattern.'
+    )
 
 
 def iter_ext(files, extensions='*'):
@@ -423,15 +431,15 @@ def write_lines(stream, lines, eol='\n', eof=''):
     with open_any(stream, 'w') as stream:
         # write first line
         try:
-            stream.write(next(itr))
+            stream.write(next(itr) + eol)
         except StopIteration:
             warn(f'Empty lines or iterable. Nothing written to {stream!r}.')
             return
 
         # write remaining lines
         for line in itr:
-            stream.write(eol)
-            stream.write(line)
+            stream.write(line + eol)
+
         stream.write(eof)
 
 
@@ -519,7 +527,7 @@ def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
             raise
         finally:
             if backup_needed and not keep:
-                logger.debug('Removing backup: {!scoping}', backupfile)
+                logger.debug('Removing backup: {!s}', backupfile)
                 backupfile.unlink()
 
 
@@ -537,7 +545,8 @@ def safe_write(filename, lines, eol='\n',
     assert isinstance(eol, str)
     append = str.__add__ if eol else echo0
 
-    with backed_up(filename, 'w', backupfile, folder, keep, exception_hook) as fp:
+    with backed_up(filename, 'w', backupfile, folder, keep) as fp:
+        i, line = 0, None
         try:
             # write lines
             for i, line in enumerate(lines):

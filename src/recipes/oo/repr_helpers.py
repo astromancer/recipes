@@ -21,9 +21,9 @@ def get_attrs(obj, keys, maybe=()):
 
 def _repr(obj, attrs, maybe=(), enclose=DEFAULT_STYLE['enclose'], **kws):
     opn, *close = enclose
-    return ''.join((pformat(get_attrs(obj, attrs, maybe),
-                                f'{opn}{type(obj).__name__}',
-                                **kws),
+    return ''.join((pformat.mapping(get_attrs(obj, attrs, maybe),
+                                    f'{opn}{type(obj).__name__}',
+                                    **kws),
                     *close))
 
 

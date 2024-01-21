@@ -105,14 +105,15 @@ mock = Mock()
 # wrap_args = WrapArgs()
 
 # test_hms = Expected(hms).expects(
-#     {mock.hms(1e4):  '02h46m40.0s',
-#      mock.hms(1.333121112e2, 5): '00h02m13.31211s',
-#      mock.hms(1.333121112e2, 5, ':'):  '00:02:13.31211',
-#      mock.hms(1.333121112e2, 5, short=False): '00h02m13.31211s',
-#      mock.hms(1.333121112e2, 'm0', short=False, unicode=True): '00ʰ02ᵐ',
-#      mock.hms(119.95, 's0'): '00h02m00s',
-#      mock.hms(1000, 'm0', sep=':'): '00:17',
-#      #  ex.hms(1e4, sep='', sig=0, sign='+'):  '024640'
+#     {mock.hms(1e4):                               '02h46m40.0s',
+#      mock.hms(1.333121112e2, 5):                  '00h02m13.31211s',
+#      mock.hms(1.333121112e2, 5, ':'):             '00:02:13.31211',
+#      mock.hms(1.333121112e2, 5, short=False):     '00h02m13.31211s',
+#      mock.hms(1.333121112e2, 'm0', short=False, 
+#               unicode=True):                      '00ʰ02ᵐ',
+#      mock.hms(119.95, 's0'):                      '00h02m00s',
+#      mock.hms(1000, 'm0', sep=':'):               '00:17',
+#      #  ex.hms(1e4, sep='', sig=0, sign='+'):     '024640'
 #      }
 # )
 
@@ -337,7 +338,7 @@ class Expected(LoggingMixin):
         ...       mock.TimeSeries(t, y),
         ...       mock.TimeSeries(t, y, e),
         ...       mock.TimeSeries(t, ym, e) ]
-        ...     )
+        ... )
         """
         items = zip(items, itt.repeat(PASS))
         return self(items, *args, left_transform=transform, **kws)
