@@ -107,7 +107,7 @@ def _search_upward(path, extensions, root, pkg=''):
 
 
 def search_ext(folder, extensions, pkg=''):
-    if filename := next(io.iter_files(folder, extensions), None):
+    if filename := next(io.iter_files(folder, extensions, True), None):
         logger.info("Found config file for package: {!r} at '{}'.",
                     pkg, filename)
         return filename
