@@ -1,6 +1,7 @@
 
 # std
 import re
+import warnings
 from pathlib import Path
 
 # third-party
@@ -14,7 +15,6 @@ from .io import read_lines
 from .dicts.node import DictNode
 from .dicts.core import _AttrReadItem
 from .introspect.utils import get_module_name, get_package_name
-
 
 # ---------------------------------------------------------------------------- #
 CACHE = {}
@@ -166,7 +166,16 @@ def create_user_config(filename, caller, overwrite=None, version_stamp=''):
     pkg = get_package_name(caller)
     source = Path(caller).parent / filename
 
+    # auto-fill version
+    if version_stamp is True:
+        from importlib.metadata import version
+
+        version_stamp = str(version(pkg))
+
+    # get path
     configpath = user_config_path(pkg) / filename
+
+    # existing user config
     if configpath.exists():
         if overwrite is None:
             overwrite = _should_overwrite(configpath, version_stamp)
@@ -174,7 +183,7 @@ def create_user_config(filename, caller, overwrite=None, version_stamp=''):
         if overwrite is False:
             return configpath
 
-    #
+    # new user config
     return _create_user_config(pkg, configpath, source, overwrite, version_stamp)
 
 
@@ -221,9 +230,12 @@ def _create_user_config(pkg, path, source=None, overwrite=None,
     logger.info('{} user config for {}: {!s}.',
                 ('Creating', 'Overwriting')[exists], pkg, path)
 
+    # read source config
     text = source.read_text()
+
+    # check version stamp
     if version_stamp:
-        if not '{version}' in text:
+        if '{version}' not in text:
             raise ValueError(f'"{{version}}" not in source: {source}.')
 
         # add v marker
@@ -232,6 +244,10 @@ def _create_user_config(pkg, path, source=None, overwrite=None,
 
         logger.info('Adding version stamp: {!s}.', version_stamp)
         text = text.format(version=version_stamp)
+
+    elif '{version}' in text:
+        warnings.warn(f'Config for {pkg}: {source!s} contains "{{version}}" '
+                      'but null `version_stamp` was provided.')
 
     # create backup (if overwriting) and write new config file
     with io.backed_up(path, folder=path.parent) as fp:
