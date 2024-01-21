@@ -6,20 +6,82 @@ Extensions for buitlin property decorator.
 
 # std
 import threading
-import operator as op
 import functools as ftl
 from collections import abc
 from types import FunctionType
 
 # third-party
 from loguru import logger
-
+from recipes import op
 
 # ---------------------------------------------------------------------------- #
 _NotFound = object()
 
 
 # ---------------------------------------------------------------------------- #
+
+
+null = object()
+
+
+class Alias:
+    """
+    A descriptor that forwards attribute/property lookup to another namespace
+    member. Useful for exposing dynamic attributes of nested objects in the
+    parent namespace.
+
+    This works like `op.attrgetter` in that it can handle chaned lookups. In
+    addition it also allows setting attributes.
+    """
+
+    __slots__ = ('name', 'attr', 'owner', '_getter', '_dependents')
+
+    def __set_name__(self, owner, name):
+        self.name = name
+        self.owner = owner
+
+    def __init__(self, attr):
+        self.attr = str(attr)
+        self._getter = op.AttrGetter(self.attr)
+        self._dependents = []
+
+    def __repr__(self):
+        s = (f'<{type(self).__name__}({self.name} -> {self.owner}.{self.attr})>')
+
+        if self._dependents:
+            dep = f'dependents={"": <{s.index("(")}}\n'.join(self._dependents)
+            return s.replace(')>', f'{dep})>')
+
+        return s
+
+    def __get__(self, instance, kls=None):
+        # sourcery skip: assign-if-exp, reintroduce-else
+        # get parent object
+        lookup = instance or kls
+        obj = self._getter(lookup, default=null)
+        if obj is null:
+            if kls:
+                return self  # return the Alias object
+            else:
+                raise AttributeError(f'No such attribute: {self.attr!r}.')
+
+        return obj
+
+
+
+    def __set__(self, obj, value):
+        member, *attr = self.attr.split('.', 1)
+        setattr(getattr(obj, member), attr, value)
+
+    def __delete__(self, obj):
+        member, *attr = self.attr.split('.', 1)
+        delattr(getattr(obj, member), attr)
+
+
+# alias
+Forward = ForwardProperty = Alias
+
+
 class PropertyForwarding:
     """
     Mixin class with method for forwarding property/attribute access to another
@@ -27,15 +89,15 @@ class PropertyForwarding:
     objects in the instance's namespace.
     """
 
-    _property_forwarding = {}
+    _forwarded_properties = {}
 
     def __new__(cls, *args, **kws):
         # Attach property descriptors
-        for member, attrs in cls._property_forwarding.items():
+        for member, attrs in cls._forwarded_properties.items():
             for _ in attrs:
                 setattr(cls, _, ForwardProperty(f'{member}.{_}'))
 
-        return super().__new__(cls)
+        return super().__new__(cls, *args, **kws)
 
     # @classmethod
     # def forward_properties(cls, mapping: Dict[str, Collection[str]]):
@@ -44,39 +106,8 @@ class PropertyForwarding:
     #         setattr(cls, _, ForwardProperty(f'{member}.{_}'))
 
 
-class ForwardProperty:
-    """
-    A descritor that forwards attribute/property lookup to another namespace
-    member. Useful for exposing dynamic attributes of nested objects in the 
-    parent namespace.
-    
-    This works like `op.attrgetter` but in addition allows setting attributes.
-    """
-
-    __slots__ = ('member', 'property_name', '_getter', '_dependents')
-
-    def __init__(self, name):
-        self.member, self.property_name = str(name).split('.', 1)
-        self._getter = op.attrgetter(self.property_name)
-        self._dependents = []
-
-    def __get__(self, obj, kls=None):
-        # sourcery skip: assign-if-exp, reintroduce-else
-        # get parent object
-        if obj is None:
-            # lookup from class
-            return self
-
-        return self._getter(getattr(obj, self.member))
-
-    def __set__(self, obj, value):
-        member = getattr(obj, self.member)
-        setattr(member, self.property_name, value)
-
-    def __delete__(self, obj):
-        member = getattr(obj, self.member)
-        del member
-
+# alias
+Aliasing = Forwarding = PropertyForwarding
 
 # ---------------------------------------------------------------------------- #
 # extended from astropy.utils.decorators.lazyproperty
@@ -253,60 +284,22 @@ class CachedProperty(property):
             logger.debug('delete child {}.', child)
             child.__delete__(obj)
 
+
 ALLOWED_DEPENDANT_TYPES = (CachedProperty, ForwardProperty)
 
 # aliases
 cachedproperty = cached_property = lazyproperty = CachedProperty
 
+
 # ---------------------------------------------------------------------------- #
+# Class property
+# Source: astropy.utils.decorators.classproperty
 
-# class ClassProperty(property):
-#     """
-#     Allows properties to be accessed from class or instance
-
-#     Examples
-#     --------
-
-#     >>> class Example:
-#     ...
-#     ...    _name = None  # optional name.
-#     ...    # Optional name. Defaults to class name if not over-written by
-#     ...    # inheritors.
-#     ...
-#     ...    @ClassProperty
-#     ...    @classmethod
-#     ...    def name(cls):
-#     ...        return cls._name or cls.__name__
-#     ...
-#     ...    @name.setter
-#     ...    def name(self, name):
-#     ...        self.set_name(name)
-#     ...
-#     ...    @classmethod
-#     ...    def set_name(cls, name):
-#     ...        cls._name = str(name)
-#     ...
-#     ... obj = Example()
-#     ... obj.name
-#     'Example'
-#     >>> obj.name = 'New'
-#     ... (obj.name, Example.name)
-#     ('New', 'New')
-
-#     FIXME Class level assignment OVERWRITES `name` - doesn't go through
-#     setter
-#     >>> Example.name = 'zzz'
-#     ... obj.name, Example.name
-#     ('zzz', 'zzz')
-
-#     """
-
-#     def __get__(self, instance, kls):
-#         return self.fget.__get__(None, kls)()
-
-
-# copied from astropy.utils.decorators.classproperty
-
+# NOTE Class level assignment OVERWRITES `name` - doesn't go through
+# setter
+# >>> Example.name = 'zzz'
+# ... obj.name, Example.name
+# ('zzz', 'zzz')
 # TODO: This can still be made to work for setters by implementing an
 # accompanying metaclass that supports it; we just don't need that right this
 # second
@@ -484,4 +477,3 @@ class ClassProperty(property):
 
 # alias
 classproperty = ClassProperty
-
