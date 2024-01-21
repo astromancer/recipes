@@ -300,32 +300,34 @@ def windowed(obj, size, step=1):
 # ---------------------------------------------------------------------------- #
 # Segmenting iterators / collections
 
-def split(l, idx):
-    """Split a list into sub-lists at the given indices"""
+def split(items, indices, offset=0):
+    """Split a list into sub-lists at the given index positions"""
 
-    if isinstance(idx, numbers.Integral):
-        idx = [idx]
+    if isinstance(indices, numbers.Integral):
+        indices = [indices]
 
-    if idx := sorted(idx):
-        for i, j in mit.pairwise([0, *idx, len(l)]):
-            yield l[i:j]
+    n = len(items)
+    indices = list(map(sum, zip(indices, itt.repeat(offset))))
+    if indices := sorted(map(n.__rmod__, indices)):  # resolve negatives
+        for i, j in mit.pairwise([0, *indices, n]):
+            yield items[i:j]
     else:
-        yield l
+        yield items
 
 
-# def split(l, idx):
-#     if isinstance(idx, numbers.Integral):
-#         idx = [idx]
+# def split(items, indices):
+#     if isinstance(indices, numbers.Integral):
+#         indices = [indices]
 
-#     idx = iter(sorted(idx))
+#     indices = iter(sorted(indices))
 
 #     i, j = 0, None
-#     for j in idx:
-#         yield l[i:j]
+#     for j in indices:
+#         yield items[i:j]
 #         i = j
 
 #     if j is not None:
-#         yield l[j:]
+#         yield items[j:]
 
 def split_slices(indices):
     """
