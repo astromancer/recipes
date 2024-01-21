@@ -43,7 +43,7 @@ def search(caller, format=None, user=True, emit='error'):
     """
 
     pkg = get_package_name(caller)
-    extensions = [format] if format else CONFIG_PARSERS
+    extensions = [format] if format else tuple(CONFIG_PARSERS)
 
     if pkg is None:
         raise ModuleNotFoundError('Could not find package name for {!s}.', caller)
@@ -51,8 +51,9 @@ def search(caller, format=None, user=True, emit='error'):
     if user:
         # Check in user config folder
         user_path = user_config_path(pkg)
-        if filename := search_ext(user_path, extensions, pkg):
-            return filename
+        if user_path.exists():
+            if filename := search_ext(user_path, extensions, pkg):
+                return filename
 
         # raise / warn / whatever
         Emit(emit, FileNotFoundError)(
@@ -61,27 +62,34 @@ def search(caller, format=None, user=True, emit='error'):
         return
 
     #
-    search_project_tree(pkg, caller, extensions, emit)
+    return search_project_tree(pkg, caller, extensions, emit)
 
 
 def search_project_tree(pkg, caller, extensions, emit='error'):
     # search project source tree
+
     path = Path(caller)
     parts = path.parts
-    package_root = Path('/'.join(('', *parts[1:parts.index(pkg) + 1])))
-    if package_root.name == 'src':
-        package_root = package_root.parent
+    package_root = Path('/'.join(('', *parts[:-parts[::-1].index(pkg)])))
 
-    #
-    if filename := _search_upward(path, extensions, package_root, pkg):
+    logger.debug('Searching {} project tree: {}', pkg, package_root)
+    if filename := search_ext(package_root, extensions, pkg):
         return filename
 
     # raise / warn / whatever
     Emit(emit, FileNotFoundError)(
         'Could not find config file in any of the parent folders up to'
-        ' the package root for {filename = :}, {format = :}',
-        filename, format
+        ' the package root for filename = {}, extensions = {}.',
+        filename, extensions
     )
+
+    # if package_root.name == 'src':
+    #     package_root = package_root.parent
+
+    # logger.debug('Searching project tree: {}', package_root)
+    # #
+    # if filename := _search_upward(path, extensions, package_root, pkg):
+    #     return filename
 
 
 def _search_upward(path, extensions, root, pkg=''):
@@ -100,8 +108,8 @@ def _search_upward(path, extensions, root, pkg=''):
 
 def search_ext(folder, extensions, pkg=''):
     if filename := next(io.iter_files(folder, extensions), None):
-        logger.info("Found config file: '{}' in {!r}, a module (sub-folder) "
-                    "of package {}.", filename, folder, pkg)
+        logger.info("Found config file for package: {!r} at '{}'.",
+                    pkg, filename)
         return filename
 
 
@@ -239,22 +247,25 @@ class ConfigNode(DictNode, _AttrReadItem):
 
     @classmethod
     def load(cls, filename, defaults=None):
+        assert filename or defaults
         config = load(defaults) if defaults else {}
-        config.update(**load(filename))
+        if filename and Path(filename).exists():
+            config.update(**load(filename))
         return cls(config)
 
     @classmethod
     def load_module(cls, filename, format=None):
+
         path = Path(filename)
-        user_config_file = search(path, format, True)
+        user_config_file = search(path, format, True, 'silent')
         source_config_file = search(path, format, False)
         node = cls.load(user_config_file, source_config_file)
 
         # step up parent modules
         candidates = get_module_name(path).split('.')
 
-        stem = path.stem
-        if (stem == 'config') or (stem == '__init__' and len(candidates) == 1):
+        if ('config' in (path.parent.name, path.stem)
+                or (path.stem == '__init__' and len(candidates) == 1)):
             # the package initializer is loading the config
             return node
 
@@ -270,9 +281,10 @@ class ConfigNode(DictNode, _AttrReadItem):
 
         nl = '\n    '
         raise ValueError(
-            f'Config file {config_file} does not contain any section matching '
-            f'module names in the package tree: {candidates}\nThe following '
-            f'config sections are available: {nl.join(("", *map(repr, keys)))}'
+            f'Config file {user_config_file or source_config_file} does not '
+            'contain any section matching module names in the package tree: '
+            f'{candidates}\nThe following config sections are available: '
+            f'{nl.join(("", *map(repr, keys)))}'
         )
 
     def __getattr__(self, key):
