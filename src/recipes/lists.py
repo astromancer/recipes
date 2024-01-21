@@ -51,7 +51,7 @@ def cosort(*lists, key=None, master_key=None, order=1):
         (call signature of this function needs to be such that it accepts an
         argument tuple of items - one from each list.
         For example:
-        >>> master_key = lambda *l: sum(l)
+        >>> master_key = lambda *items: sum(items)
         will order all the lists by the sum of the items from each list. If not
         provided, revert to sorting by `key` function.
 
@@ -69,11 +69,11 @@ def cosort(*lists, key=None, master_key=None, order=1):
     >>> cosort('32145', range(5))
 
     Capture sorting indices:
-    >>> l = list('CharacterS')
-    >>> cosort(l, range(len(l)))
+    >>> items = list('CharacterS')
+    >>> cosort(items, range(len(items)))
     (['C', 'S', 'a', 'a', 'c', 'e', 'h', 'r', 'r', 't'],
      [0, 9, 2, 4, 5, 7, 1, 3, 8, 6])
-    >>> cosort(l, range(len(l)), key=str.lower)
+    >>> cosort(items, range(len(items)), key=str.lower)
     (['a', 'a', 'C', 'c', 'e', 'h', 'r', 'r', 'S', 't'],
      [2, 4, 0, 5, 7, 1, 3, 8, 9, 6])
     """
@@ -82,6 +82,9 @@ def cosort(*lists, key=None, master_key=None, order=1):
     # convert to lists
     lists = list(map(list, lists))
 
+    if not lists:
+        return []
+    
     # check that all lists have the same length
     unique_sizes = set(map(len, lists))
     if len(unique_sizes) != 1:
@@ -128,20 +131,20 @@ def _make_cosort_key(master_key, funcs):
 
 
 # @ doc.splice(op.index, omit='Parameters[default]')
-def where(l, *args, start=0):
+def where(items, *args, start=0):
     """
     A multi-indexer for lists. Return index positions of all occurances of
-    `item` in a list `l`. If a test function is given, return all indices at
+    `item` in a list `items`. If a test function is given, return all indices at
     which the test evaluates true.
 
     {Parameters}
 
     Examples
     --------
-    >>> l = ['ab', 'Ba', 'cb', 'dD']
-    >>> where(l, op.contains, 'a')
+    >>> items = ['ab', 'Ba', 'cb', 'dD']
+    >>> where(items, op.contains, 'a')
     [0, 1]
-    >>> where(l, str.startswith, 'a')
+    >>> where(items, str.startswith, 'a')
     [0]
 
 
@@ -150,20 +153,20 @@ def where(l, *args, start=0):
     list of int or `default`
         The index positions where test evaluates true.
     """
-    return list(_iter.where(l, *args, start=start))
+    return list(_iter.where(items, *args, start=start))
 
 
-def select(l, test=bool):
-    return list(_iter.select(l, test))
+def select(items, test=bool):
+    return list(_iter.select(items, test))
 
 
-def flatten(l):
+def flatten(items):
     """
     Flatten arbitrarily nested sequences
 
     Parameters
     ----------
-    l : list
+    items : list
         [description]
 
     Returns
@@ -171,100 +174,100 @@ def flatten(l):
     list
         [description]
     """
-    return list(mit.collapse(l))
+    return list(mit.collapse(items))
 
 
-def split(l, idx):
-    """Split a list `l` into sublists at the given indices."""
-    return list(_iter.split(l, idx))
+def split(items, indices, offset=0):
+    """Split a list `items` into sublists at the given indices."""
+    return list(_iter.split(items, indices, offset))
 
 
-def split_like(l, lists):
+def split_like(items, lists):
     """
-    Split a list `l` into sublists, each with the same size as the sequence of
+    Split a list `items` into sublists, each with the same size as the sequence of
     (raggedly sized) lists in `lists`.
     """
     *indices, total = itt.accumulate(map(len, lists))
-    assert len(l) == total
-    return split(l, indices)
+    assert len(items) == total
+    return split(items, indices)
 
 
-def sort_like(l, order):
-    return cosort(order, l)[1]
+def sort_like(items, order):
+    return cosort(order, items)[1]
 
 
-def split_where(l, item, start=0, test=None):
+def split_where(items, item, start=0, test=None):
     """
     Split a list into sublists at the positions of positive test evaluation.
     """
-    # idx = where(l, item, indexer)
+    # indices = where(items, item, indexer)
 
     # withfirst=False, withlast=False,
     # if withfirst:
-    #     idx = [0] + idx
+    #     indices = [0] + indices
     # if withlast:
-    #     idx += [len(l) - 1]
+    #     indices += [len(items) - 1]
 
-    return split(l, where(l, test, item, start=start))
+    return split(items, where(items, test, item, start=start))
 
 
-def missing_integers(l):
+def missing_integers(items):
     """Find the gaps in a sequence of integers"""
-    return sorted(set(range(min(l), max(l) + 1)) - set(l))
+    return sorted(set(range(min(items), max(items) + 1)) - set(items))
 
 
 # alias
 missing_ints = missing_integers
 
 
-def partition(l, predicate):
+def partition(items, predicate):
     parts = defaultdict(list)
     indices = defaultdict(list)
-    for i, item in enumerate(l):
+    for i, item in enumerate(items):
         box = predicate(item)
         parts[box].append(item)
         indices[box].append(i)
     return parts, indices
 
 
-def tally(l):
+def tally(items):
     """Return dict of item, count pairs for sequence."""
     from .dicts import DefaultOrderedDict
 
     t = DefaultOrderedDict(int)
-    for item in l:
+    for item in items:
         t[item] += 1
     return t
 
 
-def unique(l):
+def unique(items):
     """Return dict of unique (item, indices) pairs for sequence."""
     from .dicts import DefaultOrderedDict
     
     t = DefaultOrderedDict(list)
-    for i, item in enumerate(l):
+    for i, item in enumerate(items):
         t[item].append(i)
     return t
 
 
-def duplicates(l):
+def duplicates(items):
     """Return tuples of item, indices pairs for duplicate values."""
-    return list(_iter.duplicates(l))
+    return list(_iter.duplicates(items))
 
 
-def where_duplicate(l):
+def where_duplicate(items):
     """Return lists of indices of duplicate entries"""
-    return _iter.nth_zip(1, *_iter.duplicates(l))
+    return _iter.nth_zip(1, *_iter.duplicates(items))
 
 
-def delete(l, indices=()):
+def delete(items, indices=()):
     """
     Remove characters at position `indices` from list. Items are deleted
     in-place, and the function returns the original list.
 
     Parameters
     ----------
-    l : list
+    items : list
         The list from which to remove characters.
     indices : collection of int
         Character index positions to delete. Duplicated indices are filtered.
@@ -287,5 +290,5 @@ def delete(l, indices=()):
     list
     """
 
-    _delete(l, indices)
-    return l
+    _delete(items, indices)
+    return items
