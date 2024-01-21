@@ -388,53 +388,59 @@ def copartition(pred, *its):
 
 def cofilter(func_or_iter, *its):
     """
-    Filter an arbitrary number of iterators based on the truth value of the
+    Filter an arbitrary number of iterables based on the truth value of the
     first iterable. An optional predicate function that determines the truth
     value of elements can be passed as the first argument, followed by the
     iterables.
+
+    cofilter(None, ...) is equivalent to
+    cofilter(bool, ...)
     """
-    its, func = _parse_iterable_filter(func_or_iter, its)
+    func, its = _parse_predicate(func_or_iter, its)
+
+    if not its:
+        return its
 
     # zip(*filter(lambda x: func(x[0]), zip(*its)))
-    it00, it0 = itt.tee(its[0])
-    # NOTE this consumes the iterator in position 0!!
-    # find the indices where func evaluates to true
-    tf = list(map(func, it00))
-    # restore the original iterator sequence
-    its = (it0, *its[1:])
-    return tuple(itt.compress(it, tf) for it in its)
+    # clone the iterable in position 0, since we consume it below for evaluation
+    first, clone = itt.tee(its[0])
+    # for first iterable, find the indices where func(element) evaluates to True
+    tf = list(map(func, clone))
+    # restore the original iterable sequence, select truthy items
+    return tuple(itt.compress(it, tf) for it in (first, *its[1:]))
 
 
-def _parse_iterable_filter(func_or_iter, its):
-    if (func_or_iter is None) or isinstance(func_or_iter, abc.Iterable):
-        # handle cofilter(None, ...) // cofilter((1, None), (2, 4))
-        func = bool
-        its = (func_or_iter, *its)
-    elif callable(func_or_iter):
-        func = func_or_iter
-    else:
-        raise TypeError(f'Predicate function should be a callable object (or '
-                        f'`None`), not an instance of {type(func_or_iter)}.')
+def _parse_predicate(func_or_iter, its):
 
-    return its, func
+    if isinstance(func_or_iter, abc.Iterable):
+        # handle eg: cofilter([...])
+        return bool, (func_or_iter, *its)
+
+    if callable(func_or_iter) or (func_or_iter is None):
+        return (func_or_iter or bool), its
+
+    raise TypeError(
+        f'Predicate function should be a callable object (or `None`), not '
+        f'an instance of {type(func_or_iter)}.'
+    )
 
 
 # ---------------------------------------------------------------------------- #
 # Duplicate detection / filtering
 
-def duplicates(l):
+def duplicates(items):
     """Yield tuples of item, indices pairs for duplicate values."""
     from recipes.lists import unique
 
-    for key, idx in unique(l).items():
-        if len(idx) > 1:
-            yield key, idx
+    for key, indices in unique(items).items():
+        if len(indices) > 1:
+            yield key, indices
 
 
-def filter_duplicates(l, test):
+def filter_duplicates(items, test):
     """Filter duplicate items based on condition `test`."""
     results = set()
-    for item in l:
+    for item in items:
         result = test(item)
         if result not in results:
             yield item
@@ -455,5 +461,3 @@ def non_unique(itr):
         if item == prev:
             yield prev
         prev = item
-
-
