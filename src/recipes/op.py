@@ -77,6 +77,7 @@ class ItemGetter:
 
     def __init__(self, *keys, default=NULL, defaults=None):
         self.keys = keys
+        self.default = default
         self.defaults = defaults or {}
         self.unpack = tuple if len(self.keys) > 1 else next
 
@@ -85,10 +86,9 @@ class ItemGetter:
         # if typo:
         #     warnings.warn(f'Invalid keys in `defaults` mapping: {typo}')
 
-        self.default = default
-        if default is NULL:
-            # intentionally override the `get_default` method
-            self.get_default = raises(self._raises)
+        # if default is NULL:
+        #     # intentionally override the `get_default` method
+        #     self.get_default = raises(self._raises)
 
     def __call__(self, target):  # -> Tuple or Any:
         return self.unpack(self._iter(target))
@@ -98,7 +98,9 @@ class ItemGetter:
 
     def get_default(self, key):
         """Retrieve the default value of the `key` attribute"""
-        # pylint: disable=method-hidden
+        if self.default is NULL:
+            raise self._raises(key)
+        
         return self.defaults.get(key, self.default)
 
     def _iter(self, target):
@@ -120,6 +122,11 @@ class AttrGetter(ItemGetter):
     @staticmethod
     def _worker(target, key):
         return _op.attrgetter(key)(target)
+    
+    def __call__(self, target, default=NULL):  # -> Tuple or Any:
+        if default is not NULL:
+            self.default = default
+        return self.unpack(self._iter(target))
 
 
 class AttrSetter:
