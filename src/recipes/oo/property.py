@@ -12,7 +12,11 @@ from types import FunctionType
 
 # third-party
 from loguru import logger
-from recipes import op
+
+# relative
+from .. import op
+from ..functionals import echo0
+
 
 # ---------------------------------------------------------------------------- #
 _NotFound = object()
@@ -34,19 +38,29 @@ class Alias:
     addition it also allows setting attributes.
     """
 
-    __slots__ = ('name', 'attr', 'owner', '_getter', '_dependents')
+    __slots__ = ('alias', 'attr', 'owner', '_member',
+                 '_getter', '_setter', '_dependents', '_class_variable')
 
-    def __set_name__(self, owner, name):
-        self.name = name
+    def __set_name__(self, owner, alias):
+        if self.attr == alias:
+            raise ValueError('An Alias cannot point to itself.')
+
+        self.alias = alias
         self.owner = owner
+        self._class_variable = hasattr(self.owner, self._member)
 
     def __init__(self, attr):
+        self.alias = self.owner = None
         self.attr = str(attr)
-        self._getter = op.AttrGetter(self.attr)
+        self._member = self.attr.split('.', 1)[0]
+        self._getter = op.AttrGetter(attr)
+        self._setter = op.AttrSetter(attr)
         self._dependents = []
 
     def __repr__(self):
-        s = (f'<{type(self).__name__}({self.name} -> {self.owner}.{self.attr})>')
+        s = (f'<{type(self).__name__}({self.owner.__name__}.{self.alias} -> '
+             f'{".".join(filter(None, (self.member, self.attr)))}'
+             '})>')
 
         if self._dependents:
             dep = f'dependents={"": <{s.index("(")}}\n'.join(self._dependents)
@@ -56,26 +70,30 @@ class Alias:
 
     def __get__(self, instance, kls=None):
         # sourcery skip: assign-if-exp, reintroduce-else
+
         # get parent object
-        lookup = instance or kls
-        obj = self._getter(lookup, default=null)
-        if obj is null:
-            if kls:
-                return self  # return the Alias object
-            else:
-                raise AttributeError(f'No such attribute: {self.attr!r}.')
+        if instance is None:
+            # lookup from class
+            if self._class_variable:
+                return self._getter(kls)
 
-        return obj
+            #
+            return self
 
-
+        return self._getter(instance)
 
     def __set__(self, obj, value):
-        member, *attr = self.attr.split('.', 1)
-        setattr(getattr(obj, member), attr, value)
+        self._setter(obj, value)
 
-    def __delete__(self, obj):
-        member, *attr = self.attr.split('.', 1)
-        delattr(getattr(obj, member), attr)
+    # def __delete__(self, obj):
+    #     if self.attr:
+    #         attr = self.attr
+    #         target = getattr(obj, self.member)
+    #     else:
+    #         target = obj
+    #         attr = self.member
+
+    #     delattr(target, attr)
 
 
 # alias
