@@ -17,7 +17,8 @@ from recipes.string.delimited import (Condition, Delimited, Parser, braces,
     ('unclosed((((((', '()'):               None,
     ('nested((([inside]))]]])))', '[]'):    'inside',
     ('<s>', '<>'):                          's',
-    ('((())', '()'):                        None
+    ('((())', '()'):                        None,
+    ('"{TEXT}"', '""'):                     '{TEXT}'
 })
 def test_match(string, pair, expected):
     m = match(string, pair)

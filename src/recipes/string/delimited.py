@@ -11,6 +11,7 @@ import itertools as itt
 from collections import defaultdict
 from dataclasses import asdict, astuple, dataclass
 from typing import Callable, Collection, List, Tuple, Union
+from IPython import embed
 
 # third-party
 import more_itertools as mit
@@ -464,21 +465,7 @@ class Parser:
         """
 
         self.pairs = list(set(pairs) or ALL_BRACKET_PAIRS)
-        try:
-            self.opening, self.closing = zip(*self.pairs)
-        except Exception as err:
-            import sys, textwrap
-            from IPython import embed
-            from better_exceptions import format_exception
-            embed(header=textwrap.dedent(
-                    f"""\
-                    Caught the following {type(err).__name__} at 'delimited.py':466:
-                    %s
-                    Exception will be re-raised upon exiting this embedded interpreter.
-                    """) % '\n'.join(format_exception(*sys.exc_info()))
-            )
-            raise
-            
+        self.opening, self.closing = zip(*self.pairs)
         self._open_close = ''.join(self.opening) + ''.join(self.closing)
         self.pair_map = pm = dict(pairs)
         self.pair_map.update(dict(zip(pm.values(), pm.keys())))
@@ -502,8 +489,9 @@ class Parser:
 
         positions = defaultdict(list)
         open_ = defaultdict(int)
-        for j, b in self._index(string):
-            if b in self.opening and self._unique_delimiters:
+
+        for count, (j, b) in enumerate(self._index(string)):
+            if b in self.opening and (self._unique_delimiters or (count % 2) == 0):
                 # opening bracket
                 positions[b].append(j)
                 open_[b] += 1
@@ -521,7 +509,7 @@ class Parser:
                     yield Delimited((o, b), None, (None, j), 0)
 
                 elif must_close == 1:
-                    raise UnpairedDelimiterError(string, 'opening', {b: j})
+                    raise UnpairedDelimiterError(string, 'opening', {b: [j]})
 
                 # NOTE: `must_close == -1` doesn't yield anything, just continue
 
@@ -946,7 +934,7 @@ class Parser:
             return depth.pop(tuple(self.pairs[0]), 0)
 
         return dict(depth)
-    
+
 
 # ---------------------------------------------------------------------------- #
 # predifined parsers for specific pairs
