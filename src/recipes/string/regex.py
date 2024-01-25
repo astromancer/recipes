@@ -72,7 +72,7 @@ def match_all(strings, pattern):
     return matches
 
 
-def split_iter(string, sep='\s+'):
+def split_iter(string, sep=r'\s+'):
     # source : https://stackoverflow.com/a/9770397
     regex = f'(?:^|{sep})((?:(?!{sep}).)*)'
     for match in re.finditer(regex, string):
