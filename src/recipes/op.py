@@ -18,7 +18,7 @@ from collections import abc
 
 # relative
 import builtins
-from .functionals import echo0, raises
+from .functionals import echo0
 
 
 # ---------------------------------------------------------------------------- #

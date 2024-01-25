@@ -8,6 +8,7 @@ import re
 # relative
 from .utils import sub
 
+
 # ---------------------------------------------------------------------------- #
 REGEX_CAPS = re.compile('([A-Z])')
 REGEX_SPACE = re.compile(r'\s+')

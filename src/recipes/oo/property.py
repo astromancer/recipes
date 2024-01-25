@@ -15,7 +15,6 @@ from loguru import logger
 
 # relative
 from .. import op
-from ..functionals import echo0
 
 
 # ---------------------------------------------------------------------------- #

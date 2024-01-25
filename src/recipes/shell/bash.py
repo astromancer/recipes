@@ -12,8 +12,7 @@ from .. import op
 from ..tree import Node
 from ..lists import split_where
 from ..functionals import negate
-from ..string import shared_affix, strings
-from ..string import delimited
+from ..string import delimited, shared_affix, strings
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')

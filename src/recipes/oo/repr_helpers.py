@@ -1,5 +1,5 @@
 
-from recipes.pprint import pformat
+from ..pprint import pformat
 
 
 DEFAULT_STYLE = dict(lhs=str,

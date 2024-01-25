@@ -2,13 +2,10 @@
 Some common decorators.
 """
 
-# std
-
-# relative
 from .emit import Emit
 from .trace import Trace
+from .inject import Post, Prior
 from .catch import Catch, CatchWarnings, Fallback
-from .inject import Prior, Post
 
 
 # aliases
