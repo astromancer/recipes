@@ -44,7 +44,7 @@ from loguru import logger
 from ..flow import Emit
 from ..pprint import callers
 from ..decorators import Decorator
-from ..string import brackets
+from ..string import delimited as delim
 
 
 # ---------------------------------------------------------------------------- #
@@ -139,7 +139,7 @@ class KeywordTranslate(RegexTranslate):
     'row_nrs'
     """
 
-    parser = brackets.Parser('[]', '()')
+    parser = delim.Parser('[]', '()')
 
     def __init__(self, pattern, answer=''):
         super().__init__(self._build_regex(pattern), answer)
@@ -155,7 +155,7 @@ class KeywordTranslate(RegexTranslate):
 
             # print(s, i0, i1)
             i0, i1 = match.indices
-            s = OPTION_REGEX_BUILDERS[''.join(match.brackets)](match.enclosed)
+            s = OPTION_REGEX_BUILDERS[''.join(match.delimiters)](match.enclosed)
             # regex for optional characters
             # 'n[umbe]r[_rows]' -> n(umber)?r(_rows)?
 

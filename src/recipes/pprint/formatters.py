@@ -159,7 +159,6 @@ class Percentage:
         if precision is None:
             self.precision = getattr(fmt_nr, 'precision', 0)
 
-        # self.brackets = str(brackets)
         fmt_p = f'{{f:.{self.precision}%}}'.join(brackets)
         self._fmt = f'{{x}} {fmt_p}'
 

@@ -9,4 +9,4 @@ from .justify import *
 from .plurals import *
 from .stacking import *
 from .percentage import Percentage
-# from .brackets import BracketParser # circular import!
+# from .delimited import BracketParser # circular import!

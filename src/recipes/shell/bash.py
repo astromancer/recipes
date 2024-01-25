@@ -13,13 +13,13 @@ from ..tree import Node
 from ..lists import split_where
 from ..functionals import negate
 from ..string import shared_affix, strings
-from ..string import brackets
+from ..string import delimited
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
 RGX_BASH_RANGE = re.compile(r'(\d+)[.]{2}(\d+)')
 
-braces = brackets.Parser('{}')
+braces = delimited.Parser('{}')
 
 # ---------------------------------------------------------------------------- #
 # utility functions
@@ -61,7 +61,7 @@ def brace_expand_iter(string, level=0):
 def _expander(item, head='', tail=''):
     rng = RGX_BASH_RANGE.fullmatch(item)
     # bash expansion syntax implies an inclusive number interval
-    items = range(int(rng[1]), int(rng[2]) + 1) if rng else brackets.csplit(item)
+    items = range(int(rng[1]), int(rng[2]) + 1) if rng else delimited.csplit(item)
     for x in items:
         yield f'{head}{x}{tail}'
 
@@ -318,7 +318,7 @@ def brace_contract(items, depth=-1):
         raise ValueError('Cannot contract and empty sequence.')
 
     if n == 1:
-        # simply remove single items enclosed in brackets. NOTE this behaviour
+        # simply remove single items enclosed in delimited. NOTE this behaviour
         # is different from what bash does: it simply uses the name containing
         # {x} elements verbatim, which we don't want in this context.
         return braces.remove(items[0],
