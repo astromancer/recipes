@@ -1,10 +1,10 @@
 """
-Functional helpers.
+Common functions and functionals.
 """
+
 
 # ---------------------------------------------------------------------------- #
 # Canonical do nothing function
-
 
 def noop(*_, **__):
     """Do nothing."""
@@ -13,19 +13,22 @@ def noop(*_, **__):
 # ---------------------------------------------------------------------------- #
 # Functions that simply return the input parameter(s) unmodified
 
+def echo(first, *more, **__):
+    """Return all parameters unchanged."""
+    if more:
+        return (first, *more)
+
+    return first
+
+
 def echo0(first, *_, **__):
     """simply return the 0th parameter."""
     return first
 
 
-def echo(*_):
-    """Return all parameters unchanged."""
-    return _
-
-
 # ---------------------------------------------------------------------------- #
 # Decorators for restricting operations on selected function parameters only
-# TODO: proper decorator FutureIndex(0)
+# TODO: proper decorator FutureIndex(obj)[0]
 
 def on_nth(func, n):  # apply.nth_positional(func, 1)(*args)
 
@@ -57,6 +60,10 @@ def is_none(x):
 
 def not_none(x):
     return x is not None
+
+
+def has_none(x):
+    return None in x
 
 
 # ---------------------------------------------------------------------------- #
