@@ -1,6 +1,6 @@
 """
-Tools for parsing and editing strings containing (arbitrarily nested)
-paired delimiters.
+Tools for parsing and editing strings containing (arbitrarily nested) paired
+delimiters.
 """
 
 # std
@@ -11,7 +11,6 @@ import itertools as itt
 from collections import defaultdict
 from dataclasses import asdict, astuple, dataclass
 from typing import Callable, Collection, List, Tuple, Union
-from IPython import embed
 
 # third-party
 import more_itertools as mit
@@ -20,7 +19,8 @@ import more_itertools as mit
 from .. import op
 from ..iter import where
 from ..functionals import always, echo, not_none
-from . import delete, named_items, pluralize
+from .utils import delete
+from .plurals import named_items, pluralize
 
 
 # import docsplice as doc
@@ -152,7 +152,7 @@ class IsOutermost(_Condition):
 
 
 # alias
-is_outer = IsOutermost
+is_outer = IsOuter = IsOutermost
 
 
 class AttributeTest(_Condition):
@@ -937,22 +937,30 @@ class Parser:
 
 
 # ---------------------------------------------------------------------------- #
-# predifined parsers for specific pairs
-braces = curly = Parser('{}')
-parentheses = parens = round = Parser('()')
-square = hard = Parser('[]')
-chevrons = angles = Parser('<>')
+# predifined parsers for specific bracket pairs
+curly_brackets = braces = Parser('{}')
+round_brackets = parentheses = parens = Parser('()')
+square_brackets = hard_brackets = Parser('[]')
+angle_brackets = chevrons = Parser('<>')
 
-parsers = {
+
+bracket_parsers = {
     '{':  braces,
     '{}': braces,
-    '[':  square,
-    '[]': square,
+    '[':  square_brackets,
+    '[]': square_brackets,
     '(':  round,
     '()': round,
     '<':  chevrons,
     '<>': chevrons
 }
+
+# class BracketParsers:
+#     curly = Parser('{}')
+#     round = Parser('()')
+#     square = Parser('[]')
+#     angle = Parser('<>')
+
 
 # pylint: disable=missing-function-docstring
 # insert = {'Parameters[pair] as brackets': Parser}
