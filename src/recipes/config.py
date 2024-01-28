@@ -16,6 +16,7 @@ from .dicts.node import DictNode
 from .dicts.core import _AttrReadItem
 from .introspect.utils import get_module_name, get_package_name
 
+
 # ---------------------------------------------------------------------------- #
 CACHE = {}
 REGEX_VERSION = re.compile(R'v?(\d+).(\d+).(.+)')
@@ -79,8 +80,8 @@ def search_project_tree(pkg, caller, extensions, emit='error'):
     # raise / warn / whatever
     Emit(emit, FileNotFoundError)(
         'Could not find config file in any of the parent folders up to'
-        ' the package root for filename = {}, extensions = {}.',
-        filename, extensions
+        ' the package root for filename = {!s}, extensions = {}.',
+        path, extensions
     )
 
     # if package_root.name == 'src':

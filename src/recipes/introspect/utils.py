@@ -273,7 +273,7 @@ def _(path):
     path = Path(path)
     candidates = []
     trial = path.parent
-    stop = (Path.home(), Path('/'))
+    stop = (Path.home(), Path('/'), 'src')
     for _ in range(5):
         if trial in stop:
             break
@@ -287,15 +287,19 @@ def _(path):
     # module, eg: "recipes.string". Here "string" would be incorrectly
     # identified here as a "package" since it is importable. The real package
     # may actually be higher up in the folder tree.
+
     while candidates:
-        trial = candidates.pop(0)
+        trial = candidates.pop(-1)
         if candidates and (trial.name in BUILTIN_MODULE_NAMES):
             # candidates.append(trial)
             continue
 
         # convert to dot.separated.name
-        path = path.relative_to(trial.parent)
-        name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
+        rpath = path.relative_to(trial.parent)
+        name = remove_suffix(remove_suffix(str(rpath), '.py'), '__init__')
+        if 'src' in name:
+            name = name[(name.index('src') + 4):]
+            
         return name.rstrip('/').replace('/', '.')
 
     raise ValueError(f"Could not get package name for file '{path!s}'.")
@@ -303,9 +307,14 @@ def _(path):
 
 def get_package_name(node_or_path: Union[str, Path, ast.Import]):
     fullname = get_module_name(node_or_path)
+
     # if fullname.startswith('.'):
     #     return '.' * node.level
     if fullname is None:
         raise ValueError(f'Could not get package name for file {node_or_path!r}.')
+
+    # if 'src' in fullname:
+    #     from IPython import embed
+    #     embed(header="Embedded interpreter at 'src/recipes/introspect/utils.py':312")
 
     return fullname.split('.', 1)[0]
