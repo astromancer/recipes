@@ -302,6 +302,7 @@ class CachedProperty(property):
             child.__delete__(obj)
 
 
+# ---------------------------------------------------------------------------- #
 ALLOWED_DEPENDANT_TYPES = (CachedProperty, ForwardProperty)
 
 # aliases

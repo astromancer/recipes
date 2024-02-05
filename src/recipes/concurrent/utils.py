@@ -215,8 +215,8 @@ def queue_loader(queue, trigger, done, data, batch_size=1, wrapper=None,
 class QueueLoader(mp.Process, LoggingMixin):
     """staggers task loads into queue"""
 
-    # def __init__(self, group, target, name, args, kwargs, *, daemon):
-    #     super().__init__(group, target, name, args, kwargs, daemon=daemon)
+    # def __init__(self, group, target, name, args, kws, *, daemon):
+    #     super().__init__(group, target, name, args, kws, daemon=daemon)
 
     def __init__(self, queue, trigger, done, data, batch_size=1, wrapper=None,
                  sentinel=None, timeout=60):
@@ -241,7 +241,7 @@ class QueueLoader(mp.Process, LoggingMixin):
         if wrapper is not None:
             data = map(wrapper, data)
 
-        # def __init__(self, group, target, name, args, kwargs, *, daemon):
+        # def __init__(self, group, target, name, args, kws, *, daemon):
         mp.Process.__init__(self, None, self._target, None,
                             (data, batch_size, sentinel, timeout), {},
                             daemon=False)

@@ -85,8 +85,6 @@ class GlobPatternList:
             yield path
 
 
-
-
 class GitIgnore(GlobPatternList):
     """
     Class to read `.gitignore` files and filter source trees.

@@ -32,7 +32,7 @@ class Trace(Decorator):
     foo(a       = aaa,
         b       = 42,
         c       = <built-in function id>,
-        kwargs  = {'bar': Ellipsis, 'gr': 8} )
+        kws  = {'bar': Ellipsis, 'gr': 8} )
 
     Out[43]: 'aaa'
     """

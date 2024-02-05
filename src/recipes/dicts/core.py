@@ -665,9 +665,9 @@ class DefaultOrderedDict(OrderedDict):
         return type(self)(self.default_factory,
                           copy.deepcopy(self.items()))
 
-    def __repr__(self):
-        return (f'{self.__class__.__name__}({self.default_factory}, '
-                f'{OrderedDict.__repr__(self)})')
+    # def __repr__(self):
+    #     return (f'{self.__class__.__name__}({self.default_factory}, '
+    #             f'{OrderedDict.__repr__(self)})')
 
 
 # alias

@@ -15,9 +15,9 @@ def unhookPyQt(func):
     """
 
     @functools.wraps(func)
-    def unhooked_func(*args, **kwargs):
+    def unhooked_func(*args, **kws):
         pyqtRemoveInputHook()
-        out = func(*args, **kwargs)
+        out = func(*args, **kws)
         pyqtRestoreInputHook()
         return out
 

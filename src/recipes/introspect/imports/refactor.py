@@ -68,9 +68,9 @@ CONFIG = ConfigNode.load_module(__file__, 'yaml')
 if CONFIG.log_warnings:
     # _original_showwarning = wrn.showwarning
 
-    def showwarning(message, *args, **kwargs):
+    def showwarning(message, *args, **kws):
         logger.warning(message)
-        # _original_showwarning(message, *args, **kwargs)
+        # _original_showwarning(message, *args, **kws)
 
     wrn.showwarning = showwarning
 

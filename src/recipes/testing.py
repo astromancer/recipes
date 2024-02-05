@@ -450,8 +450,8 @@ class Expected(LoggingMixin):
             if answer == expected:
                 return
 
-            message = (f'Result from function {self.func.__name__} '
-                       'is not equal to expected answer!'
+            message = (f'Result from function {self.func.__name__!r} '
+                       'is not equal to the expected answer!'
                        f'\nRESULT:  \n{answer!r}'
                        f'\nEXPECTED:\n{expected!r}')
             if isinstance(answer, str) and isinstance(expected, str):
