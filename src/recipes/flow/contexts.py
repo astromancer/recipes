@@ -14,6 +14,10 @@ class ContextStack(ctx.ExitStack):
 
     def __init__(self, contexts=()):
         super().__init__()
+
+        if isinstance(contexts, ctx.AbstractContextManager):
+            contexts = [contexts]
+
         self.contexts = list(contexts)
 
     def __enter__(self):
