@@ -84,6 +84,7 @@ class Factory:
             # `decorate` sets: __name__, __doc__, __wrapped__, __signature__,
             # __qualname_, [__defaults__, __kwdefaults__, __annotations___]
             # on `decorator`.
+            self.__wrapped__ = func
 
             # Set the wrapper attribute for symmetry with `Wrapper`
             decorator.__wrapper__ = wrapper
