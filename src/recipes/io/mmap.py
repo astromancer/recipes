@@ -109,7 +109,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
     return data
 
 
-def load_memmap_nans(loc, shape=None, dtype=None, overwrite=False, **kws):
+def load_memmap_nans(loc=None, shape=None, dtype=None, overwrite=False, **kws):
     return load_memmap(loc, shape, dtype, fill=np.nan, overwrite=overwrite, **kws)
 
 
