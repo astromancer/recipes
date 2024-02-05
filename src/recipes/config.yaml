@@ -27,3 +27,14 @@ imports:
         suffix:                 # libs
 
     log_warnings:               True
+
+
+concurrent:
+    executor:
+        progress:
+            bar_format: >-
+                {{desc}: {percentage:3.0f}%{bar}{n_fmt}/{total_fmt}:|green}
+                {rate_fmt:|gold}
+                {elapsed:|cyan} eta {remaining:|cyan}
+            ascii: " ╸━"
+            leave: true

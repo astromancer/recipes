@@ -29,7 +29,8 @@ dependencies = [
     "psutil",
 
     "numpy",
-    "joblib"
+    "joblib",
+    "tqdm"
 ]
 
 [project.urls]
