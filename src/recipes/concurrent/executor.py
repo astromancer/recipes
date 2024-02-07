@@ -201,11 +201,35 @@ class Executor(LoggingMixin):
 
         return worker, context
 
-    def get_workload(self, indices, progress_bar=True):
+    def get_workload(self, data, indices, progress_bar=True):
         # workload iterable with progressbar if required
-        workload = zip(indices, )
+
+        done = self.completed
+        if indices is None:
+            indices, = np.where(~done)
+
+        indices = list(indices)
+        self.logger.debug('indices = {}', indices)
+
+        if len(indices) == 0:
+            self.logger.info('All data have been processed. To force a rerun, '
+                             'you may reset the memory\n'
+                             ' >>> exec.init_memory(..., overwrite=True)')
+
+            return ()
+
+        #
+        self.logger.debug('Creating workload: {}', data, indices)
+
+        if isinstance(data, (np.ndarray, list)):
+            workload = ((data[i], i) for i in indices)
+        elif isinstance(data, abc.Iterable):
+            workload = zip(data, indices)
+        else:
+            raise TypeError(f'Cannot create workload from data of type {type(data)}.')
+
         return tqdm(workload, self.jobname,
-                    initial=self.completed.sum(), total=len(indices),
+                    initial=done.sum(), total=len(done),
                     disable=not progress_bar, **CONFIG.progress)
 
     def compute(self, data, index, **kws):
