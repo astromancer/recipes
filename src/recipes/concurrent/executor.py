@@ -2,6 +2,7 @@
 # std
 import contextlib as ctx
 import multiprocessing as mp
+from collections import abc
 
 # third-party
 import numpy as np
@@ -11,11 +12,12 @@ from joblib import Parallel, delayed
 
 # local
 import motley
-from recipes.io import load_memmap_nans
 
 # relative
+from .. import pprint as pp
 from ..io import load_memmap
 from ..config import ConfigNode
+from ..oo.slots import SlotHelper
 from ..flow.contexts import ContextStack
 from ..logging import LoggingMixin, TqdmLogAdapter, TqdmStreamAdapter
 from .joblib import initialized
@@ -48,13 +50,15 @@ def set_lock(mem_lock, tqdm_lock):
 
 # ---------------------------------------------------------------------------- #
 
-class Executor(LoggingMixin):
+class Executor(LoggingMixin, SlotHelper):
 
-    def __init__(self, jobname='', backend='multiprocessing', **kws):
+    __slots__ = ('jobname', 'backend', 'results', 'config')
+
+    def __init__(self, jobname=None, backend='multiprocessing', **config):
+        self.jobname = type(self).__name__ if jobname is None else str(jobname)
         self.backend = str(backend)
-        self.jobname = jobname
         self.results = None
-        self.kws = kws
+        self.config = config
 
     def init_memory(self, shape, masked=False, loc=None, overwrite=False):
         """
@@ -105,8 +109,6 @@ class Executor(LoggingMixin):
             return f'{name}(0/0)'
         return f'{name}({self.completed.sum()} / {len(m)})'
 
-    __repr__ = __str__
-
     # ------------------------------------------------------------------------ #
     @property
     def completed(self):
@@ -115,8 +117,8 @@ class Executor(LoggingMixin):
             tuple({*range(self.results.ndim)} - {0})
         )
 
-    @api.synonyms({'n_jobs': 'njobs'})
-    def run(self, data, indices=None, njobs=-1, progress_bar=True, **kws):
+    # @api.synonyms({'n_jobs': 'njobs'})
+    def run(self, data=None, indices=None, njobs=-1, progress_bar=True, *args, **kws):
         """
         Start a worker pool of source trackers. The workload will be split into
         chunks of size ``
@@ -140,37 +142,33 @@ class Executor(LoggingMixin):
             If memory has not been initialized prior to calling this method.
         """
         # preliminary checks
+
+        self.logger.debug('indices = {}', indices)
+
         if self.results is None:
             raise FileNotFoundError('Initialize memory first by calling the '
                                     '`init_memory` method.')
-
-        if indices is None:
-            indices, = np.where(~self.completed)
-
-        indices = list(indices)
-        if len(indices) == 0:
-            self.logger.info('All data have been processed. To force a rerun, '
-                             'you may do >>> tracker.completed[:] = 0')
-            return
 
         if njobs in (-1, None):
             njobs = mp.cpu_count()
 
         # main compute
-        self.main(data, indices, njobs, progress_bar, **kws)
+        self.logger.debug('indices = {}', indices)
+        self.main(data, indices, njobs, progress_bar, *args, **kws)
 
-    def main(self, data, indices, njobs,  progress_bar, **kws):
+    def main(self, data, indices, njobs, progress_bar, *extra_args, **kws):
 
         # setup compute context
-        worker, context = self.setup(njobs, progress_bar, **self.kws)
+        worker, context = self.setup(njobs, progress_bar, **self.config)
 
         logger.remove()
         logger.add(TqdmStreamAdapter(), colorize=True, enqueue=True)
 
         # execute
         with context as compute:
-            compute(worker(data, *args, **kws) for args in
-                    self.get_workload(indices, progress_bar))
+            self.logger.debug('indices = {}', indices)
+            compute(worker(*args, *extra_args, **kws) for args in
+                    self.get_workload(data, indices, progress_bar))
 
         # self.logger.debug('With {} backend, pickle serialization took: {:.3f}s.',
         #              backend, time.time() - t_start)
@@ -178,6 +176,10 @@ class Executor(LoggingMixin):
         return self.results
 
     def setup(self, njobs, progress_bar, **kws):
+
+        self.logger.opt(lazy=True).debug(
+            'Compute setup: {}', lambda: pp.pformat(locals(), ignore='self')
+        )
 
         # setup compute context
         if njobs == 1:
