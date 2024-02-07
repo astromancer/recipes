@@ -14,7 +14,7 @@ import motley
 from recipes.io import load_memmap_nans
 
 # relative
-from .. import api
+from ..io import load_memmap
 from ..config import ConfigNode
 from ..flow.contexts import ContextStack
 from ..logging import LoggingMixin, TqdmLogAdapter, TqdmStreamAdapter
@@ -56,7 +56,7 @@ class Executor(LoggingMixin):
         self.results = None
         self.kws = kws
 
-    def init_memory(self, shape, overwrite=False):
+    def init_memory(self, shape, masked=False, loc=None, overwrite=False):
         """
         Initialize shared memory synchronised access wrappers. Should only be
         run in the main process.
@@ -71,7 +71,10 @@ class Executor(LoggingMixin):
         -------
 
         """
-        self.results = load_memmap_nans(shape=shape, overwrite=overwrite)
+        self.results = load_memmap(loc, shape, fill=np.nan, overwrite=overwrite)
+        self.mask = None
+        if masked:
+            self.mask = load_memmap(loc, shape, bool, True, overwrite)
 
     def __call__(self, data, indices=None):
         """
@@ -206,8 +209,13 @@ class Executor(LoggingMixin):
                     disable=not progress_bar, **CONFIG.progress)
 
     def compute(self, data, index, **kws):
-        # measure
-        self.results[index] = self._compute(data, **kws)
+
+        # compute
+        self.results[index] = result = self._compute(data, **kws)
+
+        # handle masked
+        if self.mask is not None and np.ma.is_masked(result):
+            self.mask[index] = result.mask
 
     def _compute(self, *data, **kws):
         raise NotImplementedError()
