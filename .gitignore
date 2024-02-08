@@ -1,6 +1,8 @@
 # Things specific to this project #
 ###################################
 dev/
+src/recipes/concurrent/consumers.py
+src/recipes/concurrent/utils.py
 src/recipes/property.py
 src/recipes/decor/path.py
 src/recipes/io/parse.py
