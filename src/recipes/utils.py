@@ -13,6 +13,8 @@ from .functionals import negate
 
 
 # ---------------------------------------------------------------------------- #
+# Null
+
 def not_null(obj, except_=('',)):
     #      scalar                                                array-like
     return bool((obj or (obj in except_)) if is_scalar(obj) else len(obj))
@@ -24,11 +26,13 @@ isnull = is_null = negate(not_null)
 
 
 # ---------------------------------------------------------------------------- #
-def is_scalar(obj, exceptions=(str, )):
-    return not isinstance(obj, abc.Sized) or isinstance(obj, exceptions)
+# Scalars (unsized)
+
+def is_scalar(obj, accept=(str, )):
+    return not isinstance(obj, abc.Sized) or isinstance(obj, accept)
 
 
-def duplicate_if_scalar(obj, n=2, raises=True, exceptions=(str,)):  # TODO: action
+def duplicate_if_scalar(obj, n=2, accept=(str, ), emit=ValueError):
     """
     Ensure object size or duplicate if necessary.
 
@@ -41,24 +45,26 @@ def duplicate_if_scalar(obj, n=2, raises=True, exceptions=(str,)):  # TODO: acti
 
     """
 
-    if is_scalar(obj, exceptions):
+    if is_scalar(obj, accept):
         return [obj] * n
 
+    # Sized object
     size = len(obj)
-    if size == 0:
-        if raises:
-            raise ValueError(f'Cannot duplicate empty {type(obj)}.')
-        return [obj] * n
-
     if size == 1:
         return list(obj) * n
 
-    if (size != n) and raises:
-        raise ValueError(
-            f'Input object of type {type(obj)} has incorrect size: {size}. '
-            'Expected either a scalar type object, or a Container with length '
-            f'in {{1, {n}}}.'
-        )
+    #
+    from recipes.flow.emit import Emit
+
+    emit = Emit(emit)
+    if size == 0:
+        emit(f'Cannot duplicate empty {type(obj)}.')
+        return [obj] * n
+
+    if (size != n):
+        emit(f'Input object of type {type(obj)} has incorrect size: {size}. '
+             'Expected either a scalar type object, or a Container with length '
+             f'in {{1, {n}}}.')
 
     return obj
 
@@ -151,6 +157,6 @@ def ensure_list(obj, coerce=None):
 
 def ensure(wrapper, obj, coerce=None, scalars=str):
     return ensure_wrapped(obj, wrapper, coerce, scalars)
-    
+
 
 ensure_tuple = EnsureWrapped(tuple)

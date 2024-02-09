@@ -20,12 +20,12 @@ from ..pprint.mapping import PrettyPrint, pformat
 # ---------------------------------------------------------------------------- #
 # utils
 
-def isdict(obj):
+def is_dict(obj):
     return isinstance(obj, abc.MutableMapping)
 
 
 # alias
-is_dict = isdict
+isdict = is_mapping = is_map = is_dict
 
 
 def dump(mapping, filename, **kws):

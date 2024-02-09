@@ -769,7 +769,7 @@ class Conditional:
 
         """
         self.test = test
-        self.args = tuple(duplicate_if_scalar(test_args, 1, raises=False))
+        self.args = tuple(duplicate_if_scalar(test_args, 1, emit=False))
         self.kws = kws
         assert callable(true)
         assert callable(false)
