@@ -5,9 +5,9 @@ talkative functions.
 
 # std
 import sys
-import numbers
 import warnings
 from io import StringIO
+from enum import IntEnum
 
 # third-party
 from loguru import logger
@@ -18,6 +18,37 @@ from ..functionals import noop, raises
 
 
 # ---------------------------------------------------------------------------- #
+
+def is_exception(obj):
+    return isinstance(obj, Exception) \
+        or (type(obj) is type and issubclass(obj, Exception))
+
+
+class Action(IntEnum):
+
+    IGNORE = SILENT = 0   # silently ignore
+    INFO = NOTE = 1
+    DEBUG = 2
+    WARN = WARNING = 3
+    ERROR = RAISE = 4
+    CUSTOM = 5
+
+    @classmethod
+    def _missing_(cls, action):
+
+        if action is None:
+            return cls.IGNORE
+
+        if isinstance(action, str):
+            action = action.upper().rstrip('S')
+            return getattr(cls, action, None)
+
+        # handle case: >>> Emit(ValueError('Bad dog!'))()
+        if issubclass(action, Exception):
+            # cls._emitters[]
+            return cls.RAISES
+
+
 class Emit:
     """
     Emit messages or warnings, or raise exceptions depending on requested action.
@@ -26,29 +57,19 @@ class Emit:
 
     __slots__ = ('_action', 'emit')
 
-    _action_ints = dict(enumerate(('ignore', 'info', 'warn', 'raise'), -1))
-    _actions = {
-        'ignore':   noop,               # silently ignore
-        'info':     logger.info,
-        'debug':    logger.debug,
-        'warn':     warnings.warn,      # emit warning
-        'raise':    raises(Exception)   # raise
-    }
-    _action_synonyms = {
-        'error':  'raise',
-        'silent': 'ignore'
+    _emitters = {
+        0: noop,             # silently ignore
+        1: logger.info,
+        2: logger.debug,
+        3: warnings.warn,
+        4: raises(Exception)
     }
 
     def __init__(self, action='ignore', exception=Exception):
 
         action = action or 'ignore'
-
-        if isinstance(action, Exception):
-            exception = action
-            action = 'raises'
-
-        if exception is not None:
-            self._actions['raise'] = raises(exception)
+        if action == 'raises':
+            action = raises(exception)
 
         # resolve action
         self.action = action
@@ -65,27 +86,20 @@ class Emit:
         return self._action
 
     @action.setter
-    def action(self, val):
-        if callable(val):
+    def action(self, obj):
+        self._action, self.emit = self._resolve_action_emitter(obj)
+
+    def _resolve_action_emitter(self, action):
+        if is_exception(action):
+            # handle case: >>> ValueError('Bad dog!') and ValueError
+            return Action.RAISES, raises(action)
+
+        if callable(action):
             # custom action (emit function)
-            self._action = 'custom'
-            self.emit = val
-        else:
-            self._action = self._resolve_action(val)
-            self.emit = self._actions[self._action]
+            return (Action.CUSTOM, action)
 
-    def _resolve_action(self, action):
-        if action is None:
-            return 'ignore'
-
-        if isinstance(action, numbers.Integral):
-            return self._action_ints[action]
-
-        if isinstance(action, str):
-            action = action.rstrip('s')
-            return self._action_synonyms.get(action, action)
-
-        raise TypeError(f'Invalid type for `action`: {action}')
+        action = Action(action)
+        return action, self._emitters[action]
 
 
 class Suppress(Decorator):

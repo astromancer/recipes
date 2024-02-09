@@ -85,12 +85,19 @@ def negate(func=bool):
 def raises(exception):
     """Raises an exception of type `exception`."""
 
-    assert issubclass(exception, BaseException)
+    #  handle case: >>> raises(ValueError('Bad dog!'))
+    if isinstance(exception, BaseException):
+        def _raises():
+            raise exception
+        return _raises
 
-    def _raises(msg, *args, **kws):
-        raise exception(msg.format(*args, **kws))
+    if issubclass(exception, BaseException):
+        def _raises(msg, *args, **kws):
+            raise exception(msg.format(*args, **kws))
+        return _raises
 
-    return _raises
+    raise TypeError(
+        f'Expected Exception class or instance, but received {type(exception).__name__}.')
 
 
 # ---------------------------------------------------------------------------- #
