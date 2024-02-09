@@ -34,12 +34,13 @@ del prg
 
 # ---------------------------------------------------------------------------- #
 # Multiprocessing
+sync_manager = mp.Manager()
 
 # default lock - does nothing
 memory_lock = ctx.nullcontext()
 
 
-def set_lock(mem_lock, tqdm_lock):
+def set_locks(mem_lock, tqdm_lock):
     """
     Initialize each process with a global variable lock.
     """
@@ -49,16 +50,24 @@ def set_lock(mem_lock, tqdm_lock):
 
 
 # ---------------------------------------------------------------------------- #
+class AbortCompute(Exception):
+    pass
+
 
 class Executor(LoggingMixin, SlotHelper):
 
-    __slots__ = ('jobname', 'backend', 'results', 'config')
+    __slots__ = ('jobname', 'backend', 'config', 'results', 'mask',
+                 'nfail', 'xfail')
 
-    def __init__(self, jobname=None, backend='multiprocessing', **config):
+    def __init__(self, jobname=None, backend='multiprocessing', xfail=1,
+                 **config):
+
         self.jobname = type(self).__name__ if jobname is None else str(jobname)
         self.backend = str(backend)
-        self.results = None
+        self.results = self.mask = None
         self.config = config
+        self.xfail = int(xfail)
+        self.nfail = sync_manager.Value('i', 0)
 
     def init_memory(self, shape, masked=False, loc=None, overwrite=False):
         """
@@ -118,7 +127,8 @@ class Executor(LoggingMixin, SlotHelper):
         )
 
     # @api.synonyms({'n_jobs': 'njobs'})
-    def run(self, data=None, indices=None, njobs=-1, progress_bar=True, *args, **kws):
+    def run(self, data=None, indices=None, njobs=-1, progress_bar=True, 
+            args=(), **kws):
         """
         Start a worker pool of source trackers. The workload will be split into
         chunks of size ``
@@ -155,18 +165,20 @@ class Executor(LoggingMixin, SlotHelper):
         # main compute
         self.logger.debug('indices = {}', indices)
         self.main(data, indices, njobs, progress_bar, *args, **kws)
+        return self.finalize(*args, **kws)
 
     def main(self, data, indices, njobs, progress_bar, *extra_args, **kws):
 
         # setup compute context
-        worker, context = self.setup(njobs, progress_bar, **self.config)
-
-        logger.remove()
-        logger.add(TqdmStreamAdapter(), colorize=True, enqueue=True)
-
+        worker, context, locks = self.setup(njobs, progress_bar, **self.config)
+        self.logger.debug('Main compute starting with indices = {}', indices)
+        
         # execute
         with context as compute:
-            self.logger.debug('indices = {}', indices)
+            # Adapt logging sinks for tqdm interplay
+            logger.remove()
+            logger.add(TqdmStreamAdapter(), colorize=True, enqueue=True)
+            
             compute(worker(*args, *extra_args, **kws) for args in
                     self.get_workload(data, indices, progress_bar))
 
@@ -183,25 +195,29 @@ class Executor(LoggingMixin, SlotHelper):
 
         # setup compute context
         if njobs == 1:
-            return self.compute, ctx.nullcontext(list)
+            return self.compute, ctx.nullcontext(list), ()
 
         # locks for managing output contention
-        tqdm.set_lock(mp.RLock())
-        memory_lock = mp.Lock()
+        mem_lock = sync_manager.Lock()
+        prg_lock = mp.RLock()
+        
+        # set lock for progress bar stream
+        tqdm.set_lock(prg_lock)
 
         # NOTE: object serialization is about x100-150 times faster with
         # "multiprocessing" backend. ~0.1s vs 10s for "loky".
         worker = delayed(self.compute)
         executor = Parallel(njobs, self.backend, **kws)
         context = ContextStack(
-            initialized(executor, set_lock, (memory_lock, tqdm.get_lock()))
+            initialized(executor, set_locks, (mem_lock, prg_lock))
         )
+
         # Adapt logging for progressbar
         if progress_bar:
             # These catch the print statements
             context.add(TqdmLogAdapter())
 
-        return worker, context
+        return worker, context, (mem_lock, prg_lock)
 
     def get_workload(self, data, indices, progress_bar=True):
         # workload iterable with progressbar if required
@@ -221,7 +237,7 @@ class Executor(LoggingMixin, SlotHelper):
             return ()
 
         #
-        self.logger.debug('Creating workload: {}', data, indices)
+        self.logger.debug('Creating workload for: {}', data, indices)
 
         if isinstance(data, (np.ndarray, list)):
             workload = ((data[i], i) for i in indices)
@@ -236,8 +252,41 @@ class Executor(LoggingMixin, SlotHelper):
 
     def compute(self, data, index, **kws):
 
+        # first check if we are good to continue
+        if self.nfail.value >= self.xfail:
+            # doing this here (instead of inside the except clause) avoids
+            # duplication by chained exception traceback when logging
+            raise AbortCompute(f'Reach exception threshold of {self.xfail}.')
+
         # compute
-        self.results[index] = result = self._compute(data, **kws)
+        try:
+            result = self._compute(data, **kws)
+        except Exception as err:
+            #
+            self.logger.exception('Compute failed for index {}:\n{}', index, err)
+            
+            # check if we should exit
+            with memory_lock:
+                nfail = self.nfail.value + 1
+                self.nfail.value = nfail
+
+                # check if we are beyond exception threshold
+                if nfail >= self.xfail:
+                    self.logger.critical('Exception threshold reached!')
+
+                    raise AbortCompute(
+                        f'Reach failure threshold of {self.xfail}.'
+                    ) from err
+                else:
+                    self.logger.info('Continuing after {}/{} failures.',
+                                     nfail, self.xfail)
+
+        else:
+            self.collect(index, result)
+
+    def collect(self, index, result):
+        # collect results
+        self.results[index] = result
 
         # handle masked
         if self.mask is not None and np.ma.is_masked(result):
@@ -245,3 +294,6 @@ class Executor(LoggingMixin, SlotHelper):
 
     def _compute(self, *data, **kws):
         raise NotImplementedError()
+
+    def finalize(self, *args, **kws):
+        logger.remove()
