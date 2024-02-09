@@ -19,6 +19,11 @@ from ..string import Percentage
 
 # ---------------------------------------------------------------------------- #
 
+def is_null(x):
+    """Check if an object is None or False."""
+    return (x is None) or (x is False)
+
+
 def resolve_size(size, n=None):
     # overlap specified by percentage string eg: 99% or timescale eg: 60s
     if isinstance(size, str):
@@ -131,7 +136,7 @@ def fold(a, size, overlap=0, axis=0, pad='masked', **kws):
 
     # pad out
     if pad:
-        a, _ = padder(a, size, overlap, axis, pad, **kws)
+        a, _ = padded(a, size, overlap, axis, pad, **kws)
 
     #
     sa = get_strided_array(a, size, overlap, axis)
@@ -148,14 +153,7 @@ def fold(a, size, overlap=0, axis=0, pad='masked', **kws):
     return sa
 
 
-def is_null(x):
-    """Check if an object is None or False."""
-    return (x is None) or (x is False)
-
-
-# FIXME: does not always pad out to the correct length!
-
-def padder(a, size, overlap=0, axis=0, pad_mode='masked', **kws):
+def padded(a, size, overlap=0, axis=0, pad_mode='masked', **kws):
     """
     Pad the array out to the required length so a uniform fold can be made with
     no leftover elements.
@@ -173,17 +171,20 @@ def padder(a, size, overlap=0, axis=0, pad_mode='masked', **kws):
     step = size - overlap
     n_seg, leftover = divmod(n, step)
     if leftover:
-        pad_end = size - leftover 
+        pad_end = size - leftover
     else:
         pad_end = overlap
-    
-    logger.opt(lazy=True).info('{}', lambda: f'{leftover = }, {pad_end = }')
-    
+
+    logger.opt(lazy=True).debug('{}', lambda: f'{leftover = }, {pad_end = }')
+
     # padding needed
     if pad_end:
-        logger.info('Padding array to size {} along axis {} by adding {} elements '
-                     'according to config: {}.', size, axis, leftover, pad_mode,
-                     {'mode': pad_mode, **kws})
+        #
+        logger.debug(
+            'Padding array to size {} along axis {} by adding {} elements '
+            'according to config: {}.', size, axis, leftover, pad_mode,
+            {'mode': pad_mode, **kws}
+        )
 
         # default is to mask the "out of array" values
         # pad_mode = kws.pop('pad', 'mask')
@@ -249,7 +250,7 @@ def ifold(a, size, overlap=0, axis=0, **kw):
     """
     Generator version of fold.
     """
-    a, n_seg = padder(a, size, overlap, **kw)
+    a, n_seg = padded(a, size, overlap, **kw)
     step = size - overlap
     i = 0
     while i < n_seg:
