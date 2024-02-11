@@ -17,6 +17,7 @@ import motley
 from .. import pprint as pp
 from ..io import load_memmap
 from ..config import ConfigNode
+from ..string import Percentage
 from ..oo.slots import SlotHelper
 from ..flow.contexts import ContextStack
 from ..logging import LoggingMixin, TqdmLogAdapter, TqdmStreamAdapter
@@ -66,7 +67,7 @@ class Executor(LoggingMixin, SlotHelper):
         self.backend = str(backend)
         self.results = self.mask = None
         self.config = config
-        self.xfail = int(xfail)
+        self.xfail = xfail
         self.nfail = sync_manager.Value('i', 0)
 
     def init_memory(self, shape, masked=False, loc=None, overwrite=False):
@@ -126,8 +127,79 @@ class Executor(LoggingMixin, SlotHelper):
             tuple({*range(self.results.ndim)} - {0})
         )
 
+    def setup(self, njobs, progress_bar, **kws):
+
+        self.logger.opt(lazy=True).debug(
+            'Compute setup: {}', lambda: pp.pformat(locals(), ignore='self')
+        )
+
+        # setup compute context
+        if njobs == 1:
+            return self.compute, ctx.nullcontext(list), ()
+
+        # locks for managing output contention
+        mem_lock = sync_manager.Lock()
+        prg_lock = mp.RLock()
+
+        # set lock for progress bar stream
+        tqdm.set_lock(prg_lock)
+
+        # NOTE: object serialization is about x100-150 times faster with
+        # "multiprocessing" backend. ~0.1s vs 10s for "loky".
+        worker = delayed(self.compute)
+        executor = Parallel(njobs, self.backend, **kws)
+        context = ContextStack(
+            initialized(executor, set_locks, (mem_lock, prg_lock))
+        )
+
+        # Adapt logging for progressbar
+        if progress_bar:
+            # These catch the print statements
+            context.add(TqdmLogAdapter())
+
+        return worker, context, (mem_lock, prg_lock)
+
+    def get_workload(self, data, indices, progress_bar=True):
+        # workload iterable with progressbar if required
+
+        done = self.completed
+        if indices is None:
+            indices, = np.where(~done)
+
+        indices = list(indices)
+        self.logger.debug('indices = {}', indices)
+        
+        n = len(self.results)
+        if isinstance(self.xfail, str):
+            self.xfail = int(round(Percentage(self.xfail).of(n)))
+        
+        if isinstance(self.xfail, float):
+            self.xfail = int(round(n * self.xfail))
+
+        if len(indices) == 0:
+            self.logger.info('All data have been processed. To force a rerun, '
+                             'you may reset the memory\n'
+                             ' >>> exec.init_memory(..., overwrite=True)')
+
+            return ()
+
+        #
+        self.logger.debug('Creating workload for: {}', data, indices)
+
+        if isinstance(data, (np.ndarray, list)):
+            workload = ((data[i], i) for i in indices)
+        elif isinstance(data, abc.Iterable):
+            workload = zip(data, indices)
+        else:
+            raise TypeError(f'Cannot create workload from data of type {type(data)}.')
+
+        return tqdm(workload, self.jobname,
+                    initial=done.sum(), total=len(done),
+                    disable=not progress_bar, **CONFIG.progress)
+
     # @api.synonyms({'n_jobs': 'njobs'})
-    def run(self, data=None, indices=None, njobs=-1, progress_bar=True, 
+
+    def run(self, data=None, indices=None, njobs=-1, progress_bar=True,
             args=(), **kws):
         """
         Start a worker pool of source trackers. The workload will be split into
@@ -172,13 +244,13 @@ class Executor(LoggingMixin, SlotHelper):
         # setup compute context
         worker, context, locks = self.setup(njobs, progress_bar, **self.config)
         self.logger.debug('Main compute starting with indices = {}', indices)
-        
+
         # execute
         with context as compute:
             # Adapt logging sinks for tqdm interplay
             logger.remove()
             logger.add(TqdmStreamAdapter(), colorize=True, enqueue=True)
-            
+
             compute(worker(*args, *extra_args, **kws) for args in
                     self.get_workload(data, indices, progress_bar))
 
@@ -186,69 +258,6 @@ class Executor(LoggingMixin, SlotHelper):
         #              backend, time.time() - t_start)
         self.logger.debug('Task {} complete. Returning results.', self.jobname)
         return self.results
-
-    def setup(self, njobs, progress_bar, **kws):
-
-        self.logger.opt(lazy=True).debug(
-            'Compute setup: {}', lambda: pp.pformat(locals(), ignore='self')
-        )
-
-        # setup compute context
-        if njobs == 1:
-            return self.compute, ctx.nullcontext(list), ()
-
-        # locks for managing output contention
-        mem_lock = sync_manager.Lock()
-        prg_lock = mp.RLock()
-        
-        # set lock for progress bar stream
-        tqdm.set_lock(prg_lock)
-
-        # NOTE: object serialization is about x100-150 times faster with
-        # "multiprocessing" backend. ~0.1s vs 10s for "loky".
-        worker = delayed(self.compute)
-        executor = Parallel(njobs, self.backend, **kws)
-        context = ContextStack(
-            initialized(executor, set_locks, (mem_lock, prg_lock))
-        )
-
-        # Adapt logging for progressbar
-        if progress_bar:
-            # These catch the print statements
-            context.add(TqdmLogAdapter())
-
-        return worker, context, (mem_lock, prg_lock)
-
-    def get_workload(self, data, indices, progress_bar=True):
-        # workload iterable with progressbar if required
-
-        done = self.completed
-        if indices is None:
-            indices, = np.where(~done)
-
-        indices = list(indices)
-        self.logger.debug('indices = {}', indices)
-
-        if len(indices) == 0:
-            self.logger.info('All data have been processed. To force a rerun, '
-                             'you may reset the memory\n'
-                             ' >>> exec.init_memory(..., overwrite=True)')
-
-            return ()
-
-        #
-        self.logger.debug('Creating workload for: {}', data, indices)
-
-        if isinstance(data, (np.ndarray, list)):
-            workload = ((data[i], i) for i in indices)
-        elif isinstance(data, abc.Iterable):
-            workload = zip(data, indices)
-        else:
-            raise TypeError(f'Cannot create workload from data of type {type(data)}.')
-
-        return tqdm(workload, self.jobname,
-                    initial=done.sum(), total=len(done),
-                    disable=not progress_bar, **CONFIG.progress)
 
     def compute(self, data, index, **kws):
 
@@ -264,7 +273,7 @@ class Executor(LoggingMixin, SlotHelper):
         except Exception as err:
             #
             self.logger.exception('Compute failed for index {}:\n{}', index, err)
-            
+
             # check if we should exit
             with memory_lock:
                 nfail = self.nfail.value + 1
