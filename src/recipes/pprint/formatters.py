@@ -894,9 +894,9 @@ class FractionOf:
         x = x if ((x := f.numerator) != 1) else ""
 
         if ((d := f.denominator) == 1):
-            return itmp.format(x=n, symbol=self.symbols[style], d=d)
+            return itmp.format(x=x, symbol=self.symbols[style], d=d)
 
-        return ftmp.format(x=n, symbol=self.symbols[style], d=f.denominator)
+        return ftmp.format(x=x, symbol=self.symbols[style], d=d)
 
     def format_mpl(self, f, _pos=None):
         return self.format(f, 'latex')
@@ -934,9 +934,9 @@ def frac_of(f, symbol, i_template='{x}{symbol}', f_template='{x}{symbol}/{d}'):
     x = x if ((x := f.numerator) != 1) else ""
 
     if ((d := f.denominator) == 1):
-        return i_template.format(x=n, symbol=symbol, d=d)
+        return i_template.format(x=x, symbol=symbol)
 
-    return f_template.format(x=n, symbol=symbol, d=f.denominator)
+    return f_template.format(x=x, symbol=symbol, d=d)
 
 # "½" #  onehalf # VULGAR FRACTION ONE HALF
 # "⅓"	#U2153 # VULGAR FRACTION ONE THIRD
