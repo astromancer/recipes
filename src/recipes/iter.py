@@ -174,9 +174,8 @@ def where(items, *args, start=0):
         # print valid call signatures from docstring
         raise ValueError(txw.dedent(where.__doc__.split('\n\n')[1]))
 
-    *test, rhs = args
+    rhs, *test = args[::-1]
     test, = test or [op.eq]
-
     yield from multi_index(items, rhs, test, start)
 
 
