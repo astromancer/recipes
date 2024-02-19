@@ -105,8 +105,6 @@ class PartialTask(Wrapper):
 
     def __repr__(self):
         name = type(self).__name__
-        from IPython import embed
-        embed(header="Embedded interpreter at 'src/recipes/functionals/partial.py':107")
         inner = callers.pformat(self.__wrapped__, self.args, self.kws, hang=False)
         inner = indent(f'\n{inner}', 4)
         return f'{name}({inner}\n)'
