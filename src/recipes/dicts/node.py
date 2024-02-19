@@ -191,6 +191,20 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
     def __reduce__(self):
         return type(self), (), {}, None, self.items()
 
+    def __contains__(self, keys):
+        obj = self
+        if not isinstance(keys, tuple):
+            keys = (keys, )
+
+        while len(keys):
+            key, *keys = keys
+            if super(DictNode, obj).__contains__(key):
+                obj = obj[key]
+            else:
+                return False
+
+        return True
+
     # ------------------------------------------------------------------------ #
     def values(self):
         yield from map(_get_val, super().values())
@@ -211,12 +225,17 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
 
         super().update(mapping, **kws)
 
+    def setdefault(self, key, value):
+        if key in self:
+            return
+
+        self[key] = value
+
     # def merge(self, other):
     #     self.update(other)
     # class _NodeMixin:
 
     # ------------------------------------------------------------------------ #
-
     def _root(self):
         node = self
         while hasattr(node, 'parent'):
@@ -234,8 +253,11 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         for key, child in self.items():
             if isinstance(child, type(self)):
                 yield from child._leaves(levels, _level + 1, (*_keys, key))
-            elif (levels is all or _level in levels):
+            elif (levels is all) or (_level in levels):
                 yield (*_keys, key), child
+
+    def depth(self):
+        return max(len(key) for key, _ in self._leaves(all))
 
     def flatten(self, levels=all):
 
