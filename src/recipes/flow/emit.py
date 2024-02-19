@@ -26,7 +26,7 @@ def is_exception(obj):
 
 class Action(IntEnum):
 
-    IGNORE = SILENT = 0   # silently ignore
+    NONE = IGNORE = SILENT = 0   # silently ignore
     INFO = NOTE = 1
     DEBUG = 2
     WARN = WARNING = 3
@@ -37,7 +37,7 @@ class Action(IntEnum):
     def _missing_(cls, action):
 
         if action is None:
-            return cls.IGNORE
+            return cls.NONE
 
         if isinstance(action, str):
             action = action.upper().rstrip('S')
@@ -46,7 +46,7 @@ class Action(IntEnum):
         # handle case: >>> Emit(ValueError('Bad dog!'))()
         if issubclass(action, Exception):
             # cls._emitters[]
-            return cls.RAISES
+            return cls.ERROR
 
 
 class Emit:
@@ -92,7 +92,7 @@ class Emit:
     def _resolve_action_emitter(self, action):
         if is_exception(action):
             # handle case: >>> ValueError('Bad dog!') and ValueError
-            return Action.RAISES, raises(action)
+            return Action.ERROR, raises(action)
 
         if callable(action):
             # custom action (emit function)
