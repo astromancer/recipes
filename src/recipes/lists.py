@@ -13,7 +13,7 @@ import more_itertools as mit
 # relative
 from . import iter as _iter
 from .utils import _delete
-from .functionals import always, echo0 as _echo
+from .functionals import always, echo
 
 
 # function that always returns 0
@@ -84,7 +84,7 @@ def cosort(*lists, key=None, master_key=None, order=1):
 
     if not lists:
         return []
-    
+
     # check that all lists have the same length
     unique_sizes = set(map(len, lists))
     if len(unique_sizes) != 1:
@@ -100,7 +100,7 @@ def cosort(*lists, key=None, master_key=None, order=1):
         # if global sort function given and no local (secondary) key given
         #   ==> no tiebreakers
         # if no global sort and no local sort keys given, sort by values
-        key = _zero if master_key else _echo
+        key = _zero if master_key else echo
 
     # if no master key, use null func
     master_key = master_key or _zero
@@ -243,7 +243,7 @@ def tally(items):
 def unique(items):
     """Return dict of unique (item, indices) pairs for sequence."""
     from .dicts import DefaultOrderedDict
-    
+
     t = DefaultOrderedDict(list)
     for i, item in enumerate(items):
         t[item].append(i)
@@ -258,6 +258,28 @@ def duplicates(items):
 def where_duplicate(items):
     """Return lists of indices of duplicate entries"""
     return _iter.nth_zip(1, *_iter.duplicates(items))
+
+
+def replace(items, value, new):
+    if value not in items:
+        return items
+
+    items[items.index(value)] = new
+    return items
+
+
+def remove(items, value, start=0):
+    return delete(items, where(items, value, start=start))
+
+
+def remove_all(items, values, start=0):
+    result = items[start:]
+    for value in values:
+        result = remove(result, value)
+        if not result:
+            break
+
+    return items[:start] + result
 
 
 def delete(items, indices=()):
