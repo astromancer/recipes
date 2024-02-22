@@ -216,7 +216,10 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         return _unwrap(super().pop(key, *default), unwrap)
 
     def get(self, key, *default, unwrap=True):
-        return _unwrap(super().get(key, *default), unwrap)
+        if key in self:
+            return self[key]
+
+        return super().get(key, *default)
 
     def update(self, mapping=(), **kws):
 
@@ -227,13 +230,10 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
 
     def setdefault(self, key, value):
         if key in self:
-            return
+            return self[key]
 
         self[key] = value
-
-    # def merge(self, other):
-    #     self.update(other)
-    # class _NodeMixin:
+        return value
 
     # ------------------------------------------------------------------------ #
     def _root(self):
