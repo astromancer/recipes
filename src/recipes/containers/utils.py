@@ -8,6 +8,7 @@ import functools as ftl
 from collections import abc
 
 # relative
+from ..iter import where
 from ..functionals import negate
 from . import ensure
 
@@ -193,3 +194,19 @@ def _(string, indices=()):
     """
 
     return ''.join(_delete_immutable(string, indices)) if indices else string
+
+# ---------------------------------------------------------------------------- #
+# remove items
+
+def _remove(items, value, start=0):
+    return delete(items, where(items, value, start=start))
+
+
+def remove(items, *values, start=0):
+    result = items[start:]
+    for value in values:
+        result = _remove(result, value)
+        if not result:
+            break
+
+    return items[:start] + result
