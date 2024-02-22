@@ -268,14 +268,14 @@ def replace(items, value, new):
     return items
 
 
-def remove(items, value, start=0):
+def _remove(items, value, start=0):
     return delete(items, where(items, value, start=start))
 
 
-def remove_all(items, values, start=0):
+def remove(items, *values, start=0):
     result = items[start:]
     for value in values:
-        result = remove(result, value)
+        result = _remove(result, value)
         if not result:
             break
 
