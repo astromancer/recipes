@@ -4,8 +4,7 @@ import fnmatch as fnm
 import itertools as itt
 
 # relative
-from ..containers import dicts
-from ..containers.utils import ensure_tuple
+from ..containers import dicts, ensure
 from .utils import superclasses
 from .repr_helpers import ReprHelper
 
@@ -26,7 +25,7 @@ def get_slots(cls, ignore='_*', ancestors=all):
 
 
 def _include(atr, patterns):
-    for pattern in ensure_tuple(patterns):
+    for pattern in ensure.tuple(patterns):
         if fnm.fnmatch(atr, pattern):
             return False
     return True
@@ -40,7 +39,7 @@ def _get_slots(cls, ancestors=all, ):
     bases = (base for base in bases if hasattr(base, '__slots__'))
     ancestors = None if ancestors is all else int(ancestors)
     for base in itt.islice(bases, ancestors):
-        yield from ensure_tuple(getattr(base, '__slots__', ()))
+        yield from ensure.tuple(getattr(base, '__slots__', ()))
 
 
 # ---------------------------------------------------------------------------- #

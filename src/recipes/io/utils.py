@@ -24,7 +24,7 @@ from loguru import logger
 # relative
 from ..string import sub
 from ..functionals import echo0
-from ..containers.utils import ensure_tuple
+from ..containers.utils import ensure
 from ..string.delimited import braces
 from ..shell.bash import brace_expand_iter
 
@@ -167,7 +167,7 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
 
     ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
 
-    for file in _iter_files(path_or_pattern, ensure_tuple(extensions), recurse):
+    for file in _iter_files(path_or_pattern, ensure.tuple(extensions), recurse):
         for ignored in ignore:
             if fnm.fnmatchcase(str(file), ignored):
                 logger.debug("Ignoring '{!s}' matching pattern {!r}.", file, ignored)
@@ -214,7 +214,7 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
         return
 
     # iterate all files with given extensions
-    extensions = ensure_tuple(extensions)
+    extensions = ensure.tuple(extensions)
     extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
     # recurse?
     pattern = f'{path!s}/{"**/" * recurse}*.{extensions}'

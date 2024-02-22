@@ -13,8 +13,8 @@ from collections import OrderedDict, UserDict, abc, defaultdict
 # relative
 from ...flow import Emit
 from ...iter import cofilter
-from ..utils import is_scalar
 from ...pprint.mapping import PrettyPrint, pformat
+from ..utils import is_scalar
 
 
 # ---------------------------------------------------------------------------- #

@@ -7,7 +7,7 @@ Pluralization (experimental).
 from collections import abc
 
 # relative
-from ..containers.utils import ensure_list
+from ..containers import ensure
 
 
 # ---------------------------------------------------------------------------- #
@@ -137,7 +137,7 @@ def numbered(items, name, plural=None):
 
 
 def named_items(items, name, plural=None, fmt=str, **kws):
-    items = ensure_list(items)
+    items = ensure.list(items)
     if not _many(items):
         return f'{name}: {fmt(next(iter(items)))}'
 

@@ -44,11 +44,13 @@ import pytest
 
 # relative
 from . import op, pprint as pp
-from .containers.utils import ensure_tuple
 from .logging import LoggingMixin
 from .iter import cofilter, negate
 from .containers.lists import lists
 from .functionals import echo0 as echo
+
+
+from .containers.utils import ensure
 
 
 # ---------------------------------------------------------------------------- #
@@ -284,7 +286,7 @@ class Expected(LoggingMixin):
             cases = cases.items()
         else:
             # can be either (params, exected), or (params, ) only if test!
-            argspec, *expected = zip(*map(ensure_tuple, cases))
+            argspec, *expected = zip(*map(ensure.tuple, cases))
             # If cases is not list of (input: expected) pairs, simply check test
             # passes without error. Any result is produced and checked inside
             # test

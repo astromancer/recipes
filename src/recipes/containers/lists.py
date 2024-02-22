@@ -12,8 +12,8 @@ import more_itertools as mit
 
 # relative
 from .. import iter as _iter
-from .utils import _delete
 from ..functionals import always, echo
+from .utils import _delete
 
 
 # function that always returns 0

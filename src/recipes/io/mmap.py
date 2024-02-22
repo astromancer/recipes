@@ -9,7 +9,7 @@ import numpy as np
 from loguru import logger
 
 # relative
-from ..containers.utils import ensure_wrapped
+from ..containers import ensure
 
 
 def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **kws):
@@ -70,7 +70,7 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
         folder.mkdir(parents=True)
 
     if shape:
-        shape = ensure_wrapped(shape, tuple)
+        shape = ensure.tuple(shape)
 
     # update mode if existing file, else read
     new = not loc.exists() or overwrite

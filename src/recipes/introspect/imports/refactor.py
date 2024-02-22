@@ -18,8 +18,7 @@ import more_itertools as mit
 from loguru import logger
 
 # relative
-from ... import api, cosort, op, user_packages, pprint as pp
-from ...containers.utils import not_null
+from ... import api, cosort, not_null, op, user_packages, pprint as pp
 from ...iter import unduplicate
 from ...functionals import negate
 from ...logging import LoggingMixin

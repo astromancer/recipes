@@ -19,8 +19,8 @@ from ..string import unicode
 from ..array import vectorize
 from ..containers import dicts
 from ..oo import classproperty
-from ..containers.utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
+from ..containers.utils import duplicate_if_scalar
 from .callers import describe
 from .nrs import precision_rule_dpg
 
