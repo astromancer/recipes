@@ -67,7 +67,7 @@ def _nth_true(iterable, n, test=echo, default=NULL):
     filtered, index = cofilter(test, iterable, itt.count())
     itr = enumerate(zip(filtered, index))
     mit.consume(itr, n)
-    i, (value, index) = next(itr, default)
+    i, (value, index) = next(itr, (0, (default, None)))
     if value is NULL:
         if i < n:
             raise ValueError(
@@ -86,7 +86,7 @@ def nth_true_index(iterable, n, test=echo, default=NULL):
 def first_true_index(iterable, test=echo, default=NULL):
     """
     Find the first index position of the iterable for the which the callable
-    pred returns True
+    test returns True
     """
     return nth_true_index(iterable, 0, test, default)
 
@@ -94,7 +94,7 @@ def first_true_index(iterable, test=echo, default=NULL):
 def first_false_index(iterable, test=echo, default=NULL):
     """
     Find the first index position of the iterable for the which the
-    callable pred returns False
+    callable test returns False
     """
     return first_true_index(iterable, negate(test), default)
 
@@ -306,7 +306,7 @@ def split(items, indices, offset=0):
         indices = [indices]
 
     n = len(items)
-    indices = list(map(sum, zip(indices, itt.repeat(offset))))
+    indices = list(map(sum, zip(map(int, indices), itt.repeat(int(offset)))))
     if indices := sorted(map(n.__rmod__, indices)):  # resolve negatives
         for i, j in mit.pairwise([0, *indices, n]):
             yield items[i:j]
