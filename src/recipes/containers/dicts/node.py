@@ -112,7 +112,7 @@ class _NodeIndexing:
     _index_descendants_via = tuple
 
     def __check(self, key):
-        return self._index_descendants_via and isinstance(key, self._index_descendants_via)
+        return (idv := self._index_descendants_via) and isinstance(key, idv)
 
     def __resolve_node(self, key):
         node = self
@@ -129,6 +129,21 @@ class _NodeIndexing:
     def __setitem__(self, key, val):
         key, node = self.__resolve_node(key)
         return super(_NodeIndexing, node).__setitem__(key, val)
+
+    def __contains__(self, keys):
+
+        if not isinstance(keys, tuple):
+            return super().__contains__(keys)
+
+        obj = self
+        while len(keys):
+            key, *keys = keys
+            if isinstance(obj, type(self)) and key in obj:
+                obj = obj[key]
+            else:
+                return False
+
+        return True
 
     def update(self, mapping=(), **kws):
         for key, val in dict(mapping, **kws).items():
@@ -169,6 +184,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         return node
 
     def __init__(self, *args, **kws):
+        self.parent = None
         factory = self._attach
         if args and callable(args[0]):  # and not isinstance(args[0], abc.Iterable):
             factory, *args = args
@@ -191,21 +207,8 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
     def __reduce__(self):
         return type(self), (), {}, None, self.items()
 
-    def __contains__(self, keys):
-        obj = self
-        if not isinstance(keys, tuple):
-            keys = (keys, )
-
-        while len(keys):
-            key, *keys = keys
-            if super(DictNode, obj).__contains__(key):
-                obj = obj[key]
-            else:
-                return False
-
-        return True
-
     # ------------------------------------------------------------------------ #
+
     def values(self):
         yield from map(_get_val, super().values())
 
@@ -320,8 +323,6 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
 
     # alias
     transform = reshape
-    
-    
 
     def map(self, func, *args, **kws):
         # create new empty
