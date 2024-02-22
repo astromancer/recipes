@@ -311,7 +311,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
 
         return type(self)(dict(zip(new_keys, found.values())))
 
-    def transform(self, key_transform, *args, **kws):
+    def reshape(self, key_transform, *args, **kws):
         new = type(self)()
         for keys, val in self.leaves().items():
             new[key_transform(keys, *args, **kws)] = val
@@ -319,7 +319,9 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         return new
 
     # alias
-    reshape = transform
+    transform = reshape
+    
+    
 
     def map(self, func, *args, **kws):
         # create new empty
@@ -351,6 +353,23 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
             ))
         )
         return new
+
+    def stack(self, level):
+
+        # keys = []
+        out = type(self)()
+        for key, item in self.leaves().items():
+            # keys.append()
+            (key := list(key)).pop(level)
+            out.setdefault((key := tuple(key)), [])
+            target = out[key]
+            target.append(item)
+
+        return out
+
+    # def merge(self, other):
+    #     self.update(other)
+    # class _NodeMixin:
 
 
 def _split_trans(keys, accept):
