@@ -70,7 +70,7 @@ class Executor(LoggingMixin, SlotHelper):
         self.xfail = xfail
         self.nfail = sync_manager.Value('i', 0)
 
-    def init_memory(self, shape, masked=False, loc=None, overwrite=False):
+    def init_memory(self, shape, masked=False, loc=None, fill=np.nan, overwrite=False):
         """
         Initialize shared memory synchronised access wrappers. Should only be
         run in the main process.
@@ -85,7 +85,7 @@ class Executor(LoggingMixin, SlotHelper):
         -------
 
         """
-        self.results = load_memmap(loc, shape, fill=np.nan, overwrite=overwrite)
+        self.results = load_memmap(loc, shape, fill=fill, overwrite=overwrite)
         self.mask = None
         if masked:
             self.mask = load_memmap(loc, shape, bool, True, overwrite)
