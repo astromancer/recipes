@@ -93,7 +93,7 @@ def _iter_files(file_or_folder, recurse):
 
     if path.is_dir():
         if (gitignore := path / '.gitignore').exists():
-            files = GitIgnore(gitignore).iter(depth=(1, any)[recurse])
+            files = GitIgnore(gitignore).iterdir(depth=(1, any)[recurse])
             files = filter(_py_file, files)
         else:
             files = (path.glob, path.rglob)[recurse]('*.py')

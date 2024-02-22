@@ -4,8 +4,8 @@ import fnmatch as fnm
 import itertools as itt
 
 # relative
-from .. import dicts
-from ..utils import ensure_tuple
+from ..containers import dicts
+from ..containers.utils import ensure_tuple
 from .utils import superclasses
 from .repr_helpers import ReprHelper
 

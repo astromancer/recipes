@@ -7,7 +7,7 @@ Pluralization (experimental).
 from collections import abc
 
 # relative
-from ..utils import ensure_list
+from ..containers.utils import ensure_list
 
 
 # ---------------------------------------------------------------------------- #

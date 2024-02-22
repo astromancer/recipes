@@ -11,7 +11,7 @@ import more_itertools as mit
 # relative
 from .. import op, string
 from ..iter import where
-from ..utils import _delete_immutable
+from ..containers.utils import _delete_immutable
 
 
 # ---------------------------------------------------------------------------- #
@@ -31,7 +31,7 @@ def similarity(a, b):
 
 
 def most_similar(string, options, cutoff=0.5):
-    from recipes.lists import cosort
+    from recipes.containers.lists import cosort
 
     sims = [similarity(string, _) for _ in options]
     sims, options = cosort(sims, options, order=-1)

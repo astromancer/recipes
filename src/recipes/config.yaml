@@ -29,7 +29,7 @@ imports:
     log_warnings:               True
 
 
-concurrent:
+concurrency:
     executor:
         progress:
             bar_format: >-

@@ -9,7 +9,7 @@ import numpy as np
 from loguru import logger
 
 # relative
-from ..utils import ensure_wrapped
+from ..containers.utils import ensure_wrapped
 
 
 def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **kws):

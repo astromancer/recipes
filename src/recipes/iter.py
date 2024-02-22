@@ -364,7 +364,7 @@ def iter_repeat_last(it):
 
 def cogroup(func=echo, *its, unzip=True, **kws):
     # avoid circular import
-    from recipes.lists import cosort
+    from recipes.containers.lists import cosort
 
     its = cosort(*its, key=func)
     zipper = itt.groupby(zip(*its), on_zeroth(func))
@@ -431,7 +431,7 @@ def _parse_predicate(func_or_iter, its):
 
 def duplicates(items):
     """Yield tuples of item, indices pairs for duplicate values."""
-    from recipes.lists import unique
+    from recipes.containers.lists import unique
 
     for key, indices in unique(items).items():
         if len(indices) > 1:

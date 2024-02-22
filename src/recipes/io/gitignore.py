@@ -84,6 +84,9 @@ class GlobPatternList:
 
             yield path
 
+    # alias
+    iter = iterdir
+
 
 class GitIgnore(GlobPatternList):
     """
@@ -93,4 +96,3 @@ class GitIgnore(GlobPatternList):
     def __init__(self, filename='.gitignore'):
         path = Path(filename)
         return super().__init__(path.parent, read(path))
-        

@@ -6,7 +6,7 @@ Recipes involving arrays.
 import numpy as np
 
 # relative
-from ..lists import flatten, where_duplicate
+from ..containers.lists import flatten, where_duplicate
 
 
 # ---------------------------------------------------------------------------- #

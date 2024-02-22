@@ -12,8 +12,8 @@ from platformdirs import user_config_path
 from . import io
 from .flow import Emit
 from .io import read_lines
-from .dicts.node import DictNode
-from .dicts.core import _AttrReadItem
+from .containers.dicts.node import DictNode
+from .containers.dicts.core import _AttrReadItem
 from .introspect.utils import get_module_name, get_package_name
 
 

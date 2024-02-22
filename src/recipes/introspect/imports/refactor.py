@@ -19,7 +19,7 @@ from loguru import logger
 
 # relative
 from ... import api, cosort, op, user_packages, pprint as pp
-from ...utils import not_null
+from ...containers.utils import not_null
 from ...iter import unduplicate
 from ...functionals import negate
 from ...logging import LoggingMixin

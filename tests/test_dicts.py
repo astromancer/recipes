@@ -8,7 +8,7 @@ import pytest
 
 # local
 from recipes import dicts
-from recipes.dicts import AttrDict, AttrReadItem, DictNode
+from recipes.containers.dicts import AttrDict, AttrReadItem, DictNode
 
 
 def test_split1():

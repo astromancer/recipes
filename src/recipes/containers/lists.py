@@ -11,9 +11,9 @@ from collections import defaultdict
 import more_itertools as mit
 
 # relative
-from . import iter as _iter
+from .. import iter as _iter
 from .utils import _delete
-from .functionals import always, echo
+from ..functionals import always, echo
 
 
 # function that always returns 0
@@ -232,7 +232,7 @@ def partition(items, predicate):
 
 def tally(items):
     """Return dict of item, count pairs for sequence."""
-    from .dicts import DefaultOrderedDict
+    from ..containers.dicts import DefaultOrderedDict
 
     t = DefaultOrderedDict(int)
     for item in items:
@@ -242,7 +242,7 @@ def tally(items):
 
 def unique(items):
     """Return dict of unique (item, indices) pairs for sequence."""
-    from .dicts import DefaultOrderedDict
+    from ..containers.dicts import DefaultOrderedDict
 
     t = DefaultOrderedDict(list)
     for i, item in enumerate(items):

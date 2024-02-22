@@ -10,8 +10,8 @@ import math
 # relative
 from .. import op
 from ..tree import Node
-from ..lists import split_where
 from ..functionals import negate
+from ..containers.lists import split_where
 from ..string import delimited, shared_affix, strings
 
 

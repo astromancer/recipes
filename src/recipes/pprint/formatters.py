@@ -15,12 +15,11 @@ import numpy as np
 from loguru import logger
 
 # relative
-from .. import dicts
 from ..string import unicode
 from ..array import vectorize
+from ..containers import dicts
 from ..oo import classproperty
-from ..dicts import AttrReadItem
-from ..utils import duplicate_if_scalar
+from ..containers.utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
 from .callers import describe
 from .nrs import precision_rule_dpg
@@ -866,7 +865,7 @@ class FractionOf:
     def __init__(self, symbols=(), **kws):
         symbols = {k: str(v) for k, v in dict(symbols, **kws).items()}
         assert symbols.keys() == {'ascii', 'unicode', 'latex'}
-        self.symbols = AttrReadItem(symbols)
+        self.symbols = dicts.AttrReadItem(symbols)
 
     def __call__(self, f, style='ascii'):
         return self.format(f, style)

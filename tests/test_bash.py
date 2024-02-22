@@ -7,7 +7,7 @@ from recipes.shell import bash
 from recipes.testing import Expected, Throws, expected
 
 
-# from recipes.dicts import invert
+# from recipes.containers.dicts import invert
 
 
 filenames = ('20130616.0030',

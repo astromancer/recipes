@@ -1,5 +1,6 @@
 # Things specific to this project #
 ###################################
+makefile
 dev/
 src/recipes/concurrent/consumers.py
 src/recipes/concurrent/utils.py

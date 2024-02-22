@@ -24,7 +24,7 @@ from loguru import logger
 # relative
 from ..string import sub
 from ..functionals import echo0
-from ..utils import ensure_tuple
+from ..containers.utils import ensure_tuple
 from ..string.delimited import braces
 from ..shell.bash import brace_expand_iter
 

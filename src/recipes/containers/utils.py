@@ -9,7 +9,7 @@ from collections import abc
 
 # relative
 import builtins
-from .functionals import negate
+from ..functionals import negate
 
 
 # ---------------------------------------------------------------------------- #
@@ -91,7 +91,7 @@ def _delete_immutable(container, indices):
 
 
 def _resolve_indices(indices, n, reverse=False):
-    from recipes.dicts import groupby
+    from recipes.containers.dicts import groupby
 
     # ensure list
     indices = groupby(type, ensure_list(indices))

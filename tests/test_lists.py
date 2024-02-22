@@ -3,7 +3,7 @@
 
 
 from recipes.testing import Expected
-from recipes.lists import split, split_like
+from recipes.containers.lists import split, split_like
 
 
 # def lists(iters):

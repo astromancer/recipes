@@ -6,7 +6,7 @@ from collections import defaultdict
 
 # relative
 from .. import pprint
-from ..dicts import DefaultOrderedDict
+from ..containers.dicts import DefaultOrderedDict
 from .base import Decorator
 
 

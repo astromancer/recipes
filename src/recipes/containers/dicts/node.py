@@ -7,13 +7,13 @@ from typing import MutableMapping
 from collections import defaultdict
 
 # relative
-from .. import op
-from ..lists import cosort
+from ... import op
 from ..utils import is_scalar
-from ..functionals import always, negate
-from ..pprint.mapping import PrettyPrint
-from ..iter import cofilter, first_true_index
-from ..functionals.partial import partial, placeholder as o
+from ...functionals import always, negate
+from ...pprint.mapping import PrettyPrint
+from ...iter import cofilter, first_true_index
+from ...functionals.partial import partial, placeholder as o
+from ..lists import cosort
 from .core import AutoVivify, vdict
 
 

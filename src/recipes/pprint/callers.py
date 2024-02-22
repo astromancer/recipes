@@ -10,7 +10,8 @@ import functools as ftl
 import contextlib as ctx
 
 # relative
-from .. import api, dicts, string
+from .. import api, string
+from ..containers import dicts
 from ..oo.repr_helpers import DEFAULT_STYLE
 from ..introspect.utils import get_module_name
 from ..oo.slots import SlotHelper, _sanitize_locals
