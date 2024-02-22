@@ -11,7 +11,7 @@ import more_itertools as mit
 # relative
 from .. import op, string
 from ..iter import where
-from ..containers.utils import _delete_immutable
+from ..containers.utils import delete
 
 
 # ---------------------------------------------------------------------------- #
@@ -56,34 +56,6 @@ def most_similar(string, options, cutoff=0.5):
 
 # ---------------------------------------------------------------------------- #
 # Deletion / Substitution
-
-def delete(string, indices=()):
-    """
-    Remove characters at position `indices` from string.
-
-    Parameters
-    ----------
-    string : str
-        The string from which to remove characters.
-    indices : collection of int
-        Character index positions to delete. Negative indices are supported. 
-        Duplicated indices are filtered.
-
-    Examples
-    --------
-    >>> delete('0123456789', [0, 9])
-    '12345678'
-    >>> delete('0123456789', [0, -1, 9])
-    '12345678'
-    >>> delete('0123456789', [0, -1])
-    '12345678'
-
-    Returns
-    -------
-    str
-    """
-
-    return ''.join(_delete_immutable(string, indices)) if indices else string
 
 
 def backspaced(string):

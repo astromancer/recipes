@@ -18,8 +18,8 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..iter import where
+from ..containers.utils import delete
 from ..functionals import always, echo, not_none
-from .utils import delete
 from .plurals import named_items, pluralize
 
 

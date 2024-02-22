@@ -23,8 +23,8 @@ from loguru import logger
 
 # relative
 from ..string import sub
+from ..containers import ensure
 from ..functionals import echo0
-from ..containers.utils import ensure
 from ..string.delimited import braces
 from ..shell.bash import brace_expand_iter
 

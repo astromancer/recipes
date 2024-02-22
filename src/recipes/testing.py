@@ -44,13 +44,11 @@ import pytest
 
 # relative
 from . import op, pprint as pp
+from .containers import ensure
 from .logging import LoggingMixin
 from .iter import cofilter, negate
 from .containers.lists import lists
 from .functionals import echo0 as echo
-
-
-from .containers.utils import ensure
 
 
 # ---------------------------------------------------------------------------- #

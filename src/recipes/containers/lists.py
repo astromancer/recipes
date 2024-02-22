@@ -13,7 +13,7 @@ import more_itertools as mit
 # relative
 from .. import iter as _iter
 from ..functionals import always, echo
-from .utils import _delete
+from .utils import delete
 
 
 # function that always returns 0
@@ -282,35 +282,3 @@ def remove(items, *values, start=0):
     return items[:start] + result
 
 
-def delete(items, indices=()):
-    """
-    Remove characters at position `indices` from list. Items are deleted
-    in-place, and the function returns the original list.
-
-    Parameters
-    ----------
-    items : list
-        The list from which to remove characters.
-    indices : collection of int
-        Character index positions to delete. Duplicated indices are filtered.
-        Negative indices as well as slices, or a combination of both, are
-        supported.
-
-    Examples
-    --------
-    >>> delete(list('0123456789'), [0, 9])
-    ['1', '2', '3', '4', '5', '6', '7', '8']
-    >>> delete(list('0123456789'), [0, -1, 9])
-    ['1', '2', '3', '4', '5', '6', '7', '8']
-    >>> delete(list('0123456789'), [0, -1])
-    ['1', '2', '3', '4', '5', '6', '7', '8']
-    >>> delete(list('0123456789'), [0, -1, slice(0, 3)])
-    ['3', '4', '5', '6', '7', '8']
-
-    Returns
-    -------
-    list
-    """
-
-    _delete(items, indices)
-    return items
