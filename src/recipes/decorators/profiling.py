@@ -104,7 +104,7 @@ class Chrono:
         return wrapper
 
 
-def timer(Decorator):
+class timer(Decorator):
     # def __init__(self, )
 
     #     """Print function execution time upon return"""
