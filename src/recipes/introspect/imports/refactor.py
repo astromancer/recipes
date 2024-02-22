@@ -104,6 +104,10 @@ def is_import_from(node):
 def is_any_import_node(node):
     return isinstance(node, (ast.ImportFrom, ast.Import))
 
+def is_wildcard(node):
+    return is_import_from(node) and node.names[0].name == '*'
+    
+
 
 def is_relative(node):
     return get_level(node) > 0
@@ -450,8 +454,13 @@ class ImportMerger(ImportFilter):
             self.aliases[scope][module_name] = node
             return node
 
+        # already encountered module_name in scope
         existing_node = self.aliases[scope][module_name]
-
+        
+        # don't merge anything with a * import
+        if is_wildcard(existing_node):
+            return node
+        
         # Existing module: extend aliases for that node, and filter the current
         # existing_node.names.append(node)
         aliases = list(unduplicate([*existing_node.names, *node.names],

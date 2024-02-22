@@ -11,9 +11,9 @@ workhorses.
 
 
 # std
-from operator import *
-import operator as _op
 import functools as ftl
+import operator as _op
+from operator import *
 from collections import abc
 
 # relative
