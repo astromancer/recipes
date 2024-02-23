@@ -278,7 +278,7 @@ def remove(items, *values, start=0):
         result = _remove(result, value)
         if not result:
             break
-
+        
     return items[:start] + result
 
 

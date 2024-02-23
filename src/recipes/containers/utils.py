@@ -95,7 +95,7 @@ def _delete_immutable(container, indices):
 
 
 def delete_immutable(container, indices):
-    return type(container)(_delete_immutable(container, indices))
+    return sum(_delete_immutable(container, indices), type(container)())
 
 
 def _resolve_indices(indices, n, reverse=False):
