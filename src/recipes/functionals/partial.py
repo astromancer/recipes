@@ -33,10 +33,12 @@ from ..decorators import Decorator, Wrapper
 # from ..oo.slots import SlotHelper # Circilar!
 
 # ---------------------------------------------------------------------------- #
-
-class _FutureValue:
+class _MarkerBase:
 
     __slots__ = ()
+
+
+class _FutureValue(_MarkerBase):
 
     def __getitem__(self, key):
         return _FutureSlice(key, self)
@@ -46,11 +48,11 @@ class _FutureValue:
             return super().__getattribute__(attr)
 
         return _FutureLookup(attr, self)
-    
+
     def __repr__(self):
         return f'<{type(self).__name__.lstrip("_")}>'
 
-    def _resolve(self, obj):
+    def resolve(self, obj):
 
         if self is PlaceHolder:
             return obj
@@ -98,10 +100,10 @@ class PartialTask(Wrapper):
 
         # index placeholders
         self.args = list(args)
-        self._positions = tuple(where(args, isinstance, _FutureValue))
+        self._positions = tuple(where(args, isinstance, _MarkerBase))
 
         self.kws = kws = dict(kws)
-        self._keywords = tuple(where(kws, isinstance, _FutureValue))
+        self._keywords = tuple(where(kws, isinstance, _MarkerBase))
 
     def __repr__(self):
         name = type(self).__name__
@@ -130,7 +132,7 @@ class PartialTask(Wrapper):
 
         # fill
         for i, a in zip(self._positions, args):
-            _args[i] = self.args[i]._resolve(a)
+            _args[i] = self.args[i].resolve(a)
 
         return tuple(_args)
 
@@ -146,7 +148,7 @@ class PartialTask(Wrapper):
 
         # fill dynamic
         for key in self._keywords:
-            out[key] = self.kws[key]._resolve(kws[key])
+            out[key] = self.kws[key].resolve(kws[key])
 
         return out
 
@@ -156,7 +158,7 @@ class Partial(Decorator):
     __wrapper__ = PartialTask
 
     def __call__(self, func, emulate=False, kwsyntax=False):
-        # create _PartialConstructor
+        # create PartialTask
         return super().__call__(func, emulate, kwsyntax)
 
 
@@ -165,3 +167,54 @@ class Partial(Decorator):
 partial = Partial
 # singleton
 placeholder = PlaceHolder = _FutureValue()
+
+
+# ---------------------------------------------------------------------------- #
+# Vectorize
+
+class Vector(_MarkerBase):
+    def __init__(self, items):
+        self.items = list(items)
+
+    def resolve(self, obj):
+        return obj
+
+
+# alias
+Over = over = Vector
+
+
+class VectorTask(PartialTask):
+    def __init__(self, func, *args, **kws):
+        super().__init__(func, *args, **kws)
+
+        # TODO: check all vectors same length ?
+        sizes = [len(self.args[_].items) for _ in self._positions]
+        assert len(sizes := set(sizes)) == 1
+        size = sizes.pop()
+
+        if self._keywords:
+            assert {len(self.kws[_].items) for _ in self._keywords} == {size}
+
+    def map(self):
+        vargs = zip(*(self.args[_].items for _ in self._positions))
+        vkws = zip(*(self.kws[_].items for _ in self._keywords))
+
+        for args in vargs:
+            kws = dict(zip(self._keywords, next(vkws, ())))
+            yield super().__call__(*args, **kws)
+
+    def __call__(self):
+        return list(self.map())
+
+
+class Map(Partial):
+    """Vectorizer"""
+
+    # __wrapper__ = VectorTask
+
+    def __wrapper__(self, func, *args, **kws):
+        task = VectorTask(func, *args, **kws)
+
+        # run immediately
+        return task()
