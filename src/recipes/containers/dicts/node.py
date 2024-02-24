@@ -315,9 +315,15 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         return type(self)(dict(zip(new_keys, found.values())))
 
     def reshape(self, key_transform, *args, **kws):
+
         new = type(self)()
         for keys, val in self.leaves().items():
-            new[key_transform(keys, *args, **kws)] = val
+            new_key = key_transform(keys, *args, **kws)
+            if new_key in new:
+                self.logger.warning('Overwriting existing value at key: {!r}.',
+                                    new_key)
+            #
+            new[new_key] = val
 
         return new
 
