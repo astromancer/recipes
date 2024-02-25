@@ -9,7 +9,7 @@ import math
 
 # relative
 from .. import op
-from ..tree import Node
+from ..tree.node import Node
 from ..functionals import negate
 from ..containers.lists import split_where
 from ..string import delimited, shared_affix, strings
