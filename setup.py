@@ -45,31 +45,45 @@ UNTRACKED = re.findall(r'\?\? (.+)', _git_status())
 IGNORE_IMPLICIT = ('.git', )
 
 
-class GitIgnore:
+# ---------------------------------------------------------------------------- #
+
+def read(path):
+    # read glob patterns from file
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f'No such file: {path!s}.')
+
+    return list(_read(path))
+
+
+def _read(path):
+    return filter(None, (line.strip(' ')
+                         for line in path.read_text().splitlines()
+                         if not line.startswith('#')))
+
+
+class GlobPatternList:
     """
-    Class to read `.gitignore` patterns and filter source trees.
+    Class to filter files matching any in a list of glob patterns.
     """
 
     __slots__ = ('root', 'names', 'patterns')
 
-    def __init__(self, path='.gitignore'):
-        self.names = self.patterns = ()
+    @classmethod
+    def from_file(cls, path):
         path = Path(path)
-        self.root = path.parent
+        return cls(path.parent, read(path))
 
-        if not path.exists():
-            return
+    fromfile = from_file
 
-        # read .gitignore patterns
-        lines = (line.strip(' /')
-                 for line in path.read_text().splitlines()
-                 if not line.startswith('#'))
+    def __init__(self, root, patterns):
+        
+        items = ([], [])
+        for line in filter(None, patterns):
+            items[glob.has_magic(line)].append(line.rstrip('/'))
 
-        items = names, patterns = [], []
-        for line in filter(None, lines):
-            items[glob.has_magic(line)].append(line)
-
-        self.names = (*IGNORE_IMPLICIT, *names)
+        self.root = Path(root)
+        self.names = (*IGNORE_IMPLICIT, *items[False])
         self.patterns = tuple(patterns)
 
     def match(self, filename):
@@ -81,7 +95,7 @@ class GitIgnore:
 
         return filename.endswith(self.names)
 
-    def iter(self, folder=None, depth=any, _level=0):
+    def iterdir(self, folder=None, depth=any, _level=0):
         depth = math.inf if depth is any else depth
         folder = folder or self.root
 
@@ -94,20 +108,23 @@ class GitIgnore:
                 continue
 
             if path.is_dir():
-                yield from self.iter(path, depth, _level)
+                yield from self.iterdir(path, depth, _level)
                 continue
 
             yield path
 
-    def match(self, filename):
-        path = Path(filename)
-        rpath = path.relative_to(self.root)
-        filename = str(rpath)
-        for pattern in self.patterns:
-            if fnmatch.fnmatchcase(filename, pattern):
-                return True
+    # alias
+    iter = iterdir
 
-        return filename.endswith(self.names)
+
+class GitIgnore(GlobPatternList):
+    """
+    Class to read `.gitignore` files and filter source trees.
+    """
+
+    def __init__(self, filename='.gitignore'):
+        path = Path(filename)
+        return super().__init__(path.parent, read(path))
 
 
 # Setuptools
