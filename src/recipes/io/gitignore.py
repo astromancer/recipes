@@ -49,12 +49,13 @@ class GlobPatternList:
     fromfile = from_file
 
     def __init__(self, root, patterns):
-        items = names, patterns = [], []
+
+        items = ([], [])
         for line in filter(None, patterns):
-            items[glob.has_magic(line)].append(line)
+            items[glob.has_magic(line)].append(line.rstrip('/'))
 
         self.root = Path(root)
-        self.names = (*IGNORE_IMPLICIT, *names)
+        self.names = (*IGNORE_IMPLICIT, *items[False])
         self.patterns = tuple(patterns)
 
     def match(self, filename):
