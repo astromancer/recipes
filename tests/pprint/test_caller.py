@@ -1,9 +1,9 @@
 
 # std
-import itertools as itt
 import re
 import random
 import inspect
+import itertools as itt
 
 # third-party
 from loguru import logger
