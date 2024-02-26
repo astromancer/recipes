@@ -13,7 +13,7 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..iter import where
-from ..containers.utils import duplicate_if_scalar
+from ..containers.ensure import duplicate_if_scalar
 from .justify import justify
 
 

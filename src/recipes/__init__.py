@@ -14,7 +14,7 @@ from .string import regex
 from .containers.lists import cosort
 from .config import create_user_config
 from .containers import dicts, lists, sets
-from .containers.utils import duplicate_if_scalar, is_scalar, not_null
+from .containers.ensure import duplicate_if_scalar, is_scalar, not_null
 
 
 # ---------------------------------------------------------------------------- #

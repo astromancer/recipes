@@ -1,5 +1,5 @@
 
-from recipes.tree import Node, DynamicIndentRender
+from recipes.tree import DynamicIndentRender, Node
 
 
 case1 = ['Domitian-Bold.otf',

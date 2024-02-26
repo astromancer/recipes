@@ -8,7 +8,7 @@ import os
 
 # relative
 from ..string import overlay
-from .mapping import pformat as mapping # @duties: keep
+from .mapping import pformat
 
 
 # ---------------------------------------------------------------------------- #

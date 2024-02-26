@@ -14,7 +14,7 @@ from collections import OrderedDict, UserDict, abc, defaultdict
 from ...flow import Emit
 from ...iter import cofilter
 from ...pprint.mapping import PrettyPrint, pformat
-from ..utils import is_scalar
+from ..ensure import is_scalar
 
 
 # ---------------------------------------------------------------------------- #
