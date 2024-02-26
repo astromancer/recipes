@@ -256,12 +256,12 @@ class Executor(LoggingMixin, SlotHelper):
         worker, context, locks = self.setup(njobs, progress_bar, **self.config)
         self.logger.debug('Main compute starting with indices = {}', indices)
 
+        # Adapt logging sinks for tqdm interplay
+        logger.remove()
+        logger.add(TqdmStreamAdapter(), colorize=True, enqueue=True)
+
         # execute
         with context as compute:
-            # Adapt logging sinks for tqdm interplay
-            logger.remove()
-            logger.add(TqdmStreamAdapter(), colorize=True, enqueue=True)
-
             # do work
             compute(worker(*args, *extra_args, **kws) for args in
                     self.get_workload(data, indices, progress_bar))
