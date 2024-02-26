@@ -252,6 +252,9 @@ class Executor(LoggingMixin, SlotHelper):
 
     def main(self, data, indices, njobs, progress_bar, *extra_args, **kws):
 
+        # fetch work
+        workload = self.get_workload(data, indices, progress_bar)
+
         # setup compute context
         worker, context, locks = self.setup(njobs, progress_bar, **self.config)
         self.logger.debug('Main compute starting with indices = {}', indices)
@@ -263,8 +266,7 @@ class Executor(LoggingMixin, SlotHelper):
         # execute
         with context as compute:
             # do work
-            compute(worker(*args, *extra_args, **kws) for args in
-                    self.get_workload(data, indices, progress_bar))
+            compute(worker(*args, *extra_args, **kws) for args in workload)
 
         # self.logger.debug('With {} backend, pickle serialization took: {:.3f}s.',
         #              backend, time.time() - t_start)
