@@ -58,7 +58,7 @@ from ..utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
 
 # FIXME:  THIS WAS A LIE!!
 # This file is an initializer for a module: 'recipes'
-# Only imports from the standard library will be filtered. 
+# Only imports from the standard library will be filtered.
 
 # ---------------------------------------------------------------------------- #
 CONFIG = ConfigNode.load_module(__file__, 'yaml')
@@ -104,9 +104,9 @@ def is_import_from(node):
 def is_any_import_node(node):
     return isinstance(node, (ast.ImportFrom, ast.Import))
 
+
 def is_wildcard(node):
     return is_import_from(node) and node.names[0].name == '*'
-    
 
 
 def is_relative(node):
@@ -443,24 +443,26 @@ class ImportMerger(ImportFilter):
         if super().visit_Import(node) is None:
             return
 
-        scope = node.parent  # Module or FunctionDef etc containing import
+        # don't merge anything with >>> from ... import *
+        if is_wildcard(node):
+            return node
+
+        # scope : Module or FunctionDef etc containing import
+        scope = node.parent  
         module_name = get_module_name(node)
+        aliases = self.aliases[scope]
         # logger.debug(f'\n{self.__class__}\n{module_name = }; {node = }; {scope = }')
         #  f'\n{os.linesep.join(map(rewrite, scope.body))}')
 
         # avoid duplicates >>> from x import y, y
-        if module_name not in self.aliases[scope]:
+        if module_name not in aliases:
             # new module encountered
-            self.aliases[scope][module_name] = node
+            aliases[module_name] = node
             return node
 
         # already encountered module_name in scope
-        existing_node = self.aliases[scope][module_name]
-        
-        # don't merge anything with a * import
-        if is_wildcard(existing_node):
-            return node
-        
+        existing_node = aliases[module_name]
+
         # Existing module: extend aliases for that node, and filter the current
         # existing_node.names.append(node)
         aliases = list(unduplicate([*existing_node.names, *node.names],
