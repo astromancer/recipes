@@ -12,6 +12,7 @@ import math
 import fnmatch
 import subprocess as sub
 from pathlib import Path
+from collections import abc
 from distutils import debug
 
 # third-party
@@ -77,14 +78,23 @@ class GlobPatternList:
     fromfile = from_file
 
     def __init__(self, root, patterns):
-        
-        items = ([], [])
-        for line in filter(None, patterns):
-            items[glob.has_magic(line)].append(line.rstrip('/'))
-
         self.root = Path(root)
-        self.names = (*IGNORE_IMPLICIT, *items[False])
-        self.patterns = tuple(patterns)
+        self.names = list(IGNORE_IMPLICIT)
+        self.patterns = []
+        self.add(patterns)
+
+    def add(self, items):
+        if isinstance(items, str):
+            self._add(items)
+        elif isinstance(items, abc.Iterable):
+            list(map(self.add, items))
+        else:
+            raise TypeError(f'Invalid object type {type(items).__name__}: {items}.')
+
+    def _add(self, pattern):
+        items = (self.names, self.patterns)
+        if pattern:
+            items[glob.has_magic(pattern)].append(pattern.rstrip('/'))
 
     def match(self, filename):
         path = Path(filename).relative_to(self.root)
@@ -126,9 +136,9 @@ class GitIgnore(GlobPatternList):
         path = Path(filename)
         return super().__init__(path.parent, read(path))
 
-
 # Setuptools
 # ---------------------------------------------------------------------------- #
+
 
 class Builder(build_py):
     # need this to exclude ignored files from the build archive
