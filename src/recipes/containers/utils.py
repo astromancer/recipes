@@ -1,73 +1,25 @@
 """
-Some miscellaneous utility functions.
+Polymorphic container utilities.
 """
 
 # std
 import numbers as nrs
 import functools as ftl
-from collections import abc
 
 # relative
 from ..iter import where
-from ..functionals import negate
 from . import ensure
 
 
 # ---------------------------------------------------------------------------- #
-# Null
+# 
 
-def not_null(obj, except_=('',)):
-    #      scalar                                                array-like
-    return bool((obj or (obj in except_)) if is_scalar(obj) else len(obj))
-
-
-# alias
-notnull = not_null
-isnull = is_null = negate(not_null)
+def prepend(obj, prefix):
+    return prefix + obj
 
 
-# ---------------------------------------------------------------------------- #
-# Scalars (unsized)
-
-def is_scalar(obj, accept=(str, )):
-    return not isinstance(obj, abc.Sized) or isinstance(obj, accept)
-
-
-def duplicate_if_scalar(obj, n=2, accept=(str, ), emit=ValueError):
-    """
-    Ensure object size or duplicate if necessary.
-
-    Parameters
-    ----------
-    obj : number or array-like
-
-    Returns
-    -------
-
-    """
-
-    if is_scalar(obj, accept):
-        return [obj] * n
-
-    # Sized object
-    size = len(obj)
-    if size == 1:
-        return list(obj) * n
-
-    #
-    from recipes.flow.emit import Emit
-
-    emit = Emit(emit)
-    if size == 0:
-        emit(f'Cannot duplicate empty {type(obj)}.')
-        return [obj] * n
-
-    if (size != n):
-        emit(f'Input object of type {type(obj)} has incorrect size: {size}. '
-             'Expected either a scalar type object, or a Container with length '
-             f'in {{1, {n}}}.')
-
-    return obj
+def append(obj, suffix):
+    return obj + suffix
 
 
 # ---------------------------------------------------------------------------- #
@@ -195,6 +147,7 @@ def _(string, indices=()):
 
     return ''.join(_delete_immutable(string, indices)) if indices else string
 
+
 # ---------------------------------------------------------------------------- #
 # remove items
 
@@ -210,3 +163,12 @@ def remove(items, *values, start=0):
             break
 
     return items[:start] + result
+
+
+def replace(items, old, new):
+    kls = type(items)
+    items = list(items)
+    for w in where(items, old):
+        items[w] = new
+
+    return kls(items)

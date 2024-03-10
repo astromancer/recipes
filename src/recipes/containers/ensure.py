@@ -71,7 +71,7 @@ def duplicate_if_scalar(obj, n=2, scalars=SCALARS, ensure=builtins.list,
 
 class Ensure:
     """
-    Coerce objects to given container type
+    Coerce objects to given container type and wrap unsized objects.
     """
 
     def __init__(self, wrapper, is_scalar=builtins.str, not_scalar=abc.Iterable):

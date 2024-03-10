@@ -13,7 +13,7 @@ from loguru import logger
 # relative
 from ...config import ConfigNode
 from ...io.gitignore import GitIgnore
-from ...concurrency.executor import Executor
+from ...concurrency import Executor
 from . import STYLES, refactor
 
 

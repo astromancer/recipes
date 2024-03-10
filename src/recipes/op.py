@@ -13,7 +13,7 @@ workhorses.
 # std
 import functools as ftl
 import operator as _op
-from operator import *
+from operator import eq, getitem, lt, gt, ge, le, mul, add, ne, sub
 from collections import abc
 
 # relative
@@ -23,7 +23,7 @@ from .functionals import echo0
 
 # ---------------------------------------------------------------------------- #
 class NULL:
-    "Null singleton"
+    """Null singleton"""
 
 
 def any(itr, test=bool):
@@ -59,12 +59,6 @@ def all(itr, test=bool):
     return builtins.all(map(test, itr))
 
 
-def prepend(obj, prefix):
-    return prefix + obj
-
-
-def append(obj, suffix):
-    return obj + suffix
 
 
 class ItemGetter:
@@ -184,6 +178,8 @@ class ItemVector(VectorizeMixin, ItemGetter):
 class AttrVector(VectorizeMixin, AttrGetter):  # AttrTable!
     """Vectorized attribute getter a la AttrGetter."""
 
+
+# ---------------------------------------------------------------------------- #
 
 class MethodCaller:
     """
