@@ -58,6 +58,7 @@ def _get_select_func(keys):
         return op.contained(keys).within
 
     def test(inner):
+        # FIXME: this logical operation should be made explicit
         return any(key in inner for key in keys)
 
     return test
@@ -272,6 +273,9 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         # flatten 1-tuples
         return dict(zip(next(zip(*leaves.keys())), leaves.values()))
 
+    def drop(self, keys):
+        return self.filter(keys)
+
     def filter(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()
 
@@ -281,7 +285,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         return new
 
     # alias
-    filtered = filter
+    filtered = filter  # drop
 
     def select(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()

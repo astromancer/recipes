@@ -476,7 +476,7 @@ class Record(Indexable, OrderedAttrDict):
     pass
 
 
-class TransDict(UserDict):
+class ManyToOne(UserDict):  # TranslationLayer
     """
     A many to one mapping via layered dictionaries. Provides a generic way of
     translating keywords to their intended meaning. Good for human coders with
@@ -513,7 +513,7 @@ class TransDict(UserDict):
 
     def many_to_one(self, mapping):
         """
-        Add many keys to the existing dict that all map to the same key
+        Add many keys to the existing dict that all map to the same key.
 
         Parameters
         ----------
@@ -533,12 +533,13 @@ class TransDict(UserDict):
             for key in many:
                 self.dictionary[key] = one
 
+    # alias
     many2one = many_to_one
 
 
-class ManyToOneMap(TransDict):
+class TranslatorMap(ManyToOne):
     """
-    Expands on TransDict by adding equivalence mapping functions for keywords.
+    Expands on ManyToOne by adding equivalence mapping functions for keywords.
     """
 
     emit = Emit('raise')
@@ -546,7 +547,7 @@ class ManyToOneMap(TransDict):
     def __init__(self, dic=None, **kws):
         super().__init__(dic, **kws)
         # equivalence mappings - callables that return the desired item.
-        self._mappings = []
+        self.translators = []
 
     def __missing__(self, key):
         try:
@@ -559,21 +560,22 @@ class ManyToOneMap(TransDict):
                     return self[resolved]
             raise err from None
 
-    def add(self, obj):
+    def add(self, translator):
         """Add translation function / dictionary dispatching on type"""
-        if isinstance(obj, abc.MutableMapping):
-            self.add_mapping(obj)
-        elif callable(obj):
-            self.add_func(obj)
-        else:
-            raise TypeError(
-                f'Invalid translation object {obj!r} of type {type(obj)!r}.'
-            )
+        if isinstance(translator, abc.MutableMapping):
+            return self.add_mapping(translator)
+
+        if callable(translator):
+            return self.add_func(translator)
+
+        raise TypeError(f'Invalid translator object {translator!r} of '
+                        f'type {type(translator)!r}.')
 
     def add_func(self, func):
-        if not callable(func):
-            raise ValueError(f'{func} object is not callable.')
-        self._mappings.append(func)
+        if callable(func):
+            return self.translators.append(func)
+
+        raise ValueError(f'{func} object is not callable.')
 
     def add_funcs(self, *funcs):
         for func in funcs:
@@ -581,11 +583,10 @@ class ManyToOneMap(TransDict):
 
     def _loop_translators(self, key):
         # try translate with equivalence maps
-        for func in self._mappings:
+        for func in self.translators:
             # yield catch(func, message=message)(key)
             try:
-                translated = func(key)
-                if translated is not None:
+                if (translated := func(key)) is not None:
                     yield translated
             except Exception as err:
                 self.emit(
@@ -613,6 +614,8 @@ class ManyToOneMap(TransDict):
             return super().__contains__(resolved)
 
         return False
+
+# ---------------------------------------------------------------------------- #
 
 
 class IndexableOrderedDict(OrderedDict):
