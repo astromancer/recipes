@@ -133,30 +133,34 @@ def relative_sorter(node):
     return (0.5 * bool(node.module) - node.level) if is_relative(node) else 0
 
 
-def fix_wildcard(node, package):
+def expand_wildcards(node, module=None):
 
-    module = node.module
-    if is_relative(node):
-        module = f'{package}.{module}'
+    if not is_wildcard(node):
+        return node
 
-    spec = find_spec(module)
-    if spec:
-        names = get_all_names(spec.origin)
+    if module is None and is_relative(node):
+        raise ValueError('Module required for resolving wildcard inports.')
+
+    module = module or node.module
+    if (spec := find_spec(module)):
+        names = get_defined_names(spec.origin)
         node.names = list(map(ast.alias, names))
     else:
-        logger.warning('Could not find module to fix wildcards: {!r}.', module)
+        logger.warning('Could not find module to expand wildcards: {!r}.', module)
 
     return node
 
 
-def get_all_names(file):
+def get_defined_names(file):
+    
     source = Path(file).read_text()
     module = ast.parse(source)
-    captured = NameCapture()
+    captured = DefinedNames()
     module = captured.visit(module)
 
     names = set()
     names.update(*captured.used_names.values())
+
     return [name for name in names if not name.startswith('_')]
 
 
@@ -368,7 +372,11 @@ class NameCapture(Parentage):
         self.parent = None
         self.used_names = defaultdict(set)
 
+
+class UsedNames(NameCapture):
+
     def visit_Name(self, node):
+        node = self.generic_visit(node)
         self.used_names[node.parent].add(node.id)
         return node
 
@@ -379,7 +387,35 @@ class NameCapture(Parentage):
         return node
 
 
-class ImportCapture(NameCapture):
+class DefinedNames(NameCapture):
+
+    def __init__(self, scope=ast.Module, keep_private_names=False):
+
+        super().__init__()
+
+        assert issubclass(scope, ast.AST)
+        self.scope = scope
+        self.no_private_names = not bool(keep_private_names)
+
+    def _capture(self, node):
+        node = self.generic_visit(node)
+        if isinstance(node.parent, self.scope):
+            if node.name.startswith('_') and self.no_private_names:
+                return node
+
+            # capture
+            self.used_names[node.parent].add(node.name)
+
+        return node
+
+    def visit_ClassDef(self, node):
+        return self._capture(node)
+
+    def visit_FunctionDef(self, node):
+        return self._capture(node)
+
+
+class ImportCapture(UsedNames):
     def __init__(self, up_to_line=math.inf):
         super().__init__()
         self.up_to_line = up_to_line or math.inf  # internal line nrs are 1 base
@@ -463,19 +499,23 @@ class ImportFilter(Parentage):
 
 class WildcardExpander(Parentage):
 
-    def __init__(self, package):
-        self.package = package
+    def __init__(self, module):
+        self.module = module
 
     def visit_ImportFrom(self, node):
         node = self.generic_visit(node)
 
-        # don't merge anything with >>> from ... import *
-        if is_wildcard(node):
-            parts = self.package.split('.')
-            package = '.'.join(parts[:-node.level])
-            return fix_wildcard(node, package)
+        if not is_wildcard(node):
+            return node
 
-        return node
+        # relative
+        if node.level:
+            parts = self.module.split('.')
+            module = '.'.join((*parts[:(1 - node.level) or None], node.module))
+        else:
+            module = self.module
+
+        return expand_wildcards(node, module)
 
 
 class ImportMerger(ImportFilter):
@@ -749,7 +789,7 @@ def refactor(file_or_source,
              filter_unused=None,
              split=0,
              merge=1,
-             fix_wildcards=True,
+             expand_wildcards=True,
              relativize=None,
              #  unscope=False,
              headers=None
@@ -759,7 +799,7 @@ def refactor(file_or_source,
     # , keep_multiline=True,
     refactory = ImportRefactory(file_or_source)
     module = refactory.refactor(sort, filter_unused, split, merge,
-                                fix_wildcards, relativize)
+                                expand_wildcards, relativize)
     return refactory.write(module, headers)
 
 
@@ -858,7 +898,7 @@ class ImportRefactory(LoggingMixin):
                  filter_unused=None,
                  split=0,
                  merge=1,
-                 fix_wildcards=True,
+                 expand_wildcards=True,
                  relativize=None,
                  #  delocalize=False,
                  ):
@@ -949,7 +989,7 @@ class ImportRefactory(LoggingMixin):
         # if unscope:
         #     module = self.unscope(module)
 
-        if fix_wildcards:
+        if expand_wildcards:
             module = self.expand_wildcards(module)
 
         # filter_unused = (self.up_to_line == math.inf and bool(used_names))
