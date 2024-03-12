@@ -287,7 +287,7 @@ def get_n_repeats(n, size, overlap):
     times that the index corresponding to that element would be repeated in
     the strided array.
     """
-    from recipes.containers.lists import tally, cosort
+    from recipes.containers import tally, cosort
 
     indices = fold(np.arange(n), size, overlap).ravel()
     if np.ma.is_masked(indices):

@@ -4,18 +4,18 @@ Recipes involving lists.
 
 
 # std
-import itertools as itt
 from collections import defaultdict
 
 # third-party
 import more_itertools as mit
 
 # relative
-from .. import iter as _iter
+from .. import iter as itr
 from ..functionals import always, echo
-from .utils import delete
+from .ensure import is_scalar
 
 
+# ---------------------------------------------------------------------------- #
 # function that always returns 0
 _zero = always(0)
 
@@ -25,12 +25,14 @@ def lists(iters):
     return list(map(list, iters))
 
 
-def cosort(*lists, key=None, master_key=None, order=1):
+# ---------------------------------------------------------------------------- #
+
+def cosort(*items, key=None, master_key=None, order=1):
     """
-    Extended co-sorting of lists. Sort any number of lists simultaneously
-    according to:
-        * optional sorting function(s)
-        * and/or a global sorting function.
+    Extended co-sorting of multiple lists. Sort any number of lists
+    simultaneously according to:
+        * Sorting function(s) for each list and / or
+        * A global sorting function.
 
     Parameters
     ----------
@@ -57,7 +59,8 @@ def cosort(*lists, key=None, master_key=None, order=1):
 
     Returns
     -------
-    tuple of sorted lists
+    tuple[list]
+        The sorted lists.
 
     Raises
     ------
@@ -80,84 +83,89 @@ def cosort(*lists, key=None, master_key=None, order=1):
     # TODO: extend examples doc
 
     # convert to lists
-    lists = list(map(list, lists))
+    items = lists(items)
 
-    if not lists:
+    if not items:
         return []
 
     # check that all lists have the same length
-    unique_sizes = set(map(len, lists))
+    unique_sizes = set(map(len, items))
     if len(unique_sizes) != 1:
-        raise ValueError(f'Cannot co-sort lists with varying sizes: '
-                         f'{unique_sizes}')
+        raise ValueError(f'Cannot co-sort lists with varying sizes: {unique_sizes}')
 
-    list0 = list(lists[0])
-    if not list0:  # all lists are zero length
-        return lists
+    # catch for all lists zero length
+    if unique_sizes == {0}:
+        return items
 
-    # enable default behaviour
-    if key is None:
-        # if global sort function given and no local (secondary) key given
-        #   ==> no tiebreakers
-        # if no global sort and no local sort keys given, sort by values
-        key = _zero if master_key else echo
+    # sort
+    result = sorted(zip(*items), key=CosortHelper(key, master_key))
 
-    # if no master key, use null func
-    master_key = master_key or _zero
-
-    # validity checks for sorting functions
-    if not callable(master_key):
-        raise ValueError('Parameter `master_key` needs to be callable')
-
-    if callable(key):
-        key = (key, )
-    if not isinstance(key, (tuple, list)):
-        raise KeyError(
-            'Keyword-only parameter `key` should be `None`, callable, or a'
-            f'sequence of callables, not {type(key)}.')
-
-    res = sorted(zip(*lists), key=_make_cosort_key(master_key, key))
     if order == -1:
-        res = reversed(res)
+        result = reversed(result)
 
-    return tuple(map(list, zip(*res)))
-
-
-def _make_cosort_key(master_key, funcs):
-    def sort_key(x):
-        values = ((f or _zero)(z) for f, z in zip(funcs, x))
-        return (master_key(*x),) + tuple(values)
-    return sort_key
+    return tuple(map(list, zip(*result)))
 
 
-# @ doc.splice(op.index, omit='Parameters[default]')
-def where(items, *args, start=0):
-    """
-    A multi-indexer for lists. Return index positions of all occurances of
-    `item` in a list `items`. If a test function is given, return all indices at
-    which the test evaluates true.
+class CosortHelper:
 
-    {Parameters}
+    __slots__ = ('key', 'master_key')
 
-    Examples
-    --------
-    >>> items = ['ab', 'Ba', 'cb', 'dD']
-    >>> where(items, op.contains, 'a')
-    [0, 1]
-    >>> where(items, str.startswith, 'a')
-    [0]
+    def __init__(self, key, master_key):
+        # enable default behaviour
+        if key is None:
+            # if global sort function given and no local (secondary) key given
+            #   ==> no tiebreakers
+            # if no global sort and no local sort keys given, sort by values
+            key = _zero if master_key else echo
+
+        # if no master key, use null func
+        master_key = master_key or _zero
+
+        # validity checks for sorting functions
+        if not callable(master_key):
+            raise ValueError('Parameter `master_key` needs to be callable.')
+
+        if callable(key):
+            key = (key, )
+
+        if is_scalar(key):
+            raise KeyError(
+                'Keyword-only parameter `key` should be `None`, callable, or a '
+                f'sequence of callables, not {type(key)}.')
+
+        self.key = key
+        self.master_key = master_key
+
+    def __call__(self, items):
+        values = ((f or _zero)(z) for f, z in zip(self.key, items))
+        return (self.master_key(*items), *values)
 
 
-    Returns
-    -------
-    list of int or `default`
-        The index positions where test evaluates true.
-    """
-    return list(_iter.where(items, *args, start=start))
+# ---------------------------------------------------------------------------- #
+
+def tally(items):
+    """Return dict of item, count pairs for sequence."""
+    from ..containers.dicts import DefaultOrderedDict
+
+    tally = DefaultOrderedDict(int)
+    for item in items:
+        tally[item] += 1
+    return tally
 
 
-def select(items, test=bool):
-    return list(_iter.select(items, test))
+def unique(items):
+    """Return dict of unique (item, indices) pairs for sequence."""
+    from ..containers.dicts import DefaultOrderedDict
+
+    indices = DefaultOrderedDict(list)
+    for i, item in enumerate(items):
+        indices[item].append(i)
+    return indices
+
+
+def where_duplicate(items, consecutive=False):
+    """Return lists of indices of duplicate entries"""
+    return itr.nth_zip(1, *itr.duplicates(items, consecutive))
 
 
 def flatten(items):
@@ -177,38 +185,8 @@ def flatten(items):
     return list(mit.collapse(items))
 
 
-def split(items, indices, offset=0):
-    """Split a list `items` into sublists at the given indices."""
-    return list(_iter.split(items, indices, offset))
-
-
-def split_like(items, lists):
-    """
-    Split a list `items` into sublists, each with the same size as the sequence of
-    (raggedly sized) lists in `lists`.
-    """
-    *indices, total = itt.accumulate(map(len, lists))
-    assert len(items) == total
-    return split(items, indices)
-
-
 def sort_like(items, order):
     return cosort(order, items)[1]
-
-
-def split_where(items, item, start=0, test=None):
-    """
-    Split a list into sublists at the positions of positive test evaluation.
-    """
-    # indices = where(items, item, indexer)
-
-    # withfirst=False, withlast=False,
-    # if withfirst:
-    #     indices = [0] + indices
-    # if withlast:
-    #     indices += [len(items) - 1]
-
-    return split(items, where(items, test, item, start=start))
 
 
 def missing_integers(items):
@@ -228,57 +206,3 @@ def partition(items, predicate):
         parts[box].append(item)
         indices[box].append(i)
     return parts, indices
-
-
-def tally(items):
-    """Return dict of item, count pairs for sequence."""
-    from ..containers.dicts import DefaultOrderedDict
-
-    t = DefaultOrderedDict(int)
-    for item in items:
-        t[item] += 1
-    return t
-
-
-def unique(items):
-    """Return dict of unique (item, indices) pairs for sequence."""
-    from ..containers.dicts import DefaultOrderedDict
-
-    t = DefaultOrderedDict(list)
-    for i, item in enumerate(items):
-        t[item].append(i)
-    return t
-
-
-def duplicates(items):
-    """Return tuples of item, indices pairs for duplicate values."""
-    return list(_iter.duplicates(items))
-
-
-def where_duplicate(items):
-    """Return lists of indices of duplicate entries"""
-    return _iter.nth_zip(1, *_iter.duplicates(items))
-
-
-def replace(items, value, new):
-    if value not in items:
-        return items
-
-    items[items.index(value)] = new
-    return items
-
-
-def _remove(items, value, start=0):
-    return delete(items, where(items, value, start=start))
-
-
-def remove(items, *values, start=0):
-    result = items[start:]
-    for value in values:
-        result = _remove(result, value)
-        if not result:
-            break
-        
-    return items[:start] + result
-
-

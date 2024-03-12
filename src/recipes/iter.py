@@ -127,11 +127,10 @@ def zip_append(items, tails):
 # ---------------------------------------------------------------------------- #
 # Multi-indexing iterators
 
-
 def where(items, *args, start=0):
     """
     Yield the indices at which items from an Iterable or Collection `items`
-    evaluate True according to an optional test function. This function will
+    evaluate `True` according to an optional test function. This function will
     consume the iterable, so take care not to pass infinite iterables - the
     function will raise an exception if the iteration count is greater than the
     value of the module constant `INDEX_MAX` (by default 10**8).
@@ -181,7 +180,6 @@ def where(items, *args, start=0):
 
 # ---------------------------------------------------------------------------- #
 # Dispatch for multi-indexing
-
 
 @ftl.singledispatch
 def multi_index(obj, rhs, test=bool, start=0):
@@ -233,6 +231,7 @@ def _(obj, rhs, test=op.eq, start=0):
 
 # ---------------------------------------------------------------------------- #
 # Filtering / element selection
+
 def select(items, *args, start=0):
     """
 
@@ -248,10 +247,6 @@ def select(items, *args, start=0):
         _description_
     start : int, optional
         _description_, by default 0
-
-    Examples
-    --------
-    >>> 
 
     Returns
     -------
@@ -280,11 +275,12 @@ def select(items, *args, start=0):
         return (_ for _ in items if test(_, rhs))
 
     # print valid call signatures from docstring
-    raise ValueError(txw.dedent(select.__doc__.split('\n\n')[1]))
+    raise ValueError(txw.dedent(select.__doc__.split('\n\n', 1)[0]))
 
 
 # ---------------------------------------------------------------------------- #
-# slicing
+# Segmenting iterators / collections
+
 def windowed(obj, size, step=1):
     assert isinstance(size, numbers.Integral)
 
@@ -296,17 +292,17 @@ def windowed(obj, size, step=1):
     yield from mit.windowed(obj, size)
 
 
-# ---------------------------------------------------------------------------- #
-# Segmenting iterators / collections
-
 def split(items, indices, offset=0):
-    """Split a list into sub-lists at the given index positions"""
+    """Split a list into sub-lists at the given index positions."""
 
     if isinstance(indices, numbers.Integral):
         indices = [indices]
 
+    if not isinstance(items, abc.Sized):
+        items = list(items)
+
     n = len(items)
-    indices = list(map(sum, zip(map(int, indices), itt.repeat(int(offset)))))
+    indices = map(sum, zip(map(int, indices), itt.repeat(int(offset))))
     if indices := sorted(map(n.__rmod__, indices)):  # resolve negatives
         for i, j in mit.pairwise([0, *indices, n]):
             yield items[i:j]
@@ -314,19 +310,16 @@ def split(items, indices, offset=0):
         yield items
 
 
-# def split(items, indices):
-#     if isinstance(indices, numbers.Integral):
-#         indices = [indices]
+def split_where(items, *args, start=0, offset=0):
+    """
+    Split a list into sublists at the positions of positive test evaluation.
+    """
+    return split(items, where(items, *args, start=start), offset)
 
-#     indices = iter(sorted(indices))
 
-#     i, j = 0, None
-#     for j in indices:
-#         yield items[i:j]
-#         i = j
+def split_non_consecutive(items, step=1):
+    return list(split(items, where(diff(items), op.ne, 1), 1))
 
-#     if j is not None:
-#         yield items[j:]
 
 def split_slices(indices):
     """
@@ -364,7 +357,7 @@ def iter_repeat_last(it):
 
 def cogroup(func=echo, *its, unzip=True, **kws):
     # avoid circular import
-    from recipes.containers.lists import cosort
+    from recipes.containers import cosort
 
     its = cosort(*its, key=func)
     zipper = itt.groupby(zip(*its), on_zeroth(func))
@@ -429,16 +422,24 @@ def _parse_predicate(func_or_iter, its):
 # ---------------------------------------------------------------------------- #
 # Duplicate detection / filtering
 
-def duplicates(items):
+def duplicates(items, consecutive=False, singles=False):
     """Yield tuples of item, indices pairs for duplicate values."""
-    from recipes.containers.lists import unique
+    
+    from recipes.containers import unique  # FIXME
+
+    splitter = split_non_consecutive if consecutive else _wrap
 
     for key, indices in unique(items).items():
-        if len(indices) > 1:
-            yield key, indices
+        for indices in splitter(indices):
+            if (len(indices) > 1) or singles:
+                yield key, indices
 
 
-def filter_duplicates(items, test):
+def _wrap(item):
+    return (item, )
+
+
+def unduplicate(items, test):
     """Filter duplicate items based on condition `test`."""
     results = set()
     for item in items:
@@ -450,7 +451,7 @@ def filter_duplicates(items, test):
 
 
 # aliases
-unduplicate = filter_duplicates
+filter_duplicates = deduplicate = unduplicate
 
 
 def non_unique(itr):
@@ -462,3 +463,7 @@ def non_unique(itr):
         if item == prev:
             yield prev
         prev = item
+
+
+def diff(items):
+    yield from map(op.rsub, *zip(*mit.pairwise(items)))

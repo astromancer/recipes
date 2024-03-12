@@ -3,16 +3,29 @@ Polymorphic container utilities.
 """
 
 # std
+import itertools as itt
 import numbers as nrs
 import functools as ftl
 
 # relative
-from ..iter import where
+from .. import iter as itr
 from . import ensure
 
 
 # ---------------------------------------------------------------------------- #
-# 
+
+def match_input_type(func):
+
+    @ftl.wraps(func)
+    def wrapper(items, *args, **kws):
+        kls = type(items)
+        answer = func(items, *args, **kws)
+        return kls(answer)
+
+    return wrapper
+
+
+# ---------------------------------------------------------------------------- #
 
 def prepend(obj, prefix):
     return prefix + obj
@@ -23,7 +36,7 @@ def append(obj, suffix):
 
 
 # ---------------------------------------------------------------------------- #
-# item deletion workers
+# Item deletion
 
 def _delete(container, indices):
     # delete multiple elements in a mutable container.
@@ -149,10 +162,10 @@ def _(string, indices=()):
 
 
 # ---------------------------------------------------------------------------- #
-# remove items
+# remove / replace items
 
 def _remove(items, value, start=0):
-    return delete(items, where(items, value, start=start))
+    return delete(items, itr.where(items, value, start=start))
 
 
 def remove(items, *values, start=0):
@@ -165,10 +178,74 @@ def remove(items, *values, start=0):
     return items[:start] + result
 
 
+@match_input_type
 def replace(items, old, new):
-    kls = type(items)
-    items = list(items)
-    for w in where(items, old):
-        items[w] = new
 
-    return kls(items)
+    items = list(items)
+    for index in itr.where(items, old):
+        items[index] = new
+
+    return items
+
+
+# ---------------------------------------------------------------------------- #
+# where, where.unique, where.duplicate
+
+select = match_input_type(itr.select)
+split = match_input_type(itr.split)
+split_where = match_input_type(itr.split_where)
+split_non_consecutive = match_input_type(itr.split_non_consecutive)
+duplicates = match_input_type(itr.duplicates)
+
+
+# @ doc.splice(op.index, omit='Parameters[default]')
+@match_input_type
+def where(items, *args, start=0):
+    """
+    A container multi-indexer. Return index positions of all occurances of
+    `item` in a list `items`. If a test function is given, return all indices at
+    which the test evaluates true.
+
+    Three distinct call signatures are supported:
+        >>> where(items)                # indices where items are truthy
+        >>> where(items, value)         # indices where items equal value
+        >>> where(items, func, value)   # conditionally on func(item, value)
+
+    Parameters
+    ----------
+    items : Iterable
+        Any iterable. Note that this function will consume the iterable.
+    args : ([test], rhs)
+        test : callable, optional
+            Function for testing, should return bool, by default op.eq.
+        rhs : object
+            Right hand side item for equality test.
+    start : int, optional
+        Starting index for search, by default 0.
+
+    Examples
+    --------
+    >>> items = ['ab', 'Ba', 'cb', 'dD']
+    >>> where(items, op.contains, 'a')
+    [0, 1]
+    >>> where(items, str.startswith, 'a')
+    [0]
+
+
+    Returns
+    -------
+    list of int or `default`
+        The index positions where test evaluates true.
+    """
+    return itr.where(items, *args, start=start)
+
+
+def split_like(items, lists):
+    """
+    Split a list `items` into sublists, each with the same size as the sequence of
+    (raggedly sized) lists in `lists`.
+    """
+
+    *indices, total = itt.accumulate(map(len, lists))
+    assert len(items) == total
+    return split(items, indices)

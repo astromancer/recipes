@@ -31,7 +31,7 @@ def similarity(a, b):
 
 
 def most_similar(string, options, cutoff=0.5):
-    from recipes.containers.lists import cosort
+    from recipes.containers import cosort
 
     sims = [similarity(string, _) for _ in options]
     sims, options = cosort(sims, options, order=-1)

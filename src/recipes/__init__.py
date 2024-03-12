@@ -11,10 +11,9 @@ from loguru import logger
 # relative
 from . import functionals, string
 from .string import regex
-from .containers.lists import cosort
 from .config import create_user_config
-from .containers import dicts, lists, sets
-from .containers import duplicate_if_scalar, is_scalar, not_null
+from .containers import (cosort, dicts, duplicate_if_scalar, is_scalar, lists,
+                         not_null, sets)
 
 
 # ---------------------------------------------------------------------------- #

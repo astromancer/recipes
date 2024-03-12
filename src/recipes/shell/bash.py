@@ -11,7 +11,7 @@ import math
 from .. import op
 from ..tree.node import Node
 from ..functionals import negate
-from ..containers.lists import split_where
+from ..containers import split_where
 from ..string import delimited, shared_affix, strings
 
 
@@ -258,7 +258,7 @@ def contract(items):
         # call to `split_where` is ignored
         enum = iter(nrs)
         middle = []
-        for nrs in split_where(nrs, '', 1, lambda x, _: x - next(enum) > 1):
+        for nrs in split_where(nrs, '', (lambda x, _: x - next(enum) > 1), 1):
             if len(nrs) > 2:
                 middle.append(contract_range(nrs))
             else:
