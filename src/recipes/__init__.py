@@ -8,6 +8,9 @@ from importlib.metadata import version
 # third-party
 from loguru import logger
 
+# silence logging by default
+logger.disable('recipes')
+
 # relative
 from . import functionals, string
 from .string import regex
@@ -33,5 +36,3 @@ user_config_path = create_user_config('config.yaml', __file__,
 user_packages = user_config_path.parent / 'user_packages.yaml'
 
 
-# silence logging by default
-logger.disable('recipes')
