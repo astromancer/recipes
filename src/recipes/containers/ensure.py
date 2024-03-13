@@ -1,3 +1,8 @@
+"""
+Ensure container type continuity, coerce objects to given container type and
+wrap unsized objects.
+"""
+
 # std
 import typing
 from collections import abc
@@ -5,6 +10,7 @@ from collections import abc
 # relative
 import builtins
 from ..functionals import negate
+from ..decorators import Decorator
 
 
 # ---------------------------------------------------------------------------- #
@@ -68,30 +74,89 @@ def duplicate_if_scalar(obj, n=2, scalars=SCALARS, ensure=builtins.list,
 
 
 # ---------------------------------------------------------------------------- #
+_str_from_iter = ((str, ''.join), )
+
+
+class TypeContinuity(Decorator):
+    """
+    Function decorator for ensuring type input output continuity and coercion.
+    """
+
+    def __init__(self, ensure=_str_from_iter, coerce=None, disallow=()):
+
+        self.coerce = coerce
+        self.ensure = dict(ensure)
+        self.disallowed = tuple(disallow)  # NOTE! ensure.tuple NOT builtin
+
+        if coerce:
+            assert isinstance(coerce, type)
+
+    def __wrapper__(self, func, items, *args, **kws):
+
+        if isinstance(items, self.disallowed):
+            raise TypeError(
+                f'Objects of type {type(items).__name__} are not accepted by '
+                f'the function {func.__name__}.'
+            )
+
+        # get output type
+        if not (kls := self.ensure.get(all)):
+            kls = self.ensure.get((kls := type(items)), kls)
+
+        # call function
+        answer = func(items, *args, **kws)
+
+        if self.coerce:
+            answer = map(self.coerce, answer)
+
+        return kls(answer)
+
+
+# ---------------------------------------------------------------------------- #
 
 class Ensure:
     """
-    Coerce objects to given container type and wrap unsized objects.
+    Function decorator for ensuring type input output continuity and coercion.
     """
 
-    def __init__(self, wrapper, is_scalar=builtins.str, not_scalar=abc.Iterable):
+    def __init__(self, wrapper, coerce=None,
+                 is_scalar=builtins.str, not_scalar=abc.Iterable):
 
-        if isinstance(wrapper, type):
-            self.wrapper = wrapper
-            self.coerce = None
-        elif isinstance(wrapper, typing._GenericAlias):
-            self.wrapper = getattr(builtins, wrapper._name.lower())
-            self.coerce, = typing.get_args(wrapper)
-        else:
-            raise TypeError(f'Invalid wrapper type {wrapper}.')
-
+        self.coerce = coerce
         self.scalars = is_scalar
         self.not_scalars = not_scalar
 
+        if coerce:
+            assert isinstance(coerce, type)
+
+        if wrapper is None or isinstance(wrapper, type):
+            # None => input object will determine output object
+            self.wrapper = wrapper
+
+        elif isinstance(wrapper, typing._GenericAlias):
+            self.wrapper = getattr(builtins, wrapper._name.lower())
+            self.coerce, = typing.get_args(wrapper)
+
+        else:
+            raise TypeError(f'Invalid wrapper type {wrapper}.')
+
     def __call__(self, obj, coerce=None):
+        """
+        Wrap unsized objects and coerce to a given container type and / or item
+        type.
+        """
+
+        # item type
         coerce = coerce or self.coerce
-        itr = iterable(obj)
-        return self.wrapper(map(coerce, itr) if coerce else itr)
+
+        # container type
+        wrapper = self.wrapper or type(obj)
+
+        # ensure iterable
+        itr = iterable(obj, self.scalars, self.not_scalars)
+
+        # wrap
+        return wrapper(map(coerce, itr) if coerce else itr)
 
 
 # alias

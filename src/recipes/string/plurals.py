@@ -6,9 +6,6 @@ Pluralization (experimental).
 # std
 from collections import abc
 
-# relative
-from ..containers import ensure
-
 
 # ---------------------------------------------------------------------------- #
 _PLURAL_SUFFIX_MAP = {
@@ -113,8 +110,9 @@ def naive_english_plural(word):
 
 
 def pluralize(text, items=(()), plural=None, n=None):
-    """Conditional plural of `text` based on size of `items`."""
-
+    """
+    Conditional plural of `text` based on size of `items`.
+    """
     return ((plural or naive_english_plural(text))
             if _requires_plural(items, n)
             else text)
@@ -137,6 +135,9 @@ def numbered(items, name, plural=None):
 
 
 def named_items(items, name, plural=None, fmt=str, **kws):
+    # avoid circular import
+    from recipes.containers import ensure
+
     items = ensure.list(items)
     if not _many(items):
         return f'{name}: {fmt(next(iter(items)))}'

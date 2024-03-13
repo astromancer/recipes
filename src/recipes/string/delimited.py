@@ -18,7 +18,6 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..iter import where
-from ..containers.utils import delete
 from ..functionals import always, echo, not_none
 from .plurals import named_items, pluralize
 
@@ -725,6 +724,7 @@ class Parser:
         string
             The string with brackets stripped.
         """
+        from recipes.containers.utils import delete
 
         indices = set()
         for pair in self.iterate(string, condition=condition):

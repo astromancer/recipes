@@ -8,7 +8,7 @@ import numbers
 import textwrap as txw
 import functools as ftl
 import itertools as itt
-from collections import abc
+from collections import abc, defaultdict
 
 # third-party
 import more_itertools as mit
@@ -281,17 +281,6 @@ def select(items, *args, start=0):
 # ---------------------------------------------------------------------------- #
 # Segmenting iterators / collections
 
-def windowed(obj, size, step=1):
-    assert isinstance(size, numbers.Integral)
-
-    if isinstance(obj, str):
-        for i in range(0, len(obj), step):
-            yield obj[i:i + size]
-        return
-
-    yield from mit.windowed(obj, size)
-
-
 def split(items, indices, offset=0):
     """Split a list into sub-lists at the given index positions."""
 
@@ -317,8 +306,26 @@ def split_where(items, *args, start=0, offset=0):
     return split(items, where(items, *args, start=start), offset)
 
 
+def split_like(items, like):
+    """
+    Split a container `items` into -containers, each with the same size as the
+    sequence of (differently sized) containers in `like`.
+    """
+
+    *indices, total = itt.accumulate(map(len, like))
+    assert len(items) == total
+    return split(items, indices)
+
+
 def split_non_consecutive(items, step=1):
-    return list(split(items, where(diff(items), op.ne, 1), 1))
+    return split(items, where(diff(items), op.ne, 1), 1)
+
+
+def diff(items):
+    if len(items) <= 1:
+        return
+
+    yield from map(op.rsub, *zip(*mit.pairwise(items)))
 
 
 def split_slices(indices):
@@ -330,6 +337,17 @@ def split_slices(indices):
 
 def chunker(itr, size):
     return iter(map(tuple, itt.islice(iter(itr), size)), ())
+
+
+def windowed(obj, size, step=1):
+    assert isinstance(size, numbers.Integral)
+
+    if isinstance(obj, str):
+        for i in range(0, len(obj), step):
+            yield obj[i:i + size]
+        return
+
+    yield from mit.windowed(obj, size)
 
 
 # ---------------------------------------------------------------------------- #
@@ -422,25 +440,44 @@ def _parse_predicate(func_or_iter, its):
 # ---------------------------------------------------------------------------- #
 # Duplicate detection / filtering
 
-def duplicates(items, consecutive=False, singles=False):
+def unique(items, consecutive=True):
+    """
+    Return dict of unique (item, indices) pairs for sequence.
+    """
+
+    prev = -1
+    buffer = defaultdict(list)
+    for i, item in enumerate(items):
+        if i != prev + 1:
+            yield from buffer.items()
+            buffer = defaultdict(list)
+
+        buffer[item].append(i)
+        prev = i
+    #
+    yield from buffer.items()
+
+
+def duplicates(items):
     """Yield tuples of item, indices pairs for duplicate values."""
-    
-    from recipes.containers import unique  # FIXME
-
-    splitter = split_non_consecutive if consecutive else _wrap
-
-    for key, indices in unique(items).items():
-        for indices in splitter(indices):
-            if (len(indices) > 1) or singles:
-                yield key, indices
+    for key, indices in unique(items):
+        if (len(indices) > 1):
+            yield key, indices
 
 
-def _wrap(item):
-    return (item, )
+def where_duplicate(items):
+    """Indices of duplicate entries"""
+    for _, indices in duplicates(items):
+        yield indices
+
+
+# alias
+where_duplicates = where_duplicate
 
 
 def unduplicate(items, test):
     """Filter duplicate items based on condition `test`."""
+
     results = set()
     for item in items:
         result = test(item)
@@ -463,7 +500,3 @@ def non_unique(itr):
         if item == prev:
             yield prev
         prev = item
-
-
-def diff(items):
-    yield from map(op.rsub, *zip(*mit.pairwise(items)))
