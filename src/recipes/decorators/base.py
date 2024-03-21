@@ -76,8 +76,8 @@ class Factory:
 
         if emulate:
             # make the wrapper appear to be the original function. This should
-            # confuse the noobs!
-            logger.debug('Emmulating callable: {}.', func)
+            # really confuse the noobs!
+            logger.debug('Emulating callable: {}.', func)
             decorator = decorate(func, wrapper, kwsyntax=kwsyntax)
             # NOTE: The function created here by decorate *is not the same
             # object* as the input `func`!
@@ -190,7 +190,7 @@ class Decorator(Factory):
 
     # Purists might argue that this class is an anti-pattern since it invites
     # less explicit constructs that are confusing to the uninitiated.
-    # Here it is. Use it. Don't use it. Up to you.
+    # Whatever. Here it is. Use it. Don't use it. Up to you.
 
     __slots__ = '__wrapped__'
 

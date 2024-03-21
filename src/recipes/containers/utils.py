@@ -282,7 +282,7 @@ class _CosortHelper:
 # where, where.unique, where.duplicate
 
 select = TypeContinuity()(itr.select)
-duplicates = TypeContinuity()(itr.duplicates)
+duplicates = TypeContinuity(ensure={all: list})(itr.duplicates)
 
 # split iterators conserve container types, we only need to unpack the iterables
 split = TypeContinuity(ensure={all: tuple})(itr.split)

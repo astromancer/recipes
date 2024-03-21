@@ -152,7 +152,7 @@ def expand_wildcards(node, module=None):
 
 
 def get_defined_names(file):
-    
+
     source = Path(file).read_text()
     module = ast.parse(source)
     captured = DefinedNames()
@@ -711,6 +711,7 @@ class ImportSorter(HandleFuncs, ast.NodeTransformer):  # NodeTypeFilter?
     # )
 
     def visit_Import(self, node):
+        node = self.generic_visit(node)
         node.order = self(node)
         node.names = sorted(node.names, key=alias_sorter)
         return node

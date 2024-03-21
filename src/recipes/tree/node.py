@@ -277,6 +277,7 @@ class TreeBuilder:
         return tuple(child for child in self.siblings if child.is_leaf)
 
     # ------------------------------------------------------------------------ #
+    # NOTE: this method belongs to TextNode?
     def collapse(self, max_depth=math.inf, top_down=None, bottom_up=True):
         """
         Collapse the nodes that are deeper than `max_depth`. Each child node
@@ -530,7 +531,7 @@ class Node(PrettyNode, TreeBuilder):
 
         return {getattr(child, attr): child.as_dict(attr, leaf_attr)
                 for child in self.children}
-    
+
     # def __contains__(self, key):
     #     return next((c for c in self.children if c.name == key), None) is not None
 
@@ -541,7 +542,7 @@ class Node(PrettyNode, TreeBuilder):
 
 # ---------------------------------------------------------------------------- #
 def _sort_key(node):
-    return (node.as_path().is_dir(), node.name)
+    return (node.as_path.is_dir(), node.name)
 
 
 def _pprint_sort(children):
@@ -575,7 +576,7 @@ class FileSystemNode(Node):
 
         return cls._build('_from_list',
                           folder.iterdir(), None, _ignore_names(ignore),
-                          root=str(folder), collapse=collapse)
+                          root=f'{folder!s}/', collapse=collapse)
 
     @staticmethod
     def _get_name(path):
@@ -587,10 +588,11 @@ class FileSystemNode(Node):
         if path.is_dir():
             yield from path.iterdir()
 
+    @property # NOTE: anytree.Node already uses `path`
     def as_path(self):
         """The node as a pathlib.Path object."""
-        path = Path()
-        for _ in (*self.ancestors, self):
-            path /= str(_)
+        return Path(''.join(_.name for _ in (*self.ancestors, self)))
 
-        return path
+    @property
+    def rpath(self):
+        return self.as_path.relative_to(self.root.as_path)

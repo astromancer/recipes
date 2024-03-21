@@ -11,8 +11,12 @@ from .repr_helpers import ReprHelper
 
 # ---------------------------------------------------------------------------- #
 
-def _sanitize_locals(kws, *ignore):
+def sanitize_locals(kws, *ignore):
     return dicts.remove(kws, {'self', 'kws', '__class__', *ignore})
+
+
+# alias
+sanitize = sanitize_locals
 
 
 def get_slots(cls, ignore='_*', ancestors=all):
@@ -76,7 +80,7 @@ class SlotHelper(SlotRepr):
 
     def __init__(self, *args, **kws):
         # generic init that sets attributes for input keywords
-        kws = _sanitize_locals(kws)
+        kws = sanitize(kws)
 
         used = set()
         for key, val in zip(self.__slots__, args):

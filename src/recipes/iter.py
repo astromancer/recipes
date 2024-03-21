@@ -2,7 +2,6 @@
 Common patterns involving iterables.
 """
 
-
 # std
 import numbers
 import textwrap as txw
@@ -19,7 +18,8 @@ from .functionals import negate, on_zeroth, echo0 as echo
 
 
 # ---------------------------------------------------------------------------- #
-#
+# Module constants
+
 NULL = object()
 #
 INDEX_MAX = int(1e8)
@@ -43,7 +43,6 @@ def as_iter(obj, exclude=(str,), return_as=list):
 
 # alias
 as_sequence = as_iter
-# as_sequence_unless_str
 
 
 # ---------------------------------------------------------------------------- #
@@ -109,14 +108,14 @@ first_false_idx = first_false_index
 
 
 # ---------------------------------------------------------------------------- #
-def nth_zip(n, *its):
+def nth_zip(n, *iters):
     """Return the nth component of the zipped sequence"""
-    return tuple(mit.nth(it, n) for it in its)
+    return tuple(mit.nth(it, n) for it in iters)
 
 
-def zip_slice(start, stop, step, *its):
+def zip_slice(start, stop, step, *iters):
     """Returns a slice of the zipped sequence of iterators"""
-    return zip(*itt.islice(zip(*its), start, stop, step))
+    return zip(*itt.islice(zip(*iters), start, stop, step))
 
 
 def zip_append(items, tails):
@@ -190,7 +189,7 @@ def multi_index(obj, rhs, test=bool, start=0):
 @multi_index.register(str)
 def _(string, rhs, test=op.eq, start=0):
     # ensure we are comparing to str
-    assert isinstance(rhs, str)
+    assert isinstance(rhs, str)   # may be tuple for op.contained etc
     assert callable(test)
 
     # if comparing to rhs substring with non-unit length
@@ -200,6 +199,16 @@ def _(string, rhs, test=op.eq, start=0):
 
     yield from multi_index(iter(string), rhs, test, start)
     return
+
+# def _multi_index(string, sub):
+#     start = 0
+#     while start < len(string):
+#         new = string.find(sub, start)
+#         if new == -1:
+#             break
+
+#         yield sub, new
+#         start = new + len(sub)
 
 
 @multi_index.register(dict)
@@ -232,57 +241,49 @@ def _(obj, rhs, test=op.eq, start=0):
 # ---------------------------------------------------------------------------- #
 # Filtering / element selection
 
-def select(items, *args, start=0):
+def select(items, *args, **kws):
     """
+    Select truthy items from sequences. Works similar to builtin `filter`
+    function, but with a more complete api.
 
     Three distinct call signatures are supported:
-    >>> select(items)               # yield `items` that are truthy
-    >>> select(items, test)         # yield items where `test(item)` is truthy
-    >>> select(items, test, value)  # yield conditionally on `test(item, value)`
+
+    Yield all truthy items:
+    >>> select(items)               # same as `filter(None, items)`
+
+    Yield items where `test(item)` is 
+    >>> select(items, test)         # same as `filter(test, items)`
+
+    Yield items conditionally on truth value of `test(item, value)`
+    >>> select(items, test, value)  # same as `filter(lambda _: test(_, value), items)`
+
+    In general
+    >>> select(items, test, *args, **kws)
+    # same as `(_ for _ in items if test(_, *args, **kws))`
 
 
-    Parameters
-    ----------
-    items : _type_
-        _description_
-    start : int, optional
-        _description_, by default 0
-
-    Returns
-    -------
-    _type_
-        _description_
-
-    Raises
-    ------
-    ValueError
-        _description_
     """
+    if (args or kws):
+        test, *args = args
+        test = bool if test is None else test
+        assert callable(test), f'{test} is not callable.'
+        return (_ for _ in items if test(_, *args, **kws))
 
-    assert isinstance(start, numbers.Integral)
-
-    nargs = len(args)
-    if nargs == 0:
-        return filter(None, items)
-
-    if nargs == 1:
-        test, = args
-        assert callable(test)
-        return filter(negate(test), items)
-
-    if nargs == 2:
-        test, rhs = args
-        return (_ for _ in items if test(_, rhs))
-
+    return filter(None, items)
     # print valid call signatures from docstring
-    raise ValueError(txw.dedent(select.__doc__.split('\n\n', 1)[0]))
+    # raise ValueError(txw.dedent(select.__doc__.split('\n\n', 1)[0]))
 
+
+filtered = select
 
 # ---------------------------------------------------------------------------- #
 # Segmenting iterators / collections
 
+
 def split(items, indices, offset=0):
-    """Split a list into sub-lists at the given index positions."""
+    """
+    Split an iterable into sub-lists at the given index positions.
+    """
 
     if isinstance(indices, numbers.Integral):
         indices = [indices]
@@ -475,10 +476,6 @@ def where_duplicate(items):
         yield indices
 
 
-# alias
-where_duplicates = where_duplicate
-
-
 def unduplicate(items, test):
     """Filter duplicate items based on condition `test`."""
 
@@ -491,10 +488,6 @@ def unduplicate(items, test):
         results.add(result)
 
 
-# aliases
-filter_duplicates = deduplicate = unduplicate
-
-
 def non_unique(itr):
     prev = next(itr, NULL)
     if prev is NULL:
@@ -504,3 +497,18 @@ def non_unique(itr):
         if item == prev:
             yield prev
         prev = item
+
+
+# aliases
+where_duplicates = where_duplicate
+filter_duplicates = filter_duplicate = deduplicate = unduplicate
+
+
+# ---------------------------------------------------------------------------- #
+
+def flip_lr(data):
+    return map(reversed, data)
+
+
+def flip_ud(data):
+    return flip_lr(zip(*data))
