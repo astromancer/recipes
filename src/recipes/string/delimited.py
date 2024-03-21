@@ -43,6 +43,27 @@ CARET = '^'
 #     return dict(zip((slots := obj.__slots__), op.AttrGetter(*slots)(obj)))
 
 
+def is_adjacent(a, b):
+    """Test adjacency of matched delimiters."""
+
+    indices = cofilter(not_none, a.indices, b.indices, (0, 1))
+    if a.is_open():
+        for i, j, k in zip(*indices):
+            return (i + 1 == j), i, k
+
+    return False, None, None
+
+    # escaped = True  # FIXME does this ever get run if level == 0 ?????
+    # for i, j, k in zip(*indices):
+    #     if k:
+    #         # swap order of indices since outer closing preceeds inner
+    #         # closing for closed double pairs
+    #         i, j = j, i
+
+    #     escaped &= (i + 1 == j)
+    # return escaped, i, k
+
+
 def _resolve_max_split(max_split):
     if max_split in (-1, math.inf, None):
         return INFINT
@@ -55,6 +76,7 @@ def _resolve_max_split(max_split):
 def sort_match(match):
     """Helper for sorting pairs of indices, either one of which may be None"""
     return match.start if match.end is None else match.end
+
     # if match.is_open():
     #     #
     #     o = (-1, 1)[match.indices.index(None)]
