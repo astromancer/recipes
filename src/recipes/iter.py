@@ -440,20 +440,18 @@ def _parse_predicate(func_or_iter, its):
 # ---------------------------------------------------------------------------- #
 # Duplicate detection / filtering
 
-def unique(items, consecutive=True):
+def unique(items, consecutive=False):
     """
-    Return dict of unique (item, indices) pairs for sequence.
+    Return tuples of unique (item, indices) pairs for sequence `items`.
     """
 
-    prev = -1
     buffer = defaultdict(list)
     for i, item in enumerate(items):
-        if i != prev + 1:
+        if (previous := buffer[item]) and (i != previous[-1] + 1) and consecutive:
             yield from buffer.items()
             buffer = defaultdict(list)
 
         buffer[item].append(i)
-        prev = i
     #
     yield from buffer.items()
 
