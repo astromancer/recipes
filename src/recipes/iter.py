@@ -373,32 +373,23 @@ def iter_repeat_last(it):
 # ---------------------------------------------------------------------------- #
 # Simultaneous (co) operations on multiple iterables
 
-def cogroup(func=echo, *its, unzip=True, **kws):
-    # avoid circular import
-    from recipes.containers import cosort
 
-    its = cosort(*its, key=func)
-    zipper = itt.groupby(zip(*its), on_zeroth(func))
-    return ((key, zip(*groups)) for key, groups in zipper) if unzip else zipper
+def _parse_predicate(func_or_iter, iters):
 
+    if isinstance(func_or_iter, abc.Iterable):
+        # handle eg: cofilter([...])
+        return bool, (func_or_iter, *iters)
 
-def cotee(*its, n=2):
-    tn = itt.tee(zip(*its), n)
-    return itt.starmap(zip, tn)
+    if callable(func_or_iter) or (func_or_iter is None):
+        return (func_or_iter or bool), iters
 
-
-def copartition(pred, *its):
-    """
-    Partition an arbitrary number of iterables based on the truth value of a
-    predicate evaluated on the first iterator.
-
-    partition(is_odd, range(10), range) --> (1 3 5 7 9), (0 2 4 6 8)
-    """
-    t1, t2 = cotee(*its)
-    return cofilter(pred, *t2), cofilter(negate(pred), *t1)
+    raise TypeError(
+        f'Predicate function should be a callable object (or `None`), not '
+        f'an instance of {type(func_or_iter)}.'
+    )
 
 
-def cofilter(func_or_iter, *its):
+def cofilter(func_or_iter, *iters):
     """
     Filter an arbitrary number of iterables based on the truth value of the
     first iterable. An optional predicate function that determines the truth
@@ -408,33 +399,48 @@ def cofilter(func_or_iter, *its):
     cofilter(None, ...) is equivalent to
     cofilter(bool, ...)
     """
-    func, its = _parse_predicate(func_or_iter, its)
+    func, iters = _parse_predicate(func_or_iter, iters)
 
-    if not its:
-        return its
+    if not iters:
+        return iters
 
-    # zip(*filter(lambda x: func(x[0]), zip(*its)))
+    # zip(*filter(lambda x: func(x[0]), zip(*iters)))
     # clone the iterable in position 0, since we consume it below for evaluation
-    first, clone = itt.tee(its[0])
+    first, clone = itt.tee(iters[0])
     # for first iterable, find the indices where func(element) evaluates to True
     tf = list(map(func, clone))
     # restore the original iterable sequence, select truthy items
-    return tuple(itt.compress(it, tf) for it in (first, *its[1:]))
+    return tuple(itt.compress(it, tf) for it in (first, *iters[1:]))
 
 
-def _parse_predicate(func_or_iter, its):
+def copartition(pred, *iters):
+    """
+    Partition an arbitrary number of iterables based on the truth value of a
+    predicate evaluated on the first iterator.
 
-    if isinstance(func_or_iter, abc.Iterable):
-        # handle eg: cofilter([...])
-        return bool, (func_or_iter, *its)
+    partition(is_odd, range(10), range) --> (1 3 5 7 9), (0 2 4 6 8)
+    """
+    t1, t2 = cotee(*iters)
+    return cofilter(pred, *t2), cofilter(negate(pred), *t1)
 
-    if callable(func_or_iter) or (func_or_iter is None):
-        return (func_or_iter or bool), its
 
-    raise TypeError(
-        f'Predicate function should be a callable object (or `None`), not '
-        f'an instance of {type(func_or_iter)}.'
-    )
+def cogroup(func=echo, *iters, unzip=True, **kws):
+    # avoid circular import
+    from recipes.containers import cosort
+
+    iters = cosort(*iters, key=func)
+    zipper = itt.groupby(zip(*iters), on_zeroth(func))
+    return ((key, zip(*groups)) for key, groups in zipper) if unzip else zipper
+
+
+def cosplit(*iters, indices, offset=0):
+    for items in split(zip(*iters), indices, offset):
+        yield tuple(zip(*items))
+
+
+def cotee(*iters, n=2):
+    tn = itt.tee(zip(*iters), n)
+    return itt.starmap(zip, tn)
 
 
 # ---------------------------------------------------------------------------- #
