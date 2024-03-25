@@ -13,7 +13,8 @@ workhorses.
 # std
 import functools as ftl
 import operator as _op
-from operator import eq, getitem, lt, gt, ge, le, mul, add, ne, sub
+from operator import (getitem, ge, gt, le, lt, ne, add, sub, eq, mul, floordiv, 
+                      truediv)
 from collections import abc
 
 # relative
@@ -58,6 +59,29 @@ def any(itr, test=bool):
 def all(itr, test=bool):
     return builtins.all(map(test, itr))
 
+
+# ---------------------------------------------------------------------------- #
+# Reversed binary operators
+
+def reverse_operands(operator):
+
+    def wrapper(a, b):
+        return operator(b, a)
+
+    # docstring
+    wrapper.__doc__ = operator.__doc__.replace(' a ', ' b ').replace(' b.', ' a.')
+
+    return wrapper
+
+
+def _make_reverse_operators(*ops):
+    for op in ops:
+        yield reverse_operands(op)
+
+
+#
+radd, rsub, rmul, rtruediv, rfloordiv = _make_reverse_operators(
+    add, sub, mul, truediv, floordiv)
 
 
 
