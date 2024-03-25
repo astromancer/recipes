@@ -2,7 +2,7 @@
 Object representaion helpers.
 """
 
-from ..pprint import pformat
+from ..pprint.dispatch import pformat
 
 
 # ---------------------------------------------------------------------------- #

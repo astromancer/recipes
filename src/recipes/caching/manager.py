@@ -9,7 +9,7 @@ from loguru import logger
 
 # relative
 from ..logging import LoggingMixin
-from ..containers.dicts import pformat
+from ..pprint.mapping import pformat
 from ..io import deserialize, guess_format, serialize
 from . import DEFAULT_CAPACITY, Cache
 
