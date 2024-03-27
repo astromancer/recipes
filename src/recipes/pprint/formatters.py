@@ -359,12 +359,10 @@ class Decimal(NumberBase):
     def __str__(self):
         attrs = list(self.__slots__)
         attrs.pop(0 if self.precision is None else 1)
-        return self._repr(attrs,
-                          lhs=str, equal='=', rhs=repr,
-                          brackets='()', align=False)
+        return self.__repr__(attrs=attrs,
+                             lhs=str, equal='=', rhs=repr,
+                             brackets='()', align=False)
 
-    def __repr__(self):
-        return self._repr(type(self).__slots__)
 
     def format(self, x, /, precision=None):
         """
