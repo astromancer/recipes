@@ -463,16 +463,16 @@ def unique(items, consecutive=False):
     yield from buffer.items()
 
 
-def duplicates(items):
+def duplicates(items, consecutive=False):
     """Yield tuples of item, indices pairs for duplicate values."""
-    for key, indices in unique(items):
+    for key, indices in unique(items, consecutive):
         if (len(indices) > 1):
             yield key, indices
 
 
-def where_duplicate(items):
+def where_duplicate(items, consecutive=False):
     """Indices of duplicate entries"""
-    for _, indices in duplicates(items):
+    for _, indices in duplicates(items, consecutive):
         yield indices
 
 
