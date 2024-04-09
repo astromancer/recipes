@@ -84,6 +84,25 @@ radd, rsub, rmul, rtruediv, rfloordiv = _make_reverse_operators(
     add, sub, mul, truediv, floordiv)
 
 
+# ---------------------------------------------------------------------------- #
+# API helper
+
+class Get:
+
+    def items(self, *indices):
+        return ItemGetter(*indices)
+
+    __call__ = item = items
+
+    def attrs(self, *attrs):
+        return AttrGetter(*attrs)
+
+    attr = attrs
+
+
+#
+get = Get()
+
 
 class ItemGetter:
     """
