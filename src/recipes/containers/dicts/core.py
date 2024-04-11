@@ -101,7 +101,8 @@ class _AccessManager:
     """
 
     _readonly = False
-    _message = '{self.__class__.__name__}: write access disabled.'
+    _message = ('{self.__class__.__name__} cannot set key {key!r}. Write access'
+                ' is disabled.')
 
     @property
     def readonly(self):
@@ -119,7 +120,7 @@ class _AccessManager:
 
     def __missing__(self, key):
         if self.readonly:
-            raise KeyError(self._message.format(self=self))
+            raise KeyError(self._message.format(self=self, key=key))
 
         super().__missing__(key)
 
