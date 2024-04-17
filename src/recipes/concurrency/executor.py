@@ -63,12 +63,15 @@ class Executor(LoggingMixin, SlotHelper):
     def __init__(self, jobname=None, backend='multiprocessing', xfail=1,
                  **config):
 
-        self.jobname = type(self).__name__ if jobname is None else str(jobname)
-        self.backend = str(backend)
-        self.results = self.mask = None
-        self.config = config
-        self.xfail = xfail
-        self.nfail = sync_manager.Value('i', 0)
+        super().__init__(
+            results=None,
+            mask=None,
+            config=config,
+            backend=str(backend),
+            xfail=xfail,
+            nfail=sync_manager.Value('i', 0),
+            jobname=(type(self).__name__ if jobname is None else str(jobname))
+        )
 
     def init_memory(self, shape, masked=False, loc=None, fill=np.nan, overwrite=False):
         """
@@ -92,16 +95,16 @@ class Executor(LoggingMixin, SlotHelper):
 
     def __call__(self, data, indices=None, **kws):
         """
-        Track the shift of the image frame from initial coordinates
+        Run compute.
 
         Parameters
         ----------
-        image
-        mask
+        data
+        indices
 
         Returns
         -------
-
+        results
         """
 
         if self.results is None:
@@ -196,7 +199,7 @@ class Executor(LoggingMixin, SlotHelper):
             progress_bar = (len(indices) > 1)
 
         # resolve data / indices
-        self.logger.debug('Creating workload for {} items.', len(data))
+        self.logger.debug('Creating workload for {} items.', len(indices))
 
         if isinstance(data, (np.ndarray, list)):
             workload = ((data[i], i) for i in indices)
@@ -320,3 +323,4 @@ class Executor(LoggingMixin, SlotHelper):
 
     def finalize(self, *args, **kws):
         logger.remove()
+        return self.results
