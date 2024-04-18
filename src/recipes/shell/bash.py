@@ -41,10 +41,6 @@ def unclosed(string, open_, close):
 
 def brace_expand_iter(string, level=0):
 
-    # TODO:
-    # ch{{1,2},{4..6}},main{1,2},{1,2}test
-    # detect bad patterns like the one above and refuse
-
     # handle special bash expansion syntax here  xx{12..15}.fits
     match = braces.match(string)
     if match is None:
@@ -73,9 +69,9 @@ def brace_expand(pattern):
 
     return list(brace_expand_iter(pattern))
 
+
 # ---------------------------------------------------------------------------- #
 # Brace Contraction
-
 
 def is_unary(node):
     """check whether a node has only one child"""
@@ -254,11 +250,10 @@ def contract(items):
         pass
     else:
         # we have a number sequence! Split sequence into contiguous parts.
-        # split where pointwise difference greater than 1. second argument in
-        # call to `split_where` is ignored
-        enum = iter(nrs)
+        # split where pointwise difference greater than 1.
         middle = []
-        for nrs in split_where(nrs, '', (lambda x, _: x - next(enum) > 1), 1):
+        enum = iter(nrs)
+        for nrs in split_where(nrs, (lambda x, _: x - next(enum) > 1), start=1):
             if len(nrs) > 2:
                 middle.append(contract_range(nrs))
             else:
@@ -328,6 +323,8 @@ def brace_contract(items, depth=-1):
         return contract(items)
 
     #
+    from IPython import embed
+    embed(header="Embedded interpreter at 'src/recipes/shell/bash.py':325")
     tree = get_tree(items, depth)
     if tree.height:
         return tree.to_list()

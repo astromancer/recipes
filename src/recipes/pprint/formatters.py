@@ -45,7 +45,7 @@ LATEX_MAP = {'inf': R'\infty',
 LATEX_WRAP = {
     None:       ('', ''),
     '':         ('', ''),
-    '\(':       ('\(', '\)'),
+    R'\(':      (R'\(', R'\)'),
     '$':        '$$',
     '$$':       ('$$', '$$')
 }
@@ -362,7 +362,6 @@ class Decimal(NumberBase):
         return self.__repr__(attrs=attrs,
                              lhs=str, equal='=', rhs=repr,
                              brackets='()', align=False)
-
 
     def format(self, x, /, precision=None):
         """

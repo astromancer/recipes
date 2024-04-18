@@ -121,8 +121,8 @@ def unflag(pattern):
 
 def uncomment(pattern):
     """
-    Go from verbose format multiline regex to single line terse representation
-    with comments removed.
+    Go from verbose format multiline regex to single line representation
+    with all comments removed.
     """
     # https://stackoverflow.com/a/35641837/1098683
 

@@ -2,7 +2,7 @@
 import pytest
 
 # local
-from recipes.regex import RGX_VERBOSE_FLAG, terse
+from recipes.string.regex import RGX_VERBOSE_FLAG, uncomment
 
 
 @pytest.mark.parametrize(
@@ -24,5 +24,5 @@ def test_find_verbose_flag(pattern, cleaned):
       z                # gotta have z...
       """]
 )
-def test_terse(pattern):
-    print(terse(pattern))
+def test_uncomment(pattern):
+    print(uncomment(pattern))

@@ -108,7 +108,7 @@ def test_caller_defaults(fun, spec):
     for names, defaults in itt.product([True, None], [True, False]):
         results[(names, defaults)] = s = \
             pp.caller(fun.fun, args, kws,
-                      show_param_names=names,
+                      param_names=names,
                       show_defaults=defaults)
         #
         msg += f'{names = !s: <5}; {defaults = !s: <5}: {s}\n'.replace('{', '{{').replace('}', '}}')
@@ -117,7 +117,7 @@ def test_caller_defaults(fun, spec):
     logger.debug(msg, fun.fun, fun.code, args, kws)
 
     # xd = pp.caller(fun.fun, args, kws, show_defaults=False)
-    # xn = pp.caller(fun.fun, args, kws, show_param_names=None)
+    # xn = pp.caller(fun.fun, args, kws, param_names=None)
 
     # TODO: annotatons on / off
     #       names on /off

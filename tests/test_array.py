@@ -72,7 +72,7 @@ def test_fold():
     n = 10
     a = np.arange(n)
 
-    p, nseg = fold.padder(a, 2, 1)
+    p, nseg = fold.padded(a, 2, 1)
     assert len(p) == n + 1
     assert p[-1] is np.ma.masked
 
