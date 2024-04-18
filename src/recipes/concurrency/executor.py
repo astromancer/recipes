@@ -260,7 +260,7 @@ class Executor(LoggingMixin, SlotHelper):
 
         # setup compute context
         worker, context, locks = self.setup(njobs, progress_bar, **self.config)
-        self.logger.debug('Main compute starting with indices = {}', indices)
+        self.logger.debug('Compute starting with indices: {}', indices)
 
         # Adapt logging sinks for tqdm interplay
         logger.remove()

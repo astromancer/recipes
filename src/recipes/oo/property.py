@@ -296,7 +296,7 @@ class CachedProperty(property):
     def _delete_dependents(self, obj):
         # delete dependents
         for child in self._dependents:
-            logger.debug('delete child {}.', child)
+            logger.debug('delete child {}: {!r}.', type(child).__name__, child._key)
             child.__delete__(obj)
 
 
