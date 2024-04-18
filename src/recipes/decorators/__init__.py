@@ -1,6 +1,6 @@
 
 """
-A collection of some awesome functional decorators used accross recipes.
+A collection of some awesome functional decorators used accross many recipes.
 """
 
 
@@ -15,7 +15,7 @@ A collection of some awesome functional decorators used accross recipes.
 
 # TODO: REALLY NEED A DECORATOR that can flag all methods in a class
 
-from ..flow import *
-from .oo import *
-from .base import *
-from .core import *
+from .oo import Singleton, sharedmethod
+from .base import Decorator, Factory, Wrapper
+from .core import (delayed, ignore_params, ignore_returns, update_defaults,
+                   upon_first_call)

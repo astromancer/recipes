@@ -3,17 +3,19 @@
 import math
 import numbers
 import itertools as itt
+import functools as ftl
 from typing import MutableMapping
 from collections import defaultdict
 
 # relative
 from ... import op
+from ...logging import LoggingMixin
 from ...functionals import always, negate
 from ...pprint.mapping import PrettyPrint
 from ...iter import cofilter, first_true_index
 from ...functionals.partial import partial, placeholder as o
-from ..lists import cosort
-from ..utils import is_scalar
+from .. import cosort
+from ..ensure import is_scalar
 from .core import AutoVivify, vdict
 
 
@@ -54,26 +56,33 @@ def _get_select_func(keys):
     if callable(keys):
         return keys
 
-    if is_scalar(keys):
+    if isinstance(keys, str):
         return op.contained(keys).within
 
+    if is_scalar(keys):
+        return ftl.partial(op.eq, keys)
+
     def test(inner):
+        # FIXME: this logical operation should be made explicit
         return any(key in inner for key in keys)
 
     return test
 
 
-def _excise_key(keys, test):
-    drop_index = first_true_index(keys, test=test)
-    keys = list(keys)
-    drop_key = keys[drop_index]
-    keys.remove(keys[drop_index])
-    return tuple(keys), (drop_key, drop_index)
+# ---------------------------------------------------------------------------- #
+# Editing paths
+
+def _excise_key(path, test):
+    drop_index = first_true_index(path, test=test)
+    path = list(path)
+    drop_key = path[drop_index]
+    path.remove(path[drop_index])
+    return tuple(path), (drop_key, drop_index)
 
 
-def _crosscheck_keys(keys):
+def _crosscheck_path(path):
     bad = set()
-    for a, b in itt.combinations(keys, 2):
+    for a, b in itt.combinations(path, 2):
         if a[:len(b)] == b:
             bad.add(b)
         if b[:len(a)] == a:
@@ -82,19 +91,30 @@ def _crosscheck_keys(keys):
     return bad
 
 
-def _filter_keys(keys, test):
-    new_keys, dropped = zip(*(_excise_key(keys, test) for keys in keys))
-    bad = _crosscheck_keys(new_keys)
-    new_keys = list(new_keys)
+def _filter_path(path, test):
+    new_path, dropped = zip(*(_excise_key(path, test) for path in path))
+    bad = _crosscheck_path(new_path)
+    new_path = list(new_path)
     for b in bad:
-        i = new_keys.index(b)
+        i = new_path.index(b)
         replace, index = dropped[i]
-        new = list(new_keys[i])
+        new = list(new_path[i])
         new.insert(index, replace)
-        new_keys[i] = tuple(new)
+        new_path[i] = tuple(new)
 
-    return new_keys
+    return new_path
 
+
+def balance_depth(key, depth, insert='', position=-1):
+    # balance depth of the branches for table
+    key = list(key)
+    while len(key) < depth:
+        key.insert(position, insert)
+
+    return tuple(key)
+
+
+# ---------------------------------------------------------------------------- #
 
 def _get_val(item):
     return item._val if isinstance(item, LeafNode) else item
@@ -165,7 +185,8 @@ class LeafNode:
         return str(self._val)
 
 
-class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
+class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
+               LoggingMixin):
     """
     A defaultdict that generates instances of itself. Used to create arbitrary 
     data trees without prior knowledge of final structure. 
@@ -245,32 +266,34 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
             node = node.parent
         return node
 
-    def leaves(self, levels=all):
+    def depth(self):
+        return max(len(key) for key, _ in self._flatten(all))
+
+    def flatten(self, levels=all, keep_tuples=True):
 
         if isinstance(levels, numbers.Integral):
             levels = [levels]
 
-        return dict(self._leaves(levels, 0))
+        flat = dict(self._flatten(levels, 0))
 
-    def _leaves(self, levels, _level=0, _keys=()):
+        # if levels != 0:
+        #     return flat
+
+        if keep_tuples:
+            return flat
+
+        # flatten 1-tuples
+        return dict(zip(next(zip(*flat.keys())), flat.values()))
+
+    def _flatten(self, levels, _level=0, _keys=()):
         for key, child in self.items():
             if isinstance(child, type(self)):
-                yield from child._leaves(levels, _level + 1, (*_keys, key))
+                yield from child._flatten(levels, _level + 1, (*_keys, key))
             elif (levels is all) or (_level in levels):
                 yield (*_keys, key), child
 
-    def depth(self):
-        return max(len(key) for key, _ in self._leaves(all))
-
-    def flatten(self, levels=all):
-
-        leaves = self.leaves(levels)
-
-        if levels != 0:
-            return leaves
-
-        # flatten 1-tuples
-        return dict(zip(next(zip(*leaves.keys())), leaves.values()))
+    def drop(self, keys):
+        return self.filter(keys)
 
     def filter(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()
@@ -281,7 +304,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         return new
 
     # alias
-    filtered = filter
+    filtered = filter  # drop
 
     def select(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()
@@ -294,20 +317,23 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
         return new
 
     def _filter(self, key_test, val_test, levels):
-        keys, values = cofilter(key_test, *zip(*self.leaves(levels).items()))
+        keys, values = cofilter(key_test, *zip(*self.flatten(levels).items()))
         values, keys = cofilter(val_test, values, keys)
         yield from zip(keys, values)
 
-    def find(self, key, collapse=False, remapped_keys=None):
+    def find(self, key, collapse=False, remapped_keys=None, default=NULL):
         # sourcery skip: assign-if-exp, reintroduce-else
         test = op.has(key).within
         found = self.select(test)
+
+        if not found and default is not NULL:
+            found = type(self)({key: default})
 
         if not collapse:
             return found
 
         found = found.flatten()
-        new_keys = _filter_keys(found.keys(), test)
+        new_keys = _filter_path(found.keys(), test)
 
         if remapped_keys is not None:
             remapped_keys.update(zip(found.keys(), new_keys))
@@ -317,7 +343,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
     def reshape(self, key_transform, *args, **kws):
 
         new = type(self)()
-        for keys, val in self.leaves().items():
+        for keys, val in self.flatten().items():
             new_key = key_transform(keys, *args, **kws)
             if new_key in new:
                 self.logger.warning('Overwriting existing value at key: {!r}.',
@@ -365,7 +391,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
 
         # keys = []
         out = type(self)()
-        for key, item in self.leaves().items():
+        for key, item in self.flatten().items():
             # keys.append()
             (key := list(key)).pop(level)
             out.setdefault((key := tuple(key)), [])
@@ -377,6 +403,15 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict):
     # def merge(self, other):
     #     self.update(other)
     # class _NodeMixin:
+
+    def balance(self, depth=None, insert=''):
+
+        new = type(self)()
+        depth = depth or self.depth()
+        for path, val in self.flatten().items():
+            new[balance_depth(path, depth, insert)] = val
+
+        return new
 
 
 def _split_trans(keys, accept):

@@ -10,13 +10,12 @@ from collections import abc
 
 # third-party
 import anytree
-from anytree.render import _is_last
 
 # relative
-from . import op
-from .string import strings
-from .functionals import always
-from .oo.temp import temporarily
+from .. import op
+from ..string import strings
+from ..functionals import always
+from .render import DynamicIndentRender
 
 
 # ---------------------------------------------------------------------------- #
@@ -54,62 +53,6 @@ def _recurse(func, mapping, arg):
             mapping[key] = func(item, arg)
 
     return mapping
-
-# ---------------------------------------------------------------------------- #
-
-
-class DynamicIndentRender(anytree.RenderTree):
-
-    def __init__(self, node, style=anytree.ContRoundStyle(), childiter=list,
-                 maxlevel=None, attr='name'):
-
-        super().__init__(node, style, childiter, maxlevel)
-
-        self.attr = str(attr)
-        self.widths = [0] * (node.height + 1)
-        # self.widths[0] = len(getattr(node, self.attr))
-        # Adapt the style
-        # Use first character of vertical/branch/end strings eg "│", "├", "└"
-        style = self.style
-        self.style = anytree.AbstractStyle(
-            *next(zip(style.vertical, style.cont, style.end)))
-
-    def __iter__(self):
-        return self.__next(self.node, ())
-
-    def __next(self, node, continues, level=0):
-        name = str(getattr(node, self.attr))
-        self.widths[level:] = [len(name), *([0] * (node.height + 1))]
-        # print(f'{node.name = :<15} {level = :<10} {self.widths = !s:<20} {continues = !s:<20}')
-
-        yield self.__item(node, continues, self.style, level)
-
-        level += 1
-        children = node.children
-        if children and (self.maxlevel is None or level < self.maxlevel):
-            for child, is_last in _is_last(self.childiter(children)):
-                yield from self.__next(child, continues + (not is_last, ), level=level)
-
-    def __item(self, node, continues, style, level):
-
-        if not continues:
-            return anytree.render.Row(u'', u'', node)
-
-        selection = (style.empty, style.vertical)
-        *items, last = [f'{selection[c]: <{w}}'
-                        for w, c in zip(self.widths[1:], continues)]
-
-        branches = f'{(style.end, style.cont)[continues[-1]]: <{self.widths[level + 1]}}'
-        indent = ''.join(items)
-        # print(f'{items = }\n{last = }\n{branches = }')
-
-        return anytree.render.Row(indent + branches,
-                                  indent + last,
-                                  node)
-
-    def by_attr(self, attrname='name'):
-        with temporarily(self, attr=attrname):
-            return super().by_attr(attrname)
 
 # ---------------------------------------------------------------------------- #
 
@@ -174,7 +117,7 @@ class TreeBuilder:
     @classmethod
     def _build(cls, method_name, *args, root='', collapse=False, **kws):
         """
-        Build a tree.  First create the root node with name `root`. Then
+        Build a tree. First create the root node with name `root`. Then
         recursively build the tree by calling constructor method with to create
         each branch.
 
@@ -333,11 +276,8 @@ class TreeBuilder:
     def sibling_leaves(self):
         return tuple(child for child in self.siblings if child.is_leaf)
 
-    @property
-    def sibling_leaves(self):
-        return tuple(child for child in self.siblings if child.is_leaf)
-
     # ------------------------------------------------------------------------ #
+    # NOTE: this method belongs to TextNode?
     def collapse(self, max_depth=math.inf, top_down=None, bottom_up=True):
         """
         Collapse the nodes that are deeper than `max_depth`. Each child node
@@ -591,7 +531,7 @@ class Node(PrettyNode, TreeBuilder):
 
         return {getattr(child, attr): child.as_dict(attr, leaf_attr)
                 for child in self.children}
-    
+
     # def __contains__(self, key):
     #     return next((c for c in self.children if c.name == key), None) is not None
 
@@ -602,7 +542,7 @@ class Node(PrettyNode, TreeBuilder):
 
 # ---------------------------------------------------------------------------- #
 def _sort_key(node):
-    return (node.as_path().is_dir(), node.name)
+    return (node.as_path.is_dir(), node.name)
 
 
 def _pprint_sort(children):
@@ -636,7 +576,7 @@ class FileSystemNode(Node):
 
         return cls._build('_from_list',
                           folder.iterdir(), None, _ignore_names(ignore),
-                          root=str(folder), collapse=collapse)
+                          root=f'{folder!s}/', collapse=collapse)
 
     @staticmethod
     def _get_name(path):
@@ -648,10 +588,11 @@ class FileSystemNode(Node):
         if path.is_dir():
             yield from path.iterdir()
 
+    @property # NOTE: anytree.Node already uses `path`
     def as_path(self):
         """The node as a pathlib.Path object."""
-        path = Path()
-        for _ in (*self.ancestors, self):
-            path /= str(_)
+        return Path(''.join(_.name for _ in (*self.ancestors, self)))
 
-        return path
+    @property
+    def rpath(self):
+        return self.as_path.relative_to(self.root.as_path)

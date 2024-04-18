@@ -244,7 +244,7 @@ def _create_user_config(pkg, path, source=None, overwrite=None,
             version_stamp = f'v{version_stamp}'
 
         logger.info('Adding version stamp: {!s}.', version_stamp)
-        text = text.format(version=version_stamp)
+        text = text.replace('{version}', version_stamp, 1)
 
     elif '{version}' in text:
         warnings.warn(f'Config for {pkg}: {source!s} contains "{{version}}" '

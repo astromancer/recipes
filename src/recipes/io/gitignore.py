@@ -3,6 +3,7 @@ import math
 import glob
 import fnmatch
 from pathlib import Path
+from collections import abc
 
 
 # ---------------------------------------------------------------------------- #
@@ -49,13 +50,23 @@ class GlobPatternList:
     fromfile = from_file
 
     def __init__(self, root, patterns):
-        items = names, patterns = [], []
-        for line in filter(None, patterns):
-            items[glob.has_magic(line)].append(line)
-
         self.root = Path(root)
-        self.names = (*IGNORE_IMPLICIT, *names)
-        self.patterns = tuple(patterns)
+        self.names = list(IGNORE_IMPLICIT)
+        self.patterns = []
+        self.add(patterns)
+
+    def add(self, items):
+        if isinstance(items, str):
+            self._add(items)
+        elif isinstance(items, abc.Iterable):
+            list(map(self.add, items))
+        else:
+            raise TypeError(f'Invalid object type {type(items).__name__}: {items}.')
+        
+    def _add(self, pattern):
+        items = (self.names, self.patterns)
+        if pattern:
+            items[glob.has_magic(pattern)].append(pattern.rstrip('/'))
 
     def match(self, filename):
         path = Path(filename).relative_to(self.root)
@@ -64,7 +75,7 @@ class GlobPatternList:
             if fnmatch.fnmatchcase(filename, pattern):
                 return True
 
-        return filename.endswith(self.names)
+        return filename.endswith(tuple(self.names))
 
     def iterdir(self, folder=None, depth=any, _level=0):
         depth = math.inf if depth is any else depth

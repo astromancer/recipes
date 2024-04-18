@@ -13,7 +13,8 @@ workhorses.
 # std
 import functools as ftl
 import operator as _op
-from operator import *
+from operator import (getitem, ge, gt, le, lt, ne, add, sub, eq, mul, floordiv,
+                      truediv)
 from collections import abc
 
 # relative
@@ -23,7 +24,7 @@ from .functionals import echo0
 
 # ---------------------------------------------------------------------------- #
 class NULL:
-    "Null singleton"
+    """Null singleton"""
 
 
 def any(itr, test=bool):
@@ -59,12 +60,48 @@ def all(itr, test=bool):
     return builtins.all(map(test, itr))
 
 
-def prepend(obj, prefix):
-    return prefix + obj
+# ---------------------------------------------------------------------------- #
+# Reversed binary operators
+
+def reverse_operands(operator):
+
+    def wrapper(a, b):
+        return operator(b, a)
+
+    # docstring
+    wrapper.__doc__ = operator.__doc__.replace(' a ', ' b ').replace(' b.', ' a.')
+
+    return wrapper
 
 
-def append(obj, suffix):
-    return obj + suffix
+def _make_reverse_operators(*ops):
+    for op in ops:
+        yield reverse_operands(op)
+
+
+#
+radd, rsub, rmul, rtruediv, rfloordiv = _make_reverse_operators(
+    add, sub, mul, truediv, floordiv)
+
+
+# ---------------------------------------------------------------------------- #
+# API helper
+
+class Get:
+
+    def items(self, *indices):
+        return ItemGetter(*indices)
+
+    __call__ = item = items
+
+    def attrs(self, *attrs):
+        return AttrGetter(*attrs)
+
+    attr = attrs
+
+
+#
+get = Get()
 
 
 class ItemGetter:
@@ -100,7 +137,7 @@ class ItemGetter:
         """Retrieve the default value of the `key` attribute"""
         if self.default is NULL:
             raise self._raises(key)
-        
+
         return self.defaults.get(key, self.default)
 
     def _iter(self, target):
@@ -122,7 +159,7 @@ class AttrGetter(ItemGetter):
     @staticmethod
     def _worker(target, key):
         return _op.attrgetter(key)(target)
-    
+
     def __call__(self, target, default=NULL):  # -> Tuple or Any:
         if default is not NULL:
             self.default = default
@@ -184,6 +221,8 @@ class ItemVector(VectorizeMixin, ItemGetter):
 class AttrVector(VectorizeMixin, AttrGetter):  # AttrTable!
     """Vectorized attribute getter a la AttrGetter."""
 
+
+# ---------------------------------------------------------------------------- #
 
 class MethodCaller:
     """

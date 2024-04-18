@@ -643,7 +643,7 @@ def show_tree(folder, use_dynamic_spacing=False):
         └── SHA_20160707.0010.ragged.txt
     """
 
-    from ..tree import FileSystemNode
+    from ..tree.node import FileSystemNode
 
     tree = FileSystemNode.from_path(folder)
     tree.use_dynamic_spacing = bool(use_dynamic_spacing)

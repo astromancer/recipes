@@ -5,150 +5,27 @@ Recipes extending mutable mapping functionality.
 
 # std
 import numbers
-import itertools as itt
-import contextlib as ctx
-from pathlib import Path
 from collections import OrderedDict, UserDict, abc, defaultdict
 
 # relative
 from ...flow import Emit
-from ...iter import cofilter
-from ...pprint.mapping import PrettyPrint, pformat
-from ..utils import is_scalar
+from ...pprint.mapping import PrettyPrint
+from ..ensure import is_scalar
 
 
 # ---------------------------------------------------------------------------- #
-# utils
 
-def is_dict(obj):
-    return isinstance(obj, abc.MutableMapping)
-
-
-# alias
-isdict = is_mapping = is_map = is_dict
-
-
-def dump(mapping, filename, **kws):
-    """
-    Write dict to file in human readable form
-
-    Parameters
-    ----------
-    mapping : [type]
-        [description]
-    filename : [type]
-        [description]
-    """
-    Path(filename).write_text(pformat(mapping, **kws))
-
-
-def invert(d, conversion=None):
-    if conversion is None:
-        conversion = {list: tuple}
-
-    inverted = type(d)()
-    for key, val in d.items():
-        kls = type(val)
-        if kls in conversion:
-            val = conversion[kls](val)
-
-        if not isinstance(val, abc.Hashable):
-            raise ValueError(
-                f'Cannot invert dictionary with non-hashable item: {val} of '
-                f'type {type(val)}. You may wish to pass a conversion mapping'
-                ' to this function to aid invertingof mappings that contain '
-                f'non-hashable items.'
-            )
-
-        inverted[val] = key
-    return inverted
-
-
-def groupby(func, items):
-    """
-    Group objects by function return value.
-
-    Parameters
-    ----------
-    func : callable
-        The group id function.
-    items : Iterable
-        Objects to be grouped.
-
-    Examples
-    --------
-    >>> groupby(str.isupper, 'abcDEF')
-    {False: ['a', 'b', 'c'], True: ['D', 'E', 'F']}
-
-    Returns
-    -------
-    dict[Any, list]
-        (group_id, items)
-    """
-    with ctx.suppress(TypeError):
-        items = sorted(items, key=func)
-    return {group: list(itr)
-            for group, itr in itt.groupby(items, func)}
-
-
-def merge(*mappings, **kws):
-    """
-    Merge an arbitrary number of dictionaries together by repeated update.
-
-    Examples
-    --------
-    >>> merge(*({f'{(l := case(letter))}': ord(l)}
-    ...        for case in (str.upper, str.lower) for letter in 'abc'),
-    ...       z=100)
-    {'A': 65, 'B': 66, 'C': 67, 'a': 97, 'b': 98, 'c': 99, 'z': 100}
-
-    Returns
-    -------
-    dict
-        Merged dictionary.
-    """
-
-    out = {}
-    for mapping in mappings:
-        out.update(mapping)
-    out.update(kws)
-    return out
-
-
-def filter(func_or_mapping, mapping=None):
-    func = func_or_mapping if mapping else None
-    mapping = (mapping or func_or_mapping)
-    new = zip(*cofilter(func, mapping.values(), mapping.keys())[::-1])
-
-    if isinstance(mapping, defaultdict):
-        return type(mapping)(mapping.default_factory, new)
-
-    return type(mapping)(new)
-
-
-def remove(mapping, keys, *extra):
-    # remove keys
-    split(mapping, keys, *extra)
-    return mapping
-
-
-def split(mapping, keys, *extra):
-    if isinstance(keys, str):
-        keys = keys,
-
-    keys = (*keys, *extra)
-    return mapping, dict(_split(mapping, keys))
-
-
-def _split(mapping, keys):
-    for key in keys:
-        if key in mapping:
-            yield key, mapping.pop(key)
-
+def factory(attrs='read', ordered=False, indexed=False, missing=None,
+            translate=()):
+    
+    # TODO: a factory function which takes requested props, eg:
+    bases = [_AccessManager]
+    if ordered:
+        bases.append()
+    
+    raise NotImplementedError
 
 # ---------------------------------------------------------------------------- #
-# TODO: a factory function which takes requested props, eg:
-# def factory(attrs='read-only', ordered=True, indexed=True):
 
 class Invertible:
     """
@@ -224,7 +101,8 @@ class _AccessManager:
     """
 
     _readonly = False
-    _message = '{self.__class__.__name__}: write access disabled.'
+    _message = ('{self.__class__.__name__} cannot set key {key!r}. Write access'
+                ' is disabled.')
 
     @property
     def readonly(self):
@@ -242,7 +120,7 @@ class _AccessManager:
 
     def __missing__(self, key):
         if self.readonly:
-            raise KeyError(self._message.format(self=self))
+            raise KeyError(self._message.format(self=self, key=key))
 
         super().__missing__(key)
 
@@ -270,7 +148,7 @@ class AutoVivify(_AccessManager):
 
 
 # ---------------------------------------------------------------------------- #
-# TODO AttrItemWrite
+# TODO AttrReadWrite
 
 
 class AttrBase(dict):
@@ -415,68 +293,11 @@ class ListLike(Indexable, OrderedDict, PrettyPrint):
         self[self.auto_key()] = self.convert_item(item)
 
 
-# class Indexable:
-#     """Item access through integer keys like list"""
-#
-#     def __missing__(self, key):
-#         if isinstance(key, int):
-#             l = len(self)
-#             assert -l <= key < l, 'Invalid index: %r' % key
-#             return self[list(self.keys())[key]]
-#         # if isinstance(key, slice)
-#         # cannot do slices here since the are not hashable
-#         return super().__missing__(key)
-
-
-# class ListLike(AttrReadItem, OrderedDict, Indexable):
-#     """
-#     Ordered dict with key access via attribute lookup. Also has some
-#     list-like functionality: indexing by int and appending new data.
-#     Best of both worlds.  Also make sure labels are always arrays.
-#     """
-#      = 'item'
-#
-#     def __init__(self, groups=None, **kws):
-#         # if we get a list / tuple try interpret as list of arrays (group
-#         # labels)
-#         if groups is None:
-#             super().__init__()
-#         elif isinstance(groups, (list, tuple)):
-#             super().__init__()
-#             for i, item in enumerate(groups):
-#                 self[self.auto_key()] = self.convert_item(item)
-#         else:
-#             super().__init__(groups, **kws)
-#
-#     def __setitem__(self, key, item):
-#         item = self.convert_item(item)
-#         OrderedDict.__setitem__(self, key, item)
-#
-#     def convert_item(self, item):
-#         return np.array(item, int)
-#
-#     def auto_key(self):
-#         return 'group%i' % len(self)
-#
-#     def append(self, item):
-#         self[self.auto_key()] = self.convert_item(item)
-#
-#     # def rename(self, group_index, name):
-#     #     self[name] = self.pop(group_index)
-#
-#     @property
-#     def sizes(self):
-#         return [len(labels) for labels in self.values()]
-#
-#     def inverse(self):
-#         return {lbl: gid for gid, labels in self.items() for lbl in labels}
-
-
 class Record(Indexable, OrderedAttrDict):
     pass
 
 
-class TransDict(UserDict):
+class ManyToOne(UserDict):  # TranslationLayer
     """
     A many to one mapping via layered dictionaries. Provides a generic way of
     translating keywords to their intended meaning. Good for human coders with
@@ -513,7 +334,7 @@ class TransDict(UserDict):
 
     def many_to_one(self, mapping):
         """
-        Add many keys to the existing dict that all map to the same key
+        Add many keys to the existing dict that all map to the same key.
 
         Parameters
         ----------
@@ -533,12 +354,13 @@ class TransDict(UserDict):
             for key in many:
                 self.dictionary[key] = one
 
+    # alias
     many2one = many_to_one
 
 
-class ManyToOneMap(TransDict):
+class TranslatorMap(ManyToOne):
     """
-    Expands on TransDict by adding equivalence mapping functions for keywords.
+    Expands on ManyToOne by adding equivalence mapping functions for keywords.
     """
 
     emit = Emit('raise')
@@ -546,7 +368,7 @@ class ManyToOneMap(TransDict):
     def __init__(self, dic=None, **kws):
         super().__init__(dic, **kws)
         # equivalence mappings - callables that return the desired item.
-        self._mappings = []
+        self.translators = []
 
     def __missing__(self, key):
         try:
@@ -559,21 +381,22 @@ class ManyToOneMap(TransDict):
                     return self[resolved]
             raise err from None
 
-    def add(self, obj):
+    def add(self, translator):
         """Add translation function / dictionary dispatching on type"""
-        if isinstance(obj, abc.MutableMapping):
-            self.add_mapping(obj)
-        elif callable(obj):
-            self.add_func(obj)
-        else:
-            raise TypeError(
-                f'Invalid translation object {obj!r} of type {type(obj)!r}.'
-            )
+        if isinstance(translator, abc.MutableMapping):
+            return self.add_mapping(translator)
+
+        if callable(translator):
+            return self.add_func(translator)
+
+        raise TypeError(f'Invalid translator object {translator!r} of '
+                        f'type {type(translator)!r}.')
 
     def add_func(self, func):
-        if not callable(func):
-            raise ValueError(f'{func} object is not callable.')
-        self._mappings.append(func)
+        if callable(func):
+            return self.translators.append(func)
+
+        raise ValueError(f'{func} object is not callable.')
 
     def add_funcs(self, *funcs):
         for func in funcs:
@@ -581,11 +404,10 @@ class ManyToOneMap(TransDict):
 
     def _loop_translators(self, key):
         # try translate with equivalence maps
-        for func in self._mappings:
+        for func in self.translators:
             # yield catch(func, message=message)(key)
             try:
-                translated = func(key)
-                if translated is not None:
+                if (translated := func(key)) is not None:
                     yield translated
             except Exception as err:
                 self.emit(
@@ -613,6 +435,8 @@ class ManyToOneMap(TransDict):
             return super().__contains__(resolved)
 
         return False
+
+# ---------------------------------------------------------------------------- #
 
 
 class IndexableOrderedDict(OrderedDict):
@@ -672,3 +496,61 @@ class DefaultOrderedDict(OrderedDict):
 
 # alias
 OrderedDefaultDict = DefaultOrderedDict
+
+
+
+# class Indexable:
+#     """Item access through integer keys like list"""
+#
+#     def __missing__(self, key):
+#         if isinstance(key, int):
+#             l = len(self)
+#             assert -l <= key < l, 'Invalid index: %r' % key
+#             return self[list(self.keys())[key]]
+#         # if isinstance(key, slice)
+#         # cannot do slices here since the are not hashable
+#         return super().__missing__(key)
+
+
+# class ListLike(AttrReadItem, OrderedDict, Indexable):
+#     """
+#     Ordered dict with key access via attribute lookup. Also has some
+#     list-like functionality: indexing by int and appending new data.
+#     Best of both worlds.  Also make sure labels are always arrays.
+#     """
+#      = 'item'
+#
+#     def __init__(self, groups=None, **kws):
+#         # if we get a list / tuple try interpret as list of arrays (group
+#         # labels)
+#         if groups is None:
+#             super().__init__()
+#         elif isinstance(groups, (list, tuple)):
+#             super().__init__()
+#             for i, item in enumerate(groups):
+#                 self[self.auto_key()] = self.convert_item(item)
+#         else:
+#             super().__init__(groups, **kws)
+#
+#     def __setitem__(self, key, item):
+#         item = self.convert_item(item)
+#         OrderedDict.__setitem__(self, key, item)
+#
+#     def convert_item(self, item):
+#         return np.array(item, int)
+#
+#     def auto_key(self):
+#         return 'group%i' % len(self)
+#
+#     def append(self, item):
+#         self[self.auto_key()] = self.convert_item(item)
+#
+#     # def rename(self, group_index, name):
+#     #     self[name] = self.pop(group_index)
+#
+#     @property
+#     def sizes(self):
+#         return [len(labels) for labels in self.values()]
+#
+#     def inverse(self):
+#         return {lbl: gid for gid, labels in self.items() for lbl in labels}

@@ -11,10 +11,10 @@ import contextlib as ctx
 
 # relative
 from .. import api, string
+from ..oo import slots
 from ..containers import dicts
 from ..oo.repr_helpers import DEFAULT_STYLE
 from ..introspect.utils import get_module_name
-from ..oo.slots import SlotHelper, _sanitize_locals
 
 
 # ---------------------------------------------------------------------------- #
@@ -213,7 +213,7 @@ def get_name(obj, name_depth, show_binding_class=True):
 #         If the object is not callable.
 #     """
 
-class BaseFormatter(SlotHelper):
+class BaseFormatter(slots.SlotHelper):
 
     __slots__ = ('_parent', )
     _repr_style = {**DEFAULT_STYLE, 'hang': True}
@@ -244,7 +244,7 @@ class Parameter(BaseFormatter):
             from recipes.pprint import pformat as rhs
 
         # save local state on instance
-        super().__init__(**_sanitize_locals(locals()))
+        super().__init__(**slots.sanitize(locals()))
 
     def format(self, par, name=True, annotated=None, value=DEFAULT, width=0):
         return ''.join(self._parts(par, name, annotated, value, width))
@@ -320,7 +320,7 @@ class ParameterList(BaseFormatter):
         parameter.parent = self
 
         # save local state on instance
-        super().__init__(**_sanitize_locals(locals()))
+        super().__init__(**slots.sanitize(locals()))
 
     def format(self, params, **fmt):
         # parameters as block wrapped string
@@ -453,7 +453,7 @@ class Formatter(BaseFormatter):
         parameters.parent = self
 
         # save local state on instance
-        super().__init__(**_sanitize_locals(locals()))
+        super().__init__(**slots.sanitize(locals()))
 
     def __call__(self, obj, **kws):
         return Signature(obj, **kws)
@@ -463,7 +463,7 @@ class Formatter(BaseFormatter):
 
 
 # ---------------------------------------------------------------------------- #
-class Callable(SlotHelper):
+class Callable(slots.SlotHelper):
     """
     A wrapper class for formatting callable objects and represent call
     invocations.
@@ -486,7 +486,7 @@ class Callable(SlotHelper):
 
             sig = inspect.signature(obj, follow_wrapped=False)
             fmt = Formatter(*args, **kws)
-            state = _sanitize_locals(locals(), 'args')
+            state = slots.sanitize(locals(), 'args')
 
         # save local state on instance
         super().__init__(**state)

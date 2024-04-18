@@ -2,16 +2,12 @@
 Utilities for operations on strings
 """
 
-# std
-import operator as op
-
 # third-party
 import more_itertools as mit
 
 # relative
-from .. import op, string
+from .. import op
 from ..iter import where
-from ..containers.utils import delete
 
 
 # ---------------------------------------------------------------------------- #
@@ -31,7 +27,7 @@ def similarity(a, b):
 
 
 def most_similar(string, options, cutoff=0.5):
-    from recipes.containers.lists import cosort
+    from recipes.containers import cosort
 
     sims = [similarity(string, _) for _ in options]
     sims, options = cosort(sims, options, order=-1)
@@ -57,7 +53,6 @@ def most_similar(string, options, cutoff=0.5):
 # ---------------------------------------------------------------------------- #
 # Deletion / Substitution
 
-
 def backspaced(string):
     """
     Resolve backspace control sequence "\b" by remove them and the characters
@@ -75,6 +70,10 @@ def backspaced(string):
     if '\b' not in string:
         return string
 
+    #
+    from recipes.containers.utils import delete
+
+    #
     return backspaced(delete(string, [i := string.index('\b'), max(i - 1, 0)]))
 
 
@@ -214,7 +213,6 @@ def truncate(string, size, dots=' … ', end=10):
 # ---------------------------------------------------------------------------- #
 # Transformations
 
-
 def strip_non_ascii(string):
     """
     Remove all non-ascii characters from a string.
@@ -244,10 +242,10 @@ def _partition_whitespace_indices(text):
     n = len(text)
     i0 = 0
     while i0 < n:
-        i1 = next(string.where(text, op.ne, ' ', start=i0), n)
+        i1 = next(where(text, op.ne, ' ', start=i0), n)
         yield (i0, i1)
 
-        i2 = next(string.where(text, ' ', start=i1), n)
+        i2 = next(where(text, ' ', start=i1), n)
         yield (i1, i2)
         i0 = i2
 

@@ -8,13 +8,15 @@ from importlib.metadata import version
 # third-party
 from loguru import logger
 
+# silence logging by default
+logger.disable('recipes')
+
 # relative
 from . import functionals, string
 from .string import regex
-from .containers.lists import cosort
 from .config import create_user_config
-from .containers import dicts, lists, sets
-from .containers.utils import duplicate_if_scalar, is_scalar, not_null
+from .containers import (cosort, dicts, duplicate_if_scalar, is_scalar, lists,
+                         not_null, sets)
 
 
 # ---------------------------------------------------------------------------- #
@@ -34,5 +36,3 @@ user_config_path = create_user_config('config.yaml', __file__,
 user_packages = user_config_path.parent / 'user_packages.yaml'
 
 
-# silence logging by default
-logger.disable('recipes')

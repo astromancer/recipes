@@ -9,7 +9,6 @@ import time
 from loguru import logger
 
 # relative
-from ..string import indent
 from ..decorators import Decorator
 
 
@@ -62,6 +61,8 @@ class Trace(Decorator):
 
         try:
             if '{signature}' in self.pre:
+                from recipes.string import indent
+
                 signature = indent(self.formatter(func, args, kws,
                                                   **self.options))
             self.emit(self.pre, **locals())
@@ -88,4 +89,3 @@ class Trace(Decorator):
 
         # sys.stdout.flush()
         return result
-

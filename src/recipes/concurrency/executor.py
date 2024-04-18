@@ -63,12 +63,15 @@ class Executor(LoggingMixin, SlotHelper):
     def __init__(self, jobname=None, backend='multiprocessing', xfail=1,
                  **config):
 
-        self.jobname = type(self).__name__ if jobname is None else str(jobname)
-        self.backend = str(backend)
-        self.results = self.mask = None
-        self.config = config
-        self.xfail = xfail
-        self.nfail = sync_manager.Value('i', 0)
+        super().__init__(
+            results=None,
+            mask=None,
+            config=config,
+            backend=str(backend),
+            xfail=xfail,
+            nfail=sync_manager.Value('i', 0),
+            jobname=(type(self).__name__ if jobname is None else str(jobname))
+        )
 
     def init_memory(self, shape, masked=False, loc=None, fill=np.nan, overwrite=False):
         """
@@ -90,34 +93,31 @@ class Executor(LoggingMixin, SlotHelper):
         if masked:
             self.mask = load_memmap(loc, shape, bool, True, overwrite)
 
-    def __call__(self, data, indices=None):
+    def __call__(self, data, indices=None, **kws):
         """
-        Track the shift of the image frame from initial coordinates
+        Run compute.
 
         Parameters
         ----------
-        image
-        mask
+        data
+        indices
 
         Returns
         -------
-
+        results
         """
 
         if self.results is None:
             raise FileNotFoundError('Initialize memory first by calling the '
                                     '`init_memory` method.')
 
-        if data.ndim == 2:
-            data = [data]
-
-        return self.run(data, indices)
+        return self.run(data, indices, **kws)
 
     def __str__(self):
         name = type(self).__name__
         if (m := self.results) is None:
             return f'{name}(0/0)'
-        return f'{name}({self.completed.sum()} / {len(m)})'
+        return f'{name}({sum(self.completed)} / {len(m)})'
 
     # ------------------------------------------------------------------------ #
     @property
@@ -127,11 +127,19 @@ class Executor(LoggingMixin, SlotHelper):
             tuple({*range(self.results.ndim)} - {0})
         )
 
-    def setup(self, njobs, progress_bar, **kws):
+    def setup(self, njobs, progress_bar, **config):
 
         self.logger.opt(lazy=True).debug(
             'Compute setup: {}', lambda: pp.pformat(locals(), ignore='self')
         )
+
+        # get njobs
+        if njobs in (-1, None):
+            njobs = mp.cpu_count()
+
+        if len(self.results) == 1:
+            self.logger.info('Only one job in work queue, setting `njobs=1`.')
+            njobs = 1
 
         # setup compute context
         if njobs == 1:
@@ -147,7 +155,7 @@ class Executor(LoggingMixin, SlotHelper):
         # NOTE: object serialization is about x100-150 times faster with
         # "multiprocessing" backend. ~0.1s vs 10s for "loky".
         worker = delayed(self.compute)
-        executor = Parallel(njobs, self.backend, **kws)
+        executor = Parallel(njobs, self.backend, **config)
         context = ContextStack(
             initialized(executor, set_locks, (mem_lock, prg_lock))
         )
@@ -159,23 +167,26 @@ class Executor(LoggingMixin, SlotHelper):
 
         return worker, context, (mem_lock, prg_lock)
 
-    def get_workload(self, data, indices, progress_bar=True):
+    def get_workload(self, data, indices, progress_bar=None):
         # workload iterable with progressbar if required
 
+        # get indices
         done = self.completed
         if indices is None:
             indices, = np.where(~done)
 
         indices = list(indices)
         self.logger.debug('indices = {}', indices)
-        
+
+        # resolve xfail
         n = len(self.results)
         if isinstance(self.xfail, str):
             self.xfail = int(round(Percentage(self.xfail).of(n)))
-        
+
         if isinstance(self.xfail, float):
             self.xfail = int(round(n * self.xfail))
 
+        # check indices
         if len(indices) == 0:
             self.logger.info('All data have been processed. To force a rerun, '
                              'you may reset the memory\n'
@@ -183,23 +194,29 @@ class Executor(LoggingMixin, SlotHelper):
 
             return ()
 
-        #
-        self.logger.debug('Creating workload for: {}', data, indices)
+        # progress bar only if more than one task
+        if progress_bar is None:
+            progress_bar = (len(indices) > 1)
+
+        # resolve data / indices
+        self.logger.debug('Creating workload for {} items.', len(indices))
 
         if isinstance(data, (np.ndarray, list)):
             workload = ((data[i], i) for i in indices)
+
         elif isinstance(data, abc.Iterable):
             workload = zip(data, indices)
+
         else:
             raise TypeError(f'Cannot create workload from data of type {type(data)}.')
 
+        # workload iter
         return tqdm(workload, self.jobname,
                     initial=done.sum(), total=len(done),
                     disable=not progress_bar, **CONFIG.progress)
 
     # @api.synonyms({'n_jobs': 'njobs'})
-
-    def run(self, data=None, indices=None, njobs=-1, progress_bar=True,
+    def run(self, data=None, indices=None, njobs=-1, progress_bar=None,
             args=(), **kws):
         """
         Start a worker pool of source trackers. The workload will be split into
@@ -231,9 +248,6 @@ class Executor(LoggingMixin, SlotHelper):
             raise FileNotFoundError('Initialize memory first by calling the '
                                     '`init_memory` method.')
 
-        if njobs in (-1, None):
-            njobs = mp.cpu_count()
-
         # main compute
         self.logger.debug('indices = {}', indices)
         self.main(data, indices, njobs, progress_bar, *args, **kws)
@@ -241,18 +255,21 @@ class Executor(LoggingMixin, SlotHelper):
 
     def main(self, data, indices, njobs, progress_bar, *extra_args, **kws):
 
+        # fetch work
+        workload = self.get_workload(data, indices, progress_bar)
+
         # setup compute context
         worker, context, locks = self.setup(njobs, progress_bar, **self.config)
-        self.logger.debug('Main compute starting with indices = {}', indices)
+        self.logger.debug('Compute starting with indices: {}', indices)
+
+        # Adapt logging sinks for tqdm interplay
+        logger.remove()
+        logger.add(TqdmStreamAdapter(), colorize=True, enqueue=True)
 
         # execute
         with context as compute:
-            # Adapt logging sinks for tqdm interplay
-            logger.remove()
-            logger.add(TqdmStreamAdapter(), colorize=True, enqueue=True)
-
-            compute(worker(*args, *extra_args, **kws) for args in
-                    self.get_workload(data, indices, progress_bar))
+            # do work
+            compute(worker(*args, *extra_args, **kws) for args in workload)
 
         # self.logger.debug('With {} backend, pickle serialization took: {:.3f}s.',
         #              backend, time.time() - t_start)
@@ -306,3 +323,4 @@ class Executor(LoggingMixin, SlotHelper):
 
     def finalize(self, *args, **kws):
         logger.remove()
+        return self.results

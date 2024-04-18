@@ -17,8 +17,8 @@ import more_itertools as mit
 
 # relative
 from .. import op
-from ..iter import where
-from ..containers.utils import delete
+from ..containers import cosort
+from ..iter import cofilter, where, windowed
 from ..functionals import always, echo, not_none
 from .plurals import named_items, pluralize
 
@@ -29,19 +29,39 @@ from .plurals import named_items, pluralize
 # # __all__ = ['Parser', 'braces', 'square', 'round', 'chevrons']
 
 # ---------------------------------------------------------------------------- #
-
+# Module Constants
 ALL_BRACKET_PAIRS = {'()', '[]', '{}', '<>'}
 
 INFINT = 2 ** 32
 CARET = '^'
 
 
-# utils
+# Utils
 # ---------------------------------------------------------------------------- #
-
 
 # def asdict(obj):
 #     return dict(zip((slots := obj.__slots__), op.AttrGetter(*slots)(obj)))
+
+
+def is_adjacent(a, b):
+    """Test adjacency of matched delimiters."""
+
+    indices = cofilter(not_none, a.indices, b.indices, (0, 1))
+    if a.is_open():
+        for i, j, k in zip(*indices):
+            return (i + 1 == j), i, k
+
+    return False, None, None
+
+    # escaped = True  # FIXME does this ever get run if level == 0 ?????
+    # for i, j, k in zip(*indices):
+    #     if k:
+    #         # swap order of indices since outer closing preceeds inner
+    #         # closing for closed double pairs
+    #         i, j = j, i
+
+    #     escaped &= (i + 1 == j)
+    # return escaped, i, k
 
 
 def _resolve_max_split(max_split):
@@ -56,6 +76,7 @@ def _resolve_max_split(max_split):
 def sort_match(match):
     """Helper for sorting pairs of indices, either one of which may be None"""
     return match.start if match.end is None else match.end
+
     # if match.is_open():
     #     #
     #     o = (-1, 1)[match.indices.index(None)]
@@ -64,7 +85,13 @@ def sort_match(match):
     # return match.indices
 
 
-# exceptions
+def _multi_index(string, delimiters):
+    for size, delims in itt.groupby(sorted(delimiters, key=len), len):
+        for i in where(windowed(string, size), op.contained, tuple(delims)):
+            yield i, string[i:i + size]
+
+
+# Exceptions
 # ---------------------------------------------------------------------------- #
 class UnpairedDelimiterWarning(Warning):
     pass
@@ -181,8 +208,6 @@ class AttributeTest(_Condition):
 
     def __repr__(self):
         return f'{type(self).__name__}: {self.op.__name__}(<o>.{self.name}, ...)'
-
-# import functools as ftl
 
 
 class AttributeConditional(_Condition):
@@ -466,21 +491,21 @@ class Parser:
 
         self.pairs = list(set(pairs) or ALL_BRACKET_PAIRS)
         self.opening, self.closing = zip(*self.pairs)
-        self._open_close = ''.join(self.opening) + ''.join(self.closing)
-        self.pair_map = pm = dict(pairs)
-        self.pair_map.update(dict(zip(pm.values(), pm.keys())))
         self._unique_delimiters = (self.opening != self.closing)
-        # self._unclosed_unordered = False
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.pairs})'
 
+    @property
+    def pair_map(self):
+        return {**(pm := dict(self.pairs)),
+                **dict(zip(pm.values(), pm.keys()))}
+
     # @ftl.lru_cache()
     def _index(self, string):
-        # NOTE: line below reverses the operands:
-        # >>> (c in self._open_close for c in string)
-        for i in where(string, op.contained, self._open_close):
-            yield i, string[i]
+        items = _multi_index(string, mit.flatten(self.pair_map.items()))
+        # indices, delimiters = cosort(*zip(*itr))
+        yield from zip(*cosort(*zip(*items)))
 
     def _iter(self, string, must_close=0):
         # TODO: filter level here to avoid unnecessary construction of
@@ -502,7 +527,7 @@ class Parser:
                 open_[o] -= 1
                 if pos := positions[o]:
                     i = pos.pop(-1)
-                    yield Delimited((o, b), string[i + 1:j], (i, j),
+                    yield Delimited((o, b), string[i + len(o):j], (i, j),
                                     len(positions[o]))
 
                 elif must_close == 0:
@@ -528,9 +553,10 @@ class Parser:
             # order
             if (self.opening != self.closing and b in self.opening
                     and idx and idx != [len(string) + 1]):
-                wrn.warn('Unclosed opening brackets in string. Items will be '
+                wrn.warn('Unclosed opening delimiter in string. Items will be '
                          'out of order. Use the `findall` method for obtaining '
-                         'an index-ordered list braces.', UnpairedDelimiterWarning)
+                         'an index-ordered list of delimiters.',
+                         UnpairedDelimiterWarning)
 
             # opening, closing characters
             pair = tuple(sorted([b, self.pair_map[b]]))
@@ -725,6 +751,7 @@ class Parser:
         string
             The string with brackets stripped.
         """
+        from recipes.containers.utils import delete
 
         indices = set()
         for pair in self.iterate(string, condition=condition):

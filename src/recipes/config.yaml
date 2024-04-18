@@ -28,6 +28,9 @@ imports:
 
     log_warnings:               True
 
+    ignore:     [tests/introspect/import_refactor_examples]
+
+
 
 concurrency:
     executor:

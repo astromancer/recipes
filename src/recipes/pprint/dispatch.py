@@ -8,7 +8,8 @@ import functools as ftl
 from collections import abc
 
 # relative
-from .pformat import collection, mapping
+from .pformat import collection
+from .mapping import pformat as mapping
 
 
 # ---------------------------------------------------------------------------- #

@@ -1,7 +1,11 @@
+"""
+Object representaion helpers.
+"""
 
-from ..pprint import pformat
+from ..pprint.dispatch import pformat
 
 
+# ---------------------------------------------------------------------------- #
 DEFAULT_STYLE = dict(lhs=str,
                      equal='=',
                      rhs=repr,
@@ -9,6 +13,8 @@ DEFAULT_STYLE = dict(lhs=str,
                      enclose='<>',
                      align=False)
 
+
+# ---------------------------------------------------------------------------- #
 
 def qualname(kls):
     return f'{kls.__module__}.{kls.__name__}'
@@ -21,9 +27,9 @@ def get_attrs(obj, keys, maybe=()):
 
 def _repr(obj, attrs, maybe=(), enclose=DEFAULT_STYLE['enclose'], **kws):
     opn, *close = enclose
-    return ''.join((pformat.mapping(get_attrs(obj, attrs, maybe),
-                                    f'{opn}{type(obj).__name__}',
-                                    **kws),
+    return ''.join((pformat(get_attrs(obj, attrs, maybe),
+                            f'{opn}{type(obj).__name__}',
+                            **kws),
                     *close))
 
 

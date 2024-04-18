@@ -17,10 +17,10 @@ from loguru import logger
 # relative
 from ..string import unicode
 from ..array import vectorize
-from ..containers import dicts
 from ..oo import classproperty
+from ..oo.slots import SlotHelper
 from ..math import order_of_magnitude, signum
-from ..containers.utils import duplicate_if_scalar
+from ..containers import dicts, duplicate_if_scalar
 from .callers import describe
 from .nrs import precision_rule_dpg
 
@@ -97,41 +97,8 @@ def resolve_sign(signed, allowed=' -+'):
     raise ValueError(f'Invalid value {signed!r} for `signed` parameter. Use one'
                      f' of {tuple(allowed)}.')
 
-# ---------------------------------------------------------------------------- #
-
-
-def _rhs(obj):
-    return 'None' if obj is None else repr(str(obj))
-
-
-class SlotHelper:
-    __slots__ = ()
-
-    def __str__(self):
-        return self._repr(type(self).__slots__,
-                          lhs=str, equal='=', rhs=repr,
-                          brackets='()', align=False)
-
-    def __repr__(self):
-        # (_ for base in (*type(self).__bases__, type(self))
-        return self._repr(type(self).__slots__)
-
-    def _repr(self, attrs, **kws):
-        kws.setdefault('rhs', _rhs)
-        return dicts.pformat({_: getattr(self, _) for _ in attrs},
-                             type(self).__name__,
-                             **kws)
-
-    def __init__(self, **kws):
-        kws.pop('self', None)
-        kws.pop('kws', None)
-        kws.pop('__class__', None)
-        for key, val in kws.items():
-            setattr(self, key, val)
-
 
 # ---------------------------------------------------------------------------- #
-
 
 class Masked:
     """Format masked constants."""
@@ -392,12 +359,10 @@ class Decimal(NumberBase):
     def __str__(self):
         attrs = list(self.__slots__)
         attrs.pop(0 if self.precision is None else 1)
-        return self._repr(attrs,
-                          lhs=str, equal='=', rhs=repr,
-                          brackets='()', align=False)
+        return self.__repr__(attrs=attrs,
+                             lhs=str, equal='=', rhs=repr,
+                             brackets='()', align=False)
 
-    def __repr__(self):
-        return self._repr(type(self).__slots__)
 
     def format(self, x, /, precision=None):
         """
