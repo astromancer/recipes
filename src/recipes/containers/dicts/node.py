@@ -317,6 +317,9 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
         return new
 
     def _filter(self, key_test, val_test, levels):
+        if not self:
+            return
+
         keys, values = cofilter(key_test, *zip(*self.flatten(levels).items()))
         values, keys = cofilter(val_test, values, keys)
         yield from zip(keys, values)
@@ -365,6 +368,9 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
             else:
                 new[name] = func(child, *args, **kws)
         return new
+
+    def attrs(self, *attrs):
+        return self.map(op.AttrGetter(*attrs))
 
     def split(self, keys):
         new = self.transform(_split_trans, keys)
