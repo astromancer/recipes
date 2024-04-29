@@ -465,8 +465,7 @@ class Formatter(BaseFormatter):
 # ---------------------------------------------------------------------------- #
 class Callable(slots.SlotHelper):
     """
-    A wrapper class for formatting callable objects and represent call
-    invocations.
+    A class for representing callable objects and call invocations as strings.
     """
 
     __slots__ = ('obj', 'sig', 'partial', 'fmt')
@@ -484,7 +483,14 @@ class Callable(slots.SlotHelper):
             if partial := isinstance(obj, ftl.partial):
                 obj = obj.func
 
-            sig = inspect.signature(obj, follow_wrapped=False)
+            try:
+                sig = inspect.signature(obj, follow_wrapped=False)
+            except ValueError:
+                if obj := getattr(obj, '__call__', ()):
+                    sig = inspect.signature(obj, follow_wrapped=False)
+                else:
+                    raise
+            
             fmt = Formatter(*args, **kws)
             state = slots.sanitize(locals(), 'args')
 
@@ -672,7 +678,6 @@ FORMATTER_KWS = {slot
 def caller(obj, args=EMPTY, kws=EMPTY, **fmt):
 
     # split Formatter init params
-
     fmt_call_kws, fmt_init_kws = dicts.split(fmt, FORMATTER_KWS)
 
     formatter = Signature(obj, **fmt_init_kws)
