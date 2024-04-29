@@ -116,15 +116,15 @@ class PartialTask(Wrapper):
         return self.__wrapped__(*self._get_args(args), **self._get_kws(kws))
 
     @property
-    def nfree(self):
+    def nreq(self):
         return len(self._positions)
 
     def _get_args(self, args=()):
         # fill placeholders in `self.args` with dynamic values from `args` here
         # to get final positional args tuple for the function call
-        if (nargs := len(args)) != self.nfree:
+        if (nargs := len(args)) < self.nreq:
             raise ValueError(
-                f'{self} requires {self.nfree} parameters, but received {nargs}.'
+                f'{self} requires {self.nreq} parameters, but received {nargs}.'
             )
 
         # shallow copy
