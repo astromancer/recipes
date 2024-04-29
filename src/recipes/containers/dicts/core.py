@@ -114,9 +114,11 @@ class _AccessManager:
 
     def freeze(self):
         self.readonly = True
+        return self
 
     def unfreeze(self):
         self.readonly = False
+        return self
 
     def __missing__(self, key):
         if self.readonly:
