@@ -7,6 +7,7 @@ src/recipes/concurrent/utils.py
 src/recipes/property.py
 src/recipes/decor/path.py
 src/recipes/io/parse.py
+src/recipes/io/comms.py
 tests/test_loguru.py
 src/recipes/_logging.py
 dep-graph.svg
