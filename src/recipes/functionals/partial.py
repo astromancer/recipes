@@ -152,6 +152,9 @@ class PartialTask(Wrapper):
 
         return out
 
+    def map(self, *args, **kws):
+        return map(self, *args, **kws)
+
 
 class Partial(Decorator):
 
