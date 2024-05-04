@@ -406,9 +406,11 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
 
         return out
 
-    # def merge(self, other):
-    #     self.update(other)
-    # class _NodeMixin:
+    def merge(self, other=(), **kws):
+        out = type(self)()
+        for mapping in (self, other, kws):
+            out.update(mapping)
+        return out
 
     def balance(self, depth=None, insert=''):
 
@@ -418,6 +420,16 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
             new[balance_depth(path, depth, insert)] = val
 
         return new
+
+    def coerce(self, unpack=False, **kws):
+        for key, kls in kws.items():
+            if key not in self:
+                raise KeyError(key)
+
+            # coerce
+            self[key] = kls(*self[key]) if unpack else kls(self[key])
+
+        return self
 
 
 def _split_trans(keys, accept):
