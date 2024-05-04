@@ -102,9 +102,8 @@ def merge(*mappings, **kws):
     """
 
     out = {}
-    for mapping in mappings:
+    for mapping in (*mappings, kws):
         out.update(mapping)
-    out.update(kws)
     return out
 
 

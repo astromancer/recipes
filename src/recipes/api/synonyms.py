@@ -243,7 +243,7 @@ class Synonyms(Decorator):
         """
         Translate the keys in `kws` dict to the correct one for the hard api.
         """
-        logger.debug('Correcting user call parameters for api {}.',
+        logger.trace('Correcting user call parameters for api {}.',
                      callers.describe(self.func))
 
         sig = self.signature
