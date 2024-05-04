@@ -67,7 +67,7 @@ def brace_expand(pattern):
     # >>> brace_expand('/**/*.{png,jpg}')
     # ['/**/*.png', '/**/*.jpg']
 
-    return list(brace_expand_iter(pattern))
+    return list(brace_expand_iter(str(pattern)))
 
 
 # ---------------------------------------------------------------------------- #
