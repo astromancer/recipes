@@ -3,14 +3,17 @@
 import re
 import warnings
 from pathlib import Path
+from string import Template
 
 # third-party
+import more_itertools as mit
 from loguru import logger
 from platformdirs import user_config_path
 
 # relative
 from . import io
 from .flow import Emit
+from .string import sub
 from .io import read_lines
 from .containers.dicts.node import DictNode
 from .containers.dicts.core import _AttrReadItem
@@ -312,6 +315,17 @@ class ConfigNode(DictNode, _AttrReadItem):
         """
         return super().__getitem__(key) if key in self else super().__getattribute__(key)
 
+    def __getitem__(self, key):
+        # handle >>> CONFIG[__file__]
+        try:
+            return super().__getitem__(key)
+        except KeyError as err:
+            if (key := Path(key)).exists():
+                parts = key.parts
+                key = (*parts[-parts[::-1].index(get_package_name(key)):-1], key.stem)
+                return super().__getitem__(key)
+
+            raise err from None
 
 # ---------------------------------------------------------------------------- #
 # class ConfigLoader:
@@ -339,3 +353,51 @@ class ConfigNode(DictNode, _AttrReadItem):
 
 
 # ---------------------------------------------------------------------------- #
+# Template resolution
+
+def get_identifiers(string):
+    # NOTE: python 3.11 has Template.get_identifiers
+    found = Template.pattern.findall(string)
+    if found:
+        _, keys, *_ = zip(*found)
+        return keys
+    return ()
+
+
+def get_unique_identifiers(mapping):
+    return set(mit.collapse(map(get_identifiers, mapping.values())))
+
+
+def resolve_internal_references(folders, **aliases):
+
+    subs = _resolve_internal_references(get_internal_references(folders, **aliases))
+    keys = {s[1:] for s in subs.keys()}
+    resolved = folders
+    while (get_unique_identifiers(resolved) & keys):
+        # while map(get_identifiers())
+        resolved = ConfigNode(resolved).map(sub, subs)
+
+    return resolved
+
+
+def _resolve_internal_references(subs):
+    # return dict(zip(subs, Map(sub)(over(subs.values()), subs)))
+    return dict(zip(subs, (sub(_, subs) for _ in subs.values())))
+
+
+def get_internal_references(folders, **aliases):
+    return {f'${name.upper()}': str(loc).rstrip('/')
+            for name, loc in _get_internal_references(folders, **aliases)}
+
+
+def _get_internal_references(folders, **aliases):
+    for name, loc in folders.items():
+        if isinstance(loc, DictNode):
+            if (loc := loc.get('folder')):
+                yield name, loc
+            continue
+
+        yield name, loc
+
+        if name := aliases.get(name):
+            yield name, loc
