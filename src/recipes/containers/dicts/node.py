@@ -407,10 +407,11 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
         return out
 
     def merge(self, other=(), **kws):
-        out = type(self)()
-        for mapping in (self, other, kws):
-            out.update(mapping)
-        return out
+        kls = type(self)
+        out = self.flatten()
+        for mapping in (other, kws):
+            out.update(kls(mapping).flatten())
+        return kls(out)
 
     def balance(self, depth=None, insert=''):
 
