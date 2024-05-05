@@ -260,26 +260,40 @@ def _create_user_config(pkg, path, source=None, overwrite=None,
     return path
 
 
+def _dotsplit(keys):
+    for s in keys:
+        yield from s.split('.')
+
+
+def dotsplit(keys):
+    return tuple(_dotsplit(keys))
+
 # Node
 # ---------------------------------------------------------------------------- #
+
 
 class ConfigNode(DictNode, _AttrReadItem):
 
     @classmethod
-    def load(cls, filename, defaults=None):
+    def load(cls, filename, defaults=None, dot_split=False):
         assert filename or defaults
         config = load(defaults) if defaults else {}
         if filename and Path(filename).exists():
             config.update(**load(filename))
-        return cls(config)
+        config = cls(config)
+
+        if dot_split:
+            return config.transform(dotsplit)
+
+        return config
 
     @classmethod
-    def load_module(cls, filename, format=None):
+    def load_module(cls, filename, format=None, dot_split=False):
 
         path = Path(filename)
         user_config_file = search(path, format, True, 'silent')
         source_config_file = search(path, format, False)
-        node = cls.load(user_config_file, source_config_file)
+        node = cls.load(user_config_file, source_config_file, dot_split)
 
         # step up parent modules
         candidates = get_module_name(path).split('.')
