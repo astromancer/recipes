@@ -984,6 +984,10 @@ curly_brackets = braces = Parser('{}')
 round_brackets = parentheses = parens = Parser('()')
 square_brackets = hard_brackets = Parser('[]')
 angle_brackets = chevrons = Parser('<>')
+xml = Parser(('<?', '?>'))
+
+# quotes = Parser("''")
+# double_quotes = Parser('""')
 
 
 bracket_parsers = {
