@@ -359,6 +359,11 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
     # alias
     transform = reshape
 
+    def rename(self, old, new):
+        if old in self:
+            self[new] = self.pop(old)
+        return self
+
     def map(self, func, *args, **kws):
         # create new empty
         new = type(self)()
