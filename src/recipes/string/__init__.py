@@ -15,6 +15,6 @@ from .utils import (backspaced, indent, insert, most_similar,
 from .affixes import (remove_affix, remove_prefix, remove_suffix,
                       remove_suffixes, replace_prefix, replace_suffix,
                       shared_affix, shared_prefix, shared_suffix)
-
+from .template import Template
 # alias
 delim = delimited
