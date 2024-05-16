@@ -407,25 +407,11 @@ def get_test(condition, string):
 
 # Matched Delimiters
 # ---------------------------------------------------------------------------- #
-@dataclass
 class Delimited:
     """
-    Object representing a pair of delimiters at some position and nesting level in
-    a string, possibly enclosing some content.
+    Object representing a pair of delimiters at some position and nesting level
+    in a string, possibly enclosing some content.
     """
-
-    delimiters: Tuple[str]
-    """Characters or strings for opening and closing bracket. Must have length 2.
-    Opening and closing characters should be unique, but other than that can be
-    arbitrary strings."""
-    enclosed: str
-    """The enclosed sting. May be empty, or None in the case of unclosed 
-    "pairs"."""
-    indices: List[int] = (None, None)
-    """Integer indices of opening- and closing bracket pairs within the sample 
-    string. Either of the indices may be None."""
-    level: int = 0
-    """Depth of nesting."""
 
     @classmethod
     def null(cls):
@@ -434,10 +420,32 @@ class Delimited:
         """
         return cls('{}', None, (None, None))
 
-    def __post_init__(self):
-        self.delimiters = tuple(self.delimiters)
-        self.opening, self.closing = self.delimiters
-        # self.start, self.end = self.indices
+    def __init__(self,
+                 delimiters: Tuple[str],
+                 enclosed: str,
+                 indices: List[int] = (None, None),
+                 level: int = 0):
+        """
+        Parameters
+        ----------
+        delimiters : Tuple[str]
+            Characters or strings for opening and closing bracket. Must have length 2.
+            Opening and closing characters should be unique, but other than that can be
+            arbitrary strings.
+        enclosed : str
+            The enclosed sting. May be empty, or None in the case of unclosed 
+            "pairs".
+        indices : _type_, optional
+            Integer indices of opening- and closing bracket pairs within the sample 
+            string. Either of the indices may be None., by default (None, None)
+        level : _type_, optional
+            Depth of nesting.
+        """
+        self.opening, self.closing = delimiters
+        self.delimiters = tuple(delimiters)
+        self.enclosed = str(enclosed)
+        self.indices = tuple(indices)
+        self.level = int(level)
 
     def __iter__(self):
         yield self.enclosed
@@ -446,11 +454,14 @@ class Delimited:
     def __str__(self):
         if self.enclosed is None:
             return '<UNCLOSED>'
-        else:
-            return self.enclosed.join(self.delimiters)
+
+        return self.enclosed.join(self.delimiters)
 
     def __bool__(self):
         return any((self.enclosed, *self.indices))
+
+    def __len__(self):
+        return sum(map(len, (*self.delimiters, self.enclosed)))
 
     @property
     def start(self):
@@ -479,6 +490,8 @@ class Parser:
     Class for matching, iterating, splitting, filtering, replacing paired
     delimiters in strings.
     """
+
+    _delimiter_class = Delimited
 
     def __init__(self, *pairs):
         """
@@ -509,7 +522,7 @@ class Parser:
 
     def _iter(self, string, must_close=0):
         # TODO: filter level here to avoid unnecessary construction of
-        # Delimited and possible performance cost.
+        #  self._delimiter_class and possible performance cost.
         assert must_close in {-1, 0, 1}
 
         positions = defaultdict(list)
@@ -527,11 +540,13 @@ class Parser:
                 open_[o] -= 1
                 if pos := positions[o]:
                     i = pos.pop(-1)
-                    yield Delimited((o, b), string[i + len(o):j], (i, j),
-                                    len(positions[o]))
+                    
+                    yield self._delimiter_class(
+                        (o, b), string[i + len(o):j], (i, j), sum(open_.values())
+                    )
 
                 elif must_close == 0:
-                    yield Delimited((o, b), None, (None, j), 0)
+                    yield self._delimiter_class((o, b), None, (None, j), 0)
 
                 elif must_close == 1:
                     raise UnpairedDelimiterError(string, 'opening', {b: [j]})
@@ -561,11 +576,11 @@ class Parser:
             # opening, closing characters
             pair = tuple(sorted([b, self.pair_map[b]]))
             for i in idx:
-                yield Delimited(pair, None, (i, None), 0)
+                yield self._delimiter_class(pair, None, (i, None), 0)
 
     # TODO: must_close is the same as ConditionTest(enclosed=not_none)
-    def iterate(self, string, must_close=False, condition=NoCondition,
-                inside_out=False, outside_in=False):
+    def finditer(self, string, must_close=False, condition=NoCondition,
+                 inside_out=False, outside_in=False):
         """
         Parse a string by finding (pairs of) (possibly nested) brackets.
 
@@ -621,7 +636,7 @@ class Parser:
         yield from itr
 
     # alias
-    iter = iterate
+    __call__ = iterate = parse = finditer
 
     def _unclosed_reorder(self, itr):
         # NOTE:
