@@ -13,6 +13,7 @@ from collections import abc, defaultdict
 import more_itertools as mit
 
 # relative
+import builtins
 from . import op
 from .functionals import negate, on_zeroth, echo0 as echo
 
@@ -249,36 +250,47 @@ def select(items, *args, **kws):
     Three distinct call signatures are supported:
 
     Yield all truthy items:
-    >>> select(items)               # same as `filter(None, items)`
+    >>> select(items)               # like `filter(None, items)`
 
     Yield items where `test(item)` is 
-    >>> select(items, test)         # same as `filter(test, items)`
+    >>> select(items, test)         # like `filter(test, items)`
+
+    Yield items equal to a value (case where value is not callable object)
+    >>> select(items, value)        # like `filter(lambda x: x == value, items)`
 
     Yield items conditionally on truth value of `test(item, value)`
-    >>> select(items, test, value)  # same as `filter(lambda _: test(_, value), items)`
+    >>> select(items, test, value)  # `filter(lambda _x: test(x, value), items)`
 
     In general
     >>> select(items, test, *args, **kws)
-    # same as `(_ for _ in items if test(_, *args, **kws))`
-
+    # like `(_ for _ in items if test(_, *args, **kws))`
 
     """
     if (args or kws):
-        test, *args = args
-        test = bool if test is None else test
-        assert callable(test), f'{test} is not callable.'
+        test_or_value, *args = args
+        test = test_or_value if callable(test_or_value) else op.eq
         return (_ for _ in items if test(_, *args, **kws))
 
-    return filter(None, items)
+    return builtins.filter(None, items)
+
     # print valid call signatures from docstring
     # raise ValueError(txw.dedent(select.__doc__.split('\n\n', 1)[0]))
 
 
-filtered = select
+def filter(items, *args, **kws):
+    if (args or kws):
+        test_or_value, *args = args
+        test = test_or_value if callable(test_or_value) else op.ne
+        return (_ for _ in items if not test(_, *args, **kws))
+
+    return builtins.filter(None, items)
+
+#alias
+filtered = filter
+
 
 # ---------------------------------------------------------------------------- #
 # Segmenting iterators / collections
-
 
 def split(items, indices, offset=0):
     """
@@ -436,7 +448,11 @@ def cogroup(func=echo, *iters, unzip=True, **kws):
 
 def cosplit(*iters, indices, offset=0):
     for items in split(zip(*iters), indices, offset):
-        yield tuple(zip(*items))
+        part = tuple(zip(*items))
+        if part:
+            yield part
+        else:
+            yield [()] * len(iters)
 
 
 def cotee(*iters, n=2):
