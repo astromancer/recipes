@@ -62,7 +62,7 @@ def _integers_from_slices(slices, n):
 
 @ftl.singledispatch
 def delete(obj, indices):
-    raise TypeError(f'Invalid object: {obj!r} for item deleton.')
+    raise TypeError(f'Invalid object: {obj!r} for item deletion.')
 
 
 #
