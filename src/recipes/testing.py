@@ -154,9 +154,9 @@ class expected:
     --------
     >>> @expected({
     ...      # test input (cases)        # expected result
-    ...      CAL/'SHA_20200822.0005.fits': shocBiasHDU,
-    ...      CAL/'SHA_20200801.0001.fits': shocFlatHDU,
-    ...      EX1/'SHA_20200731.0022.fits': shocNewHDU
+    ...      CAL/'SHA_20200822.0005.fits': BiasHDU,
+    ...      CAL/'SHA_20200801.0001.fits': FlatHDU,
+    ...      EX1/'SHA_20200731.0022.fits': NewHDU
     ... })
     ... def hdu_type(filename):
     ...     return _BaseHDU.readfrom(filename).__class__

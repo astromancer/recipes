@@ -192,34 +192,13 @@ class AttrSetter:
             setattr(get_obj(target), attr, value)
 
 
-class AttrDict(AttrGetter):
+class AttrDictGetter(AttrGetter):
     """
     Like attrgetter, but returns a dict keyed on requested attributes. 
     """
 
     def __call__(self, target):
         return dict(zip(self.keys, super().__call__(target)))
-
-
-class VectorizeMixin:
-    def __call__(self, target):
-        return list(self.map(target))
-
-    def map(self, target):
-        assert isinstance(target, abc.Iterable)
-        return map(super().__call__, target)
-
-    def filter(self, *args):
-        *test, target = args
-        return filter((test or None), self.map(target))
-
-
-class ItemVector(VectorizeMixin, ItemGetter):
-    """Vectorized ItemGetter"""
-
-
-class AttrVector(VectorizeMixin, AttrGetter):  # AttrTable!
-    """Vectorized attribute getter a la AttrGetter."""
 
 
 # ---------------------------------------------------------------------------- #
@@ -236,7 +215,7 @@ class MethodCaller:
     After g = methodcaller('name', 'date', foo=1), the call g(r) returns
     r.name('date', foo=1).
     """
-    __slots__ = ('_name', '_args', '_kwargs')
+    __slots__ = ('_name', '_getter', '_args', '_kwargs')
 
     def __init__(*args, **kwargs):  # pylint: disable=no-method-argument
         if len(args) < 2:
@@ -247,14 +226,16 @@ class MethodCaller:
 
         self = args[0]
         self._name = args[1]
+        self._getter = AttrGetter(self._name)
         if not isinstance(self._name, str):
-            raise TypeError(f'Method name must be a string, not '
-                            f'{type(self._name)}')
+            raise TypeError(
+                f'Method name must be a string, not {type(self._name)}.'
+            )
         self._args = args[2:]
         self._kwargs = kwargs
 
     def __call__(self, obj):
-        return _op.attrgetter(self._name)(obj)(*self._args, **self._kwargs)
+        return self._getter(obj)(*self._args, **self._kwargs)
 
     def __repr__(self):
         args = [repr(self._name),
@@ -269,6 +250,30 @@ class MethodCaller:
                     self._args)
 
         return self.__class__, (self._name, *self._args)
+
+
+# ---------------------------------------------------------------------------- #
+
+class MapperBase:
+    def __call__(self, target):
+        return list(self.map(target))
+
+    def map(self, target):
+        assert isinstance(target, abc.Iterable)
+        return map(super().__call__, target)
+
+    def filter(self, *args):
+        *test, target = args
+        return filter((test or None), self.map(target))
+
+
+class ItemVector(MapperBase, ItemGetter):
+    """Vectorized ItemGetter"""
+
+
+class AttrVector(MapperBase, AttrGetter):  # AttrTable!
+    """Attribute getter that fetches across items in a container when called."""
+
 
 
 class MethodVector(MethodCaller):
