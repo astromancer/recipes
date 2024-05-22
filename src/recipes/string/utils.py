@@ -2,6 +2,9 @@
 Utilities for operations on strings
 """
 
+# std
+import textwrap as txw
+
 # third-party
 import more_itertools as mit
 
@@ -198,9 +201,25 @@ def surround(string, left, right=None, sep=''):
     return sep.join((left, string, right))
 
 
-def indent(string, width=4):
+def indent(string, width=4, test=str.strip):
     # indent `width` number of spaces
-    return str(string).replace('\n', f'\n{"": <{int(width)}}')
+    prefix = ' ' * width
+    return ''.join((('', prefix)[bool(test(line))] + line
+                    for line in str(string).splitlines(True)))
+
+
+def _reindent(string, tabsize, old=4):
+    for line in str(string).splitlines(True):
+        if (text := line.lstrip(' ')):
+            indent = line.index(text)
+            indent, leftover = divmod(indent, old)
+            yield (' ' * indent * tabsize) + line
+        else:
+            yield ''
+
+
+def reindent(string, tabsize, old=4):
+    return ''.join(_reindent(string, old, old))
 
 
 def truncate(string, size, dots=' … ', end=10):
@@ -212,6 +231,7 @@ def truncate(string, size, dots=' … ', end=10):
 
 # ---------------------------------------------------------------------------- #
 # Transformations
+
 
 def strip_non_ascii(string):
     """
