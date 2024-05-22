@@ -418,7 +418,7 @@ class Delimited:
         """
         Constructor for a non-existent Delimited to be used as sentinel.
         """
-        return cls('{}', None, (None, None))
+        return cls(('', ''), None, (None, None))
 
     def __init__(self,
                  delimiters: Tuple[str],
