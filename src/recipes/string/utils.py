@@ -201,11 +201,15 @@ def surround(string, left, right=None, sep=''):
     return sep.join((left, string, right))
 
 
-def indent(string, width=4, test=str.strip):
+def indent(string, indent=4, test=str.strip, first=False):
     # indent `width` number of spaces
-    prefix = ' ' * width
-    return ''.join((('', prefix)[bool(test(line))] + line
-                    for line in str(string).splitlines(True)))
+    prefix = ' ' * indent
+    result = ''.join((('', prefix)[bool(test(line))] + line
+                      for line in str(string).splitlines(True)))
+    if first:
+        return result
+    # no indent first line
+    return result.lstrip()
 
 
 def _reindent(string, tabsize, old=4):
