@@ -2,9 +2,6 @@
 Utilities for operations on strings
 """
 
-# std
-import textwrap as txw
-
 # third-party
 import more_itertools as mit
 
@@ -19,6 +16,10 @@ from ..iter import where
 def strings(items):
     """Map collection to list of str"""
     return [*map(str, items)]
+
+
+def csv(items):
+    return ', '.join(items)
 
 
 # ---------------------------------------------------------------------------- #

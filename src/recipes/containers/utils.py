@@ -240,8 +240,6 @@ def cosort(*items, key=None, master_key=None, order=1):
     return tuple(map(list, zip(*result)))
 
 
-
-
 class _CosortHelper:
 
     __slots__ = ('key', 'master_key')
@@ -277,10 +275,8 @@ class _CosortHelper:
         return (self.master_key(*items), *values)
 
 
-
 # ---------------------------------------------------------------------------- #
 # where, where.unique, where.duplicate
-
 select = TypeContinuity()(itr.select)
 duplicates = TypeContinuity(ensure={all: list})(itr.duplicates)
 

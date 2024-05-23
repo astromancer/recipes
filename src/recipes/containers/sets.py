@@ -5,6 +5,23 @@ Utilities for working with sets.
 from collections import abc
 
 
+# ---------------------------------------------------------------------------- #
+
+def single_valued(items):
+    value = (many := set(items)).pop()
+    if many:
+        raise ValueError(f'Not single valued: { {*many, value} }')
+    return value
+
+
+def csv(values):
+    try:
+        return single_valued(values)
+    except ValueError:
+        return ', '.join(map(str, values))
+
+# ---------------------------------------------------------------------------- #
+
 class OrderedSet(abc.MutableSet):
     # source: http://code.activestate.com/recipes/576694/
 
@@ -63,4 +80,3 @@ class OrderedSet(abc.MutableSet):
         if isinstance(other, OrderedSet):
             return len(self) == len(other) and list(self) == list(other)
         return set(self) == set(other)
-
