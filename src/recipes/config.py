@@ -275,7 +275,7 @@ def dotsplit(keys):
 class ConfigNode(DictNode, _AttrReadItem):
 
     @classmethod
-    def load(cls, filename, defaults=None, dot_split=False):
+    def load(cls, filename, defaults=None, dot_split=False, freeze=True):
         assert filename or defaults
         config = load(defaults) if defaults else {}
         if filename and Path(filename).exists():
@@ -285,6 +285,8 @@ class ConfigNode(DictNode, _AttrReadItem):
         if dot_split:
             return config.transform(dotsplit)
 
+        if freeze:
+            config.freeze()
         return config
 
     @classmethod
