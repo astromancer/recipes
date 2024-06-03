@@ -254,6 +254,7 @@ def _create_user_config(pkg, path, source=None, overwrite=None,
                       'but null `version_stamp` was provided.')
 
     # create backup (if overwriting) and write new config file
+    path.parent.mkdir(parents=True, exist_ok=True)
     with io.backed_up(path, folder=path.parent) as fp:
         fp.write(text)
 
