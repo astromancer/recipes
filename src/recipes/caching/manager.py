@@ -130,13 +130,16 @@ class CacheManager(LoggingMixin):
         self.enabled = bool(enabled)
 
     def __str__(self):
-        info = {'size': f'{len(self.data)}/{self.capacity}'}
+        info = {}
         if self.filename:
-            info['file'] = repr(str(self.path))
+            info['file'] = str(self.path)
+
+        info.update(polcy=self.policy,
+                    active=self.enabled,
+                    size=f'{len(self.data)}/{self.capacity}')
+
         info = pformat(info, type(self).__name__, lhs=str, rhs=str, brackets='[]')
-        return pformat(self.data,
-                       f'{info}',
-                       hang=True)
+        return pformat(self.data, f'{info}', hang=True)
 
     __repr__ = __str__
 

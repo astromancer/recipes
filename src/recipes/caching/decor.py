@@ -253,7 +253,7 @@ class Cached(Decorator, LoggingMixin):
         decorated.__cache__ = self.cache
         return decorated
 
-    def resolve_types(self, mapping):
+    def resolve_types(self, mapping, strict=False):
         names = list(self.sig.parameters.keys())
         key_types = set(map(type, mapping.keys())) - {str}
         if key_types:
@@ -266,46 +266,48 @@ class Cached(Decorator, LoggingMixin):
             raise ValueError(f'Hash map key has incorrect types {key_types}.')
 
         # all keys are now str
-        if invalid := (set(mapping.keys()) - set(names)):
+        if strict and (invalid := (set(mapping.keys()) - set(names))):
             raise ValueError(f'{describe(self.__wrapped__)} takes no '
                              f'{named_items(list(invalid), "parameter")}.')
 
-    def _gen_hash_key(self, args, kws):
-        """
-        Generate hash key from function arguments.
-        """
+    def _gen_hash_key(self, mapping):
 
-        bound = self.sig.bind(*args, **kws)
-        bound.apply_defaults()
-        for name, val in bound.arguments.items():
+        for name, val in mapping.items():
             convert = self.typed.get(name, echo0)
 
             # Filter ignored params
             if isinstance(convert, Ignore):
                 if not convert.silent:
                     # emit warning on non-silent ignore
-                    self.logger.debug(
-                        'Ignoring argument in '
-                        f'{describe(self.__wrapped__)}: {name!r} = {val!r}')
+                    self.logger.opt(lazy=True).debug(
+                        'Ignoring argument in {}',
+                        lambda: f'{describe(self.__wrapped__)}: {name!r} = {val!r}'
+                    )
                 continue
 
-            if self.sig.parameters[name].kind is not _VAR_KEYWORD:
-                yield convert(val)
-            else:
+            if (par := self.sig.parameters.get(name)) and (par.kind is _VAR_KEYWORD):
                 # deal with variadic keyword args (**kws):
-                # remove the keys that have been bound to other position-or-keyword
-                # parameters. variadic keyword args can come in any order. To ensure
-                # we resolve calls like foo(a=1, b=2) and foo(b=2, a=1) to the same
-                # cache item, we need to order the keywords. Finally convert to
-                # tuple of 2-tuples (key value pairs) so we can hash
-                keys = sorted(set(kws.keys()) - set(bound.arguments.keys()))
-                yield convert(tuple(zip(keys, map(kws.get, keys))))
+                yield tuple(zip(val.keys(), self._gen_hash_key(val)))
+            else:
+                yield convert(val)
+
+            # remove the keys that have been bound to other position-or-keyword
+            # parameters. variadic keyword args can come in any order. To ensure
+            # we resolve calls like foo(a=1, b=2) and foo(b=2, a=1) to the same
+            # cache item, we need to order the keywords. Finally convert to
+            # tuple of 2-tuples (key value pairs) so we can hash
+
+            # keys = sorted(set(val.keys()) - set(mapping.keys()))
+            # kws = dict(zip(keys, map(val.get, keys)))
+            # yield tuple(self._gen_hash_key(kws))
 
     def get_key(self, *args, **kws):
         """
         Compute cache key from function parameter values
         """
-        return tuple(self._gen_hash_key(args, kws))
+        bound = self.sig.bind(*args, **kws)
+        bound.apply_defaults()
+        return tuple(self._gen_hash_key(bound.arguments))
 
     def is_hashable(self, params):
         """
