@@ -19,7 +19,7 @@ def strings(items):
 
 
 def csv(items):
-    return ', '.join(items)
+    return ', '.join(strings(items))
 
 
 # ---------------------------------------------------------------------------- #
@@ -204,11 +204,15 @@ def surround(string, left, right=None, sep=''):
 
 def indent(string, indent=4, test=str.strip, first=False):
     # indent `width` number of spaces
+    if indent is True:
+        indent = 4
+
     prefix = ' ' * indent
     result = ''.join((('', prefix)[bool(test(line))] + line
                       for line in str(string).splitlines(True)))
     if first:
         return result
+
     # no indent first line
     return result.lstrip()
 

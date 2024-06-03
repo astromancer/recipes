@@ -10,11 +10,12 @@ import functools as ftl
 import contextlib as ctx
 
 # relative
-from .. import api, string
+from .. import string
 from ..oo import slots
 from ..containers import dicts
 from ..oo.repr_helpers import DEFAULT_STYLE
 from ..introspect.utils import get_module_name
+from .mapping import pformat
 
 
 # ---------------------------------------------------------------------------- #
@@ -257,7 +258,6 @@ class Parameter(BaseFormatter):
 
         if name is True:
             # add prefix '*' / '**'
-            # name = par._name
             name = f'{VAR_MARKS.get(par.kind, "")}{par._name}'
 
         # Fill empty if name is null
@@ -276,6 +276,8 @@ class Parameter(BaseFormatter):
         # get name
         name = self.name(par, name)
         assert isinstance(name, str)
+
+        # if par.kind is VKW:
 
         # fill default if no value given
         if value is DEFAULT:
@@ -310,10 +312,9 @@ class Parameter(BaseFormatter):
 
 class ParameterList(BaseFormatter):
 
-    __slots__ = ('ppl', 'wrap', 'indent', 'hang', 'align',
-                 'parameter')  # fmt?
+    __slots__ = ('ppl', 'wrap', 'indent', 'hang', 'align', 'parameter')  # fmt?
 
-    def __init__(self, ppl=None, align=False, wrap=80, indent=True, hang=None, **kws):
+    def __init__(self, ppl=None, align=False, wrap=80, indent=None, hang=None, **kws):
 
         # parameter formatter
         parameter = Parameter(align=align, **kws)
@@ -322,15 +323,15 @@ class ParameterList(BaseFormatter):
         # save local state on instance
         super().__init__(**slots.sanitize(locals()))
 
-    def format(self, params, **fmt):
+    def format(self, params, indent=None, **fmt):
         # parameters as block wrapped string
         if not params:
             return
 
         params = list(self._parts(params, **fmt))
-        return self.wrapped(params)
+        return self.wrapped(params, indent)
 
-    def _parts(self, params, names=True, values=(), width=None, **fmt):
+    def _parts(self, params, names=True, values=(), width=None, indent=None, **fmt):
         # yield formatted parameter(:annotation)(=value) strings
 
         assert (not values) or (len(values) == len(params))
@@ -362,25 +363,25 @@ class ParameterList(BaseFormatter):
                     yield from map(self.parameter.rhs, value)
                     continue
 
-                if (par.kind is VKW):
-                    if value is DEFAULT:
-                        value = par.default
-                    for name, val in value.items():
-                        yield self.parameter(None, name, False, val, width)
-                    continue
+            # format
+            s = self.parameter(par, name=name, value=value, width=width, **fmt)
 
-            yield self.parameter(par, name=name, value=value, width=width, **fmt)
+            # indent variadic kws dict
+            if (par.kind is VKW):
+                name = self.parameter.name(par)
+                s = s.replace('\n', '\n' + ' ' * (len(name) + 1))
+
+            yield s
 
     # ------------------------------------------------------------------------ #
-
-    def wrapped(self, params):
+    def wrapped(self, params, indent=None):
 
         if not params:
             return '()'
 
         ppl = self.ppl
         wrap = self.wrap
-        indent = self.indent
+        indent = indent or self.indent
         hang = self.hang
 
         # format!
@@ -404,8 +405,6 @@ class ParameterList(BaseFormatter):
                     (wrap and widest > wrap - indent))
 
         hang = bool(hang)
-        if hang:
-            indent = 4
 
         if wrap:
             wrap -= indent
@@ -490,7 +489,7 @@ class Callable(slots.SlotHelper):
                     sig = inspect.signature(obj, follow_wrapped=False)
                 else:
                     raise
-            
+
             fmt = Formatter(*args, **kws)
             state = slots.sanitize(locals(), 'args')
 
@@ -512,12 +511,7 @@ class Callable(slots.SlotHelper):
         return args, kws
 
     def format(self, *params, **fmt):
-
-        name = self.name()
-        if fmt.get('indent') is True:
-            fmt['indent'] = len(name) + 1
-
-        return f'{name}{self.parameters(*params, **fmt)}'
+        return f'{self.name()}{self.parameters(*params, **fmt)}'
 
     # ------------------------------------------------------------------------ #
     def name(self):
@@ -538,10 +532,41 @@ class Callable(slots.SlotHelper):
     def _parameters(self, *args, **kws):
         return self.fmt.parameters._parts(*args, **kws)
 
-    def parameters(self, *args, **kws):
-        return self.fmt.parameters.wrapped(
-            list(self._parameters(*args, **kws))
-        )
+    def parameters(self, *args, indent=None, hang=None, **kws):
+
+        name = self.name()
+        plist = list(self._parameters(*args, **kws))
+
+        widest = max(map(len, plist))
+
+        ppl = self.fmt.parameters.ppl
+        wrap = self.fmt.parameters.wrap
+        indent = indent or self.fmt.parameters.indent
+        hang = self.fmt.parameters.hang
+
+        # get default choices for repr
+        if ppl:
+            ppl = int(ppl)
+            wrap = False
+        # elif wrap:
+        #     ppl = max(wrap // widest, 1)
+        # else:
+        #     ppl = 100
+        # ppl = ppl or 100
+
+        #
+        # indent = len(name) + 1
+        if hang is None:
+            hang = ((not ppl and len(plist) > 7)
+                    or
+                    (wrap and indent and (widest > wrap - indent)))
+
+        hang = bool(hang)
+
+        if indent is None:
+            indent = 4 if hang else len(name) + 1
+
+        return self.fmt.parameters.wrapped(plist, indent)
 
 
 class Signature(Callable):
@@ -571,7 +596,7 @@ class Signature(Callable):
     #     name = f'{VAR_MARKS.get(par.kind, "")}{par._name}'
     #     return self._parameter(par, name, annotated, value, width)
 
-    def _parameters(self, annotated, show_defaults, pep570_marks):
+    def _parameters(self, annotated, show_defaults, pep570_marks, indent=None):
         # yield formatted parameter(:annotation)(=value) string
 
         params = self.sig.parameters.values()
@@ -584,7 +609,8 @@ class Signature(Callable):
         # names = {_var_name(p): p for p in params.values()}
 
         # Get mapping: formatter parameter name (possibly with annotation) -> default value
-        formatted = list(self.fmt.parameters._parts(params, annotated=annotated))
+        formatted = list(self.fmt.parameters._parts(params, annotated=annotated,
+                                                    indent=indent))
 
         if pep570_marks:
             yield from self._pep570(params, formatted)
@@ -674,7 +700,7 @@ FORMATTER_KWS = {slot
                  for slot in kls.__slots__} - {'parameter', 'parameters'}
 
 
-@api.synonyms({'params_per_line': 'ppl'}, action='silent')
+# @api.synonyms({'params_per_line': 'ppl'}, action='silent')
 def caller(obj, args=EMPTY, kws=EMPTY, **fmt):
 
     # split Formatter init params
@@ -694,8 +720,8 @@ def caller(obj, args=EMPTY, kws=EMPTY, **fmt):
         kws = {}
 
     # format as invocation
-    inv = formatter(*args, **kws)
-    return inv.format(**fmt_call_kws)
+    invocation = formatter(*args, **kws)
+    return invocation.format(**fmt_call_kws)
 
 
 # ---------------------------------------------------------------------------- #
