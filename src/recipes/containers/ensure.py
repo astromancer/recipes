@@ -68,7 +68,7 @@ def duplicate_if_scalar(obj, n=2, scalars=SCALARS, ensure=builtins.list,
     if (size != n):
         emit(f'Input object of type {type(obj)} has incorrect size: {size}. '
              'Expected either a scalar type object, or a Container with length '
-             f'in {{1, {n}}}.')
+             f'in {{1, {n} }}.')
 
     return ensure(obj)
 
