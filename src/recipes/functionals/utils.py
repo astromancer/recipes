@@ -55,15 +55,15 @@ on_0th = on_zeroth
 
 
 def is_none(x):
-    return x is None
+    return (x is None)
 
 
 def not_none(x):
-    return x is not None
+    return (x is not None)
 
 
 def has_none(x):
-    return None in x
+    return (None in x)
 
 
 # ---------------------------------------------------------------------------- #

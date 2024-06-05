@@ -17,15 +17,16 @@ from ..ensure import is_scalar
 
 def factory(attrs='read', ordered=False, indexed=False, missing=None,
             translate=()):
-    
+
     # TODO: a factory function which takes requested props, eg:
     bases = [_AccessManager]
     if ordered:
         bases.append()
-    
+
     raise NotImplementedError
 
 # ---------------------------------------------------------------------------- #
+
 
 class Invertible:
     """
@@ -84,6 +85,7 @@ class vdict(dict):
             return super().__getitem__(key)
         except (KeyError, TypeError) as err:
             # vectorization
+
             if not is_scalar(key):
                 # Container and not str
                 return self._wrapper(self[_] for _ in key)
@@ -499,7 +501,6 @@ class DefaultOrderedDict(OrderedDict):
 
 # alias
 OrderedDefaultDict = DefaultOrderedDict
-
 
 
 # class Indexable:

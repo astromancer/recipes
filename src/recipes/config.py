@@ -269,9 +269,9 @@ def _dotsplit(keys):
 def dotsplit(keys):
     return tuple(_dotsplit(keys))
 
+
 # Node
 # ---------------------------------------------------------------------------- #
-
 
 class ConfigNode(DictNode, _AttrReadItem):
 
@@ -343,6 +343,7 @@ class ConfigNode(DictNode, _AttrReadItem):
                 return super().__getitem__(key)
 
             raise err from None
+
 
 # ---------------------------------------------------------------------------- #
 # class ConfigLoader:
