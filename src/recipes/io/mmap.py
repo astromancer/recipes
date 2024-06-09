@@ -91,12 +91,15 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, overwrite=False, **
     data = np.lib.format.open_memmap(filename, mode, dtype, shape, **kws)
 
     # check shape and dtype match
-    dtype = np.dtype(dtype)
+    if dtype:
+        dtype = np.dtype(dtype)
+
     for what, val in dict(shape=shape, dtype=dtype).items():
         if val and val != (dval := getattr(data, what)):
-            raise ValueError(f'Loaded memmap has {what}:\n    {dval}\nwhich is '
-                             f'different to that requested:\n    {val}.\nOverwrite: '
-                             f'{overwrite}.')
+            raise ValueError(
+                f'Loaded memmap has {what}:\n    {dval}\nwhich is different to '
+                f'that requested:\n    {val}.\nOverwrite: {overwrite}.'
+            )
 
     # overwrite data
     if new and (fill is not None):
