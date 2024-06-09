@@ -15,7 +15,7 @@ from ..oo import slots
 from ..containers import dicts
 from ..oo.repr_helpers import DEFAULT_STYLE
 from ..introspect.utils import get_module_name
-from .mapping import pformat
+from .dispatch import pformat as default_formatter
 
 
 # ---------------------------------------------------------------------------- #
@@ -238,17 +238,12 @@ class Parameter(BaseFormatter):
 
     __slots__ = ('lhs', 'equal', 'rhs', 'align')
 
-    def __init__(self, lhs=str, equal='=', rhs=None, align=False):
-
-        # default value formatter
-        if rhs is None:
-            from recipes.pprint import pformat as rhs
-
+    def __init__(self, lhs=str, equal='=', rhs=default_formatter, align=False):
         # save local state on instance
         super().__init__(**slots.sanitize(locals()))
 
-    def format(self, par, name=True, annotated=None, value=DEFAULT, width=0):
-        return ''.join(self._parts(par, name, annotated, value, width))
+    def format(self, par, name=True, annotated=None, value=DEFAULT, width=0, indent=True):
+        return ''.join(self._parts(par, name, annotated, value, width, indent))
 
     def name(self, par, name=True):
         # get name
@@ -267,7 +262,7 @@ class Parameter(BaseFormatter):
     def annotation(self, anno):
         return inspect.formatannotation(anno)
 
-    def _parts(self, par, name, annotated, value, width):
+    def _parts(self, par, name, annotated, value, width, indent):
         # get formatted "name(:annotation)(=value)" and value for
         # name value pair (par, value)
 
@@ -289,14 +284,13 @@ class Parameter(BaseFormatter):
         if name and annotated and (par._annotation is not EMPTY):
             name = f'{name}: {self.annotation(par._annotation)}'
 
-        return self._align(name, value, width)
+        return self._align(name, value, width, indent)
 
-    def _align(self, lhs, rhs, width):
+    def _align(self, lhs, rhs, width, indent):
         # get formatted name (possibly with annotation and equal) and value for
         # key value pair (lhs, rhs)
         lhs = lhs or ''
         have_value = not isempty(rhs)
-        rhs = string.indent(self.rhs(rhs), width) if have_value else ''
         eq = self.equal if (lhs and have_value) else ''
 
         if align := self.align:
@@ -307,6 +301,14 @@ class Parameter(BaseFormatter):
         else:
             lhs += eq
 
+        # indent rhs
+        if indent in (True, None):
+            indent = len(lhs)
+        
+        rhs = string.indent(self.rhs(rhs), indent) if have_value else ''
+        #                                  ^ width + indent ?
+        
+        
         return lhs, rhs
 
 
@@ -336,17 +338,14 @@ class ParameterList(BaseFormatter):
 
         assert (not values) or (len(values) == len(params))
 
-        # if names is True:
-        #     # add prefix '*' / '**'
-        #     names = [_var_name(p) for p in params]
-
         if not params:
             return
 
         if self.align and width is None:
             if not names:
                 # format lhs only first
-                names, _ = zip(*(self.parameter._parts(p, value=EMPTY, **fmt) for p in params))
+                names, _ = zip(*(self.parameter._parts(p, value=EMPTY, **fmt) 
+                                 for p in params))
 
             # get width (widest name)
             width = string.width(names)
@@ -369,6 +368,8 @@ class ParameterList(BaseFormatter):
             # indent variadic kws dict
             if (par.kind is VKW):
                 name = self.parameter.name(par)
+
+                # indent multiline parameters to width of parameter name
                 s = s.replace('\n', '\n' + ' ' * (len(name) + 1))
 
             yield s
