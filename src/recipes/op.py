@@ -234,8 +234,8 @@ class MethodCaller:
         self._args = args[2:]
         self._kwargs = kwargs
 
-    def __call__(self, obj):
-        return self._getter(obj)(*self._args, **self._kwargs)
+    def __call__(self, obj, *args, **kws):
+        return self._getter(obj)(*self._args, *args, **self._kwargs, **kws)
 
     def __repr__(self):
         args = [repr(self._name),
