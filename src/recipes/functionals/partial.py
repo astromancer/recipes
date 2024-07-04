@@ -106,10 +106,12 @@ class PartialTask(Wrapper):
         self._keywords = tuple(where(kws, isinstance, _MarkerBase))
 
     def __repr__(self):
+        #  hang=False
         name = type(self).__name__
-        inner = callers.pformat(self.__wrapped__, self.args, self.kws, hang=False)
-        inner = indent(f'\n{inner}', 4)
-        return f'{name}({inner}\n)'
+        inner = callers.pformat(self.__wrapped__, self.args, self.kws)
+        if '\n' in inner:
+            inner = indent(inner, len(name)).join('\n\n')
+        return f'{name}({inner})'
 
     def __call__(self, *args, **kws):
         # resolve args, call inner

@@ -76,6 +76,7 @@ def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width):
 
     # get columns and trim trailing whitespace column
     columns = _get_hstack_columns(strings, spacing, offsets, width_func)
+
     # columns = itt.islice(columns, 2 * len(strings) - 1)
     return '\n'.join(map(''.join, zip(*columns)))
 

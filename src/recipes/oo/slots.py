@@ -4,19 +4,20 @@ import fnmatch as fnm
 import itertools as itt
 
 # relative
+from ..pprint.dispatch import pformat
 from ..containers import dicts, ensure
 from .utils import superclasses
-from .repr_helpers import ReprHelper
-
+from .represent import Represent
 
 # ---------------------------------------------------------------------------- #
 
-def sanitize_locals(kws, *ignore):
+
+def sanitize(kws, *ignore):
     return dicts.remove(kws, {'self', 'kws', '__class__', *ignore})
 
 
 # alias
-sanitize = sanitize_locals
+sanitize_locals = sanitize
 
 
 def get_slots(cls, ignore='_*', ancestors=all):
@@ -48,28 +49,22 @@ def _get_slots(cls, ancestors=all, ):
 
 # ---------------------------------------------------------------------------- #
 
-class SlotRepr(ReprHelper):
-    """
-    Represent objects with slots.
-    """
+class Represent(Represent):
 
-    __slots__ = ()
-
-    def __repr__(self, extra=(), ignore='_*', **kws):
-        kws = {**self._repr_style, **kws}
-        if not (attrs := kws.pop('attrs', ())):
-            # loop through the slots of all the bases and make a repr from that
-            attrs = get_slots(type(self), ignore)
-
-        return super().__repr__(attrs=(*attrs, *extra), **kws)
+    def __set_name__(self, kls, name):
+        # loop through the slots of all the bases and make a repr from that
+        self.attrs = get_slots(kls, self.ignore)
 
 
-class SlotHelper(SlotRepr):
+# ---------------------------------------------------------------------------- #
+
+class SlotHelper:
     """
     Helper class for objects with __slots__.
     """
 
     __slots__ = ()
+    __repr__ = Represent()
     __non_init_params = {'self', 'args', 'kws'}
 
     @classmethod

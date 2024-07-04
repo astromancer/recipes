@@ -13,7 +13,7 @@ import contextlib as ctx
 from .. import string
 from ..oo import slots
 from ..containers import dicts
-from ..oo.repr_helpers import DEFAULT_STYLE
+from ..oo.represent import DEFAULT_STYLE
 from ..introspect.utils import get_module_name
 from .dispatch import pformat as default_formatter
 

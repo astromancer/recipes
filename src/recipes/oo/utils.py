@@ -29,7 +29,7 @@ def subclasses(cls, _seen=None):
     # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
 
     if not isinstance(cls, type):
-        from recipes.oo.repr_helpers import qualname
+        from recipes.oo.represent import qualname
         raise TypeError(f'{qualname(subclasses)}` must be called with new-style'
                         f' classes, not {cls!r}.')
 
