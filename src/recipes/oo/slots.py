@@ -4,10 +4,10 @@ import fnmatch as fnm
 import itertools as itt
 
 # relative
-from ..pprint.dispatch import pformat
 from ..containers import dicts, ensure
 from .utils import superclasses
 from .represent import Represent
+
 
 # ---------------------------------------------------------------------------- #
 
@@ -52,8 +52,10 @@ def _get_slots(cls, ancestors=all, ):
 class Represent(Represent):
 
     def __set_name__(self, kls, name):
-        # loop through the slots of all the bases and make a repr from that
-        self.attrs = get_slots(kls, self.ignore)
+
+        if self.attrs is ...:
+            # loop through the slots of all the bases and make a repr from that
+            self.attrs = get_slots(kls, self.ignore)
 
 
 # ---------------------------------------------------------------------------- #

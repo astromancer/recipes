@@ -2,6 +2,7 @@
 Object representaion helpers.
 """
 
+from .. import op
 from ..pprint.dispatch import pformat
 
 
@@ -11,8 +12,8 @@ DEFAULT_STYLE = dict(
     equal='=',
     rhs=repr,
     brackets='()',
-    enclose='<>',
-    align=False
+    align=False,
+    newline='',
 )
 
 
@@ -22,45 +23,43 @@ def qualname(kls):
     return f'{kls.__module__}.{kls.__name__}'
 
 
-def get_attrs(obj, keys, maybe=()):
-    return {**{key: getattr(obj, key) for key in keys},
-            **{key: val for key in maybe if (val := getattr(obj, key))}}
-
-
 class Represent:
 
-    DEFAULT_STYLE = dict(
-        lhs=str,
-        equal='=',
-        rhs=repr,
-        brackets='()',
-        enclose='<>',
-        align=False
-    )
-
-    def __init__(self, attrs=..., maybe=(), ignore='*_',
-                 enclose=DEFAULT_STYLE['enclose'], style=(), **kws):
+    def __init__(self, attrs=..., maybe=(), ignore='*_', remap=(),
+                 enclose='<>', style=(), **kws):
 
         # attributes
         self.attrs = attrs
         self.maybe = maybe
         self.ignore = ignore
+        self.remap = dict(remap)
 
         # style
         self.enclose = enclose or ('', '')
-        self.style = kws
+        self.style = {**DEFAULT_STYLE, **(style or {}), **kws}
+
+        # The target instance to represent: set in `__get__` method below
+        self.target = None
 
     def __get__(self, instance, kls):
         if instance:  # lookup from instance
+            self.target = instance
+
             if self.attrs is ...:
                 # use all attributes in `__dict__`
-                attrs = tuple(getattr(instance, '__dict__', ()))
-                self.attrs = get_attrs(instance, attrs, self.maybe)
+                self.attrs = tuple(getattr(instance, '__dict__', ()))
 
         return self  # lookup from class
 
-    def __call__(self, obj):
+    def __call__(self):
+
+        items = op.get.attrs(self.target, self.attrs, self.maybe)
+
+        if self.remap:
+            items = {self.remap.get(key, key): val for key, val in items.items()}
+
         opn, *close = self.enclose
-        return ''.join((pformat(self.attrs, f'{opn}{type(obj).__name__}',
+        return ''.join((pformat(items,
+                                f'{opn}{type(self.target).__name__}',
                                 **self.style),
                         *close))
