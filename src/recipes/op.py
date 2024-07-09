@@ -20,11 +20,14 @@ from collections import abc
 # relative
 import builtins
 from .functionals import echo0
+from .containers import ensure
 
 
 # ---------------------------------------------------------------------------- #
-class NULL:
-    """Null singleton"""
+
+# Null singleton
+_NULL = object()
+_NOT_FOUND = object()
 
 
 def any(itr, test=bool):
@@ -64,8 +67,9 @@ def all(itr, test=bool):
 # Reversed binary operators
 
 def reverse_operands(operator):
+    """Decorator that reverses the order of input arguments."""
 
-    def wrapper(a, b):
+    def wrapper(a, b, /):
         return operator(b, a)
 
     # docstring
@@ -89,41 +93,49 @@ radd, rsub, rmul, rtruediv, rfloordiv = _make_reverse_operators(
 
 class Get:
 
-    def items(self, *indices):
+    def items(self, indices):
         return ItemGetter(*indices)
 
     __call__ = item = items
 
-    def attrs(self, *attrs):
-        return AttrGetter(*attrs)
+    def attrs(self, obj, required, conditional=()):
+        maybe = {}
+        if conditional:
+            maybe = AttrMapper(*ensure.tuple(conditional), default=_NOT_FOUND)(obj)
+            maybe = {key: val for key, val in maybe.items()
+                     if val is not _NOT_FOUND}
+
+        return {**AttrMapper(*ensure.tuple(required))(obj), **maybe}
 
     attr = attrs
 
 
-#
+# Singleton for item / attribute retrieval
 get = Get()
 
+
+# ---------------------------------------------------------------------------- #
 
 class ItemGetter:
     """
     (Multi-)Item getter with optional default substitution.
     """
     _worker = staticmethod(getitem)
-    _excepts = LookupError  # (KeyError, IndexError)
+    _excepts = LookupError
     _raises = KeyError
 
-    def __init__(self, *keys, default=NULL, defaults=None):
+    def __init__(self, *keys, default=_NULL, defaults=None):
         self.keys = keys
         self.default = default
         self.defaults = defaults or {}
         self.unpack = tuple if len(self.keys) > 1 else next
 
-        # FAILS for slices: TypeError: unhashable type: 'slice'
+        # FIXME: FAILS for slices: TypeError: unhashable type: 'slice'
         # typo = set(self.defaults.keys()) - set(self.keys)
         # if typo:
         #     warnings.warn(f'Invalid keys in `defaults` mapping: {typo}')
 
-        # if default is NULL:
+        # if default is _NULL:
         #     # intentionally override the `get_default` method
         #     self.get_default = raises(self._raises)
 
@@ -135,7 +147,7 @@ class ItemGetter:
 
     def get_default(self, key):
         """Retrieve the default value of the `key` attribute"""
-        if self.default is NULL:
+        if self.default is _NULL:
             raise self._raises(key)
 
         return self.defaults.get(key, self.default)
@@ -152,7 +164,8 @@ class ItemGetter:
 class AttrGetter(ItemGetter):
     """
     (Multi-)Attribute getter with optional default substitution and chained
-    lookup support for lookup on nested objects.
+    lookup support for sumultaneously retrieving many attributes from nested
+    objects.
     """
     _excepts = (AttributeError, )
 
@@ -160,8 +173,8 @@ class AttrGetter(ItemGetter):
     def _worker(target, key):
         return _op.attrgetter(key)(target)
 
-    def __call__(self, target, default=NULL):  # -> Tuple or Any:
-        if default is not NULL:
+    def __call__(self, target, default=_NULL):  # -> Tuple or Any:
+        if default is not _NULL:
             self.default = default
         return self.unpack(self._iter(target))
 
@@ -192,10 +205,15 @@ class AttrSetter:
             setattr(get_obj(target), attr, value)
 
 
-class AttrDictGetter(AttrGetter):
+class AttrMapper(AttrGetter):
     """
-    Like attrgetter, but returns a dict keyed on requested attributes. 
+    Like `AttrGetter`, but returns a `dict` keyed on requested attributes. 
     """
+
+    def __init__(self, *keys, default=_NULL, defaults=None):
+        super().__init__(*keys, default=default, defaults=defaults)
+        self.unpack = tuple
+        # always unpack to tuple since we will use that to create a dict
 
     def __call__(self, target):
         return dict(zip(self.keys, super().__call__(target)))
@@ -241,8 +259,8 @@ class MethodCaller:
         args = [repr(self._name),
                 *map(repr, self._args)]
         args.extend(f'{k}={v!r}' for k, v in self._kwargs.items())
-        return \
-            f"{(c:=self.__class__).__module__}.{c.__name__}({', '.join(args)})"
+        kls = type(self)
+        return f"{kls.__module__}.{kls.__name__}({', '.join(args)})"
 
     def __reduce__(self):
         if self._kwargs:
@@ -275,7 +293,6 @@ class AttrVector(MapperBase, AttrGetter):  # AttrTable!
     """Attribute getter that fetches across items in a container when called."""
 
 
-
 class MethodVector(MethodCaller):
     def __call__(self, target):
         assert isinstance(target, abc.Iterable)
@@ -283,7 +300,7 @@ class MethodVector(MethodCaller):
 
 
 # ---------------------------------------------------------------------------- #
-def index(collection, item, start=0, test=eq, default=NULL):
+def index(collection, item, start=0, test=eq, default=_NULL):
     """
     Find the index position of `item` in `collection`, or if a test function is
     provided, the first index position for which the test evaluates True. If
@@ -325,7 +342,7 @@ def index(collection, item, start=0, test=eq, default=NULL):
     # behave like standard indexing by default
     #  -> only if default parameter was explicitly given do we return that
     #   instead of raising a ValueError
-    if default is NULL:
+    if default is _NULL:
         raise ValueError(f'{item!r} is not in {type(collection).__name__}')
 
     return default
