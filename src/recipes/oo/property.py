@@ -30,7 +30,7 @@ class Alias:
     member. Useful for exposing dynamic attributes of nested objects in the
     parent namespace.
 
-    This works like `op.attrgetter` in that it can handle chaned lookups. In
+    This works like `op.attrgetter` in that it can handle chained lookups. In
     addition it also allows setting attributes on the endpoint object.
     """
 
@@ -78,8 +78,8 @@ class Alias:
 
         return self._getter(instance)
 
-    def __set__(self, obj, value):
-        self._setter(obj, value)
+    def __set__(self, instance, value):
+        self._setter(instance, value)
 
     # def __delete__(self, obj):
     #     if self.attr:
