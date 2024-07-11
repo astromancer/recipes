@@ -47,7 +47,8 @@ def _max_line_width(lines):
     return max(map(len, lines))
 
 
-def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width):
+def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width,
+           rstrip=False):
     """
     Stick two or more multi-line strings together horizontally.
 
@@ -76,6 +77,10 @@ def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width):
 
     # get columns and trim trailing whitespace column
     columns = _get_hstack_columns(strings, spacing, offsets, width_func)
+
+    if rstrip:
+        *columns, final = columns
+        columns.append(list(map(str.rstrip, final)))
 
     # columns = itt.islice(columns, 2 * len(strings) - 1)
     return '\n'.join(map(''.join, zip(*columns)))
