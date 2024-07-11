@@ -101,11 +101,11 @@ class Get:
     def attrs(self, obj, required, conditional=()):
         maybe = {}
         if conditional:
-            maybe = AttrMapper(*ensure.tuple(conditional), default=_NOT_FOUND)(obj)
+            maybe = AttrMap(*ensure.tuple(conditional), default=_NOT_FOUND)(obj)
             maybe = {key: val for key, val in maybe.items()
                      if val is not _NOT_FOUND}
 
-        return {**AttrMapper(*ensure.tuple(required))(obj), **maybe}
+        return {**AttrMap(*ensure.tuple(required))(obj), **maybe}
 
     attr = attrs
 
@@ -139,7 +139,7 @@ class ItemGetter:
         #     # intentionally override the `get_default` method
         #     self.get_default = raises(self._raises)
 
-    def __call__(self, target):  # -> Tuple or Any:
+    def __call__(self, target):
         return self.unpack(self._iter(target))
 
     def __repr__(self):
@@ -176,7 +176,7 @@ class AttrGetter(ItemGetter):
     def __call__(self, target, default=_NULL):  # -> Tuple or Any:
         if default is not _NULL:
             self.default = default
-        return self.unpack(self._iter(target))
+        return super().__call__(target)
 
 
 class AttrSetter:
@@ -205,9 +205,10 @@ class AttrSetter:
             setattr(get_obj(target), attr, value)
 
 
-class AttrMapper(AttrGetter):
+# Get items / attributes as dict
+class MapperMixin:
     """
-    Like `AttrGetter`, but returns a `dict` keyed on requested attributes. 
+    Mixin that returns a `dict` keyed on requested itmes / attributes.
     """
 
     def __init__(self, *keys, default=_NULL, defaults=None):
@@ -217,6 +218,18 @@ class AttrMapper(AttrGetter):
 
     def __call__(self, target):
         return dict(zip(self.keys, super().__call__(target)))
+
+
+class ItemMap(ItemGetter, MapperMixin):
+    """
+    Like `ItemGetter`, but returns a `dict` keyed on requested items.
+    """
+
+
+class AttrMap(AttrGetter, MapperMixin):
+    """
+    Like `AttrGetter`, but returns a `dict` keyed on requested attributes. 
+    """
 
 
 # ---------------------------------------------------------------------------- #
