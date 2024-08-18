@@ -196,8 +196,9 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
         if isinstance(val, type(self)):
             node = val
         elif isinstance(val, MutableMapping):
-            node = type(self)(**val)
-            # node.update(val)
+            node = type(self)()
+            node.update(val)
+            # NOTE: use update here in case there may be a key named 'self'
         else:
             node = LeafNode(val)
 
