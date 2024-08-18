@@ -206,7 +206,7 @@ class AttrSetter:
 
 
 # Get items / attributes as dict
-class MapperMixin:
+class MapBase:
     """
     Mixin that returns a `dict` keyed on requested itmes / attributes.
     """
@@ -220,13 +220,13 @@ class MapperMixin:
         return dict(zip(self.keys, super().__call__(target)))
 
 
-class ItemMap(ItemGetter, MapperMixin):
+class ItemMap(MapBase, ItemGetter):
     """
     Like `ItemGetter`, but returns a `dict` keyed on requested items.
     """
 
 
-class AttrMap(AttrGetter, MapperMixin):
+class AttrMap(MapBase, AttrGetter):
     """
     Like `AttrGetter`, but returns a `dict` keyed on requested attributes. 
     """
