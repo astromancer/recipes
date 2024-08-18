@@ -27,7 +27,7 @@ from ..string import remove_suffix, truncate
 # list of builtin modules
 BUILTIN_MODULE_NAMES = [  # TODO: generate at install time for version
     # builtins
-    *stdlib_list(sys.version[:3]),
+    *stdlib_list('.'.join(sys.version.split('.', 2)[:2])),
     # python easter eggs
     'this', 'antigravity'
     # auto-generated module for builtin keywords
@@ -299,7 +299,7 @@ def _(path):
         name = remove_suffix(remove_suffix(str(rpath), '.py'), '__init__')
         if 'src' in name:
             name = name[(name.index('src') + 4):]
-            
+
         return name.rstrip('/').replace('/', '.')
 
     raise ValueError(f"Could not get package name for file '{path!s}'.")
