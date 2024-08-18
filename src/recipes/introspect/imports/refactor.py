@@ -343,9 +343,9 @@ class NodeScopeFilter(ast.NodeTransformer):
     def ignore(self, node):
         return getattr(node, 'col_offset', -1) > self.indent_ok
 
-    def visit(self, node):
+    def visit_Import(self, node):
         if not self.ignore(node):
-            return super().visit(node)
+            return super().generic_visit(node)
 
 
 class Parentage(ast.NodeTransformer):
