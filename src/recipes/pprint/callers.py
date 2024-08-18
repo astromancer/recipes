@@ -320,7 +320,7 @@ class ParameterList(BaseFormatter):
 
         # parameter formatter
         parameter = Parameter(align=align, **kws)
-        parameter.parent = self
+        parameter._parent = self
 
         # save local state on instance
         super().__init__(**slots.sanitize(locals()))
@@ -450,7 +450,7 @@ class Formatter(BaseFormatter):
 
         # parameter list fomatter
         parameters = ParameterList(**kws)
-        parameters.parent = self
+        parameters._parent = self
 
         # save local state on instance
         super().__init__(**slots.sanitize(locals()))
