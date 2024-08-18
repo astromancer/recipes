@@ -2,6 +2,10 @@
 Object representaion helpers.
 """
 
+# std
+import warnings
+
+# relative
 from .. import op
 from ..pprint.dispatch import pformat
 
@@ -34,12 +38,12 @@ class Represent:
         self.ignore = ignore
         self.remap = dict(remap)
 
+        # The target instance to represent: set in `__get__` method below
+        self.target = kws.pop('target', None)
+
         # style
         self.enclose = enclose or ('', '')
         self.style = {**DEFAULT_STYLE, **(style or {}), **kws}
-
-        # The target instance to represent: set in `__get__` method below
-        self.target = None
 
     def __get__(self, instance, kls):
         if instance:  # lookup from instance
@@ -53,13 +57,18 @@ class Represent:
 
     def __call__(self):
 
-        items = op.get.attrs(self.target, self.attrs, self.maybe)
+        try:
+            items = op.get.attrs(self.target, self.attrs, self.maybe)
 
-        if self.remap:
-            items = {self.remap.get(key, key): val for key, val in items.items()}
+            if self.remap:
+                items = {self.remap.get(key, key): val for key, val in items.items()}
 
-        opn, *close = self.enclose
-        return ''.join((pformat(items,
-                                f'{opn}{type(self.target).__name__}',
-                                **self.style),
-                        *close))
+            opn, *close = self.enclose
+            return ''.join((pformat(items,
+                                    f'{opn}{type(self.target).__name__}',
+                                    **self.style),
+                            *close))
+
+        except Exception as err:
+            warnings.warn(f'Could not represent object due to {err!s}.')
+            return type(self.target).__name__
