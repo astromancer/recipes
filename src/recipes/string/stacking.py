@@ -65,7 +65,7 @@ def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width,
     Returns
     -------
     str
-        Horizontally stacked string
+        Horizontally stacked string.
     """
 
     # short circuit
@@ -77,13 +77,12 @@ def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width,
 
     # get columns and trim trailing whitespace column
     columns = _get_hstack_columns(strings, spacing, offsets, width_func)
+    lines = map(''.join, zip(*columns))
 
     if rstrip:
-        *columns, final = columns
-        columns.append(list(map(str.rstrip, final)))
+        lines = map(str.rstrip, lines)
 
-    # columns = itt.islice(columns, 2 * len(strings) - 1)
-    return '\n'.join(map(''.join, zip(*columns)))
+    return '\n'.join(lines)
 
 
 def _get_hstack_columns(strings, spacing, offsets, width_func):
