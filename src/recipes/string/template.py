@@ -18,8 +18,11 @@ class Template(Template):
 
     def get_identifiers(self):
         # NOTE: python 3.11 has Template.get_identifiers
-        _, keys, *_ = zip(*self.pattern.findall(self.template))
-        return keys
+        found = Template.pattern.findall(self.template)
+        if found:
+            _, keys, *_ = zip(*found)
+            return keys
+        return ()
 
     def sub(self, partial=False, **kws):
         if partial:
