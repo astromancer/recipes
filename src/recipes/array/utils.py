@@ -119,7 +119,11 @@ def multirange(*shape):
     return np.tile(range(dl), (N, 1))
 
 
-class Grid(np.lib.index_tricks.nd_grid):
+# numpy >2 compat
+tricks = getattr(np.lib, '_index_tricks_impl', None) or np.lib.index_tricks
+
+
+class Grid(tricks.nd_grid):  # np.lib.index_tricks.nd_grid
     def like(self, a):
         """create grid from the shape of the given array"""
         return self.from_shape(np.shape(a))
