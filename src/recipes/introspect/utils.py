@@ -10,6 +10,7 @@ import sys
 import ast
 import pkgutil
 import inspect
+import warnings
 import functools as ftl
 import contextlib as ctx
 from pathlib import Path
@@ -169,7 +170,7 @@ def get_defining_class(method: MethodType):
 # ---------------------------------------------------------------------------- #
 # Dispatcher for getting module name from import node or path
 
-def get_module_name(obj=None, depth=None):
+def get_module_name(obj=None, depth=None, _frameback=2):
     """
     Get full (or partial) qualified (dot-separated) name of an object's parent
     (sub)modules and/or package, up to namespace depth `depth`.
@@ -181,7 +182,7 @@ def get_module_name(obj=None, depth=None):
     # called without arguments => get current module name by inspecting the call
     # stack
     if obj is None:
-        obj = get_caller_frame(2)
+        obj = get_caller_frame(_frameback)
 
     # dispatch
     name = _get_module_name(obj)
@@ -194,6 +195,18 @@ def get_module_name(obj=None, depth=None):
 
     if name:
         return '.'.join(name.split('.')[-depth:])
+
+
+def safe_get_module_name(obj=None, depth=None, warn=False):
+    try:
+        return get_module_name(obj, depth, 3)
+    except ValueError as err:
+        if (msg := str(err)).startswith('Could not get package name'):
+            if warn:
+                warnings.warn(msg)
+            return
+
+        raise err from None
 
 # @ftl.singledispatch
 # def get_module_name(node):

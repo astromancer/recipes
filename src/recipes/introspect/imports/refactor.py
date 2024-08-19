@@ -28,7 +28,7 @@ from ...io import open_any, safe_write
 from ...pprint.callers import describe
 from ...config import ConfigNode, load_yaml
 from ..utils import (BUILTIN_MODULE_NAMES, get_module_name, get_package_name,
-                     get_stream, is_script)
+                     get_stream, is_script, safe_get_module_name)
 
 
 # ---------------------------------------------------------------------------- #
@@ -909,7 +909,8 @@ class ImportRefactory(LoggingMixin):
         Parameters
         ----------
         sort : str, {'aesthetic', 'alphabetically'}, optional
-            The sorting rules are as follow: # TODO
+            The sorting rules are as follow: 
+            # TODO
         filter_unused : bool, optional
             Filter import statements for names that were not used in the source
             code. Default action is to filter unused imports only when the input
@@ -917,8 +918,8 @@ class ImportRefactory(LoggingMixin):
             initializer (`__init__.py`) script.
         split : {None, False, 0, 1}, optional
             Whether to split import statements:
-            * Case `False` or `None`, do not
-              split any import lines. * Case `0`, the default: Split single-line
+            * Case `False` or `None`, do not split any import lines. 
+            * Case `0`, the default: Split single-line
               import statements involving multiple modules eg:
               >>> import os, re
                 becomes
@@ -1142,8 +1143,11 @@ class ImportRefactory(LoggingMixin):
 
     def expand_wildcards(self, module):
         module = module or self.module
-        name = get_module_name(self.path)
-        return WildcardExpander(name).visit(module)
+        name = safe_get_module_name(self.path, warn=True)
+        if name:
+            return WildcardExpander(name).visit(module)
+        
+        return module
 
     def merge(self, module=None, level=1):
         module = module or self.module
