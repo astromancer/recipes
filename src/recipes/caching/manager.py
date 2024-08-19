@@ -20,6 +20,8 @@ from . import DEFAULT_CAPACITY, Cache
 # TODO: sqlite, yaml, dill, jsons, msgpack
 
 
+null = object()
+
 # ------------------------------- json helpers ------------------------------- #
 
 
@@ -103,11 +105,6 @@ SAVE_KWS = {json: {'cls': JSONCacheEncoder}}
 
 # ---------------------------------------------------------------------------- #
 
-null = object()
-
-
-# def load(filename, **kws):
-
 
 class CacheManager(LoggingMixin):
     """
@@ -155,10 +152,7 @@ class CacheManager(LoggingMixin):
             return
 
         self.stale = True
-        if path.parent.exists():
-            return
-
-        raise ValueError(f'Parent folder does not exist: {path.parent}')
+        path.parent.mkdir(exist_ok=True)
 
     @property
     def path(self):
