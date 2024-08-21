@@ -19,7 +19,7 @@ import more_itertools as mit
 from loguru import logger
 
 # relative
-from ... import api, cosort, not_null, op, user_packages, pprint as pp
+from ... import api, cosort, not_null, op, user_config_path, pprint as pp
 from ...iter import unduplicate
 from ...functionals import negate
 from ...logging import LoggingMixin
@@ -85,8 +85,11 @@ api_synonyms = api.synonyms({
 # supported styles for sorting
 STYLES = ('alphabetic', 'aesthetic')
 
-# USER_PACKAGES_DB = Path.home() / '.config/recipes/local_libs.txt'
-USER_PACKAGES = load_yaml(user_packages)['local']
+#
+USER_PACKAGES = load_yaml(user_config_path.parent / 'user_packages.yaml')['local']
+
+#
+KEEP_IMPORTS = load_yaml(user_config_path.parent / 'keep_imports.yaml')
 
 
 # ---------------------------------------------------------------------------- #
@@ -1118,14 +1121,20 @@ class ImportRefactory(LoggingMixin):
         unused = set.difference(imported_names, used_names)
 
         # is_init_file =
+        module_name = safe_get_module_name(self.path)
         if self.path and (self.path.name == '__init__.py'):
             self.logger.info(
                 "This file is an initializer for a module: '{}'\n"
                 "Only imports from the standard library will be filtered.",
-                get_module_name(self.path)
+                module_name
             )
             # {u for u in unused if get_module_typecode(u) == 0}
             unused = set(filter(negate(get_module_typecode), unused))
+
+        #
+        if keep := KEEP_IMPORTS.get(module_name, None):
+            self.logger.info(f'Keeping unused imports: {keep}')
+            unused -= set(keep)
 
         if imported_names and not self.captured.used_names:
             wrn.warn(
@@ -1146,7 +1155,7 @@ class ImportRefactory(LoggingMixin):
         name = safe_get_module_name(self.path, warn=True)
         if name:
             return WildcardExpander(name).visit(module)
-        
+
         return module
 
     def merge(self, module=None, level=1):
