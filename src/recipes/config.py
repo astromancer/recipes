@@ -255,7 +255,7 @@ def _create_user_config(pkg, path, source=None, overwrite=None,
 
     # create backup (if overwriting) and write new config file
     path.parent.mkdir(parents=True, exist_ok=True)
-    with io.backed_up(path, folder=path.parent) as fp:
+    with io.backed_up(path) as fp: # folder=path.parent
         fp.write(text)
 
     return path
