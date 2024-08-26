@@ -1255,7 +1255,7 @@ def uarray(x, u, significant=None, log_switch=5, short=False, times='x',
                                   '  large arrays.')
 
     # check uncertainty ok
-    if u is None or u is False or np.isnan(u).all():
+    if u is None or u is False or not np.isfinite(u).all():
         warnings.warn('Ignoring invalid uncertainty array.')
         del u
         kws = locals()

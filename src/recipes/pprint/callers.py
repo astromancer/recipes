@@ -304,11 +304,10 @@ class Parameter(BaseFormatter):
         # indent rhs
         if indent in (True, None):
             indent = len(lhs)
-        
+
         rhs = string.indent(self.rhs(rhs), indent) if have_value else ''
         #                                  ^ width + indent ?
-        
-        
+
         return lhs, rhs
 
 
@@ -344,7 +343,7 @@ class ParameterList(BaseFormatter):
         if self.align and width is None:
             if not names:
                 # format lhs only first
-                names, _ = zip(*(self.parameter._parts(p, value=EMPTY, **fmt) 
+                names, _ = zip(*(self.parameter._parts(p, value=EMPTY, **fmt)
                                  for p in params))
 
             # get width (widest name)
@@ -368,9 +367,6 @@ class ParameterList(BaseFormatter):
             # indent variadic kws dict
             if (par.kind is VKW):
                 name = self.parameter.name(par)
-
-                # indent multiline parameters to width of parameter name
-                s = s.replace('\n', '\n' + ' ' * (len(name) + 1))
 
             yield s
 

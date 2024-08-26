@@ -110,7 +110,8 @@ class PartialTask(Wrapper):
         name = type(self).__name__
         inner = callers.pformat(self.__wrapped__, self.args, self.kws)
         if '\n' in inner:
-            inner = indent(inner, len(name)).join('\n\n')
+            return f'{name}(\n{indent(inner, len(name))}\n)'
+
         return f'{name}({inner})'
 
     def __call__(self, *args, **kws):
