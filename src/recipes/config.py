@@ -337,7 +337,7 @@ class ConfigNode(DictNode, _AttrReadItem):
         try:
             return super().__getitem__(key)
         except KeyError as err:
-            if (key := Path(key)).exists():
+            if isinstance(key, (str, Path)) and (key := Path(key)).exists():
                 parts = key.parts
                 key = (*parts[-parts[::-1].index(get_package_name(key)):-1], key.stem)
                 return super().__getitem__(key)
