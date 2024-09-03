@@ -148,6 +148,11 @@ class _NodeIndexing:
 
     def __setitem__(self, key, val):
         key, node = self.__resolve_node(key)
+        if not isinstance(node, _NodeIndexing):
+            raise KeyError(
+                f'Cannot extend branch beyond existing leaf node at {key}.'
+            )
+
         return super(_NodeIndexing, node).__setitem__(key, val)
 
     def __contains__(self, keys):
