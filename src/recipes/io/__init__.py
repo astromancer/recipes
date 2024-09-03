@@ -53,6 +53,12 @@ class FileIOPicklable(io.FileIO):
         self._mode = mode
         super().__init__(name, mode)
 
+    def __repr__(self):
+        return f'<{type(self).__name__}(name={self.name!r}, mode={self.mode!r}, closefd={self.closefd})>'
+
+    def __reduce_ex__(self, protocol):
+        return FileIOPicklable, (self.name, self.mode), self.__getstate__()
+
     def __getstate__(self):
         if 'r' not in self._mode:
             raise RuntimeError(f'Can only pickle files that were opened in'
