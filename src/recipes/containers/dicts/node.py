@@ -273,12 +273,9 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
     def flatten(self, levels=all, keep_tuples=True):
 
         if isinstance(levels, numbers.Integral):
-            levels = [levels]
+            levels = range(levels)
 
         flat = dict(self._flatten(levels, 0))
-
-        # if levels != 0:
-        #     return flat
 
         if keep_tuples:
             return flat
@@ -288,9 +285,9 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
 
     def _flatten(self, levels, _level=0, _keys=()):
         for key, child in self.items():
-            if isinstance(child, type(self)):
+            if (levels is all or _level in levels) and isinstance(child, type(self)):
                 yield from child._flatten(levels, _level + 1, (*_keys, key))
-            elif (levels is all) or (_level in levels):
+            else:
                 yield (*_keys, key), child
 
     def drop(self, keys):
