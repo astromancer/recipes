@@ -116,8 +116,12 @@ def balance_depth(key, depth, insert='', position=-1):
 
 # ---------------------------------------------------------------------------- #
 
+def is_leaf(node):
+    return isinstance(node, LeafNode)
+
+
 def _get_val(item):
-    return item._val if isinstance(item, LeafNode) else item
+    return item._val if is_leaf(item) else item
 
 
 def _unwrap(node, unwrap=True):
@@ -274,6 +278,10 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
 
     def depth(self):
         return max(len(key) for key, _ in self._flatten(all))
+
+    def size(self):
+        return sum(1 if is_leaf(node) else node.size()
+                   for node in super().values())
 
     def flatten(self, levels=all, keep_tuples=True):
 
