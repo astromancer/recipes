@@ -9,6 +9,7 @@ from collections import defaultdict
 
 # relative
 from ... import op
+from ...oo import Alias
 from ...logging import LoggingMixin
 from ...functionals import always, negate
 from ...pprint.mapping import PrettyPrint
@@ -315,7 +316,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
         return new
 
     # alias
-    filtered = filter  # drop
+    filtered = Alias('filter')  # drop
 
     def select(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()
@@ -368,7 +369,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
         return new
 
     # alias
-    transform = reshape
+    transform = Alias('reshape')
 
     def rename(self, old, new):
         if old in self:
