@@ -11,8 +11,9 @@ workhorses.
 
 
 # std
-import functools as ftl
+import fnmatch as fnm
 import operator as _op
+import functools as ftl
 from operator import (getitem, ge, gt, le, lt, ne, add, sub, eq, mul, floordiv,
                       truediv)
 from collections import abc
@@ -98,16 +99,34 @@ class Get:
 
     __call__ = item = items
 
-    def attrs(self, obj, required, conditional=()):
+    def attrs(self, obj, required=..., conditional=(), ignore='*_'):
         maybe = {}
         if conditional:
             maybe = AttrMap(*ensure.tuple(conditional), default=_NOT_FOUND)(obj)
             maybe = {key: val for key, val in maybe.items()
                      if val is not _NOT_FOUND}
 
-        return {**AttrMap(*ensure.tuple(required))(obj), **maybe}
+        if required is ...:
+            required = getattr(obj, '__dict__', getattr(obj, '__slots__', ()))
+
+        required = ensure.tuple(required)
+        if ignore:
+            required = exclude(required, ignore)
+
+        return {**AttrMap(*required)(obj), **maybe}
 
     attr = attrs
+
+
+def exclude(attrs, ignore):
+    return [atr for atr in attrs if _include(atr, ignore)]
+
+
+def _include(atr, patterns):
+    for pattern in ensure.tuple(patterns):
+        if fnm.fnmatch(atr, pattern):
+            return False
+    return True
 
 
 # Singleton for item / attribute retrieval
