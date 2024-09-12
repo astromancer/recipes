@@ -304,12 +304,11 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
             else:
                 yield (*_keys, key), child
 
-    def drop(self, keys):
+    def prune(self, keys):
         return self.filter(keys)
 
     def filter(self, keys=NULL, values=NULL, levels=all, *args, **kws):
         new = type(self)()
-
         new.update(self._filter(_get_filter_func(keys),
                                 _get_filter_func(values),
                                 levels))
