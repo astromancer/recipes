@@ -61,7 +61,7 @@ def _iter_files(file_or_folder, recurse, ignore):
 
 class Tidy(Executor):
 
-    __slots__ = ('style', 'recurse')
+    __slots__ = ('style', 'recurse', 'ignore')
 
     def __init__(self, style='aesthetic', recurse=True, **config):
 
