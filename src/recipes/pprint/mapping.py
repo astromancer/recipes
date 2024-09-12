@@ -19,20 +19,20 @@ def pformat(mapping, name=None,
             tabsize=4, newline=os.linesep,
             ignore=()):
     """
-    Pretty format (nested) dicts.
+    Pretty format (nested) mappings.
 
     Parameters
     ----------
     mapping : MutableMapping
-        Mapping to represent as string.
+        Mapping to format as string.
     name : str, optional
-        Name given to the object, the object class name is used by default. In
-        the case of `mapping` being a builtin `dict` type, the name is set to an
-        empty string in order to render them in a similar style to what builtin
-        produces.
+        Name used in object representation. The object class name is used by
+        default. In the case of `mapping` being a builtin `dict` instance, the
+        name is set to an empty string in order to render them in a similar
+        style to what the native repr produces.
     lhs : Callable or dict of callable, optional
         Function used to format dictionary keys, by default repr.
-    equal  : str, optional
+    equal : str, optional
         Symbol used for equal sign, by default ': '.
     rhs : Callable or dict of callable, optional
         Function used to format dictionary values, by default repr.
@@ -42,7 +42,8 @@ def pformat(mapping, name=None,
         Characters used for enclosing brackets, by default '{}'.
     align : bool, optional
         Whether to align values (right hand side) in a column, by default True
-        if `newline` contains and actual newline character '\\n' else False.
+        if `newline` contains an actual newline character '\\n', otherwise
+        False.
     hang : bool, optional
         Whether to hang the first key-value pair on a new line, by default False.
     tabsize : int, optional
@@ -64,18 +65,18 @@ def pformat(mapping, name=None,
                         foo=dict(nested=1,
                                  what='?',
                                  x=dict(triple='nested'))))
-    {x      : hello,
-     longkey: w,
-     foo    : {nested: 1,
-               what  : '?',
-               x     : {triple: nested}}}
+    {'x':       'hello',
+     'longkey': 'w',
+     'foo':     {'nested': 1,
+                 'what':   '?',
+                 'x':      {'triple': 'nested'}}}
 
     Raises
     ------
     TypeError
-        If the input is not a MutableMapping.
+        If the input `mapping` is not a MutableMapping instance.
     ValueError
-        _description_
+        If incorrect number of `brackets` are given.
     """
     if not isinstance(mapping, abc.MutableMapping):
         raise TypeError(f'Object of type: {type(mapping)} is not a '
