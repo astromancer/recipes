@@ -20,8 +20,8 @@ def sanitize(kws, *ignore):
 sanitize_locals = sanitize
 
 
-def get_slots(cls, ignore='_*', ancestors=all):
-    attrs = _get_slots(cls, ancestors)
+def get_slots(kls, ignore='_*', ancestors=all):
+    attrs = _get_slots(kls, ancestors)
 
     if ignore:
         return [atr for atr in attrs if _include(atr, ignore)]
@@ -36,26 +36,16 @@ def _include(atr, patterns):
     return True
 
 
-def _get_slots(cls, ancestors=all, ):
-    if not isinstance(cls, type) and hasattr(cls, '__slots__'):
-        cls = type(cls)
+def _get_slots(kls, ancestors=all):
+    if not isinstance(kls, type) and hasattr(kls, '__slots__'):
+        kls = type(kls)
 
-    bases = itt.chain([cls], superclasses(cls))
+    bases = itt.chain([kls], superclasses(kls))
     bases = (base for base in bases if hasattr(base, '__slots__'))
     ancestors = None if ancestors is all else int(ancestors)
     for base in itt.islice(bases, ancestors):
         yield from ensure.tuple(getattr(base, '__slots__', ()))
 
-
-# ---------------------------------------------------------------------------- #
-
-class Represent(Represent):
-
-    def __set_name__(self, kls, name):
-
-        if self.attrs is ...:
-            # loop through the slots of all the bases and make a repr from that
-            self.attrs = get_slots(kls, self.ignore)
 
 
 # ---------------------------------------------------------------------------- #

@@ -60,12 +60,9 @@ class Represent:
         self.style = {**DEFAULT_STYLE, **(style or {}), **kws}
 
     def __get__(self, instance, kls):
-        if instance:  # lookup from instance
+        if instance:
+            # lookup from instance
             self.target = instance
-
-            if self.attrs is ...:
-                # use all attributes in `__dict__`
-                self.attrs = tuple(getattr(instance, '__dict__', ()))
 
         return self  # lookup from class
 
