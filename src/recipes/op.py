@@ -100,6 +100,11 @@ class Get:
     __call__ = item = items
 
     def attrs(self, obj, required=..., conditional=(), ignore='*_'):
+        if required is not ... and (overlap := (set(required) & set(conditional))):
+            raise ValueError(
+                f'Attributes cannot be both required and conditional: {overlap}'
+            )
+
         maybe = {}
         if conditional:
             maybe = AttrMap(*ensure.tuple(conditional), default=_NOT_FOUND)(obj)
@@ -107,7 +112,12 @@ class Get:
                      if val is not _NOT_FOUND}
 
         if required is ...:
-            required = getattr(obj, '__dict__', getattr(obj, '__slots__', ()))
+            if hasattr(obj, '__slots__'):
+                # local to avoid circular import
+                from recipes.oo.slots import get_slots
+                required = get_slots(obj, ignore)
+            else:
+                required = obj.__dict__
 
         required = ensure.tuple(required)
         if ignore:

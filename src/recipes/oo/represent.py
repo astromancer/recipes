@@ -36,7 +36,7 @@ class Represent:
     def like(cls, other, **kws):
         if isinstance(other.__repr__, cls):
             init = op.get.attrs(other.__repr__, cls.__slots__)
-            return cls(**{**init, *args, **kws})
+            return cls(**{**init, **kws})
 
         raise TypeError(
             'Cannot inherit representation config from {other.__repr__!r}.'
