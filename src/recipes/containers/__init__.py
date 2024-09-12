@@ -5,3 +5,4 @@ from .utils import (
     partition, prepend, remove, replace, sort_like, split, split_like,
     split_non_consecutive, split_where, tally, unique, where, where_duplicate
 )
+from .sets import OrderedSet
