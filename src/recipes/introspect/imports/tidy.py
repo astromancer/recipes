@@ -104,10 +104,16 @@ class Tidy(Executor):
 
 @click.command()
 @click.argument('files_or_folders', nargs=-1)
-@click.option('-s', '--style', default='aesthetic', show_default=True, type=click.Choice(STYLES))
-@click.option('-r', '--recurse', default=True, show_default=True, type=click.BOOL)
-@click.option('-i', '--ignore', default=())
-@click.option('-j', '--njobs', default=-1, show_default=True, type=click.INT)
+@click.option('-s', '--style', default='aesthetic', show_default=True, 
+              type=click.Choice(STYLES),
+              help='Sorting style.')
+@click.option('-r', '--recurse', default=True, show_default=True, type=click.BOOL,
+              help='Whether to step down the folder tree into sub-directories.')
+@click.option('-i', '--ignore', default=(),
+              help='List of files to ignore.')
+@click.option('-j', '--njobs', default=-1, show_default=True, type=click.INT,
+              help='Number of cuncurrent processes to run. This can speed up '
+                   'operations significantly.')
 # @click.option('-v', '--verbose', count=True)
 def main(files_or_folders, style, recurse, ignore, njobs):
     #   filter_unused=None,
