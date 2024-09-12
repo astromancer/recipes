@@ -29,6 +29,10 @@ def qualname(kls):
 
 class Represent:
 
+    __slots__ = ('attrs', 'maybe', 'ignore', 'remap',
+                 'name', 'target', 'enclose', 'style')
+
+
     def __init__(self, attrs=..., maybe=(), ignore='*_', remap=(), name=None,
                  enclose='<>', style=(), **kws):
 
