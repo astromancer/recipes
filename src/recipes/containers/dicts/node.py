@@ -137,28 +137,29 @@ class _NodeIndexing:
     _index_descendants_via = tuple
 
     def __check(self, key):
-        return (idv := self._index_descendants_via) and isinstance(key, idv)
+        return (idv := self._index_descendants_via) and isinstance(key, idv) and key
 
     def __resolve_node(self, key):
         node = self
         if self.__check(key):
             *keys, key = key
             if keys:
+                # get / create node
                 node = node[tuple(keys)]
         return key, node
 
     def __getitem__(self, key):
+        if key == ():
+            return self
         key, node = self.__resolve_node(key)
         return super(_NodeIndexing, node).__getitem__(key)
 
-    def __setitem__(self, key, val):
-        key, node = self.__resolve_node(key)
-        if not isinstance(node, _NodeIndexing):
-            raise KeyError(
-                f'Cannot extend branch beyond existing leaf node at {key}.'
-            )
+    def __setitem__(self, okey, val):
+        key, node = self.__resolve_node(okey)
+        if isinstance(node, _NodeIndexing):
+            return super(_NodeIndexing, node).__setitem__(key, val)
 
-        return super(_NodeIndexing, node).__setitem__(key, val)
+        return super().__setitem__(okey, val)
 
     def __contains__(self, keys):
 
