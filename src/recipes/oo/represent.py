@@ -32,6 +32,15 @@ class Represent:
     __slots__ = ('attrs', 'maybe', 'ignore', 'remap',
                  'name', 'target', 'enclose', 'style')
 
+    @classmethod
+    def like(cls, other, **kws):
+        if isinstance(other.__repr__, cls):
+            init = op.get.attrs(other.__repr__, cls.__slots__)
+            return cls(**{**init, **kws})
+
+        raise TypeError(
+            'Cannot inherit representation config from {other.__repr__!r}.'
+        )
 
     def __init__(self, attrs=..., maybe=(), ignore='*_', remap=(), name=None,
                  enclose='<>', style=(), **kws):
