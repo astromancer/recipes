@@ -29,7 +29,7 @@ def qualname(kls):
 
 class Represent:
 
-    def __init__(self, attrs=..., maybe=(), ignore='*_', remap=(),
+    def __init__(self, attrs=..., maybe=(), ignore='*_', remap=(), name=None,
                  enclose='<>', style=(), **kws):
 
         # attributes
@@ -37,6 +37,7 @@ class Represent:
         self.maybe = maybe
         self.ignore = ignore
         self.remap = dict(remap)
+        self.name = name
 
         # The target instance to represent: set in `__get__` method below
         self.target = kws.pop('target', None)
@@ -56,19 +57,22 @@ class Represent:
         return self  # lookup from class
 
     def __call__(self):
-
         try:
-            items = op.get.attrs(self.target, self.attrs, self.maybe)
+            name = self.name or type(self.target).__name__
+            items = op.get.attrs(self.target, self.attrs, self.maybe, self.ignore)
 
             if self.remap:
                 items = {self.remap.get(key, key): val for key, val in items.items()}
 
             opn, *close = self.enclose
-            return ''.join((pformat(items,
-                                    f'{opn}{type(self.target).__name__}',
-                                    **self.style),
+            newline = self.style['newline']
+            if '\n' in newline:
+                self.style['newline'] = ' ' * len(opn) + newline
+
+            return ''.join((opn,
+                            pformat(items, name, **self.style),
                             *close))
 
         except Exception as err:
-            warnings.warn(f'Could not represent object due to {err!s}.')
+            warnings.warn(f'Could not represent object namespace due to {err!r}.')
             return type(self.target).__name__
