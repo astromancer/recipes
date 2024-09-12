@@ -48,6 +48,9 @@ def disabled(*libraries):
 
 # ---------------------------------------------------------------------------- #
 class LoggingMixin:
+    
+    __slots__ = ()
+    
     class Logger:
 
         # use descriptor so we can access the logger via logger and cls().logger
