@@ -317,11 +317,8 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
     # alias
     filtered = Alias('filter')  # drop
 
-    def select(self, keys=NULL, values=NULL, levels=all, *args, **kws):
+    def select(self, keys=NULL, values=NULL, levels=0, *args, **kws):
         new = type(self)()
-        # if callable(keys) and keys.__name__ == 'get':
-        #     from IPython import embed
-        #     embed(header="Embedded interpreter at 'src/recipes/dicts/node.py':243")
         new.update(self._filter(_get_select_func(keys),
                                 _get_select_func(values),
                                 levels))
