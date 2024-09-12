@@ -29,14 +29,14 @@ def qualname(kls):
 
 class Represent:
 
-    __slots__ = ('attrs', 'maybe', 'ignore', 'remap',
+    __slots__ = ('_owner', 'attrs', 'maybe', 'ignore', 'remap',
                  'name', 'target', 'enclose', 'style')
 
     @classmethod
     def like(cls, other, **kws):
         if isinstance(other.__repr__, cls):
             init = op.get.attrs(other.__repr__, cls.__slots__)
-            return cls(**{**init, **kws})
+            return cls(**{**init, *args, **kws})
 
         raise TypeError(
             'Cannot inherit representation config from {other.__repr__!r}.'
@@ -53,11 +53,18 @@ class Represent:
         self.name = name
 
         # The target instance to represent: set in `__get__` method below
-        self.target = kws.pop('target', None)
+        # owner class set in `__set_name__```
+        kws.pop('target', None)
+        kws.pop('_owner', None)
+        self.target = None
+        self._owner = None
 
         # style
         self.enclose = enclose or ('', '')
         self.style = {**DEFAULT_STYLE, **(style or {}), **kws}
+
+    def __set_name__(self, owner, name):
+        self._owner = owner
 
     def __get__(self, instance, kls):
         if instance:
@@ -66,6 +73,10 @@ class Represent:
 
         return self  # lookup from class
 
+    def __repr__(self):
+        # turtles all the way down
+        return f'<{type(self).__name__}(owner={self._owner}, attrs={self.attrs})>'
+    
     def __call__(self):
         try:
             name = self.name or type(self.target).__name__
