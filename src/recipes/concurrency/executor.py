@@ -55,7 +55,7 @@ class AbortCompute(Exception):
     pass
 
 
-class Executor(LoggingMixin, SlotHelper):
+class Executor(SlotHelper, LoggingMixin):
 
     __slots__ = ('jobname', 'backend', 'config', 'results', 'mask',
                  'nfail', 'xfail')
