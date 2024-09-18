@@ -12,7 +12,9 @@ from .represent import Represent
 # ---------------------------------------------------------------------------- #
 
 def sanitize(kws, *ignore):
-    return dicts.remove(kws, {'self', 'kws', '__class__', *ignore})
+    # NOTE: make a dict copy of the data, since this is most often a refrence to 
+    # locals() of a namespace and we will remove items from it
+    return dicts.remove(dict(kws), {'self', 'kws', '__class__', *ignore})
 
 
 # alias
