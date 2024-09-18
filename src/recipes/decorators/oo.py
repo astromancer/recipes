@@ -97,7 +97,7 @@ class sharedmethod(classmethod):  # adapted from astropy
 #                 # NOTE: For same reason, static methods don't like being
 #                 #   decorated like this
 #                 is_static = isinstance(
-#                     cls.__dict__.get(name, None), staticmethod)
+#                     cls.__dict__.get(name), staticmethod)
 #                 if not (is_static or name in ignore):
 #                     setattr(cls, name, decorator(method))
 #         return cls

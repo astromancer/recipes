@@ -55,7 +55,7 @@ def md5sum(filename):
 def guess_format(filename):
     # use filename to guess format
     ext = Path(filename).suffixes[-1].lstrip('.')
-    formatter = FORMATS.get(ext, None)
+    formatter = FORMATS.get(ext)
     if formatter is None:
         raise ValueError(
             'Could not guess file format from filename. Please provide the '

@@ -1132,7 +1132,7 @@ class ImportRefactory(LoggingMixin):
             unused = set(filter(negate(get_module_typecode), unused))
 
         #
-        if keep := KEEP_IMPORTS.get(module_name, None):
+        if keep := KEEP_IMPORTS.get(module_name):
             self.logger.info(f'Keeping unused imports: {keep}')
             unused -= set(keep)
 
