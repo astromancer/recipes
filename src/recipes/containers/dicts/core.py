@@ -149,7 +149,7 @@ class SpecialLookup:
 def _int_lookup(mapping, index):
     if isinstance(index, numbers.Integral):
         size = len(mapping)
-        if -size <= index < size:
+        if  index <= -size or index >= size:
             raise ValueError(f'Invalid index: {index!r} for size {size} '
                              f'mapping {type(mapping).__name__}.')
         if index < 0:
