@@ -27,11 +27,12 @@ _NotFound = object()
 class Alias:
     """
     A descriptor that forwards attribute/property lookup to another namespace
-    member. Useful for exposing dynamic attributes of nested objects in the
-    parent namespace.
+    member. Used for exposing attributes of nested objects in the parent
+    namespace.
 
-    This works like `op.attrgetter` in that it can handle chained lookups. In
-    addition it also allows setting attributes on the endpoint object.
+    This works like `op.attrgetter` in that it can handle chained lookups like
+    "namespace.member". In addition it also allows setting attributes on the
+    endpoint object.
     """
 
     __slots__ = ('alias', 'attr', 'owner', '_member',
@@ -45,17 +46,17 @@ class Alias:
         self.owner = owner
         self._class_variable = hasattr(self.owner, self._member)
 
-    def __init__(self, attr):
+    def __init__(self, attr, readonly=False):
         self.alias = self.owner = None
-        self.attr = str(attr)
+        self.attr = attr.__name__ if callable(attr) else str(attr)
         self._member = self.attr.split('.', 1)[0]
         self._getter = op.AttrGetter(attr)
-        self._setter = op.AttrSetter(attr)
+        self._setter = None if readonly else op.AttrSetter(attr)
         self._dependents = []
 
     def __repr__(self):
         s = (f'<{type(self).__name__}({self.owner.__name__}.{self.alias} -> '
-             f'{".".join(filter(None, (self.member, self.attr)))}'
+             f'{".".join(filter(None, (self._member, self.attr)))}'
              '})>')
 
         if self._dependents:
@@ -71,7 +72,7 @@ class Alias:
         if instance is None:
             # lookup from class
             if self._class_variable:
-                return self._getter(kls)
+                return self._getter(kls, default=self)
 
             #
             return self
@@ -79,7 +80,10 @@ class Alias:
         return self._getter(instance)
 
     def __set__(self, instance, value):
-        self._setter(instance, value)
+        if self._setter:
+            return self._setter(instance, value)
+
+        raise AttributeError(f'Read only attribute: {self}')
 
     # def __delete__(self, obj):
     #     if self.attr:
@@ -96,20 +100,20 @@ class Alias:
 Forward = ForwardProperty = Alias
 
 
-class PropertyAliasing:
+class Aliasing:
     """
     Mixin class with method for forwarding property/attribute access to another
     object in its namespace. Useful for exposing dynamic attributes of nested
     objects in the instance's namespace.
     """
 
-    _forwarded_properties = {}
+    _aliases = {}
 
     def __new__(cls, *args, **kws):
         # Attach property descriptors
-        for member, attrs in cls._forwarded_properties.items():
+        for member, attrs in cls._aliases.items():
             for _ in attrs:
-                setattr(cls, _, ForwardProperty(f'{member}.{_}'))
+                setattr(cls, _, Alias(f'{member}.{_}'))
 
         return super().__new__(cls, *args, **kws)
 
@@ -121,7 +125,7 @@ class PropertyAliasing:
 
 
 # alias
-Aliasing = Forwarding = PropertyForwarding = PropertyAliasing
+PropertyAliasing = PropertyForwarding = Forwarding = Aliasing
 
 # ---------------------------------------------------------------------------- #
 # extended from astropy.utils.decorators.lazyproperty
@@ -319,7 +323,7 @@ cachedproperty = cached_property = lazyproperty = CachedProperty
 # TODO: This can still be made to work for setters by implementing an
 # accompanying metaclass that supports it; we just don't need that right this
 # second
-
+# FIXME: code executes with >>> help()
 
 class ClassProperty(property):
     """
