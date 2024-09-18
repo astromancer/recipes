@@ -15,7 +15,11 @@ REGEX_SPACE = re.compile(r'\s+')
 
 
 # ---------------------------------------------------------------------------- #
+def has_upper(text):
+    return any(map(str.isupper, text))
 
+
+# ---------------------------------------------------------------------------- #
 def snake_case(string):
     new, _ = REGEX_CAPS.subn(r'_\1', string.replace(' ', '_'))
     return new.lstrip('_').lower()
