@@ -46,7 +46,7 @@ def _get_select_func(keys):
         return keys
 
     if isinstance(keys, str):
-        return op.contained(keys).within
+        return op.has(keys).within
 
     if is_scalar(keys):
         return ftl.partial(op.eq, keys)
@@ -305,7 +305,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, LoggingMixin
     # alias
     filtered = Alias('filter')
 
-    def select(self, keys=NULL, values=NULL, levels=0):
+    def select(self, keys=NULL, values=NULL, levels=all):
         new = type(self)()
         new.update(self._filter(_get_select_func(keys),
                                 _get_select_func(values),
@@ -323,9 +323,13 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, LoggingMixin
     def find(self, key, collapse=False, remapped_keys=None, default=NULL):
         # sourcery skip: assign-if-exp, reintroduce-else
         test = op.has(key).within
-        found = self.select(test)
+        found = self.select(test, levels=all)
 
-        if not found and default is not NULL:
+        if not found:
+            if default is NULL:
+                return type(self)()
+
+            # sub default
             found = type(self)({key: default})
 
         if not collapse:
@@ -333,7 +337,6 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, LoggingMixin
 
         found = found.flatten()
         new_keys = _filter_path(found.keys(), test)
-
         if remapped_keys is not None:
             remapped_keys.update(zip(found.keys(), new_keys))
 
