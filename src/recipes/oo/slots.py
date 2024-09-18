@@ -11,7 +11,6 @@ from .represent import Represent
 
 # ---------------------------------------------------------------------------- #
 
-
 def sanitize(kws, *ignore):
     return dicts.remove(kws, {'self', 'kws', '__class__', *ignore})
 
@@ -47,7 +46,6 @@ def _get_slots(kls, ancestors=all):
         yield from ensure.tuple(getattr(base, '__slots__', ()))
 
 
-
 # ---------------------------------------------------------------------------- #
 
 class SlotHelper:
@@ -65,6 +63,9 @@ class SlotHelper:
         init_params |= set(cls.__init__.__code__.co_varnames) - cls.__non_init_params
         return cls(**{s: kws.pop(s) for s in init_params if s in kws})
 
+    def to_dict(self, ignore=None):
+        return {at: getattr(self, at) for at in get_slots(self, ignore)}
+
     def __init__(self, *args, **kws):
         # generic init that sets attributes for input keywords
         kws = sanitize(kws)
@@ -81,7 +82,7 @@ class SlotHelper:
             setattr(self, key, val)
 
     def __getstate__(self):
-        return {at: getattr(self, at) for at in _get_slots(type(self))}
+        return self.to_dict(ignore=None)
 
     def __setstate__(self, state):
         for at in _get_slots(type(self)):
