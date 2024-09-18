@@ -285,7 +285,8 @@ def filter(items, *args, **kws):
 
     return builtins.filter(None, items)
 
-#alias
+
+# alias
 filtered = filter
 
 
@@ -375,12 +376,25 @@ def cyclic(obj, n=None):
     return itt.islice(cyc, n)
 
 
-def iter_repeat_last(it):
+def iter_repeat_last(it, n=None):
     """
     Yield items from the input iterable and repeat the last item indefinitely
     """
-    it, it1 = itt.tee(mit.always_iterable(it))
-    return mit.padded(it, next(mit.tail(1, it1)))
+    # catch special case
+    if it is None:
+        it = [it]
+
+    count = 0
+    for count, item in enumerate(mit.always_iterable(it), 1):
+        if n and count > n:
+            return
+        yield item
+
+    if count:
+        yield from itt.repeat(item, *([n - count] if n else ()))
+
+    # it, it1 = itt.tee(mit.always_iterable(it))
+    # return mit.padded(it, next(mit.tail(1, it1)))
 
 
 # ---------------------------------------------------------------------------- #
