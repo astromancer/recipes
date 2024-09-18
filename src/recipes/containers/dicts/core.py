@@ -5,28 +5,64 @@ Recipes extending mutable mapping functionality.
 
 # std
 import numbers
+import warnings as wrn
+import itertools as itt
 from collections import OrderedDict, UserDict, abc, defaultdict
+
+# third-party
+import more_itertools as mit
 
 # relative
 from ...flow import Emit
+from ...string import named_items
+from ...functionals import echo0, raises
 from ...pprint.mapping import PrettyPrint
-from ..ensure import is_scalar
+from .. import ensure
 
 
 # ---------------------------------------------------------------------------- #
+NULL = object()
 
-def factory(attrs='read', ordered=False, indexed=False, missing=None,
-            translate=()):
+
+def factory(name, attrs='read', ordered=False, lookup='vectors', default=NULL,
+            invertible=False, aliases=(), pprint=False):
 
     # TODO: a factory function which takes requested props, eg:
-    bases = [_AccessManager]
-    if ordered:
-        bases.append()
+    bases = tuple(_get_bases(attrs, ordered, lookup, default, invertible, pprint))
 
-    raise NotImplementedError
+    namespace = {}
+    if default is not NULL:
+        namespace['default_factory'] = lambda: default
+
+    return type(name, bases, namespace)
+
+
+def _get_bases(attrs='read', ordered=False, lookup='vectors', default=NULL,
+               invertible=False, pprint=True):
+
+    if attrs:
+        yield _AccessManager
+
+    if ordered:
+        yield OrderedDict
+
+    if default is not NULL:
+        if default == 'autovivify':
+            yield AutoViviify
+        else:
+            yield DefaultDict
+
+    if lookup:
+        yield _lookup_bases[lookup]
+
+    if invertible:
+        yield Invertible
+
+    if pprint:
+        yield PrettyPrint
+
 
 # ---------------------------------------------------------------------------- #
-
 
 class Invertible:
     """
@@ -51,8 +87,11 @@ class DefaultDict(defaultdict):
     Default dict that allows default factories which take the key as an
     argument.
     """
-    # default_factory = None
-    factory_uses_key = False  # TODO: can detect this by inspection
+
+    _factory_uses_key = False      # TODO: can detect this by inspection
+
+    # @property
+    # def default_factory(self, func):
 
     # def __init__(self, factory=None, *args, **kws):
     #     # have to do explicit init since class attribute alone doesn't seem to
@@ -65,38 +104,219 @@ class DefaultDict(defaultdict):
             return defaultdict.__missing__(self, key)
 
         # construct default object
-        new = self[key] = self.default_factory(*[key][:int(self.factory_uses_key)])
+        new = self[key] = self.default_factory(*[key][:int(self._factory_uses_key)])
         return new
 
 
 # ---------------------------------------------------------------------------- #
 
 
-class vdict(dict):
+class SpecialLookup:
+    """
+    Mixin for dispatching item lookup on arbitrary key types.
+    """
+
+    _handles = ()
+    _ignores = ()
+    _wrapper = tuple
+
+    @classmethod
+    def __handles(cls, key):
+        return (isinstance(key, cls._handles) and not
+                (cls._ignores and isinstance(key, cls._ignores)))
+
+    def __setitem__(self, key, val):
+        if self.__handles(key):
+            raise TypeError(
+                f'Object of type {type(key)!r} are not allowed as keys, '
+                f'since they are used for dispatching special lookup.'
+            )
+
+        super().__setitem__(key, val)
+
+    def __getitem__(self, key):
+        if self.__handles(key):
+            return self.__missing__(key)
+
+        return super().__getitem__(key)
+
+    def __missing__(self, key):
+        if hasattr(super(), '__missing__'):
+            return super().__missing__(key)
+        raise KeyError(key)
+
+
+def _int_lookup(mapping, index):
+    if isinstance(index, numbers.Integral):
+        size = len(mapping)
+        if -size <= index < size:
+            raise ValueError(f'Invalid index: {index!r} for size {size} '
+                             f'mapping {type(mapping).__name__}.')
+        if index < 0:
+            index += size
+        return mapping[mit.nth(mapping.keys(), index)]
+
+    raise TypeError(f'Invalid type object {index} for indexing.')
+
+
+class LookupAt:
+    """
+    Mixin that provides the `at` function for indexing ordered dicts with integers
+    """
+
+    def at(self, index):
+        return _int_lookup(self, index)
+
+
+class IntegerLookup(SpecialLookup):
+    """
+    Mixin class that enables dict item lookup with integer keys like list
+    indexing. This class will prevent you from using integers as keys in the
+    dict since that would be ambiguous. If you need both int keys and sequence
+    position lookup, this can be done with the `at` method of the `LookupAt`
+    mixin.
+
+    >>> class X(IntegerLookup, dict):
+    >>>     pass
+
+    >>> x = X(zip(('hello', 'world'), (1,2)))
+    >>> x[1]  # [1]
+
+    """
+    _handles = (numbers.Integral, )
+
+    def __missing__(self, index):
+        return _int_lookup(self, index)
+
+
+class VectorLookup(SpecialLookup):
+    """
+    Mixin for vectorized item lookup.
+    """
+    _handles = (type(...), slice, abc.Sized)
+    _ignores = (str, bytes)
+
+    def __missing__(self, key):
+        # dispatch on array-like objects for vectorized item lookup with
+        # arbitrary nesting
+        if key is ...:
+            return self._wrapper(self.values())
+
+        if isinstance(key, slice):
+            getter = super().__getitem__
+            return self._wrapper(getter(key) for key in
+                                 itt.islice(self.keys(), key.start, key.stop))
+
+        # here we have some `Sized` object that is not `str` or `bytes`
+        # => vectorize
+        return self._wrapper(self[_] for _ in key)
+
+
+_lookup_bases = {'vectors': VectorLookup,
+                 'int': IntegerLookup,
+                 int: IntegerLookup}
+
+
+class vdict(VectorLookup, dict):
     """
     Dictionary with vectorized item lookup.
     """
     _wrapper = list
 
+
+# ---------------------------------------------------------------------------- #
+
+class IndexableOrderedDict(IntegerLookup, OrderedDict):
+    pass
+
+
+class ListLike(IndexableOrderedDict):
+    """
+    Ordered dict with key access via attribute lookup. Also has some
+    list-like functionality: indexing by int and appending new data.
+    Best of both worlds.
+    """
+    _auto_key_template = 'item{}'
+    _auto_key_counter = itt.count()
+
+    def __init__(self, items=(), **kws):
+        if ensure.is_scalar(items):
+            # construct from mapping
+            return super().__init__(items or (), **kws)
+
+        # construct from sequence: make keys using `_auto_key_template`
+        super().__init__(**kws)
+        for item in items:
+            self.append(item)
+
+    def _auto_key(self):
+        # auto-generate key
+        return self._auto_key_template.format(next(self._auto_key_counter))
+
+    def append(self, item):
+        super().__setitem__(self._auto_key(), item)
+
+
+class Record(OrderedDict, LookupAt, PrettyPrint):
+    """
+    Ordered dict with key access via attribute lookup. Also has some
+    list-like functionality: indexing by int.
+    """
+    pass
+
+
+class DefaultOrderedDict(OrderedDict):
+    # Source: http://stackoverflow.com/a/6190500/562769
+    # Note: dict order is gauranteed since pyhton 3.7
+
+    def __init__(self, default_factory=None, mapping=(), **kws):
+        if not (default_factory is None or callable(default_factory)):
+            raise TypeError(
+                f'First argument to {self.__class__.__name__} must be callable.'
+            )
+
+        OrderedDict.__init__(self, mapping, **kws)
+        self.default_factory = default_factory
+
     def __getitem__(self, key):
-        # dispatch on list, np.ndarray for vectorized item getting with
-        # arbitrary nesting
         try:
-            return super().__getitem__(key)
-        except (KeyError, TypeError) as err:
-            # vectorization
+            return OrderedDict.__getitem__(self, key)
+        except KeyError:
+            return self.__missing__(key)
 
-            if not is_scalar(key):
-                # Container and not str
-                return self._wrapper(self[_] for _ in key)
+    def __missing__(self, key):
+        if self.default_factory is None:
+            raise KeyError(key)
 
-            if key in (Ellipsis, None):
-                return self._wrapper(self.values())
+        self[key] = value = self.default_factory()
+        return value
 
-            raise err from None
+    def __reduce__(self):
+        args = (self.default_factory, ) if self.default_factory else ()
+        return type(self), args, None, None, self.items()
+
+    def copy(self):
+        return self.__copy__()
+
+    def __copy__(self):
+        return type(self)(self.default_factory, self)
+
+    def __deepcopy__(self):
+        import copy
+        return type(self)(self.default_factory,
+                          copy.deepcopy(self.items()))
+
+    # def __repr__(self):
+    #     return (f'{self.__class__.__name__}({self.default_factory}, '
+    #             f'{OrderedDict.__repr__(self)})')
+
+
+# alias
+OrderedDefaultDict = DefaultOrderedDict
 
 
 # ---------------------------------------------------------------------------- #
+
 class _AccessManager:
     """
     Mixin that toggles read/write access.
@@ -153,8 +373,6 @@ class AutoVivify(_AccessManager):
 
 
 # ---------------------------------------------------------------------------- #
-# TODO AttrReadWrite
-
 
 class AttrBase(dict):
     def copy(self):
@@ -202,6 +420,9 @@ class AttrReadItem(AttrBase, _AttrReadItem):
     #         'attributes.')
 
 
+# TODO AttrReadWrite
+
+
 class AttrDict(AttrBase):
     """dict with key access through attribute lookup"""
 
@@ -220,12 +441,8 @@ class AttrDict(AttrBase):
         self.__dict__ = self
         return state
 
-    # def __reduce__(self):
-    #     print('REDUCE! ' * 20)
-    #     return dict, ()
 
-
-class OrderedAttrDict(OrderedDict, AttrBase):
+class OrderedAttrDict(OrderedDict, AttrReadItem):
     """OrderedDict with key access through attribute lookup."""
 
     def __init__(self, *args, **kws):
@@ -233,74 +450,30 @@ class OrderedAttrDict(OrderedDict, AttrBase):
         self.__dict__ = self
 
 
-class Indexable:
-    """
-    Mixin class that enables dict item access through integer keys like list
+# ---------------------------------------------------------------------------- #
 
-    >>> class X(Indexable, dict):
-    >>>     pass
+# TODO: check TypeEnforcer Mixin form pyxides ??
 
-    >>> x = X(zip(('hello', 'world'), (1,2)))
-    >>> x[1], x[:1]  # (2, [1])
-
-
-    """
-
-    def __getitem__(self, key):
-        if isinstance(key, numbers.Integral):
-            # note, this disallows integer keys for parent object
-            l = len(self)
-            assert -l <= key < l, 'Invalid index: %r' % key
-            return self[list(self.keys())[key]]
-
-        if isinstance(key, slice):
-            keys = list(self.keys())
-            getter = super().__getitem__
-            return [getter(keys[i]) for i in range(len(self))[key]]
-
-        return super().__getitem__(key)
-
-
-class ListLike(Indexable, OrderedDict, PrettyPrint):
-    """
-    Ordered dict with key access via attribute lookup. Also has some
-    list-like functionality: indexing by int and appending new data.
-    Best of both worlds.
-    """
-    auto_key_template = 'item%i'
-
-    def __init__(self, items=(), **kws):
-        if isinstance(items, (list, tuple, set)):
-            # construct from sequence: make keys using `auto_key_template`
-            super().__init__()
-            for item in items:
-                self.append(item)
-        else:
-            # construct from mapping
-            super().__init__(items or (), **kws)
+class ItemConverter:
+    def __init__(self, *args, **kws):
+        super().__init__(*args, **kws)
+        self.update(zip(self.keys(), self.values()))
 
     def __setitem__(self, key, item):
-        item = self.convert_item(item)
-        OrderedDict.__setitem__(self, key, item)
+        super().__setitem__(key,  self._convert_item(item))
 
-    def check_item(self, item):
-        return True
+    def _convert_item(self, val):
+        return val
 
-    def convert_item(self, item):
-        return item
+    def update(self, items, **kws):
+        for k, v in dict(items, **kws).items():
+            self[k] = v
 
-    def auto_key(self):
-        # auto-generate key
-        return self.auto_key_template % len(self)
-
-    def append(self, item):
-        self.check_item(item)
-        self[self.auto_key()] = self.convert_item(item)
+    # def _check_item(self, item):
+    #     return True
 
 
-class Record(Indexable, OrderedAttrDict):
-    pass
-
+# ---------------------------------------------------------------------------- #
 
 class ManyToOne(UserDict):  # TranslationLayer
     """
@@ -442,119 +615,3 @@ class TranslatorMap(ManyToOne):
         return False
 
 # ---------------------------------------------------------------------------- #
-
-
-class IndexableOrderedDict(OrderedDict):
-    def __missing__(self, key):
-        if isinstance(key, int):
-            return self[list(self.keys())[key]]
-
-        # noinspection PyUnresolvedReferences
-        return OrderedDict.__missing__(self, key)
-
-
-class DefaultOrderedDict(OrderedDict):
-    # Source: http://stackoverflow.com/a/6190500/562769
-    # Note: dict order is gauranteed since pyhton 3.7
-
-    def __init__(self, default_factory=None, mapping=(), **kws):
-        if not (default_factory is None or callable(default_factory)):
-            raise TypeError(
-                f'First argument to {self.__class__.__name__} must be callable.'
-            )
-
-        OrderedDict.__init__(self, mapping, **kws)
-        self.default_factory = default_factory
-
-    def __getitem__(self, key):
-        try:
-            return OrderedDict.__getitem__(self, key)
-        except KeyError:
-            return self.__missing__(key)
-
-    def __missing__(self, key):
-        if self.default_factory is None:
-            raise KeyError(key)
-
-        self[key] = value = self.default_factory()
-        return value
-
-    def __reduce__(self):
-        args = (self.default_factory, ) if self.default_factory else ()
-        return type(self), args, None, None, self.items()
-
-    def copy(self):
-        return self.__copy__()
-
-    def __copy__(self):
-        return type(self)(self.default_factory, self)
-
-    def __deepcopy__(self, memo):
-        import copy
-        return type(self)(self.default_factory,
-                          copy.deepcopy(self.items()))
-
-    # def __repr__(self):
-    #     return (f'{self.__class__.__name__}({self.default_factory}, '
-    #             f'{OrderedDict.__repr__(self)})')
-
-
-# alias
-OrderedDefaultDict = DefaultOrderedDict
-
-
-# class Indexable:
-#     """Item access through integer keys like list"""
-#
-#     def __missing__(self, key):
-#         if isinstance(key, int):
-#             l = len(self)
-#             assert -l <= key < l, 'Invalid index: %r' % key
-#             return self[list(self.keys())[key]]
-#         # if isinstance(key, slice)
-#         # cannot do slices here since the are not hashable
-#         return super().__missing__(key)
-
-
-# class ListLike(AttrReadItem, OrderedDict, Indexable):
-#     """
-#     Ordered dict with key access via attribute lookup. Also has some
-#     list-like functionality: indexing by int and appending new data.
-#     Best of both worlds.  Also make sure labels are always arrays.
-#     """
-#      = 'item'
-#
-#     def __init__(self, groups=None, **kws):
-#         # if we get a list / tuple try interpret as list of arrays (group
-#         # labels)
-#         if groups is None:
-#             super().__init__()
-#         elif isinstance(groups, (list, tuple)):
-#             super().__init__()
-#             for i, item in enumerate(groups):
-#                 self[self.auto_key()] = self.convert_item(item)
-#         else:
-#             super().__init__(groups, **kws)
-#
-#     def __setitem__(self, key, item):
-#         item = self.convert_item(item)
-#         OrderedDict.__setitem__(self, key, item)
-#
-#     def convert_item(self, item):
-#         return np.array(item, int)
-#
-#     def auto_key(self):
-#         return 'group%i' % len(self)
-#
-#     def append(self, item):
-#         self[self.auto_key()] = self.convert_item(item)
-#
-#     # def rename(self, group_index, name):
-#     #     self[name] = self.pop(group_index)
-#
-#     @property
-#     def sizes(self):
-#         return [len(labels) for labels in self.values()]
-#
-#     def inverse(self):
-#         return {lbl: gid for gid, labels in self.items() for lbl in labels}

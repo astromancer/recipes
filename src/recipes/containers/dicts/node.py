@@ -17,25 +17,13 @@ from ...iter import cofilter, first_true_index
 from ...functionals.partial import partial, placeholder as o
 from .. import cosort
 from ..ensure import is_scalar
-from .core import AutoVivify, vdict
+from .core import AutoVivify
 
 
 # ---------------------------------------------------------------------------- #
 NULL = object()
 
 # ---------------------------------------------------------------------------- #
-
-# def __getattr__(self, attr):
-#     if attr in self.__dict__:
-#         return getattr(self, attr)
-#     return getattr(self._val, attr)
-
-
-# class NodeList(list):
-#     def __getitem__(self, key):
-#         return NodeList(
-#             [child[key] for child in self if isinstance(child, vdict)]
-#         )
 
 
 def _get_filter_func(keys):
@@ -196,8 +184,7 @@ class LeafNode:
         return str(self._val)
 
 
-class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
-               LoggingMixin):
+class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, LoggingMixin):
     """
     A defaultdict that generates instances of itself. Used to create arbitrary 
     data trees without prior knowledge of final structure. 
@@ -219,7 +206,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
     def __init__(self, *args, **kws):
         self.parent = None
         factory = self._attach
-        if args and callable(args[0]):  # and not isinstance(args[0], abc.Iterable):
+        if args and callable(args[0]):
             factory, *args = args
 
         # init
@@ -228,7 +215,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
             self.update(*args, **kws)
 
     def __iter__(self):
-        # needed for ** unpacking to work. FNW
+        # needed for ** unpacking to work
         return super().__iter__()
 
     def __getitem__(self, key):
@@ -281,8 +268,8 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
     def depth(self):
         return max(len(key) for key, _ in self._flatten(all))
 
-    def size(self):
-        return sum(1 if is_leaf(node) else node.size()
+    def _size(self):
+        return sum(1 if is_leaf(node) else node._size()
                    for node in super().values())
 
     def flatten(self, levels=all, keep_tuples=True):
@@ -308,7 +295,7 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
     def prune(self, keys):
         return self.filter(keys)
 
-    def filter(self, keys=NULL, values=NULL, levels=all, *args, **kws):
+    def filter(self, keys=NULL, values=NULL, levels=all):
         new = type(self)()
         new.update(self._filter(_get_filter_func(keys),
                                 _get_filter_func(values),
@@ -316,9 +303,9 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, vdict,
         return new
 
     # alias
-    filtered = Alias('filter')  # drop
+    filtered = Alias('filter')
 
-    def select(self, keys=NULL, values=NULL, levels=0, *args, **kws):
+    def select(self, keys=NULL, values=NULL, levels=0):
         new = type(self)()
         new.update(self._filter(_get_select_func(keys),
                                 _get_select_func(values),
