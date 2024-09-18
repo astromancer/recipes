@@ -28,7 +28,7 @@ isnull = is_null = negate(not_null)
 
 # ---------------------------------------------------------------------------- #
 # Scalars (unsized)
-SCALARS = (str, )
+SCALARS = (str, bytes)
 
 
 def is_scalar(obj, accept=SCALARS):
