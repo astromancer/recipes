@@ -188,8 +188,8 @@ class Cached(Decorator, LoggingMixin):
         """
 
         self.sig = None
-        self.typed = _check_hashers(typed, ignore)
-        self.retyped = {}
+        self.typed = {abc.MutableSequence: tuple,
+                      **_check_hashers(typed, ignore)}
         self.cache = CacheManager(capacity, filename, policy, enabled)
 
         # file rotation
@@ -255,6 +255,9 @@ class Cached(Decorator, LoggingMixin):
         return decorated
 
     def resolve_types(self, mapping, strict=True):
+        """
+        Parse the user input `types` for controlling the hashing
+        """
         names = list(self.sig.parameters.keys())
 
         retyped = {}
@@ -276,6 +279,19 @@ class Cached(Decorator, LoggingMixin):
                              f'{named_items(list(invalid), "parameter")}.')
 
         return mapping, retyped
+
+    def _convert(self, val, name=None):
+        convert = self.typed.get(name)
+        if not convert:
+            # recasting mutable types as immutable
+            for frm, to in self.retyped.items():
+                if isinstance(val, frm):
+                    return to(map(self._convert, val))
+
+        if convert:
+            return convert(val)
+
+        return val
 
     def _gen_hash_key(self, mapping):
 
@@ -299,8 +315,7 @@ class Cached(Decorator, LoggingMixin):
                 yield tuple(zip(val.keys(), self._gen_hash_key(val)))
 
             else:
-                convert = convert or self.retyped.get(type(val), echo0)
-                yield convert(val)
+                yield self._convert(val, name)
 
             # remove the keys that have been bound to other position-or-keyword
             # parameters. variadic keyword args can come in any order. To ensure
@@ -433,6 +448,9 @@ class Ignore:
 
     def __init__(self, silent=True):
         self.silent = bool(silent)
+
+    def __call__(self, *args, **kws):
+        return self
 
 
 class Reject(Ignore):
