@@ -7,6 +7,7 @@ import warnings
 
 # relative
 from .. import op
+from ..containers import ensure
 from ..pprint.namespace import pformat
 
 
@@ -29,18 +30,28 @@ def qualname(kls):
 
 class Represent:
 
-    __slots__ = ('_owner', 'attrs', 'maybe', 'ignore', 'remap',
-                 'name', 'target', 'enclose', 'style')
+    __slots__ = ('attrs', 'maybe', 'ignore', 'rename',
+                 'name', 'target', 'enclose', 'style', '_owner')
 
     @classmethod
-    def like(cls, other, attrs=..., **kws):
-        if isinstance(other.__repr__, cls):
-            init = op.get.attrs(other.__repr__, cls.__slots__)
-            return cls(**{**init, **kws, 'attrs': attrs})
+    def like(cls, other, attrs=..., maybe=..., ignore=..., **kws):
 
-        raise TypeError(
-            'Cannot inherit representation config from {other.__repr__!r}.'
-        )
+        if not isinstance(other.__repr__, cls):
+            raise TypeError(
+                'Cannot inherit representation config from {other.__repr__!r}.'
+            )
+
+        # get attributes from other repr
+        init = op.get.attrs(other.__repr__, cls.__slots__)
+
+        # sub ellipsis ... with attrs from other repr
+        for key, items in {'attrs': attrs, 'maybe': maybe, 'ignore': ignore}.items():
+            items = ensure.tuple(items)
+            if ... in items:
+                i = items.index(...)
+                kws[key] = (*items[:i], *ensure.tuple(init[key]), *items[i+1:])
+
+        return cls(**{**init, **kws})
 
     def __init__(self, attrs=..., maybe=(), ignore='_*', remap=(), name=None,
                  enclose='<>', style=(), **kws):
