@@ -1,20 +1,26 @@
+
+"""
+Pretty print object namespaces.
+"""
+
 from .. import op
 from .mapping import pformat as _pformat
 
 
-def pformat(target, attrs=..., maybe=(), ignore='*_', name=None, remap=(),
+def pformat(target, attrs=..., maybe=(), ignore='*_', name=None, rename=(),
             enclose='<>', **kws):
 
     name = name or type(target).__name__
     state = op.get.attrs(target, attrs, maybe, ignore)
 
-    if remap := dict(remap):
-        state = {remap.get(key, key): val for key, val in state.items()}
+    if rename := dict(rename):
+        state = {rename.get(key, key): val for key, val in state.items()}
 
     opn, *close = enclose
     newline = kws.get('newline', '')
     if '\n' in newline:
-        kws['newline'] = ' ' * len(opn) + newline
+        space = len(opn) + len(kws.get('brackets', '()')[0])
+        kws['newline'] = ' ' * space + newline
 
     return ''.join((opn,
                     _pformat(state, name, **kws),

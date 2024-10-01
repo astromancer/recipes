@@ -53,14 +53,14 @@ class Represent:
 
         return cls(**{**init, **kws})
 
-    def __init__(self, attrs=..., maybe=(), ignore='_*', remap=(), name=None,
+    def __init__(self, attrs=..., maybe=(), ignore='_*', rename=(), name=None,
                  enclose='<>', style=(), **kws):
 
         # attributes
         self.attrs = attrs
         self.maybe = maybe
         self.ignore = ignore
-        self.remap = dict(remap)
+        self.rename = dict(rename)
         self.name = name
 
         # The target instance to represent: set in `__get__` method below
