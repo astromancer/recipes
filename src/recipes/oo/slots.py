@@ -4,7 +4,7 @@ import fnmatch as fnm
 import itertools as itt
 
 # relative
-from ..containers import dicts, ensure
+from ..containers import dicts, ensure, sets
 from .utils import superclasses
 from .represent import Represent
 
@@ -12,7 +12,7 @@ from .represent import Represent
 # ---------------------------------------------------------------------------- #
 
 def sanitize(kws, *ignore):
-    # NOTE: make a dict copy of the data, since this is most often a refrence to 
+    # NOTE: make a dict copy of the data, since this is most often a refrence to
     # locals() of a namespace and we will remove items from it
     return dicts.remove(dict(kws), {'self', 'kws', '__class__', *ignore})
 
@@ -44,11 +44,15 @@ def _get_slots(kls, ancestors=all):
     bases = itt.chain([kls], superclasses(kls))
     bases = (base for base in bases if hasattr(base, '__slots__'))
     ancestors = None if ancestors is all else int(ancestors)
-    for base in itt.islice(bases, ancestors):
-        yield from ensure.tuple(getattr(base, '__slots__', ()))
 
+    slots = sets.OrderedSet()
+    for base in itt.islice(bases, ancestors):
+        slots |= ensure.set(getattr(base, '__slots__', ()))
+
+    return tuple(slots)
 
 # ---------------------------------------------------------------------------- #
+
 
 class SlotHelper:
     """
