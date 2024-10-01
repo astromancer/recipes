@@ -12,8 +12,9 @@ from loguru import logger
 
 # relative
 from ...config import ConfigNode
-from ...io.gitignore import GitIgnore
+from ...containers import ensure
 from ...concurrency import Executor
+from ...io.gitignore import GitIgnore
 from . import STYLES, refactor
 
 
@@ -49,8 +50,9 @@ def _iter_files(file_or_folder, recurse, ignore):
         yield from files
 
     elif _py_file(path):
-        if not gitignore.match(str(path)):
-            logger.debug('Ignoring: {!r}.', str(path))
+        if gitignore.match(s := str(path)):
+            logger.debug('Ignoring: {!r}.', s)
+        else:
             yield path
 
     else:
@@ -66,14 +68,14 @@ class Tidy(Executor):
     def __init__(self, style='aesthetic', recurse=True, **config):
 
         super().__init__(**config)
-        self.results = []
+        self.results = []           # this means the super call will not raise
         self.style = str(style)
         self.recurse = bool(recurse)
-        self.ignore = list(CONFIG.get('ignore', ()))
+        self.ignore = set(CONFIG.get('ignore', ()))
 
     def __call__(self, *args, ignore=(), **kws):
         if ignore:
-            self.ignore.extend(ignore)
+            self.ignore |= ensure.set(ignore)
 
         return super().__call__(*args, **kws)
 
@@ -81,22 +83,23 @@ class Tidy(Executor):
         logger.info('Tidying import statements in {}.', repr(str(file)))
         refactor(file, self.style)
 
-    def get_workload(self, files_or_folders, indices, progress_bar=None):
+    def get_workload(self, files_or_folders, *args, **kws):
 
-        files = list(self._get_workload(files_or_folders))
+        files = list(self._resolve_files(files_or_folders))
         if not files:
             return []
 
         self.results = np.full(len(files), np.nan)
-        return super().get_workload(files, indices, progress_bar)
+        return super().get_workload(files, *args, **kws)
 
-    def _get_workload(self, files_or_folders):
+    def _resolve_files(self, files_or_folders):
         self.logger.info('Resolving workload.')
         for item in files_or_folders:
             for file in _iter_files(item, self.recurse, self.ignore):
                 yield file
 
     def collect(self, index, result):
+        # No results returned from worker
         return
 
 
@@ -104,7 +107,7 @@ class Tidy(Executor):
 
 @click.command()
 @click.argument('files_or_folders', nargs=-1)
-@click.option('-s', '--style', default='aesthetic', show_default=True, 
+@click.option('-s', '--style', default='aesthetic', show_default=True,
               type=click.Choice(STYLES),
               help='Sorting style.')
 @click.option('-r', '--recurse', default=True, show_default=True, type=click.BOOL,
