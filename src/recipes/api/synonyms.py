@@ -206,8 +206,8 @@ class Synonyms(Decorator):
             try:
                 return func(*args, **kws)
             except TypeError as err:  # NOTE: only works if func has no variadic kws
-                if ((e := str(err)).startswith(func.__name__) and
-                        ('unexpected keyword argument' in e)):
+                if ((e := str(err)).startswith((func.__name__, func.__qualname__))
+                    and ('unexpected keyword argument' in e)):
                     #
                     logger.debug('Caught {}: {}. Attempting keyword translation.',
                                  type(err), err)
