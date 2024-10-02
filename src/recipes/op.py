@@ -92,6 +92,49 @@ radd, rsub, rmul, rtruediv, rfloordiv = _make_reverse_operators(
 # ---------------------------------------------------------------------------- #
 # API helper
 
+def _resolve_attr_names(obj, names=...):
+    if names is ...:
+        if hasattr(obj, '__slots__'):
+            # local to avoid circular import
+            from recipes.oo.slots import get_slots
+            return get_slots(obj)
+
+        return list(obj.__dict__)
+
+    names = ensure.list(names)
+
+    # additional properties can be given like (..., 'xx')
+    if ... in names:
+        i = names.index(...)
+        return [*names[:i], *_resolve_attr_names(obj, ...), *names[i+1:]]
+
+    return names
+
+
+def resolve_attr_names(obj, names=..., ignore=(), check=False):
+    names = _resolve_attr_names(obj, names)
+
+    if ignore:
+        names = exclude(names, ignore)
+
+    if check:
+        for name in names:
+            assert hasattr(obj, name)
+
+    return names
+
+
+def exclude(attrs, ignore):
+    return [atr for atr in attrs if _include(atr, ignore)]
+
+
+def _include(atr, patterns):
+    for pattern in ensure.tuple(patterns):
+        if fnm.fnmatch(atr, pattern):
+            return False
+    return True
+
+
 class Get:
 
     def items(self, indices):
@@ -111,32 +154,13 @@ class Get:
             maybe = {key: val for key, val in maybe.items()
                      if val is not _NOT_FOUND}
 
-        if required is ...:
-            if hasattr(obj, '__slots__'):
-                # local to avoid circular import
-                from recipes.oo.slots import get_slots
-                required = get_slots(obj, ignore)
-            else:
-                required = obj.__dict__
+        # resolve names
+        required = resolve_attr_names(obj, required, ignore)
 
-        required = ensure.tuple(required)
-        if ignore:
-            required = exclude(required, ignore)
-
+        # fetch
         return {**AttrMap(*required)(obj), **maybe}
 
     attr = attrs
-
-
-def exclude(attrs, ignore):
-    return [atr for atr in attrs if _include(atr, ignore)]
-
-
-def _include(atr, patterns):
-    for pattern in ensure.tuple(patterns):
-        if fnm.fnmatch(atr, pattern):
-            return False
-    return True
 
 
 # Singleton for item / attribute retrieval
@@ -225,6 +249,9 @@ class AttrSetter:
 
     def __call__(self, target, values):
         keys = self.keys
+        if len(keys) == 1:
+            values = [values]
+
         if isinstance(values, dict):
             keys = values.keys()
             values = values.values()
