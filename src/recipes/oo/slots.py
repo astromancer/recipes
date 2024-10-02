@@ -47,12 +47,13 @@ def _get_slots(kls, ancestors=all):
 
     slots = sets.OrderedSet()
     for base in itt.islice(bases, ancestors):
-        slots |= ensure.set(getattr(base, '__slots__', ()))
-
+        # add to preserve order
+        [*map(slots.add, getattr(base, '__slots__', ()))]
+        
     return tuple(slots)
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 class SlotHelper:
     """
