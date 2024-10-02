@@ -137,11 +137,17 @@ def _get_formatters(fmt):
         )
 
     # A defaultdict that returns `pformat` as the default formatter
-    return defaultdict((lambda: pformat), fmt)
+    return defaultdict((lambda: dispatch.pformat), fmt)
+
+
+MAX_RECURENCE_DEPTH = 5
 
 
 def _pformat(mapping, lhs_func_dict, equal, rhs_func_dict, sep, brackets,
-             align, hang, tabsize, newline, ignore):
+             align, hang, tabsize, newline, ignore, _level=0):
+
+    if _level > MAX_RECURENCE_DEPTH:
+        return '<...>'
 
     if len(mapping) == 0:
         # empty dict
@@ -155,13 +161,13 @@ def _pformat(mapping, lhs_func_dict, equal, rhs_func_dict, sep, brackets,
 
     # note that keys may not be str, so first convert
     keys = tuple(lhs_func_dict[key](key) for key in mapping.keys())
-    keys_size = list(map(len, keys))
 
     string, close = brackets
     pos = len(string)
     if align:
         # make sure we line up the values
         leqs = len(equal)
+        keys_size = list(map(len, keys))
         width = max(keys_size)
         wspace = [width - w + leqs for w in keys_size]
     else:
@@ -190,7 +196,8 @@ def _pformat(mapping, lhs_func_dict, equal, rhs_func_dict, sep, brackets,
 
         if isinstance(val, abc.MutableMapping):
             part = _pformat(val, lhs_func_dict, equal, rhs_func_dict, sep,
-                            brackets, align, hang, tabsize, newline, ignore)
+                            brackets, align, hang, tabsize, newline, ignore,
+                            _level + 1)
         else:
             part = rhs_func_dict[okey](val)
 
