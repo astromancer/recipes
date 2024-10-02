@@ -71,7 +71,11 @@ class AbortCompute(Exception):
 class Executor(SlotHelper, LoggingMixin):
 
     __slots__ = ('jobname', 'backend', 'config', 'results', 'nfail', 'xfail')
-    __repr__ = Represent(ignore=('results', ), newline='\n ')
+
+    __repr__ = Represent((..., 'completeness'),
+                         ignore=('results', ),
+                         remap={'nfail': 'nfail.value'},
+                         newline='\n')
 
     def __init__(self, jobname=None, backend='multiprocessing', xfail=1,
                  **config):
