@@ -2,7 +2,6 @@
 # std
 import contextlib as ctx
 import multiprocessing as mp
-from collections import abc
 
 # third-party
 import numpy as np
@@ -19,6 +18,7 @@ from .. import pprint as pp
 from ..io import load_memmap
 from ..string import pluralize
 from ..config import ConfigNode
+from ..oo.property import Alias
 from ..oo.slots import SlotHelper
 from ..oo.represent import Represent
 from ..flow.contexts import ContextStack
@@ -62,13 +62,22 @@ def resolve_njobs(njobs):
     return int(njobs)
 
 
-# ---------------------------------------------------------------------------- #
+def select(indices, *data):
+    if data:
+        for i in indices:
+            yield _select(i, *data)
 
+
+def _select(index, *data):
+    return tuple((array[index] for array in data))
+
+
+# ---------------------------------------------------------------------------- #
 class AbortCompute(Exception):
     pass
 
 
-class Executor(SlotHelper, LoggingMixin):
+class Framework(SlotHelper, LoggingMixin):
 
     __slots__ = ('jobname', 'backend', 'config', 'results', 'nfail', 'xfail')
 
@@ -89,66 +98,11 @@ class Executor(SlotHelper, LoggingMixin):
             jobname=(type(self).__name__ if jobname is None else str(jobname))
         )
 
-    def init_memory(self, shape, loc=None, fill=np.nan, overwrite=False, **kws):
-        """
-        Initialize shared memory synchronised access wrappers. Should only be
-        run in the main process.
-
-        Parameters
-        ----------
-        n:
-            number of frames
-        overwrite
-
-        Returns
-        -------
-
-        """
-        self.results = load_memmap(loc, shape, fill=fill, overwrite=overwrite, **kws)
-
-    def reset_memory(self):
-        self.results[:] = np.nan
-
-    def __call__(self, data, indices=None, **kws):
+    def __call__(self, *data, **kws):
         """
         Run compute by invoking the `run` method.
-
-        Parameters
-        ----------
-        data
-        indices
-
-        Returns
-        -------
-        results
         """
-
-        if self.results is None:
-            raise FileNotFoundError('Initialize memory first by calling the '
-                                    '`init_memory` method.')
-
-        return self.run(data, indices, **kws)
-
-    def __str__(self):
-        name = type(self).__name__
-        if (m := self.results) is None:
-            return f'{name}(0/0)'
-        return f'{name}({sum(self.completed)} / {len(m)})'
-
-    # ------------------------------------------------------------------------ #
-    @property
-    def completed(self):
-        # boolean array flags True if frame has any measurement(s)
-        return ~np.isnan(self.results).all(
-            tuple({*range(self.results.ndim)} - {0})
-        )
-
-    @property
-    def completeness(self):
-        if self.results is None:
-            return '0'
-
-        return f'{self.completed.sum()}/{len(self.results)}'
+        return self.run(*data, **kws)
 
     def setup(self, njobs, progress_bar, **config):
 
@@ -166,7 +120,7 @@ class Executor(SlotHelper, LoggingMixin):
 
         # setup compute context
         if njobs == 1:
-            return self.compute, ctx.nullcontext(list), ()
+            return self._compute, ctx.nullcontext(list), ()
 
         # locks for managing output contention
         mem_lock = sync_manager.Lock()
@@ -177,7 +131,7 @@ class Executor(SlotHelper, LoggingMixin):
 
         # NOTE: object serialization is about x100-150 times faster with
         # "multiprocessing" backend. ~0.1s vs 10s for "loky".
-        worker = delayed(self.compute)
+        worker = delayed(self._compute)
         executor = Parallel(njobs, self.backend, **config)
         context = ContextStack(
             initialized(executor, set_locks, (mem_lock, prg_lock))
@@ -190,50 +144,28 @@ class Executor(SlotHelper, LoggingMixin):
 
         return worker, context, (mem_lock, prg_lock)
 
-    def get_workload(self, data, indices=None, progress_bar=None, jobname='', **kws):
+    def get_workload(self, *data, progress_bar=False, jobname='', **kws):
         # workload iterable with progressbar if required
 
-        # get indices
-        done = self.completed
-        if indices is None:
-            indices, = np.where(~done)
+        self.logger.debug('Creating workload for {} items.', len(data))
 
-        indices = list(indices)
-        # self.logger.debug('indices = {}', indices)
-
-        # check indices
-        if len(indices) == 0:
-            self.logger.info('All data have been processed. To force a rerun, '
-                             'you may reset the memory\n'
-                             ' >>> exec.reset_memory()')
-
-            return ()
-
-        # progress bar only if more than one task
-        if progress_bar is None:
-            progress_bar = (len(indices) > 1)
-
-        #
-        self.logger.debug('Creating workload for {} items.', len(indices))
-        workload = self._get_workload(data, indices, **kws)
+        workload = self._get_workload(*data)
 
         # workload iter
-        return tqdm(workload, jobname or self.jobname,
-                    initial=done.sum(), total=len(done),
-                    disable=not progress_bar, **CONFIG.progress)
+        return tqdm(workload,
+                    **{**dict(jobname=(jobname or self.jobname),
+                              disable=not progress_bar),
+                       **CONFIG.progress,
+                       'total': len(data[0]),
+                       **kws})
 
-    def _get_workload(self, data, indices, **kws):
-        # resolve data / indices
-        if isinstance(data, (np.ndarray, list)):
-            return ((data[i], i) for i in indices)
-
-        elif isinstance(data, abc.Iterable):
-            return zip(data, indices)
-
-        raise TypeError(f'Cannot create workload from data of type {type(data)}.')
+    def _get_workload(self, *data):
+        # NOTE: should yield (data, index) since that is what the `_compute`
+        # method expects.
+        return zip(*data)
 
     # @api.synonyms({'n_jobs': 'njobs', 'job_name': 'jobname'})
-    def run(self, data=None, indices=None, njobs=-1, progress_bar=None, jobname='',
+    def run(self, *data, njobs=-1, progress_bar=None, jobname='',
             args=(), **kws):
         """
         Start a job. The workload will be split into
@@ -241,35 +173,38 @@ class Executor(SlotHelper, LoggingMixin):
 
         Parameters
         ----------
-        data : array-like
-            Image stack.
-        indices : Iterable, optional
-            Indices of frames to compute, the default None, runs through all the
-            data.
+        *data : tuple
+            Any number of data sequences. If given, these should be the same size
+            as `indices`, since we will select from each of these with the given
+            indices.
         njobs : int, optional
-            Number of concurrent woorker processes to launch, by default -1
-
+            Number of concurrent worker processes to launch, by default -1, which
+            uses the number of cpus available on the machine.
         progress_bar : bool, optional
-            _description_, by default True
+            Whether to show progress bar (via tqdm). The default None, will only
+            show this if there is more than one task.
+        jobname: str, optional
+            Job name to display in the progress bar.
+        args: tuple
+            Argument tuple passed to the workers.
+        **kws:
+            Keyword parameters passed to the workers.
 
         Raises
         ------
         FileNotFoundError
             If memory has not been initialized prior to calling this method.
         """
-        # preliminary checks
-        if self.results is None:
-            raise FileNotFoundError('Initialize memory first by calling the '
-                                    '`init_memory` method.')
 
         # main compute
-        self.main(data, indices, njobs, progress_bar, jobname,  *args, **kws)
+        self.main(data, njobs, progress_bar, jobname, *args, **kws)
         return self.finalize(*args, **kws)
 
-    def main(self, data, indices, njobs, progress_bar, jobname, *extra_args, **kws):
+    def main(self, data, njobs, progress_bar, jobname, *args, **kws):
 
         # fetch work
-        workload = self.get_workload(data, indices, progress_bar, jobname=jobname)
+        workload = self.get_workload(*data,
+                                     progress_bar=progress_bar, jobname=jobname)
 
         # setup compute context
         worker, context, locks = self.setup(njobs, progress_bar, **self.config)
@@ -282,14 +217,16 @@ class Executor(SlotHelper, LoggingMixin):
         # execute
         with context as compute:
             # do work
-            compute(worker(*args, *extra_args, **kws) for args in workload)
+            compute(worker(*load, *args, **kws) for load in workload)
+            # load - pre distributed (in `get_workload`) (index, ...)
+            # data - distributed in worker process `_compute` (arrays)
 
         # self.logger.debug('With {} backend, pickle serialization took: {:.3f}s.',
         #              backend, time.time() - t_start)
         self.logger.debug('Task {} complete. Returning results.', self.jobname)
         return self.results
 
-    def _compute(self, data, index, **kws):
+    def _compute(self, index, *args, **kws):
 
         # first check if we are good to continue
         if self.nfail.value >= self.xfail:
@@ -299,7 +236,7 @@ class Executor(SlotHelper, LoggingMixin):
 
         # compute
         try:
-            result = self.compute(data, index, **kws)
+            result = self.compute(*args, **kws)
         except Exception as err:
             #
             self.logger.exception('Compute failed for index {}:\n{}', index, err)
@@ -328,11 +265,167 @@ class Executor(SlotHelper, LoggingMixin):
         self.results[index] = result
 
     def compute(self, *data, **kws):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def finalize(self, *args, **kws):
         logger.remove()
         return self.results
+
+
+class Executor(Framework):
+    """
+    Failure tolerant parallel task executor with flexible backend, data
+    persistence and progress monitoring.
+    """
+
+    def init_memory(self, shape, loc=None, fill=np.nan, overwrite=False, **kws):
+        """
+        Initialize shared memory synchronised access wrappers. Should only be
+        run in the main process.
+
+        Parameters
+        ----------
+        n:
+            number of frames
+        overwrite
+
+        Returns
+        -------
+
+        """
+        self.results = load_memmap(loc, shape, fill=fill, overwrite=overwrite, **kws)
+
+    def reset_memory(self):
+        self.results[:] = np.nan
+
+    # alias
+    reset = Alias('reset_memory')
+
+    def __call__(self, indices=None, *data, **kws):
+        """
+        Run compute by invoking the `run` method.
+
+        Parameters
+        ----------
+        data: Sequence
+            Data to compute, typically a np.ndarray.
+        indices: Sequence[int]
+            Indices of data array to compute, by default
+
+        Returns
+        -------
+        results
+        """
+
+        if self.results is None:
+            raise FileNotFoundError('Initialize memory first by calling the '
+                                    '`init_memory` method.')
+
+        return self.run(*data, indices=indices, **kws)
+
+    def __str__(self):
+        return f'{type(self).__name__}({self.completeness})'
+
+    # ------------------------------------------------------------------------ #
+    @property
+    def completed(self):
+        # boolean array flags True if frame has any measurement(s)
+        return ~np.isnan(self.results).all(
+            tuple({*range(self.results.ndim)} - {0})
+        )
+
+    @property
+    def completeness(self):
+        if self.results is None:
+            return '0/0'
+
+        return f'{self.completed.sum()}/{len(self.results)}'
+
+    # ------------------------------------------------------------------------ #
+    def get_workload(self, indices=None, *distributed, progress_bar=None, jobname='', **kws):
+        # workload iterable with progressbar if required
+
+        # get indices
+        done = self.completed
+        if done.all():
+            self.logger.info('All data have been processed. To force a rerun, '
+                             'you may reset the memory\n'
+                             ' >>> exec.reset_memory()')
+
+            return ()
+
+        # Resolve indices - need these to write results
+        if indices is None:
+            indices, = np.where(~done)
+
+        indices = list(indices)
+        self.logger.debug('indices = {}', indices)
+
+        # progress bar only if more than one task
+        if progress_bar is None:
+            progress_bar = (len(indices) > 1)
+
+        # get workload
+        # NOTE: array data should not be "distributed", since there is a cpu and
+        # memory overhead associated with pickling arrays vs pickling memmory
+        # maps, which will happen in the main process joblib automatically
+        # convert arrays to memmaps, so prefered recipe is to select data from
+        # the memory map within the worker process.
+        return super().get_workload(indices, *distributed,
+                                    jobname=jobname, progress_bar=progress_bar,
+                                    initial=done.sum(), total=len(done), **kws)
+
+    # @api.synonyms({'n_jobs': 'njobs', 'job_name': 'jobname'})
+    def run(self, *data, indices=None, njobs=-1, progress_bar=None, jobname='',
+            args=(), **kws):
+        """
+        Start a job. The workload will be split into
+        chunks of size ``
+
+        Parameters
+        ----------
+        *data : tuple
+            Any number of data sequences. If given, these should be the same size
+            as `indices`, since we will select from each of these with the given
+            indices.
+        indices : Iterable, optional
+            Indices of dara frames to compute. If None, the default, the
+            `results` array is inspected to get indices of all unprocessed data.
+        njobs : int, optional
+            Number of concurrent worker processes to launch, by default -1, which
+            uses the number of cpus available on the machine.
+        progress_bar : bool, optional
+            Whether to show progress bar (via tqdm). The default None, will only
+            show this if there is more than one task.
+        jobname: str, optional
+            Job name to display in the progress bar.
+        args: tuple
+            Argument tuple passed to the workers.
+        **kws:
+            Keyword parameters passed to the workers.
+
+        Raises
+        ------
+        FileNotFoundError
+            If memory has not been initialized prior to calling this method.
+        """
+        # preliminary checks
+        if self.results is None:
+            raise FileNotFoundError('Initialize memory first by calling the '
+                                    '`init_memory` method.')
+
+        # main compute
+        args = (*data, *args)
+        super().main((indices, ), njobs, progress_bar, jobname, *args, **kws)
+        return self.finalize(*args, **kws)
+
+    def select(self, index, *data):
+        return _select(index, *data)
+
+    def _compute(self, index, *distributed, args=(), **kws):
+        # select indexed arrays
+        _args = self.select(index, *distributed)
+        return super()._compute(*_args, *args, **kws)
 
 
 class BatchedExecutor(Executor):
@@ -341,11 +434,11 @@ class BatchedExecutor(Executor):
         _, context, locks = super().setup(njobs, progress_bar, **config)
         return delayed(self.loop), context, locks
 
-    def get_workload(self, data, indices, njobs=-1, batch_size=None,
-                     progress_bar=None, jobname=''):
+    def get_workload(self, indices=None, *distributed, progress_bar=None, jobname=''):
 
         #
-        workload = super().get_workload(data, indices, progress_bar, jobname)
+        workload = super().get_workload(indices, *distributed,
+                                        progress_bar=progress_bar, jobname=jobname)
 
         if not workload:
             return ()

@@ -13,7 +13,7 @@ from loguru import logger
 # relative
 from ...config import ConfigNode
 from ...containers import ensure
-from ...concurrency import Executor
+from ...concurrence import Framework
 from ...io.gitignore import GitIgnore
 from . import STYLES, refactor
 
@@ -21,10 +21,10 @@ from . import STYLES, refactor
 # ---------------------------------------------------------------------------- #
 CONFIG = ConfigNode.load_module(__file__)
 
+
 # ---------------------------------------------------------------------------- #
 
-
-def _py_file(path):
+def _is_py_file(path):
     return path.suffix == '.py'
 
 
@@ -43,13 +43,13 @@ def _iter_files(file_or_folder, recurse, ignore):
     if path.is_dir():
         if gitignore:
             files = gitignore.iterdir(depth=(1, any)[recurse])
-            files = filter(_py_file, files)
+            files = filter(_is_py_file, files)
         else:
             files = (path.glob, path.rglob)[recurse]('*.py')
 
         yield from files
 
-    elif _py_file(path):
+    elif _is_py_file(path):
         if gitignore.match(s := str(path)):
             logger.debug('Ignoring: {!r}.', s)
         else:
@@ -61,36 +61,36 @@ def _iter_files(file_or_folder, recurse, ignore):
 
 # ---------------------------------------------------------------------------- #
 
-class Tidy(Executor):
+class Tidy(Framework):
 
     __slots__ = ('style', 'recurse', 'ignore')
 
     def __init__(self, style='aesthetic', recurse=True, **config):
 
         super().__init__(**config)
-        self.results = []           # this means the super call will not raise
+        self.results = []   # this means the super call method will not raise
         self.style = str(style)
         self.recurse = bool(recurse)
         self.ignore = set(CONFIG.get('ignore', ()))
 
-    def __call__(self, *args, ignore=(), **kws):
+    def __call__(self, files_or_folders, ignore=(), **kws):
         if ignore:
             self.ignore |= ensure.set(ignore)
 
-        return super().__call__(*args, **kws)
+        return super().__call__(files_or_folders, **kws)
 
-    def compute(self, file, index, **kws):
+    def compute(self, file, **kws):
         logger.info('Tidying import statements in {}.', repr(str(file)))
         refactor(file, self.style)
 
-    def get_workload(self, files_or_folders, *args, **kws):
+    def get_workload(self, files_or_folders, **kws):
 
         files = list(self._resolve_files(files_or_folders))
         if not files:
             return []
 
         self.results = np.full(len(files), np.nan)
-        return super().get_workload(files, *args, **kws)
+        return super().get_workload(range(len(files)), files, **kws)
 
     def _resolve_files(self, files_or_folders):
         self.logger.info('Resolving workload.')

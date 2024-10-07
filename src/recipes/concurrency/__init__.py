@@ -1,3 +1,3 @@
 # synched = synced
 
-from .executor import Executor, BatchedExecutor
+from .executor import Framework, Executor, BatchedExecutor
