@@ -32,7 +32,7 @@ imports:
 
 
 
-concurrency:
+concurrence:
     executor:
         progress:
             bar_format: >-

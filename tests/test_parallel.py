@@ -7,7 +7,7 @@ from joblib.parallel import Parallel, delayed
 
 # local
 from recipes.flow.contexts import ContextStack
-from recipes.concurrency.joblib import initialized
+from recipes.concurrence.joblib import initialized
 
 
 # ---------------------------------------------------------------------------- #
