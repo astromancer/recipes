@@ -45,7 +45,8 @@ def pformat(mapping, name=None,
         if `newline` contains an actual newline character '\\n', otherwise
         False.
     hang : bool, optional
-        Whether to hang the first key-value pair on a new line, by default False.
+        Whether to put the first key-value pair on a new line below the opening
+        bracket, by default False.
     tabsize : int, optional
         Number of spaces to use for indentation, by default 4.
     newline : str, optional
@@ -112,13 +113,12 @@ def _get_formatters(fmt):
     # Check formatters are valid callables
     # Retruns
     # A defaultdict that returns `pformat` as the default formatter
-    from recipes.pprint import pformat
-    
+    from recipes.pprint import dispatch
+
     if fmt is None:
-        fmt = pformat
+        fmt = dispatch.pformat
 
     if callable(fmt):
-        
         return defaultdict(lambda: fmt)
 
     if not isinstance(fmt, abc.MutableMapping):

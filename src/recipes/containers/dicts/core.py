@@ -5,7 +5,6 @@ Recipes extending mutable mapping functionality.
 
 # std
 import numbers
-import warnings as wrn
 import itertools as itt
 from collections import OrderedDict, UserDict, abc, defaultdict
 
@@ -14,8 +13,6 @@ import more_itertools as mit
 
 # relative
 from ...flow import Emit
-from ...string import named_items
-from ...functionals import echo0, raises
 from ...pprint.mapping import PrettyPrint
 from .. import ensure
 
@@ -109,7 +106,6 @@ class DefaultDict(defaultdict):
 
 
 # ---------------------------------------------------------------------------- #
-
 
 class SpecialLookup:
     """
