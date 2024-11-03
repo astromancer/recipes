@@ -153,7 +153,7 @@ class Framework(SlotHelper, LoggingMixin):
 
         # workload iter
         return tqdm(workload,
-                    **{**dict(jobname=(jobname or self.jobname),
+                    **{**dict(desc=(jobname or self.jobname),
                               disable=not progress_bar),
                        **CONFIG.progress,
                        'total': len(data[0]),
@@ -425,7 +425,7 @@ class Executor(Framework):
     def _compute(self, index, *distributed, args=(), **kws):
         # select indexed arrays
         _args = self.select(index, *distributed)
-        return super()._compute(*_args, *args, **kws)
+        return super()._compute(index, *_args, *args, **kws)
 
 
 class BatchedExecutor(Executor):
