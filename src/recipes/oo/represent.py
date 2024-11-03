@@ -49,7 +49,8 @@ class Represent:
             items = ensure.tuple(items)
             if ... in items:
                 i = items.index(...)
-                kws[key] = (*items[:i], *ensure.tuple(init[key]), *items[i+1:])
+                items = (*items[:i], *ensure.tuple(init[key]), *items[i+1:])
+            kws[key] = items
 
         return cls(**{**init, **kws})
 
@@ -90,12 +91,15 @@ class Represent:
 
     def __call__(self):
         try:
-            _, params = self.__getstate__()
-            params.pop('_owner')
-            target = params.pop('target')
+            attrs = list(Represent.__slots__[:-1])
+            attrs.remove('target')
+            params = op.AttrMap(*attrs)(self)
             kws = params.pop('style')
-            return pformat(target, **params, **kws)
+            return pformat(self.target, **params, **kws)
 
         except Exception as err:
-            warnings.warn(f'Could not represent object namespace due to {err!r}.')
-            return type(self.target).__name__
+            name = type(self.target).__name__
+            warnings.warn(
+                f'Could not represent {name!r} object namespace due to {err!r}.'
+            )
+            return name
