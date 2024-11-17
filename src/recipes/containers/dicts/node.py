@@ -23,8 +23,8 @@ from .core import AutoVivify
 # ---------------------------------------------------------------------------- #
 NULL = object()
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 def _get_filter_func(keys):
 
@@ -124,12 +124,12 @@ class _NodeIndexing:
     # support tuple indexing for accessing descendants
     _index_descendants_via = tuple
 
-    def __check(self, key):
+    def _check(self, key):
         return (idv := self._index_descendants_via) and isinstance(key, idv) and key
 
-    def __resolve_node(self, key):
+    def _resolve_node(self, key):
         node = self
-        if self.__check(key):
+        if self._check(key):
             *keys, key = key
             if keys:
                 # get / create node
@@ -139,13 +139,21 @@ class _NodeIndexing:
     def __getitem__(self, key):
         if key == ():
             return self
-        key, node = self.__resolve_node(key)
+        key, node = self._resolve_node(key)
+        if not isinstance(node, _NodeIndexing):
+            raise KeyError(key)
         return super(_NodeIndexing, node).__getitem__(key)
 
     def __setitem__(self, okey, val):
-        key, node = self.__resolve_node(okey)
+
+        key, node = self._resolve_node(okey)
         if isinstance(node, _NodeIndexing):
             return super(_NodeIndexing, node).__setitem__(key, val)
+
+        if node is not self:
+        #     # extending a branch beyond child node. overwrite
+            self.pop(okey[:okey.index(key)])
+            return self.__setitem__(okey, val)
 
         return super().__setitem__(okey, val)
 
@@ -169,7 +177,7 @@ class _NodeIndexing:
             self[key] = val
 
     def pop(self, key, *default):
-        key, node = self.__resolve_node(key)
+        key, node = self._resolve_node(key)
         return super(_NodeIndexing, node).pop(key, *default)
 
 
