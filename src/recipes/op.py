@@ -249,7 +249,7 @@ class AttrSetter:
 
     def __call__(self, target, values):
         keys = self.keys
-        if len(keys) == 1:
+        if len(keys) == 1 and (ensure.is_scalar(values) or len(values) != 1):
             values = [values]
 
         if isinstance(values, dict):
@@ -257,6 +257,7 @@ class AttrSetter:
             values = values.values()
 
         assert len(values) == len(keys)
+
         for get_obj, attr, value in zip(self.getters, keys, values):
             setattr(get_obj(target), attr, value)
 
