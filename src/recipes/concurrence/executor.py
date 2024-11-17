@@ -248,11 +248,13 @@ class Framework(SlotHelper, LoggingMixin):
 
                 # check if we are beyond exception threshold
                 if nfail >= self.xfail:
-                    self.logger.critical('Exception threshold reached!')
-
-                    raise AbortCompute(
-                        f'Reach failure threshold of {self.xfail}.'
-                    ) from err
+                    if nfail > 1:
+                        self.logger.critical('Exception threshold reached!')
+                        raise AbortCompute(
+                            f'Reach failure threshold of {self.xfail}.'
+                        ) from err
+                    else:
+                        raise err
                 else:
                     self.logger.info('Continuing after {}/{} failures.',
                                      nfail, self.xfail)
