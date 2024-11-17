@@ -280,6 +280,10 @@ class Executor(Framework):
     persistence and progress monitoring.
     """
 
+    # aliases
+    reset = Alias('reset_memory')
+    get_index = Alias('select')
+
     def init_memory(self, shape, loc=None, fill=np.nan, overwrite=False, **kws):
         """
         Initialize shared memory synchronised access wrappers. Should only be
@@ -299,9 +303,6 @@ class Executor(Framework):
 
     def reset_memory(self):
         self.results[:] = np.nan
-
-    # alias
-    reset = Alias('reset_memory')
 
     def __call__(self, indices=None, *data, **kws):
         """
