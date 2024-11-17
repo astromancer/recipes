@@ -366,9 +366,14 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, LoggingMixin
     # alias
     transform = Alias('reshape')
 
-    def rename(self, old, new):
+    def rename(self, old=None, new=None, **kws):
+        if kws:
+            for old, new in kws.items():
+                self.rename(old, new)
+
         if old in self:
             self[new] = self.pop(old)
+
         return self
 
     def map(self, func, *args, **kws):
