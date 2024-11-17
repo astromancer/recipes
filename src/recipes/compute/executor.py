@@ -430,17 +430,19 @@ class Executor(Framework):
         _args = self.select(index, *distributed)
         return super()._compute(index, *_args, *args, **kws)
 
-
+ 
 class BatchedExecutor(Executor):
 
     def setup(self, njobs, progress_bar, **config):
         _, context, locks = super().setup(njobs, progress_bar, **config)
         return delayed(self.loop), context, locks
 
-    def get_workload(self, indices=None, *distributed, progress_bar=None, jobname=''):
+    def get_workload(self, indices=None, *distributed, 
+                     njobs=-1, batch_size=None,
+                     progress_bar=None, jobname=''):
 
         #
-        workload = super().get_workload(indices, *distributed,
+        workload = super().get_workload(indices, *distributed, 
                                         progress_bar=progress_bar, jobname=jobname)
 
         if not workload:

@@ -13,7 +13,7 @@ from loguru import logger
 # relative
 from ...config import ConfigNode
 from ...containers import ensure
-from ...concurrence import Framework
+from ...compute import Framework
 from ...io.gitignore import GitIgnore
 from . import STYLES, refactor
 
