@@ -362,7 +362,7 @@ class Executor(Framework):
             indices, = np.where(~done)
 
         indices = list(indices)
-        self.logger.debug('indices = {}', indices)
+        self.logger.trace('indices = {}', indices)
 
         # progress bar only if more than one task
         if progress_bar is None:
