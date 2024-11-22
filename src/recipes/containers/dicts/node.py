@@ -11,9 +11,9 @@ from collections import defaultdict
 from ... import op
 from ...oo import Alias
 from ...logging import LoggingMixin
-from ...functionals import always, negate
 from ...pprint.mapping import PrettyPrint
 from ...iter import cofilter, first_true_index
+from ...functionals import always, echo, negate
 from ...functionals.partial import partial, placeholder as o
 from .. import cosort
 from ..ensure import is_scalar
@@ -151,7 +151,7 @@ class _NodeIndexing:
             return super(_NodeIndexing, node).__setitem__(key, val)
 
         if node is not self:
-        #     # extending a branch beyond child node. overwrite
+            # extending a branch beyond child node. overwrite
             self.pop(okey[:okey.index(key)])
             return self.__setitem__(okey, val)
 
@@ -393,10 +393,10 @@ class DictNode(_NodeIndexing, AutoVivify, PrettyPrint, defaultdict, LoggingMixin
         new = self.transform(_split_trans, keys)
         return (new[False], new[True])
 
-    def sorted(self, keys):
-
+    def sorted(self, keys=echo):
+        keys = echo if keys is None else keys
         if callable(keys):
-            raise NotImplementedError()
+            return type(self)(zip(*cosort(*zip(*self.flatten().items()), key=keys)))
 
         if is_scalar(keys):
             raise ValueError(f'Expected callable or list of keys, not {type(keys)}.')
