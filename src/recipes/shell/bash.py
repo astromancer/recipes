@@ -323,8 +323,6 @@ def brace_contract(items, depth=-1):
         return contract(items)
 
     #
-    from IPython import embed
-    embed(header="Embedded interpreter at 'src/recipes/shell/bash.py':325")
     tree = get_tree(items, depth)
     if tree.height:
         return tree.to_list()
