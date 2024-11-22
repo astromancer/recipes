@@ -36,8 +36,12 @@ compute:
     executor:
         progress:
             bar_format: >-
-                {{desc}: {percentage:3.0f}%{bar}{n_fmt}/{total_fmt}:|green}
-                {rate_fmt:|gold}
-                {elapsed:|cyan} eta {remaining:|cyan}
+                {desc}: {percentage:3.0f}%{bar}{n_fmt}/{total_fmt}
+                {rate_fmt}
+                {elapsed} eta {remaining}
             ascii: " ╸━"
             leave: true
+
+# {{desc}: {percentage:3.0f}%{bar}{n_fmt}/{total_fmt}:|green}
+# {rate_fmt:|gold}
+# {elapsed:|cyan} eta {remaining:|cyan}
