@@ -20,6 +20,7 @@ from setuptools.command.build_py import build_py
 from setuptools import Command, find_packages, setup
 
 
+# Config
 # ---------------------------------------------------------------------------- #
 debug.DEBUG = True
 
@@ -31,7 +32,6 @@ site.ENABLE_USER_SITE = ('--user' in sys.argv[1:])
 # Git ignore
 # ---------------------------------------------------------------------------- #
 # Source: https://github.com/astromancer/recipes/blob/main/src/recipes/io/gitignore.py
-
 
 def _git_status(raises=False):
     # check if we are in a repo
@@ -136,9 +136,9 @@ class GitIgnore(GlobPatternList):
         path = Path(filename)
         return super().__init__(path.parent, read(path))
 
+
 # Setuptools
 # ---------------------------------------------------------------------------- #
-
 
 class Builder(build_py):
     # need this to exclude ignored files from the build archive
