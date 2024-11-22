@@ -182,7 +182,7 @@ test_sub = Expected(sub)({
     mock.sub('hello world', dict(h='m', o='ow', rld='', w='v')):
         'mellow vow',
 
-    mock.sub('dark-SHOC2-8x8-1MHz 2.5 EM: 30', {' ':        '-', "'": '', ':        ':         ''}):
+    mock.sub('dark-SHOC2-8x8-1MHz 2.5 EM: 30', {' ':'-', "'": '', ': ': ''}):
         'dark-SHOC2-8x8-1MHz-2.5-EM30',
 
     mock.sub(R"""\

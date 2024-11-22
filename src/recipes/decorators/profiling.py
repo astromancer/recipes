@@ -6,7 +6,7 @@ from collections import defaultdict
 
 # relative
 from .. import pprint
-from ..dicts import DefaultOrderedDict
+from ..containers.dicts import DefaultOrderedDict
 from .base import Decorator
 
 
@@ -104,7 +104,7 @@ class Chrono:
         return wrapper
 
 
-def timer(Decorator):
+class timer(Decorator):
     # def __init__(self, )
 
     #     """Print function execution time upon return"""

@@ -7,49 +7,50 @@ Logging helpers.
 import sys
 import time
 import atexit
-import logging
+import numbers
 import functools as ftl
+import contextlib as ctx
 
 # third-party
+from tqdm import tqdm
 from loguru import logger
+from loguru._simple_sinks import StreamSink
 
 # relative
-from . import pprint as pp
 from .pprint.nrs import hms
-from .decorators import Decorator
-from .introspect.utils import (get_caller_frame, get_class_name,
-                               get_defining_class, get_module_name)
+from .introspect.utils import get_defining_class
 
 
 # ---------------------------------------------------------------------------- #
-def get_module_logger(depth=-1):
-    """
-    Create a logger for a module by calling this function from the module
-    namespace.
-    """
-    return logging.getLogger(get_module_name(get_caller_frame(2), depth))
+# Module constants
+_original_stdout = sys.stdout
+_original_stderr = sys.stderr
 
 
 # ---------------------------------------------------------------------------- #
+@ctx.contextmanager
+def disabled(*libraries):
+    """
+    Temporarily disable logging for `libraries`.
+    """
+
+    for lib in libraries:
+        logger.disable(lib)
+
+    try:
+        yield
+
+    finally:
+        # re-enable
+        for lib in libraries:
+            logger.enable(lib)
 
 
-class LoggingDescriptor:
-    # use descriptor so we can access the logger via logger and cls().logger
-    # Making this attribute a property also avoids pickling errors since
-    # `logging.Logger` cannot be picked
-
-    def __init__(self, namespace_depth=-1):
-        self.namespace_depth = int(namespace_depth)
-
-    def __get__(self, obj, kls=None):
-        return logging.getLogger(self.get_log_name(kls or type(obj)))
-
-    @ftl.lru_cache
-    def get_log_name(self, kls):
-        return get_class_name(kls, self.namespace_depth)
-
-
+# ---------------------------------------------------------------------------- #
 class LoggingMixin:
+    
+    __slots__ = ()
+    
     class Logger:
 
         # use descriptor so we can access the logger via logger and cls().logger
@@ -86,26 +87,6 @@ class LoggingMixin:
 
     logger = Logger()
 
-# ---------------------------------------------------------------------------- #
-
-
-class Catch(Decorator, LoggingMixin):
-    """
-    Decorator that catches and logs errors instead of actively raising
-    exceptions.
-    """
-
-    def __wrapper__(self, func, *args, **kws):
-        try:
-            return func(*args, **kws)
-        except Exception:
-            logger.exception('Caught exception in {:s}: ',
-                             pp.caller(func, args, kws))
-
-
-# alias
-catch_and_log = catch = Catch
-
 
 # ---------------------------------------------------------------------------- #
 class TimeDeltaFormatter:
@@ -124,27 +105,72 @@ class TimeDeltaFormatter:
         return hms(self.timedelta.total_seconds(), **self._kws)
 
 
+# ---------------------------------------------------------------------------- #
+
+def _resolve_indent(indent, extra=''):
+
+    if indent in (False, None):
+        return ''
+
+    if isinstance(indent, str):
+        return indent
+
+    if isinstance(indent, numbers.Integral):
+        return ' ' * indent
+
+    raise TypeError(
+        f'Invalid object of type {type(indent).__name__!r} for `indent`: {indent!r}.'
+    )
+
+
+def resolve_indent(indent, extra=''):
+    return _resolve_indent(indent) + _resolve_indent(extra)
+
+
+class ParagraphWrapper:
+
+    def __init__(self, target=sys.stderr, width=100, indent=4):
+        self.target = target
+        self.width = int(width)
+        self.indent = resolve_indent(indent)
+        # self.newline = f'\n{self.indent}'
+
+    def resolve_indent(self, indent, extra=''):
+
+        if indent is True:
+            return self.indent
+
+        return resolve_indent(indent)
+
+    def write(self, message):
+
+        # resolve indent
+        indent = False
+        if (record := getattr(message, 'record', None)):
+            kws = record['extra']
+            if indent := kws.pop('indent', False):
+                indent = self.resolve_indent(indent, **kws)
+                message = message[:-1].replace('\n', f'\n{indent}') + '\n'
+
+        # send to target stream
+        self.target.write(message)
+
+
 class RepeatMessageHandler:
     """
     A loguru sink that filters repeat log messages and instead emits a 
     custom summary message.
     """
 
-    _keys = (
-        # 'file',
-        'function', 'line',
-        'message',
-        'exception', 'extra'
-    )
+    # Message attributes to use as cache key
+    _keys = ('function', 'line', 'message', 'exception', 'extra')  # 'file'
+
     #
     formatter = staticmethod(str.format)
 
-    def __init__(self,
-                 target=sys.stderr,
+    def __init__(self, target=sys.stderr, buffer_size=12,
                  template=' ⤷ [Previous {n_messages} {n_repeats} in {t}]\n',
-                 x='×',
-                 xn=' {x}{n:d}',
-                 buffer_size=12):
+                 x='×', xn=' {x}{n:d}'):
 
         self._target = target
         self._repeats = 0
@@ -213,3 +239,48 @@ class RepeatMessageHandler:
         n_repeats = f'repeat{"s" * (not many)}{xn}'
         t = hms(time.time() - self._timestamp, precision=3, short=True, unicode=True)
         self._target.write(self.formatter(self._template, **locals()))
+
+
+class TqdmStreamAdapter:
+
+    def __init__(self, stream=None):
+        self.stream = stream or sys.stdout
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self):
+        sys.stdout = _original_stdout
+        sys.stderr = _original_stderr
+
+    def __eq__(self, other):
+        return other is self.stream
+
+    def write(self, msg):
+        tqdm.write(msg, self.stream, end='')
+
+    def flush(self):
+        pass
+        # return self.stream.flush()
+
+
+class TqdmLogAdapter:
+    def __init__(self, sink_ids=()):
+        sink_ids = list(sink_ids or [
+            id_
+            for id_, handler in logger._core.handlers.items()
+            if isinstance(handler._sink, StreamSink)
+        ])
+
+        self.streams = {
+            id_: logger._core.handlers[id_]._sink._stream
+            for id_ in sink_ids
+        }
+
+    def __enter__(self):
+        for sink in self.streams.values():
+            sink._stream = TqdmStreamAdapter(sink._stream)
+
+    def __exit__(self):
+        for id_, sink in self.streams.items():
+            sink._stream = sink._stream.stream

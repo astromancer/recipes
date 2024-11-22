@@ -3,10 +3,7 @@ Some object oriented code patterns.
 """
 
 
-
 # ---------------------------------------------------------------------------- #
-
-
 class SelfAwareness(type):
     """
     Meta class for SelfAware objects. When initializing a `SelfAware` class (by
@@ -41,9 +38,8 @@ class SelfAware(metaclass=SelfAwareness):
     True
     """
 
+
 # ---------------------------------------------------------------------------- #
-
-
 class AttributeAutoComplete:
     """
     Attribute lookup that returns if the lookup key matches the start of the

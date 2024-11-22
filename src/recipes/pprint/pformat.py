@@ -7,7 +7,6 @@ Miscellaneous functions for pretty printing
 import os
 
 # relative
-from .. import dicts
 from ..string import overlay
 
 
@@ -18,24 +17,6 @@ STD_BRACKET_TYPES = {set: '{}',
                      tuple: '()'}
 
 # ---------------------------------------------------------------------------- #
-
-
-def mapping(dict_, name=None, **kws):
-    """
-    Pretty print a dict-like mapping
-
-    Parameters
-    ----------
-    dict_ : [type]
-        [description]
-    name : [type], optional
-        [description], by default None
-
-    Examples
-    --------
-    >>> 
-    """
-    return dicts.pformat(dict_, name, **kws)
 
 
 def collection(obj, max_items=10, edge_items=1, sep=',', dots='...',
@@ -60,9 +41,12 @@ def collection(obj, max_items=10, edge_items=1, sep=',', dots='...',
 
     if brackets is STD_BRACKETS:
         brackets = STD_BRACKET_TYPES.get(type(obj), '[]')
-    else:
-        assert len(brackets) == 2
+    elif not brackets:
+        brackets = ('', '')
 
+    brackets = list(map(str, brackets)) 
+    assert len(brackets) == 2
+    
     if len(obj) <= max_items:
         return sep.join(map(fmt, obj)).join(brackets)
 

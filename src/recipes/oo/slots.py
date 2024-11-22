@@ -1,65 +1,81 @@
 
-# third-party
-import more_itertools as mit
+# std
+import fnmatch as fnm
+import itertools as itt
 
 # relative
-from .. import dicts
-from ..iter import superclasses
-from .repr_helpers import ReprHelper
+from ..containers import dicts, ensure, sets
+from .utils import superclasses
+from .represent import Represent
 
 
 # ---------------------------------------------------------------------------- #
 
+def sanitize(kws, *ignore):
+    # NOTE: make a dict copy of the data, since this is most often a refrence to
+    # locals() of a namespace and we will remove items from it
+    return dicts.remove(dict(kws), {'self', 'kws', '__class__', *ignore})
 
-def _sanitize_locals(kws, *ignore):
-    return dicts.remove(kws, {'self', 'kws', '__class__', *ignore})
+
+# alias
+sanitize_locals = sanitize
 
 
-def _get_slots(cls):
-    if not isinstance(cls, type) and hasattr(cls, '__slots__'):
-        cls = type(cls)
+def get_slots(kls, ignore='_*', ancestors=all):
+    attrs = _get_slots(kls, ancestors)
 
-    for base in (*superclasses(cls), cls):
-        yield from getattr(base, '__slots__', ())
+    if ignore:
+        return [atr for atr in attrs if _include(atr, ignore)]
+
+    return attrs
+
+
+def _include(atr, patterns):
+    for pattern in ensure.tuple(patterns):
+        if fnm.fnmatch(atr, pattern):
+            return False
+    return True
+
+
+def _get_slots(kls, ancestors=all):
+    if not isinstance(kls, type) and hasattr(kls, '__slots__'):
+        kls = type(kls)
+
+    bases = itt.chain([kls], superclasses(kls))
+    bases = (base for base in bases if hasattr(base, '__slots__'))
+    ancestors = None if ancestors is all else int(ancestors)
+
+    slots = sets.OrderedSet()
+    for base in itt.islice(bases, ancestors):
+        # add to preserve order
+        [*map(slots.add, getattr(base, '__slots__', ()))]
+        
+    return tuple(slots)
 
 
 # ---------------------------------------------------------------------------- #
 
-class SlotRepr(ReprHelper):
-    """
-    Represent objects with slots.
-    """
-
-    __slots__ = ()
-
-    def __repr__(self, extra=(), **kws):
-        kws = {**self._repr_style, **kws}
-        if not (attrs := kws.pop('attrs', ())):
-            # loop through the slots of all the bases and make a repr from that
-            attrs = _get_slots(type(self))
-
-        return super().__repr__(attrs=mit.collapse(attrs, extra), **kws)
-
-
-__non_init_params = {'self', 'args', 'kws'}
-
-
-class SlotHelper(SlotRepr):
+class SlotHelper:
     """
     Helper class for objects with __slots__.
     """
 
     __slots__ = ()
+    __repr__ = Represent()
+    __non_init_params = {'self', 'args', 'kws'}
 
     @classmethod
     def from_dict(cls, kws):
         init_params = set(_get_slots(cls))
-        init_params |= set(cls.__init__.__code__.co_varnames) - __non_init_params
+        init_params |= set(cls.__init__.__code__.co_varnames) - cls.__non_init_params
         return cls(**{s: kws.pop(s) for s in init_params if s in kws})
+
+    def to_dict(self, ignore=None):
+        return {at: getattr(self, at) for at in get_slots(self, ignore)}
 
     def __init__(self, *args, **kws):
         # generic init that sets attributes for input keywords
-        kws = _sanitize_locals(kws)
+        kws = sanitize(kws)
 
         used = set()
         for key, val in zip(self.__slots__, args):
@@ -73,7 +89,7 @@ class SlotHelper(SlotRepr):
             setattr(self, key, val)
 
     def __getstate__(self):
-        return {at: getattr(self, at) for at in _get_slots(type(self))}
+        return self.to_dict(ignore=None)
 
     def __setstate__(self, state):
         for at in _get_slots(type(self)):

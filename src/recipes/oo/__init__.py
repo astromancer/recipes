@@ -2,8 +2,9 @@
 Some object oriented code patterns.
 """
 
-from .misc import *
 from .null import Null
-from .property import *
 from .singleton import Singleton
-# from .repr_helpers import ReprHelper
+from .misc import AttributeAutoComplete, SelfAware, SelfAwareness
+from .property import (Alias, CachedProperty, ClassProperty, PropertyAliasing,
+                       classproperty)
+# from .represent import ReprHelper

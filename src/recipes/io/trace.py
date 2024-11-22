@@ -5,8 +5,10 @@ import warnings
 import traceback
 
 # third-party
-import formatwarning as original_formatwarning
+from warnings import formatwarning as original_formatwarning
 
+# relative
+from ..string import overlay
 
 class MessageWrapper:
 
@@ -62,39 +64,39 @@ class TracebackWrapper(MessageWrapper):
         stack = traceback.format_stack()
         # if we are in IPython, we do't actually want to print the entire
         # stack containing all the IPython code execution boilerplate noise,
-        # so we filter all that crap here
+        # so we filter all that here
         new_stack = stack
-        if is_interactive():  # and self.trim_ipython_stack:
-            trigger = "exec(compiler(f.read(), fname, 'exec'), glob, loc)"
-            for i, s in enumerate(stack):
-                if trigger in s:
-                    new_stack = ['< %i lines omitted >\n' % i] + stack[i:]
-                    break
+        # if is_interactive():  # and self.trim_ipython_stack:
+        #     trigger = "exec(compiler(f.read(), fname, 'exec'), glob, loc)"
+        #     for i, s in enumerate(stack):
+        #         if trigger in s:
+        #             new_stack = ['< %i lines omitted >\n' % i] + stack[i:]
+        #             break
 
-            # should now be at the position where the real traceback starts
+        #     # should now be at the position where the real traceback starts
 
-            # when code execution is does via a magic, there is even more
-            # IPython lines in the stack. Remove
-            # trigger = 'exec(code_obj, self.user_global_ns, self.user_ns)'
+        #     # when code execution is does via a magic, there is even more
+        #     # IPython lines in the stack. Remove
+        #     # trigger = 'exec(code_obj, self.user_global_ns, self.user_ns)'
 
-            # when we have an embeded terminal
-            triggers = 'terminal/embed.py', 'TracebackWrapper'
-            done = False
-            for i, s in enumerate(new_stack):
-                for j, trigger in enumerate(triggers):
-                    if trigger in s:
-                        new_stack = new_stack[:i]
-                        new_stack.append(
-                            '< %i lines omitted >\n' % (len(stack) - i))
-                        done = True
-                        break
-                if done:
-                    break
+        #     # when we have an embeded terminal
+        #     triggers = 'terminal/embed.py', 'TracebackWrapper'
+        #     done = False
+        #     for i, s in enumerate(new_stack):
+        #         for j, trigger in enumerate(triggers):
+        #             if trigger in s:
+        #                 new_stack = new_stack[:i]
+        #                 new_stack.append(
+        #                     '< %i lines omitted >\n' % (len(stack) - i))
+        #                 done = True
+        #                 break
+        #         if done:
+        #             break
 
-            # i += 1
-            # # noinspection PyRedundantParentheses
-            # if (len(stack) - i):
-            #     msg += '\n< %i lines omitted >\n' % (len(stack) - i)
+        #     # i += 1
+        #     # # noinspection PyRedundantParentheses
+        #     # if (len(stack) - i):
+        #     #     msg += '\n< %i lines omitted >\n' % (len(stack) - i)
 
         # last few lines in the stack are those that wrap the warning
         # message, so we filter those
@@ -143,7 +145,7 @@ class TracePrints(MessageWrapper):
         self.stdout.flush()
 
 
-class WarningTraceback(MessageWrapper):
+class TraceWarnings(MessageWrapper):
     """
     Class that help to track down warning statements in unknowns source code
     """
@@ -159,11 +161,11 @@ class WarningTraceback(MessageWrapper):
 
         Examples
         --------
-        >>> wtb = WarningTraceback()
+        >>> wtb = TraceWarnings()
         >>> warnings.warn('Dinosaurs!')
         # TODO: generate this output dynamically ???
 
-        ------------------------------- WarningTraceback -------------------------------
+        ------------------------------- TraceWarnings -------------------------------
         /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:5: UserWarning: Dinosaurs!
           File "/usr/lib/python3.5/runpy.py", line 193, in _run_module_as_main
             "__main__", mod_spec)
@@ -194,14 +196,3 @@ class WarningTraceback(MessageWrapper):
         self.active = False
         warnings.formatwarning = original_formatwarning
 
-
-if __name__ == '__main__':
-    sys.stdout = TracePrints()
-    print('Hello World!')
-    # restore
-    sys.stdout = sys.stdout.stdout
-
-    wtb = WarningTraceback()
-    warnings.warn('Dinosaurs!!')
-    # restore
-    wtb.off()

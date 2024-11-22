@@ -2,24 +2,25 @@
 Common patterns involving iterables.
 """
 
-
 # std
 import numbers
 import textwrap as txw
 import functools as ftl
 import itertools as itt
-from collections import abc
+from collections import abc, defaultdict
 
 # third-party
 import more_itertools as mit
 
 # relative
+import builtins
 from . import op
 from .functionals import negate, on_zeroth, echo0 as echo
 
 
 # ---------------------------------------------------------------------------- #
-#
+# Module constants
+
 NULL = object()
 #
 INDEX_MAX = int(1e8)
@@ -43,7 +44,6 @@ def as_iter(obj, exclude=(str,), return_as=list):
 
 # alias
 as_sequence = as_iter
-# as_sequence_unless_str
 
 
 # ---------------------------------------------------------------------------- #
@@ -67,7 +67,7 @@ def _nth_true(iterable, n, test=echo, default=NULL):
     filtered, index = cofilter(test, iterable, itt.count())
     itr = enumerate(zip(filtered, index))
     mit.consume(itr, n)
-    i, (value, index) = next(itr, default)
+    i, (value, index) = next(itr, (0, (default, None)))
     if value is NULL:
         if i < n:
             raise ValueError(
@@ -86,7 +86,7 @@ def nth_true_index(iterable, n, test=echo, default=NULL):
 def first_true_index(iterable, test=echo, default=NULL):
     """
     Find the first index position of the iterable for the which the callable
-    pred returns True
+    test returns True
     """
     return nth_true_index(iterable, 0, test, default)
 
@@ -94,7 +94,7 @@ def first_true_index(iterable, test=echo, default=NULL):
 def first_false_index(iterable, test=echo, default=NULL):
     """
     Find the first index position of the iterable for the which the
-    callable pred returns False
+    callable test returns False
     """
     return first_true_index(iterable, negate(test), default)
 
@@ -109,14 +109,14 @@ first_false_idx = first_false_index
 
 
 # ---------------------------------------------------------------------------- #
-def nth_zip(n, *its):
+def nth_zip(n, *iters):
     """Return the nth component of the zipped sequence"""
-    return tuple(mit.nth(it, n) for it in its)
+    return tuple(mit.nth(it, n) for it in iters)
 
 
-def zip_slice(start, stop, step, *its):
+def zip_slice(start, stop, step, *iters):
     """Returns a slice of the zipped sequence of iterators"""
-    return zip(*itt.islice(zip(*its), start, stop, step))
+    return zip(*itt.islice(zip(*iters), start, stop, step))
 
 
 def zip_append(items, tails):
@@ -127,11 +127,10 @@ def zip_append(items, tails):
 # ---------------------------------------------------------------------------- #
 # Multi-indexing iterators
 
-
 def where(items, *args, start=0):
     """
     Yield the indices at which items from an Iterable or Collection `items`
-    evaluate True according to an optional test function. This function will
+    evaluate `True` according to an optional test function. This function will
     consume the iterable, so take care not to pass infinite iterables - the
     function will raise an exception if the iteration count is greater than the
     value of the module constant `INDEX_MAX` (by default 10**8).
@@ -174,15 +173,13 @@ def where(items, *args, start=0):
         # print valid call signatures from docstring
         raise ValueError(txw.dedent(where.__doc__.split('\n\n')[1]))
 
-    *test, rhs = args
+    rhs, *test = args[::-1]
     test, = test or [op.eq]
-
     yield from multi_index(items, rhs, test, start)
 
 
 # ---------------------------------------------------------------------------- #
 # Dispatch for multi-indexing
-
 
 @ftl.singledispatch
 def multi_index(obj, rhs, test=bool, start=0):
@@ -193,7 +190,7 @@ def multi_index(obj, rhs, test=bool, start=0):
 @multi_index.register(str)
 def _(string, rhs, test=op.eq, start=0):
     # ensure we are comparing to str
-    assert isinstance(rhs, str)
+    assert isinstance(rhs, str)   # may be tuple for op.contained etc
     assert callable(test)
 
     # if comparing to rhs substring with non-unit length
@@ -203,6 +200,16 @@ def _(string, rhs, test=op.eq, start=0):
 
     yield from multi_index(iter(string), rhs, test, start)
     return
+
+# def _multi_index(string, sub):
+#     start = 0
+#     while start < len(string):
+#         new = string.find(sub, start)
+#         if new == -1:
+#             break
+
+#         yield sub, new
+#         start = new + len(sub)
 
 
 @multi_index.register(dict)
@@ -234,98 +241,106 @@ def _(obj, rhs, test=op.eq, start=0):
 
 # ---------------------------------------------------------------------------- #
 # Filtering / element selection
-def select(items, *args, start=0):
+
+def select(items, *args, **kws):
     """
+    Select truthy items from sequences. Works similar to builtin `filter`
+    function, but with a more complete api.
 
     Three distinct call signatures are supported:
-    >>> select(items)               # yield `items` that are truthy
-    >>> select(items, test)         # yield items where `test(item)` is truthy
-    >>> select(items, test, value)  # yield conditionally on `test(item, value)`
 
+    Yield all truthy items:
+    >>> select(items)               # like `filter(None, items)`
 
-    Parameters
-    ----------
-    items : _type_
-        _description_
-    start : int, optional
-        _description_, by default 0
+    Yield items where `test(item)` is 
+    >>> select(items, test)         # like `filter(test, items)`
 
-    Examples
-    --------
-    >>> 
+    Yield items equal to a value (case where value is not callable object)
+    >>> select(items, value)        # like `filter(lambda x: x == value, items)`
 
-    Returns
-    -------
-    _type_
-        _description_
+    Yield items conditionally on truth value of `test(item, value)`
+    >>> select(items, test, value)  # `filter(lambda _x: test(x, value), items)`
 
-    Raises
-    ------
-    ValueError
-        _description_
+    In general
+    >>> select(items, test, *args, **kws)
+    # like `(_ for _ in items if test(_, *args, **kws))`
+
     """
+    if (args or kws):
+        test_or_value, *args = args
+        test = test_or_value if callable(test_or_value) else op.eq
+        return (_ for _ in items if test(_, *args, **kws))
 
-    assert isinstance(start, numbers.Integral)
-
-    nargs = len(args)
-    if nargs == 0:
-        return filter(None, items)
-
-    if nargs == 1:
-        test, = args
-        assert callable(test)
-        return filter(negate(test), items)
-
-    if nargs == 2:
-        test, rhs = args
-        return (_ for _ in items if test(_, rhs))
+    return builtins.filter(None, items)
 
     # print valid call signatures from docstring
-    raise ValueError(txw.dedent(select.__doc__.split('\n\n')[1]))
+    # raise ValueError(txw.dedent(select.__doc__.split('\n\n', 1)[0]))
 
 
-# ---------------------------------------------------------------------------- #
-# slicing
-def windowed(obj, size, step=1):
-    assert isinstance(size, numbers.Integral)
+def filter(items, *args, **kws):
+    if (args or kws):
+        test_or_value, *args = args
+        test = test_or_value if callable(test_or_value) else op.ne
+        return (_ for _ in items if not test(_, *args, **kws))
 
-    if isinstance(obj, str):
-        for i in range(0, len(obj), step):
-            yield obj[i:i + size]
-        return
+    return builtins.filter(None, items)
 
-    yield from mit.windowed(obj, size)
+
+# alias
+filtered = filter
 
 
 # ---------------------------------------------------------------------------- #
 # Segmenting iterators / collections
 
-def split(l, idx):
-    """Split a list into sub-lists at the given indices"""
+def split(items, indices, offset=0):
+    """
+    Split an iterable into sub-lists at the given index positions.
+    """
 
-    if isinstance(idx, numbers.Integral):
-        idx = [idx]
+    if isinstance(indices, numbers.Integral):
+        indices = [indices]
 
-    if idx := sorted(idx):
-        for i, j in mit.pairwise([0, *idx, len(l)]):
-            yield l[i:j]
+    if not isinstance(items, abc.Sized):
+        items = list(items)
+
+    n = len(items)
+    indices = map(sum, zip(map(int, indices), itt.repeat(int(offset))))
+    if indices := sorted(map(n.__rmod__, indices)):  # resolve negatives
+        for i, j in mit.pairwise([0, *indices, n]):
+            yield items[i:j]
     else:
-        yield l
+        yield items
 
 
-# def split(l, idx):
-#     if isinstance(idx, numbers.Integral):
-#         idx = [idx]
+def split_where(items, *args, start=0, offset=0):
+    """
+    Split a list into sublists at the positions of positive test evaluation.
+    """
+    return split(items, where(items, *args, start=start), offset)
 
-#     idx = iter(sorted(idx))
 
-#     i, j = 0, None
-#     for j in idx:
-#         yield l[i:j]
-#         i = j
+def split_like(items, like):
+    """
+    Split a container `items` into -containers, each with the same size as the
+    sequence of (differently sized) containers in `like`.
+    """
 
-#     if j is not None:
-#         yield l[j:]
+    *indices, total = itt.accumulate(map(len, like))
+    assert len(items) == total
+    return split(items, indices)
+
+
+def split_non_consecutive(items, step=1):
+    return split(items, where(diff(items), op.ne, 1), 1)
+
+
+def diff(items):
+    if len(items) <= 1:
+        return
+
+    yield from map(op.rsub, *zip(*mit.pairwise(items)))
+
 
 def split_slices(indices):
     """
@@ -336,6 +351,17 @@ def split_slices(indices):
 
 def chunker(itr, size):
     return iter(map(tuple, itt.islice(iter(itr), size)), ())
+
+
+def windowed(obj, size, step=1):
+    assert isinstance(size, numbers.Integral)
+
+    if isinstance(obj, str):
+        for i in range(0, len(obj), step):
+            yield obj[i:i + size]
+        return
+
+    yield from mit.windowed(obj, size)
 
 
 # ---------------------------------------------------------------------------- #
@@ -350,100 +376,146 @@ def cyclic(obj, n=None):
     return itt.islice(cyc, n)
 
 
-def iter_repeat_last(it):
+def iter_repeat_last(it, n=None):
     """
     Yield items from the input iterable and repeat the last item indefinitely
     """
-    it, it1 = itt.tee(mit.always_iterable(it))
-    return mit.padded(it, next(mit.tail(1, it1)))
+    # catch special case
+    if it is None:
+        it = [it]
+
+    count = 0
+    for count, item in enumerate(mit.always_iterable(it), 1):
+        if n and count > n:
+            return
+        yield item
+
+    if count:
+        yield from itt.repeat(item, *([n - count] if n else ()))
+
+    # it, it1 = itt.tee(mit.always_iterable(it))
+    # return mit.padded(it, next(mit.tail(1, it1)))
 
 
 # ---------------------------------------------------------------------------- #
 # Simultaneous (co) operations on multiple iterables
 
-def cogroup(func=echo, *its, unzip=True, **kws):
-    # avoid circular import
-    from recipes.lists import cosort
 
-    its = cosort(*its, key=func)
-    zipper = itt.groupby(zip(*its), on_zeroth(func))
-    return ((key, zip(*groups)) for key, groups in zipper) if unzip else zipper
+def _parse_predicate(func_or_iter, iters):
+
+    if isinstance(func_or_iter, abc.Iterable):
+        # handle eg: cofilter([...])
+        return bool, (func_or_iter, *iters)
+
+    if callable(func_or_iter) or (func_or_iter is None):
+        return (func_or_iter or bool), iters
+
+    raise TypeError(
+        f'Predicate function should be a callable object (or `None`), not '
+        f'an instance of {type(func_or_iter)}.'
+    )
 
 
-def cotee(*its, n=2):
-    tn = itt.tee(zip(*its), n)
-    return itt.starmap(zip, tn)
+def cofilter(func_or_iter, *iters):
+    """
+    Filter an arbitrary number of iterables based on the truth value of the
+    first iterable. An optional predicate function that determines the truth
+    value of elements can be passed as the first argument, followed by the
+    iterables.
+
+    cofilter(None, ...) is equivalent to
+    cofilter(bool, ...)
+    """
+    func, iters = _parse_predicate(func_or_iter, iters)
+
+    if not iters:
+        return iters
+
+    # zip(*filter(lambda x: func(x[0]), zip(*iters)))
+    # clone the iterable in position 0, since we consume it below for evaluation
+    first, clone = itt.tee(iters[0])
+    # for first iterable, find the indices where func(element) evaluates to True
+    tf = list(map(func, clone))
+    # restore the original iterable sequence, select truthy items
+    return tuple(itt.compress(it, tf) for it in (first, *iters[1:]))
 
 
-def copartition(pred, *its):
+def copartition(pred, *iters):
     """
     Partition an arbitrary number of iterables based on the truth value of a
     predicate evaluated on the first iterator.
 
     partition(is_odd, range(10), range) --> (1 3 5 7 9), (0 2 4 6 8)
     """
-    t1, t2 = cotee(*its)
+    t1, t2 = cotee(*iters)
     return cofilter(pred, *t2), cofilter(negate(pred), *t1)
 
 
-def cofilter(func_or_iter, *its):
-    """
-    Filter an arbitrary number of iterators based on the truth value of the
-    first iterable. An optional predicate function that determines the truth
-    value of elements can be passed as the first argument, followed by the
-    iterables.
-    """
-    its, func = _parse_iterable_filter(func_or_iter, its)
+def cogroup(func=echo, *iters, unzip=True, **kws):
+    # avoid circular import
+    from recipes.containers import cosort
 
-    # zip(*filter(lambda x: func(x[0]), zip(*its)))
-    it00, it0 = itt.tee(its[0])
-    # NOTE this consumes the iterator in position 0!!
-    # find the indices where func evaluates to true
-    tf = list(map(func, it00))
-    # restore the original iterator sequence
-    its = (it0, *its[1:])
-    return tuple(itt.compress(it, tf) for it in its)
+    iters = cosort(*iters, key=func)
+    zipper = itt.groupby(zip(*iters), on_zeroth(func))
+    return ((key, zip(*groups)) for key, groups in zipper) if unzip else zipper
 
 
-def _parse_iterable_filter(func_or_iter, its):
-    if (func_or_iter is None) or isinstance(func_or_iter, abc.Iterable):
-        # handle cofilter(None, ...) // cofilter((1, None), (2, 4))
-        func = bool
-        its = (func_or_iter, *its)
-    elif callable(func_or_iter):
-        func = func_or_iter
-    else:
-        raise TypeError(f'Predicate function should be a callable object (or '
-                        f'`None`), not an instance of {type(func_or_iter)}.')
+def cosplit(*iters, indices, offset=0):
+    for items in split(zip(*iters), indices, offset):
+        part = tuple(zip(*items))
+        if part:
+            yield part
+        else:
+            yield [()] * len(iters)
 
-    return its, func
+
+def cotee(*iters, n=2):
+    tn = itt.tee(zip(*iters), n)
+    return itt.starmap(zip, tn)
 
 
 # ---------------------------------------------------------------------------- #
 # Duplicate detection / filtering
 
-def duplicates(l):
+def unique(items, consecutive=False):
+    """
+    Return tuples of unique (item, indices) pairs for sequence `items`.
+    """
+
+    buffer = defaultdict(list)
+    for i, item in enumerate(items):
+        if (previous := buffer[item]) and (i != previous[-1] + 1) and consecutive:
+            yield from buffer.items()
+            buffer = defaultdict(list)
+
+        buffer[item].append(i)
+    #
+    yield from buffer.items()
+
+
+def duplicates(items, consecutive=False):
     """Yield tuples of item, indices pairs for duplicate values."""
-    from recipes.lists import unique
-
-    for key, idx in unique(l).items():
-        if len(idx) > 1:
-            yield key, idx
+    for key, indices in unique(items, consecutive):
+        if (len(indices) > 1):
+            yield key, indices
 
 
-def filter_duplicates(l, test):
+def where_duplicate(items, consecutive=False):
+    """Indices of duplicate entries"""
+    for _, indices in duplicates(items, consecutive):
+        yield indices
+
+
+def unduplicate(items, test):
     """Filter duplicate items based on condition `test`."""
+
     results = set()
-    for item in l:
+    for item in items:
         result = test(item)
         if result not in results:
             yield item
 
         results.add(result)
-
-
-# aliases
-unduplicate = filter_duplicates
 
 
 def non_unique(itr):
@@ -457,62 +529,16 @@ def non_unique(itr):
         prev = item
 
 
+# aliases
+where_duplicates = where_duplicate
+filter_duplicates = filter_duplicate = deduplicate = unduplicate
+
+
 # ---------------------------------------------------------------------------- #
-# Super / subclass iterators
 
-def subclasses(cls, _seen=None):
-    """
-    Generator over all subclasses of a given class, in depth first order.
-
-    >>> list(iter_subclasses(int)) == [bool]
-    True
-
-    >>> class A: pass
-    >>> class B(A): pass
-    >>> class C(A): pass
-    >>> class D(B,C): pass
-    >>> class E(D): pass
-    >>> list(iter_subclasses(A))
-    [__main__.B, __main__.D, __main__.E, __main__.C]
-
-    >>> # get ALL (new-style) classes currently defined
-    >>> [cls.__name__ for cls in iter_subclasses] #doctest: +ELLIPSIS
-    ['type', ... 'tuple', ...]
-    """
-
-    # recipe adapted from:
-    # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
-
-    if not isinstance(cls, type):
-        from recipes.oo.repr_helpers import qualname
-        raise TypeError(f'{qualname(subclasses)}` must be called with new-style'
-                        f' classes, not {cls!r}.')
-
-    _seen = _seen or set()
-    for sub in cls.__subclasses__(*([cls] if (cls is type) else ())):
-        if sub not in _seen:
-            _seen.add(sub)
-            yield sub
-            yield from subclasses(sub, _seen)
+def flip_lr(data):
+    return map(reversed, data)
 
 
-def superclasses(cls, _seen=None):
-
-    if not isinstance(cls, type):
-        raise TypeError('`iter.baseclasses` must be called with new-style '
-                        'classes, not {cls!r}.')
-
-    _seen = _seen or set()
-
-    chain = []
-    for base in cls.__bases__:
-        if base not in _seen:
-            _seen.add(base)
-            yield base
-            chain.append(superclasses(base, _seen))
-
-    yield from itt.chain(*chain)
-
-
-# alias
-baseclasses = superclasses
+def flip_ud(data):
+    return flip_lr(zip(*data))

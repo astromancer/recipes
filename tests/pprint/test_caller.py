@@ -3,13 +3,14 @@
 import re
 import random
 import inspect
+import itertools as itt
 
 # third-party
+from loguru import logger
 from pytest_cases import parametrize
 
 # local
 from recipes import pprint as pp
-from recipes.string import replace_suffix
 from recipes.functionals.factory import FunctionFactory, ParamValueGenerator
 
 
@@ -19,12 +20,10 @@ from recipes.functionals.factory import FunctionFactory, ParamValueGenerator
 # ensure repeatability
 random.seed(123)
 
-
 REGEX_PARAMS = re.compile(r'((?P<name>\w+)(?:=(?P<default>.+?))?),')
 
 
 # ---------------------------------------------------------------------------- #
-
 
 def random_string(n):
     return ''.join(chr(random.randint(97, 122)) for _ in range(n))
@@ -41,6 +40,7 @@ class FuncTestingWrapper:
     def __init__(self, fun):
         self.fun = fun
         self.sig = str(inspect.signature(fun))
+        self.code = fun.__source__
 
 
 # ---------------------------------------------------------------------------- #
@@ -67,8 +67,6 @@ generate_params = ParamValueGenerator(arg_pool=[1, 2, 3, 4, 5],
 
 
 # ---------------------------------------------------------------------------- #
-
-
 # def test_test(fun):
 #     pass
 
@@ -81,11 +79,14 @@ generate_params = ParamValueGenerator(arg_pool=[1, 2, 3, 4, 5],
 
 
 @parametrize(fun=cases, idgen='{fun.fun.__name__}')
-def test_caller_basic(fun):
+def test_signature(fun):
     # check if we are faithfully reproducing the signature
-    # builtin signature rep prints trailing PEP570 / marker which is meaningless
-    sig = replace_suffix(fun.sig, ', /)', ')')
-    assert pp.caller(fun.fun).endswith(sig)
+    s = pp.caller(fun.fun)
+    assert s.endswith(str(fun.sig))
+    logger.debug('')
+    logger.debug('Builtin signature reproduced:           {}.', s)
+    assert s in fun.code
+    logger.debug('Signature matches definition in source: {}.', s)
 
 
 @parametrize(
@@ -96,48 +97,37 @@ def test_caller_basic(fun):
 def test_caller_defaults(fun, spec):
     # check if defaults are represented / dropped
     args, kws = spec
-    d = pp.caller(fun.fun, args, kws, show_defaults=True)
-    xd = r = pp.caller(fun.fun, args, kws, show_defaults=False)
-    for i, arg in enumerate(REGEX_PARAMS.finditer(fun.sig)):
-        if (arg['default']
-            and (len(args) <= i or not args[i])
-                and arg['name'] not in kws):
+    # s = pp.caller(fun.fun)
 
-            # value not specified
-            par_val = arg[1]
-            assert par_val in d
-            assert par_val not in xd
+    # logger.debug(, fun.fun, fun.code)
 
+    results = {}
+    msg = ('Test case: {.__name__}:\n'
+           'Definition:\n{}\n'
+           'Invocations: args = {}; kws = {}.\n')
+    for names, defaults in itt.product([True, None], [True, False]):
+        results[(names, defaults)] = s = \
+            pp.caller(fun.fun, args, kws,
+                      param_names=names,
+                      show_defaults=defaults)
+        #
+        msg += f'{names = !s: <5}; {defaults = !s: <5}: {s}\n'.replace('{', '{{').replace('}', '}}')
 
-# extra = []  # [id, float, callable, tidy]
-# for i, fun in enumerate((functions + extra)):  #
-#     # check if we are faithfully reproducing the signature
-#     # print('Signature')
-#     # print(pp.caller(fun))
-#     # print('--------')
+    #
+    logger.debug(msg, fun.fun, fun.code, args, kws)
 
-#     for spec in avg(fun):
-#         # print('\nArgspec:', *spec)
+    # xd = pp.caller(fun.fun, args, kws, show_defaults=False)
+    # xn = pp.caller(fun.fun, args, kws, param_names=None)
 
-#         test_pprint_caller(fun, *spec, show_defaults=False)
+    # TODO: annotatons on / off
+    #       names on /off
 
-#         if has_defaults(inspect.signature(fun).parameters):
-#             test_pprint_caller(fun, *spec, show_defaults=True)
+    # for i, arg in enumerate(REGEX_PARAMS.finditer(fun.sig)):
+    #     if (arg['default']
+    #         and (len(args) <= i or not args[i])
+    #             and arg['name'] not in kws):
 
-#     print('=' * 80)
-
-    #     break
-    # # test_show_func(fun)
-
-    # # for name, par in inspect.signature(fun).parameters.items():
-    # #     print(name, par.kind)
-
-    # # print(inspect.getfile(fun))
-    # # mod = inspect.getmodule(fun)
-    # # print(get_module_name(mod.__file__))
-
-    # print('=' * 88)
-    # # break
-
-    # if i == 4:
-    #     break
+    #         # value not specified
+    #         par_val = arg[1]
+    #         assert par_val in d
+    #         assert par_val not in xd

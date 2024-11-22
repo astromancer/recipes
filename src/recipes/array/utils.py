@@ -6,7 +6,7 @@ Recipes involving arrays.
 import numpy as np
 
 # relative
-from ..lists import flatten, where_duplicate
+from ..containers import flatten, where_duplicate
 
 
 # ---------------------------------------------------------------------------- #
@@ -36,27 +36,29 @@ def get_fields(a, fields, viewtype=float):
 
 def vectorize(fn, otypes=None, doc=None, excluded=None, cache=False,
               signature=None):
-    """Vectorize masked arrays."""
+    """
+    Vectorize masked arrays.
+    """
 
     # adapted from :
     #   https://gist.github.com/dbaston/b41c3fa8c02ac151e52e132509c89b4c
 
     vectorized = np.vectorize(fn, otypes, doc, excluded, cache, signature)
 
-    def runner(*args, **kwargs):
+    def runner(*args, **kws):
 
         if not (masked_args := [_ for _ in args if isinstance(_, np.ma.MaskedArray)]):
-            return vectorized(*args, **kwargs)
+            return vectorized(*args, **kws)
 
         # In theory, it should be possible to replace this with
         # np.ma.logical_or.reduce([a.mask for a in args]) In practice, it seems
         # to generate an error when the internal storage of the arguments is
-        # different ValueError: setting an array element with a sequence.
+        # different. ValueError: setting an array element with a sequence.
         combined_mask = masked_args[0].mask
         for arg in masked_args[1:]:
             combined_mask = combined_mask | arg.mask
 
-        return np.ma.where(combined_mask, np.ma.masked, vectorized(*args, **kwargs))
+        return np.ma.where(combined_mask, np.ma.masked, vectorized(*args, **kws))
 
     return runner
 
@@ -117,7 +119,11 @@ def multirange(*shape):
     return np.tile(range(dl), (N, 1))
 
 
-class Grid(np.lib.index_tricks.nd_grid):
+# numpy >2 compat
+tricks = getattr(np.lib, '_index_tricks_impl', None) or np.lib.index_tricks
+
+
+class Grid(tricks.nd_grid):  # np.lib.index_tricks.nd_grid
     def like(self, a):
         """create grid from the shape of the given array"""
         return self.from_shape(np.shape(a))

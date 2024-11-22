@@ -35,10 +35,7 @@ PKIND = POS, PKW, VAR, KWO, VKW = list(inspect._ParameterKind)
 
 NULL = object()
 
-FUNC_TEMPL = """
-def {name}{sig!s}:
-    ...
-"""
+FUNC_TEMPL = "def {name}{sig!s}: ..."
 
 # pylint: disable-all
 
@@ -229,7 +226,9 @@ class FunctionFactory:
         code = self.get_code(name, params, class_name, body or self.function_body)
         # print('CODE', code, sep='\n')
         exec(code, evaldict or {}, locals_)
-        return getattr(locals_['obj'], name) if class_name else locals_[name]
+        obj = getattr(locals_['obj'], name) if class_name else locals_[name]
+        obj.__source__ = code
+        return obj
 
 
 class ParamValueGenerator:

@@ -46,21 +46,22 @@ def replace_prefix(string, old, new):
 
     Parameters
     ----------
-    string : [type]
-        [description]
-    old : [type]
-        [description]
-    new : [type]
-        [description]
+    string : str
+        String to modify.
+    old : str
+        Prefix to replace.
+    new : str
+        New prefix to substitute.
 
     Examples
     --------
-    >>> 
+    >>> replace_prefix('foology', 'f', 'z')
+    'zoology'
 
     Returns
     -------
-    [type]
-        [description]
+    str
+        String will be modified if it originally started with the `old` prefix.
     """
     return _replace_affix(string, old, new, 0)
 
@@ -94,3 +95,7 @@ def shared_affix(strings, pre_stops='', post_stops=''):
     i0 = len(prefix)
     suffix = shared_suffix([item[i0:] for item in strings], post_stops)
     return prefix, suffix
+
+# ---------------------------------------------------------------------------- #
+
+# def pad()

@@ -9,17 +9,16 @@ import math
 
 # relative
 from .. import op
-from ..tree import Node
-from ..lists import split_where
+from ..tree.node import Node
 from ..functionals import negate
-from ..string import shared_affix, strings
-from ..string.brackets import BracketParser, csplit
+from ..containers import split_where
+from ..string import delimited, shared_affix, strings
 
 
 RGX_CURLY_BRACES = re.compile(r'(.*?)\{([^}]+)\}(.*)')
 RGX_BASH_RANGE = re.compile(r'(\d+)[.]{2}(\d+)')
 
-braces = BracketParser('{}')
+braces = delimited.Parser('{}')
 
 # ---------------------------------------------------------------------------- #
 # utility functions
@@ -42,10 +41,6 @@ def unclosed(string, open_, close):
 
 def brace_expand_iter(string, level=0):
 
-    # TODO:
-    # ch{{1,2},{4..6}},main{1,2},{1,2}test
-    # detect bad patterns like the one above and refuse
-
     # handle special bash expansion syntax here  xx{12..15}.fits
     match = braces.match(string)
     if match is None:
@@ -61,7 +56,7 @@ def brace_expand_iter(string, level=0):
 def _expander(item, head='', tail=''):
     rng = RGX_BASH_RANGE.fullmatch(item)
     # bash expansion syntax implies an inclusive number interval
-    items = range(int(rng[1]), int(rng[2]) + 1) if rng else csplit(item)
+    items = range(int(rng[1]), int(rng[2]) + 1) if rng else delimited.csplit(item)
     for x in items:
         yield f'{head}{x}{tail}'
 
@@ -72,11 +67,11 @@ def brace_expand(pattern):
     # >>> brace_expand('/**/*.{png,jpg}')
     # ['/**/*.png', '/**/*.jpg']
 
-    return list(brace_expand_iter(pattern))
+    return list(brace_expand_iter(str(pattern)))
+
 
 # ---------------------------------------------------------------------------- #
 # Brace Contraction
-
 
 def is_unary(node):
     """check whether a node has only one child"""
@@ -255,11 +250,10 @@ def contract(items):
         pass
     else:
         # we have a number sequence! Split sequence into contiguous parts.
-        # split where pointwise difference greater than 1. second argument in
-        # call to `split_where` is ignored
-        enum = iter(nrs)
+        # split where pointwise difference greater than 1.
         middle = []
-        for nrs in split_where(nrs, '', 1, lambda x, _: x - next(enum) > 1):
+        enum = iter(nrs)
+        for nrs in split_where(nrs, (lambda x, _: x - next(enum) > 1), start=1):
             if len(nrs) > 2:
                 middle.append(contract_range(nrs))
             else:
@@ -318,7 +312,7 @@ def brace_contract(items, depth=-1):
         raise ValueError('Cannot contract and empty sequence.')
 
     if n == 1:
-        # simply remove single items enclosed in brackets. NOTE this behaviour
+        # simply remove single items enclosed in delimited. NOTE this behaviour
         # is different from what bash does: it simply uses the name containing
         # {x} elements verbatim, which we don't want in this context.
         return braces.remove(items[0],

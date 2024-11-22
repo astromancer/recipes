@@ -8,29 +8,38 @@ from decorator import decorate
 
 # ---------------------------------------------------------------------------- #
 class Wrapper:
-    """Transparent wrapper for callables."""
+    """
+    Transparent wrapper for callables.
+    """
 
     __slots__ = ('__wrapped__', '__wrapper__', '__factory__')
 
-    def __init__(self, func, decorator, factory=None):
+    def __init__(self, func, decorator=None, factory=None):
         self.__wrapped__ = func
         self.__wrapper__ = decorator
         self.__factory__ = factory or getattr(decorator, '__self__', None)
 
     def __repr__(self):
         from recipes.pprint import callers
+
         return (f'<{type(self).__name__}('
                 f'{callers.describe(self.__wrapper__)}; '
                 f'wraps: {callers.pformat(self.__wrapped__)})>')
 
     def __call__(self, *args, **kws):
-        return self.__wrapper__(self.__wrapped__, *args, **kws)
+
+        if self.__wrapper__:
+            return self.__wrapper__(self.__wrapped__, *args, **kws)
+
+        return self.__wrapped__(*args, **kws)
 
     def __reduce__(self):
         return self.__factory__, (self.__wrapped__, False)
 
 
 class Factory:
+
+    __wrapper_class__ = Wrapper
 
     def __init__(self, *args, **kws):
         """
@@ -63,17 +72,19 @@ class Factory:
             The decorator
         """
         assert callable(func)
+        assert callable(wrapper)
 
         if emulate:
             # make the wrapper appear to be the original function. This should
-            # confuse the noobs!
-            logger.debug('Emmulating callable: {}.', func)
+            # really confuse the noobs!
+            logger.debug('Emulating callable: {}.', func)
             decorator = decorate(func, wrapper, kwsyntax=kwsyntax)
             # NOTE: The function created here by decorate *is not the same
             # object* as the input `func`!
             # `decorate` sets: __name__, __doc__, __wrapped__, __signature__,
             # __qualname_, [__defaults__, __kwdefaults__, __annotations___]
             # on `decorator`.
+            self.__wrapped__ = func
 
             # Set the wrapper attribute for symmetry with `Wrapper`
             decorator.__wrapper__ = wrapper
@@ -85,8 +96,10 @@ class Factory:
             return decorator
 
         # decorator is explicitly a Wrapper object!
-        logger.debug('Initializing wrapper for: {}.', func)
-        return Wrapper(func, wrapper, self)
+        logger.debug('Initializing wrapper {} for: {}.',
+                     self.__wrapper_class__.__name__, func)
+
+        return self.__wrapper_class__(func, wrapper, self)
 
 
 # ---------------------------------------------------------------------------- #
@@ -177,7 +190,7 @@ class Decorator(Factory):
 
     # Purists might argue that this class is an anti-pattern since it invites
     # less explicit constructs that are confusing to the uninitiated.
-    # Here it is. Use it. Don't use it. Up to you.
+    # Whatever. Here it is. Use it. Don't use it. Up to you.
 
     __slots__ = '__wrapped__'
 

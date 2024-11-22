@@ -20,16 +20,25 @@ Partial functions via placeholder syntax.
 """
 
 
+# third-party
+from loguru import logger
+
+# relative
 from ..iter import where
-from ..decorators import Decorator
+from ..string import indent
+from ..pprint import callers
+from ..decorators import Decorator, Wrapper
+
+
 # from ..oo.slots import SlotHelper # Circilar!
 
-
 # ---------------------------------------------------------------------------- #
-
-class _ParameterPlaceHolder:
+class _MarkerBase:
 
     __slots__ = ()
+
+
+class _FutureValue(_MarkerBase):
 
     def __getitem__(self, key):
         return _FutureSlice(key, self)
@@ -40,7 +49,10 @@ class _ParameterPlaceHolder:
 
         return _FutureLookup(attr, self)
 
-    def _resolve(self, obj):
+    def __repr__(self):
+        return f'<{type(self).__name__.lstrip("_")}>'
+
+    def resolve(self, obj):
 
         if self is PlaceHolder:
             return obj
@@ -63,7 +75,7 @@ class _ParameterPlaceHolder:
         return obj
 
 
-class _FutureSlice(_ParameterPlaceHolder):
+class _FutureSlice(_FutureValue):
     # object representing an indexed placeholder
 
     __slots__ = ('_key', '_parent')
@@ -80,31 +92,42 @@ class _FutureLookup(_FutureSlice):
 
 # ---------------------------------------------------------------------------- #
 
-class PartialAt(Decorator):
+class PartialTask(Wrapper):
 
-    def __init__(self, args, kws):
+    def __init__(self, func, *args, **kws):
+
+        super().__init__(func, self)
+
+        # index placeholders
         self.args = list(args)
-        self._positions = tuple(where(args, isinstance, _ParameterPlaceHolder))
+        self._positions = tuple(where(args, isinstance, _MarkerBase))
 
         self.kws = kws = dict(kws)
-        self._keywords = tuple(where(kws, isinstance, _ParameterPlaceHolder))
+        self._keywords = tuple(where(kws, isinstance, _MarkerBase))
 
-    def __call__(self, func):
-        return super().__call__(func, emulate=False, kwsyntax=True)
+    def __repr__(self):
+        #  hang=False
+        name = type(self).__name__
+        inner = callers.pformat(self.__wrapped__, self.args, self.kws)
+        if '\n' in inner:
+            return f'{name}(\n{indent(inner, len(name))}\n)'
 
-    def __wrapper__(self, func, *args, **kws):
-        return func(*self._get_args(args), **self._get_kws(kws))
+        return f'{name}({inner})'
+
+    def __call__(self, *args, **kws):
+        # resolve args, call inner
+        return self.__wrapped__(*self._get_args(args), **self._get_kws(kws))
 
     @property
-    def nfree(self):
+    def nreq(self):
         return len(self._positions)
 
     def _get_args(self, args=()):
         # fill placeholders in `self.args` with dynamic values from `args` here
         # to get final positional args tuple for the function call
-        if (nargs := len(args)) != self.nfree:
+        if (nargs := len(args)) < self.nreq:
             raise ValueError(
-                f'{self} requires {self.nfree} parameters, but received {nargs}.'
+                f'{self} requires {self.nreq} parameters, but received {nargs}.'
             )
 
         # shallow copy
@@ -112,7 +135,7 @@ class PartialAt(Decorator):
 
         # fill
         for i, a in zip(self._positions, args):
-            _args[i] = self.args[i]._resolve(a)
+            _args[i] = self.args[i].resolve(a)
 
         return tuple(_args)
 
@@ -128,24 +151,76 @@ class PartialAt(Decorator):
 
         # fill dynamic
         for key in self._keywords:
-            out[key] = self.kws[key]._resolve(kws[key])
+            out[key] = self.kws[key].resolve(kws[key])
 
         return out
+
+    def map(self, *args, **kws):
+        return map(self, *args, **kws)
 
 
 class Partial(Decorator):
 
-    Task = PartialAt
+    __wrapper__ = PartialTask
 
     def __call__(self, func, emulate=False, kwsyntax=False):
+        # create PartialTask
         return super().__call__(func, emulate, kwsyntax)
-
-    def __wrapper__(self, func, *args, **kws):
-        return self.Task(args, kws)(func)
 
 
 # ---------------------------------------------------------------------------- #
 # aliases
 partial = Partial
 # singleton
-placeholder = PlaceHolder = _ParameterPlaceHolder()
+placeholder = PlaceHolder = _FutureValue()
+
+
+# ---------------------------------------------------------------------------- #
+# Vectorize
+
+class Vector(_MarkerBase):
+    def __init__(self, items):
+        self.items = list(items)
+
+    def resolve(self, obj):
+        return obj
+
+
+# alias
+Over = over = Vector
+
+
+class VectorTask(PartialTask):
+    def __init__(self, func, *args, **kws):
+        super().__init__(func, *args, **kws)
+
+        # TODO: check all vectors same length ?
+        sizes = [len(self.args[_].items) for _ in self._positions]
+        assert len(sizes := set(sizes)) == 1
+        size = sizes.pop()
+
+        if self._keywords:
+            assert {len(self.kws[_].items) for _ in self._keywords} == {size}
+
+    def map(self):
+        vargs = zip(*(self.args[_].items for _ in self._positions))
+        vkws = zip(*(self.kws[_].items for _ in self._keywords))
+
+        for args in vargs:
+            kws = dict(zip(self._keywords, next(vkws, ())))
+            yield super().__call__(*args, **kws)
+
+    def __call__(self):
+        return list(self.map())
+
+
+class Map(Partial):
+    """Vectorizer"""
+
+    # __wrapper__ = VectorTask
+
+    def __wrapper__(self, func, *args, **kws):
+        task = VectorTask(func, *args, **kws)
+
+        # run immediately
+        return task()

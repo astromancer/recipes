@@ -44,7 +44,7 @@ from loguru import logger
 from ..flow import Emit
 from ..pprint import callers
 from ..decorators import Decorator
-from ..string.brackets import BracketParser
+from ..string import delimited as delim
 
 
 # ---------------------------------------------------------------------------- #
@@ -139,7 +139,7 @@ class KeywordTranslate(RegexTranslate):
     'row_nrs'
     """
 
-    parser = BracketParser('[]', '()')
+    parser = delim.Parser('[]', '()')
 
     def __init__(self, pattern, answer=''):
         super().__init__(self._build_regex(pattern), answer)
@@ -155,7 +155,7 @@ class KeywordTranslate(RegexTranslate):
 
             # print(s, i0, i1)
             i0, i1 = match.indices
-            s = OPTION_REGEX_BUILDERS[''.join(match.brackets)](match.enclosed)
+            s = OPTION_REGEX_BUILDERS[''.join(match.delimiters)](match.enclosed)
             # regex for optional characters
             # 'n[umbe]r[_rows]' -> n(umber)?r(_rows)?
 
@@ -175,7 +175,7 @@ class Synonyms(Decorator):
     """
     # TODO: detect ambiguous mapping
 
-    def __init__(self, mapping=(), /, mode=None, action='warn', **kws):
+    def __init__(self, mapping=(), /, mode=None, action='debug', **kws):
         # TODO **kws for simple mapping labels=label
         self.emit = Emit(action, TypeError)
         self.resolvers = []
@@ -206,14 +206,14 @@ class Synonyms(Decorator):
             try:
                 return func(*args, **kws)
             except TypeError as err:  # NOTE: only works if func has no variadic kws
-                if ((e := str(err)).startswith(func.__name__) and
-                        ('unexpected keyword argument' in e)):
+                if ((e := str(err)).startswith((func.__name__, func.__qualname__))
+                    and ('unexpected keyword argument' in e)):
                     #
                     logger.debug('Caught {}: {}. Attempting keyword translation.',
                                  type(err), err)
                     args, kws = self.resolve(args, kws)
-                    logger.debug('Re-trying function call {}(...) with synonymous '
-                                 'keywords.', func.__name__)
+                    logger.debug('Re-trying function with translated '
+                                 'keywords:\n>>> {}.', func.__name__)
                     return func(*args, **kws)
                 raise
 
@@ -243,7 +243,7 @@ class Synonyms(Decorator):
         """
         Translate the keys in `kws` dict to the correct one for the hard api.
         """
-        logger.debug('Correcting user call parameters for api {}.',
+        logger.trace('Correcting user call parameters for api {}.',
                      callers.describe(self.func))
 
         sig = self.signature

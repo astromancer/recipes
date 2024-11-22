@@ -15,13 +15,12 @@ import numpy as np
 from loguru import logger
 
 # relative
-from .. import dicts
 from ..string import unicode
 from ..array import vectorize
 from ..oo import classproperty
-from ..dicts import AttrReadItem
-from ..utils import duplicate_if_scalar
+from ..oo.slots import SlotHelper
 from ..math import order_of_magnitude, signum
+from ..containers import dicts, duplicate_if_scalar
 from .callers import describe
 from .nrs import precision_rule_dpg
 
@@ -46,7 +45,7 @@ LATEX_MAP = {'inf': R'\infty',
 LATEX_WRAP = {
     None:       ('', ''),
     '':         ('', ''),
-    '\(':       ('\(', '\)'),
+    R'\(':      (R'\(', R'\)'),
     '$':        '$$',
     '$$':       ('$$', '$$')
 }
@@ -98,41 +97,8 @@ def resolve_sign(signed, allowed=' -+'):
     raise ValueError(f'Invalid value {signed!r} for `signed` parameter. Use one'
                      f' of {tuple(allowed)}.')
 
-# ---------------------------------------------------------------------------- #
-
-
-def _rhs(obj):
-    return 'None' if obj is None else repr(str(obj))
-
-
-class SlotHelper:
-    __slots__ = ()
-
-    def __str__(self):
-        return self._repr(type(self).__slots__,
-                          lhs=str, equal='=', rhs=repr,
-                          brackets='()', align=False)
-
-    def __repr__(self):
-        # (_ for base in (*type(self).__bases__, type(self))
-        return self._repr(type(self).__slots__)
-
-    def _repr(self, attrs, **kws):
-        kws.setdefault('rhs', _rhs)
-        return dicts.pformat({_: getattr(self, _) for _ in attrs},
-                             type(self).__name__,
-                             **kws)
-
-    def __init__(self, **kws):
-        kws.pop('self', None)
-        kws.pop('kws', None)
-        kws.pop('__class__', None)
-        for key, val in kws.items():
-            setattr(self, key, val)
-
 
 # ---------------------------------------------------------------------------- #
-
 
 class Masked:
     """Format masked constants."""
@@ -159,7 +125,6 @@ class Percentage:
         if precision is None:
             self.precision = getattr(fmt_nr, 'precision', 0)
 
-        # self.brackets = str(brackets)
         fmt_p = f'{{f:.{self.precision}%}}'.join(brackets)
         self._fmt = f'{{x}} {fmt_p}'
 
@@ -169,13 +134,14 @@ class Percentage:
 
 # ---------------------------------------------------------------------------- #
 class FormatterConstructors:
+
     @classmethod
     def as_percentage_of(cls, total, **kws):
         return Percentage(total, cls(**kws))
 
     @classproperty
     def ascii(cls):  # sourcery skip: instance-method-first-arg-name
-        return cls(**cls._ascii_map)
+        return cls(*cls._presets['ascii'])
 
     @classproperty
     def unicode(cls):  # sourcery skip: instance-method-first-arg-name
@@ -195,12 +161,12 @@ class FormatterConstructors:
         >>> 
         """
         # for atr in self.__slots__:
-        return cls(**cls._unicode_map)
+        return cls(*cls._presets['unicode'])
         # return strings.sub(self(x), UNICODE_MAP)
 
     @classproperty
     def latex(cls):  # sourcery skip: instance-method-first-arg-name
-        return cls(**cls._latex_map)  # .join(LATEX_WRAP[math])
+        return cls(*cls._presets['latex'])  # .join(LATEX_WRAP[math])
 
     def map(self, x: abc.Collection):
         return list(map(self, x))
@@ -220,15 +186,11 @@ class NumberBase(FormatterConstructors, SlotHelper):
 
     __slots__ = ('inf', 'nan', 'masked')
 
-    _ascii_map = {'inf':        'inf',
-                  'nan':        'nan',
-                  'masked':     '--'}
-    _unicode_map = {'inf':      '\N{INFINITY}',         # '∞'
-                    'nan':      'nan',
-                    'masked':   '\N{BLACK SQUARE}'}     # '■'
-    _latex_map = {'inf':        R'\infty',
-                  'nan':        'nan',
-                  'masked':     '--'}
+    _presets = {
+        'ascii':    ('inf', 'nan', '--'),
+        'unicode':  ('\N{INFINITY}', 'nan', '\N{BLACK SQUARE}'),  # '∞' '■'
+        'latex':    (R'\infty', 'nan', '--')
+    }
 
     def __init__(self, inf: str = 'inf', nan: str = 'nan', masked: str = '--',
                  **kws):
@@ -397,12 +359,9 @@ class Decimal(NumberBase):
     def __str__(self):
         attrs = list(self.__slots__)
         attrs.pop(0 if self.precision is None else 1)
-        return self._repr(attrs,
-                          lhs=str, equal='=', rhs=repr,
-                          brackets='()', align=False)
-
-    def __repr__(self):
-        return self._repr(type(self).__slots__)
+        return self.__repr__(attrs=attrs,
+                             lhs=str, equal='=', rhs=repr,
+                             brackets='()', align=False)
 
     def format(self, x, /, precision=None):
         """
@@ -773,7 +732,7 @@ class Conditional:
 
         """
         self.test = test
-        self.args = tuple(duplicate_if_scalar(test_args, 1, raises=False))
+        self.args = tuple(duplicate_if_scalar(test_args, 1, emit=False))
         self.kws = kws
         assert callable(true)
         assert callable(false)
@@ -870,7 +829,7 @@ class FractionOf:
     def __init__(self, symbols=(), **kws):
         symbols = {k: str(v) for k, v in dict(symbols, **kws).items()}
         assert symbols.keys() == {'ascii', 'unicode', 'latex'}
-        self.symbols = AttrReadItem(symbols)
+        self.symbols = dicts.AttrReadItem(symbols)
 
     def __call__(self, f, style='ascii'):
         return self.format(f, style)
@@ -898,9 +857,9 @@ class FractionOf:
         x = x if ((x := f.numerator) != 1) else ""
 
         if ((d := f.denominator) == 1):
-            return itmp.format(x=n, symbol=self.symbols[style], d=d)
+            return itmp.format(x=x, symbol=self.symbols[style], d=d)
 
-        return ftmp.format(x=n, symbol=self.symbols[style], d=f.denominator)
+        return ftmp.format(x=x, symbol=self.symbols[style], d=d)
 
     def format_mpl(self, f, _pos=None):
         return self.format(f, 'latex')
@@ -938,9 +897,9 @@ def frac_of(f, symbol, i_template='{x}{symbol}', f_template='{x}{symbol}/{d}'):
     x = x if ((x := f.numerator) != 1) else ""
 
     if ((d := f.denominator) == 1):
-        return i_template.format(x=n, symbol=symbol, d=d)
+        return i_template.format(x=x, symbol=symbol)
 
-    return f_template.format(x=n, symbol=symbol, d=f.denominator)
+    return f_template.format(x=x, symbol=symbol, d=d)
 
 # "½" #  onehalf # VULGAR FRACTION ONE HALF
 # "⅓"	#U2153 # VULGAR FRACTION ONE THIRD

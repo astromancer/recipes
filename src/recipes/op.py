@@ -11,19 +11,24 @@ workhorses.
 
 
 # std
-from operator import *
+import fnmatch as fnm
 import operator as _op
 import functools as ftl
+from operator import (getitem, ge, gt, le, lt, ne, add, sub, eq, mul, floordiv,
+                      truediv)
 from collections import abc
 
 # relative
 import builtins
-from .functionals import echo0, raises
+from .functionals import echo0
+from .containers import ensure
 
 
 # ---------------------------------------------------------------------------- #
-class NULL:
-    "Null singleton"
+
+# Null singleton
+_NULL = object()
+_NOT_FOUND = object()
 
 
 def any(itr, test=bool):
@@ -59,38 +64,135 @@ def all(itr, test=bool):
     return builtins.all(map(test, itr))
 
 
-def prepend(obj, prefix):
-    return prefix + obj
+# ---------------------------------------------------------------------------- #
+# Reversed binary operators
+
+def reverse_operands(operator):
+    """Decorator that reverses the order of input arguments."""
+
+    def wrapper(a, b, /):
+        return operator(b, a)
+
+    # docstring
+    wrapper.__doc__ = operator.__doc__.replace(' a ', ' b ').replace(' b.', ' a.')
+
+    return wrapper
 
 
-def append(obj, suffix):
-    return obj + suffix
+def _make_reverse_operators(*ops):
+    for op in ops:
+        yield reverse_operands(op)
 
+
+#
+radd, rsub, rmul, rtruediv, rfloordiv = _make_reverse_operators(
+    add, sub, mul, truediv, floordiv)
+
+
+# ---------------------------------------------------------------------------- #
+# API helper
+
+def _resolve_attr_names(obj, names=...):
+    if names is ...:
+        if hasattr(obj, '__slots__'):
+            # local to avoid circular import
+            from recipes.oo.slots import get_slots
+            return get_slots(obj)
+
+        return list(obj.__dict__)
+
+    names = ensure.list(names)
+
+    # additional properties can be given like (..., 'xx')
+    if ... in names:
+        i = names.index(...)
+        return [*names[:i], *_resolve_attr_names(obj, ...), *names[i+1:]]
+
+    return names
+
+
+def resolve_attr_names(obj, names=..., ignore=(), check=False):
+    names = _resolve_attr_names(obj, names)
+
+    if ignore:
+        names = exclude(names, ignore)
+
+    if check:
+        for name in names:
+            assert hasattr(obj, name)
+
+    return names
+
+
+def exclude(attrs, ignore):
+    return [atr for atr in attrs if _include(atr, ignore)]
+
+
+def _include(atr, patterns):
+    for pattern in ensure.tuple(patterns):
+        if fnm.fnmatch(atr, pattern):
+            return False
+    return True
+
+
+class Get:
+
+    def items(self, indices):
+        return ItemGetter(*indices)
+
+    __call__ = item = items
+
+    def attrs(self, obj, required=..., conditional=(), ignore='*_'):
+        if required is not ... and (overlap := (set(required) & set(conditional))):
+            raise ValueError(
+                f'Attributes cannot be both required and conditional: {overlap}'
+            )
+
+        maybe = {}
+        if conditional:
+            maybe = AttrMap(*ensure.tuple(conditional), default=_NOT_FOUND)(obj)
+            maybe = {key: val for key, val in maybe.items()
+                     if val is not _NOT_FOUND}
+
+        # resolve names
+        required = resolve_attr_names(obj, required, ignore)
+
+        # fetch
+        return {**AttrMap(*required)(obj), **maybe}
+
+    attr = attrs
+
+
+# Singleton for item / attribute retrieval
+get = Get()
+
+
+# ---------------------------------------------------------------------------- #
 
 class ItemGetter:
     """
     (Multi-)Item getter with optional default substitution.
     """
     _worker = staticmethod(getitem)
-    _excepts = LookupError  # (KeyError, IndexError)
+    _excepts = LookupError
     _raises = KeyError
 
-    def __init__(self, *keys, default=NULL, defaults=None):
+    def __init__(self, *keys, default=_NULL, defaults=None):
         self.keys = keys
+        self.default = default
         self.defaults = defaults or {}
         self.unpack = tuple if len(self.keys) > 1 else next
 
-        # FAILS for slices: TypeError: unhashable type: 'slice'
+        # FIXME: FAILS for slices: TypeError: unhashable type: 'slice'
         # typo = set(self.defaults.keys()) - set(self.keys)
         # if typo:
         #     warnings.warn(f'Invalid keys in `defaults` mapping: {typo}')
 
-        self.default = default
-        if default is NULL:
-            # intentionally override the `get_default` method
-            self.get_default = raises(self._raises)
+        # if default is _NULL:
+        #     # intentionally override the `get_default` method
+        #     self.get_default = raises(self._raises)
 
-    def __call__(self, target):  # -> Tuple or Any:
+    def __call__(self, target):
         return self.unpack(self._iter(target))
 
     def __repr__(self):
@@ -98,7 +200,9 @@ class ItemGetter:
 
     def get_default(self, key):
         """Retrieve the default value of the `key` attribute"""
-        # pylint: disable=method-hidden
+        if self.default is _NULL:
+            raise self._raises(key)
+
         return self.defaults.get(key, self.default)
 
     def _iter(self, target):
@@ -113,13 +217,19 @@ class ItemGetter:
 class AttrGetter(ItemGetter):
     """
     (Multi-)Attribute getter with optional default substitution and chained
-    lookup support for lookup on nested objects.
+    lookup support for sumultaneously retrieving many attributes from nested
+    objects.
     """
     _excepts = (AttributeError, )
 
     @staticmethod
     def _worker(target, key):
         return _op.attrgetter(key)(target)
+
+    def __call__(self, target, default=_NULL):  # -> Tuple or Any:
+        if default is not _NULL:
+            self.default = default
+        return super().__call__(target)
 
 
 class AttrSetter:
@@ -139,44 +249,47 @@ class AttrSetter:
 
     def __call__(self, target, values):
         keys = self.keys
+        if len(keys) == 1 and (ensure.is_scalar(values) or len(values) != 1):
+            values = [values]
+
         if isinstance(values, dict):
             keys = values.keys()
             values = values.values()
 
         assert len(values) == len(keys)
+
         for get_obj, attr, value in zip(self.getters, keys, values):
             setattr(get_obj(target), attr, value)
 
 
-class AttrDict(AttrGetter):
+# Get items / attributes as dict
+class MapBase:
     """
-    Like attrgetter, but returns a dict keyed on requested attributes. 
+    Mixin that returns a `dict` keyed on requested itmes / attributes.
     """
+
+    def __init__(self, *keys, default=_NULL, defaults=None):
+        super().__init__(*keys, default=default, defaults=defaults)
+        self.unpack = tuple
+        # always unpack to tuple since we will use that to create a dict
 
     def __call__(self, target):
         return dict(zip(self.keys, super().__call__(target)))
 
 
-class VectorizeMixin:
-    def __call__(self, target):
-        return list(self.map(target))
-
-    def map(self, target):
-        assert isinstance(target, abc.Iterable)
-        return map(super().__call__, target)
-
-    def filter(self, *args):
-        *test, target = args
-        return filter((test or None), self.map(target))
+class ItemMap(MapBase, ItemGetter):
+    """
+    Like `ItemGetter`, but returns a `dict` keyed on requested items.
+    """
 
 
-class ItemVector(VectorizeMixin, ItemGetter):
-    """Vectorized ItemGetter"""
+class AttrMap(MapBase, AttrGetter):
+    """
+    Like `AttrGetter`, but returns a `dict` keyed on requested attributes. 
+    """
 
 
-class AttrVector(VectorizeMixin, AttrGetter):  # AttrTable!
-    """Vectorized attribute getter a la AttrGetter."""
-
+# ---------------------------------------------------------------------------- #
 
 class MethodCaller:
     """
@@ -190,7 +303,7 @@ class MethodCaller:
     After g = methodcaller('name', 'date', foo=1), the call g(r) returns
     r.name('date', foo=1).
     """
-    __slots__ = ('_name', '_args', '_kwargs')
+    __slots__ = ('_name', '_getter', '_args', '_kwargs')
 
     def __init__(*args, **kwargs):  # pylint: disable=no-method-argument
         if len(args) < 2:
@@ -201,21 +314,23 @@ class MethodCaller:
 
         self = args[0]
         self._name = args[1]
+        self._getter = AttrGetter(self._name)
         if not isinstance(self._name, str):
-            raise TypeError(f'Method name must be a string, not '
-                            f'{type(self._name)}')
+            raise TypeError(
+                f'Method name must be a string, not {type(self._name)}.'
+            )
         self._args = args[2:]
         self._kwargs = kwargs
 
-    def __call__(self, obj):
-        return _op.attrgetter(self._name)(obj)(*self._args, **self._kwargs)
+    def __call__(self, obj, *args, **kws):
+        return self._getter(obj)(*self._args, *args, **self._kwargs, **kws)
 
     def __repr__(self):
         args = [repr(self._name),
                 *map(repr, self._args)]
         args.extend(f'{k}={v!r}' for k, v in self._kwargs.items())
-        return \
-            f"{(c:=self.__class__).__module__}.{c.__name__}({', '.join(args)})"
+        kls = type(self)
+        return f"{kls.__module__}.{kls.__name__}({', '.join(args)})"
 
     def __reduce__(self):
         if self._kwargs:
@@ -225,6 +340,29 @@ class MethodCaller:
         return self.__class__, (self._name, *self._args)
 
 
+# ---------------------------------------------------------------------------- #
+
+class MapperBase:
+    def __call__(self, target):
+        return list(self.map(target))
+
+    def map(self, target):
+        assert isinstance(target, abc.Iterable)
+        return map(super().__call__, target)
+
+    def filter(self, *args):
+        *test, target = args
+        return filter((test or None), self.map(target))
+
+
+class ItemVector(MapperBase, ItemGetter):
+    """Vectorized ItemGetter"""
+
+
+class AttrVector(MapperBase, AttrGetter):  # AttrTable!
+    """Attribute getter that fetches across items in a container when called."""
+
+
 class MethodVector(MethodCaller):
     def __call__(self, target):
         assert isinstance(target, abc.Iterable)
@@ -232,7 +370,7 @@ class MethodVector(MethodCaller):
 
 
 # ---------------------------------------------------------------------------- #
-def index(collection, item, start=0, test=eq, default=NULL):
+def index(collection, item, start=0, test=eq, default=_NULL):
     """
     Find the index position of `item` in `collection`, or if a test function is
     provided, the first index position for which the test evaluates True. If
@@ -274,7 +412,7 @@ def index(collection, item, start=0, test=eq, default=NULL):
     # behave like standard indexing by default
     #  -> only if default parameter was explicitly given do we return that
     #   instead of raising a ValueError
-    if default is NULL:
+    if default is _NULL:
         raise ValueError(f'{item!r} is not in {type(collection).__name__}')
 
     return default

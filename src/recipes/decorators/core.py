@@ -78,11 +78,11 @@ def upon_first_call(do_first):
     def decorator(func):
         func._ran = False
 
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self, *args, **kws):
             if not func._ran:
                 do_first(self)
 
-            results = func(self, *args, **kwargs)
+            results = func(self, *args, **kws)
             func._ran = True
             return results
 

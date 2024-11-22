@@ -23,9 +23,10 @@ from loguru import logger
 
 # relative
 from ..string import sub
+from ..containers import ensure
 from ..functionals import echo0
+from ..string.delimited import braces
 from ..shell.bash import brace_expand_iter
-from ..string.brackets import BracketParser
 
 
 # ---------------------------------------------------------------------------- #
@@ -35,9 +36,6 @@ FORMATS = {'json': json,
 FILEMODES = {pickle: 'b',
              json: ''}
 
-# for getting object size
-
-braces = BracketParser('{}')
 
 # ---------------------------------------------------------------------------- #
 
@@ -57,7 +55,7 @@ def md5sum(filename):
 def guess_format(filename):
     # use filename to guess format
     ext = Path(filename).suffixes[-1].lstrip('.')
-    formatter = FORMATS.get(ext, None)
+    formatter = FORMATS.get(ext)
     if formatter is None:
         raise ValueError(
             'Could not guess file format from filename. Please provide the '
@@ -169,7 +167,7 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
 
     ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
 
-    for file in _iter_files(path_or_pattern, extensions, recurse):
+    for file in _iter_files(path_or_pattern, ensure.tuple(extensions), recurse):
         for ignored in ignore:
             if fnm.fnmatchcase(str(file), ignored):
                 logger.debug("Ignoring '{!s}' matching pattern {!r}.", file, ignored)
@@ -183,6 +181,9 @@ def _maybe_newline(string, width=40, indent=' ' * 2):
 
 
 def _iter_files(path_or_pattern, extensions='*', recurse=False):
+
+    logger.debug('Iterating over: {}. extensions = {}, recurse={}',
+                 path_or_pattern, extensions, recurse)
 
     path_or_pattern = str(path_or_pattern)
     recurse = bool(recurse)
@@ -206,25 +207,30 @@ def _iter_files(path_or_pattern, extensions='*', recurse=False):
     # handle input strings without special patterns here. This can be a file or
     # directory path
     path = Path(path_or_pattern)
-    if path.is_dir():
-        # iterate all files with given extensions
-        if isinstance(extensions, str):
-            extensions = (extensions, )
-
-        # recurse
-        extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
-        yield from iter_files(f'{path!s}/{"**/" * recurse}*.{extensions}',
-                              recurse=recurse)
-        return
-
-    if not path.exists():
-        raise ValueError('Could not any resolve files for the input pattern: '
-                         f"'{path!s}'. Please supply a path to a valid existing"
-                         ' directory, or alternitively a glob pattern, or bash '
-                         'brace expansion pattern.')
 
     # Return the input if it is an existing file. This break the recurrence.
-    yield path
+    if path.is_file():
+        yield path
+        return
+
+    # iterate all files with given extensions
+    extensions = ensure.tuple(extensions)
+    extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
+    # recurse?
+    pattern = f'{path!s}/{"**/" * recurse}*.{extensions}'
+
+    if path.is_dir():
+        logger.debug('Received folder: {}', path)
+        logger.debug('Recursing on: {}', pattern)
+        yield from iter_files(pattern, recurse=recurse)
+        return
+
+    # Non-existing path
+    raise ValueError(
+        f"Could not any resolve files for the input pattern: '{pattern!s}'. "
+        'Please supply a path to a valid existing directory, or '
+        'alternitively a glob pattern, or bash brace expansion pattern.'
+    )
 
 
 def iter_ext(files, extensions='*'):
@@ -251,8 +257,8 @@ def iter_ext(files, extensions='*'):
         for ext in extensions:
             yield from file.parent.glob(f'{file.stem}.{ext.lstrip(".")}')
 
-# ---------------------------------------------------------------------------- #
 
+# ---------------------------------------------------------------------------- #
 
 def open_any(filelike, mode='r'):
     # handle stream
@@ -424,26 +430,28 @@ def write_lines(stream, lines, eol='\n', eof=''):
     with open_any(stream, 'w') as stream:
         # write first line
         try:
-            stream.write(next(itr))
+            stream.write(next(itr) + eol)
         except StopIteration:
             warn(f'Empty lines or iterable. Nothing written to {stream!r}.')
             return
 
         # write remaining lines
         for line in itr:
-            stream.write(eol)
-            stream.write(line)
+            stream.write(line + eol)
+
         stream.write(eof)
 
 
 # ---------------------------------------------------------------------------- #
 
 @ctx.contextmanager
-def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
+def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
+              exception_hook=None):
     """
-    Context manager for doing file operations under backup. This will backup
-    your file before any read / writes are attempted. If something goes terribly
-    wrong during the attempted operation, the original content will be restored.
+    Context manager for doing file operations under backup. This will make a
+    copy of your file before any read / writes are attempted. If something goes
+    terribly wrong during the attempted operation, the original content will be
+    restored.
 
 
     Parameters
@@ -457,8 +465,8 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
         is the temporary file created by `tempfile.mkstemp`, using the prefix
         "backup." and suffix being the original `filename`.
     exception_hook : callable, optional
-        Hook to run on the event of an exception if you wish to modify the
-        error message. The default, None, will leave the exception unaltered.
+        Hook to run on the event of an exception if you wish to modify the error
+        message. The default, None, will leave the exception unaltered.
 
     Examples
     --------
@@ -486,7 +494,8 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
     if backup_needed:
         if backupfile is None:
             # create tmp backup file if no filename given for backup
-            bid, backupfile = tempfile.mkstemp(prefix='backup.',
+            bid, backupfile = tempfile.mkstemp(dir=folder,
+                                               prefix=f'{__name__}.backup.',
                                                suffix=f'.{path.name}')
         else:
             backupfile = Path(backupfile)
@@ -503,7 +512,11 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
                 # close files
                 fp.close()
                 os.close(bid)
+
                 # restore backup
+                logger.info('There was an error during a file operation on {!s}.'
+                            'Restoring original file from backup: {!s}',
+                            path, backupfile)
                 shutil.copy(backupfile, filename)
 
             # raise custom exception hook if provided
@@ -511,13 +524,18 @@ def backed_up(filename, mode='w', backupfile=None, exception_hook=None):
                 raise exception_hook(err, filename) from err
 
             raise
+        finally:
+            if backup_needed and not keep:
+                logger.debug('Removing backup: {!s}', backupfile)
+                backupfile.unlink()
 
 
 # @ doc.splice(backed_up, 'summary',
 #             omit='Parameters[backupfile]',
 #             replace={'operation': 'write',
 #                      'read / ': ''})  # FIXME: replace not working here
-def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
+def safe_write(filename, lines, eol='\n',
+               backupfile=None, folder=None, keep=True, exception_hook=None):
     """
     {Parameters}
     lines : list
@@ -526,11 +544,13 @@ def safe_write(filename, lines, mode='w', eol='\n', exception_hook=None):
     assert isinstance(eol, str)
     append = str.__add__ if eol else echo0
 
-    with backed_up(filename, mode, exception_hook=exception_hook) as fp:
-        # write lines
+    with backed_up(filename, 'w', backupfile, folder, keep) as fp:
+        i, line = 0, None
         try:
+            # write lines
             for i, line in enumerate(lines):
                 fp.write(append(line, eol))
+
         except Exception as err:
             if exception_hook:
                 raise exception_hook(err, filename, line, i) from err
@@ -623,8 +643,8 @@ def show_tree(folder, use_dynamic_spacing=False):
         └── SHA_20160707.0010.ragged.txt
     """
 
-    from ..tree import FileSystemNode
-    
+    from ..tree.node import FileSystemNode
+
     tree = FileSystemNode.from_path(folder)
     tree.use_dynamic_spacing = bool(use_dynamic_spacing)
     return tree.render()
@@ -646,4 +666,3 @@ def walk(folder, depth=1):
         level = root.count(os.path.sep)
         if n_sep + depth <= level:
             del dirs[:]
-

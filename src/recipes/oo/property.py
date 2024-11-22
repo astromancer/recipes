@@ -6,7 +6,6 @@ Extensions for buitlin property decorator.
 
 # std
 import threading
-import operator as op
 import functools as ftl
 from collections import abc
 from types import FunctionType
@@ -14,28 +13,109 @@ from types import FunctionType
 # third-party
 from loguru import logger
 
+# relative
+from .. import op
+
 
 # ---------------------------------------------------------------------------- #
+# Sentinel of cache lookup
 _NotFound = object()
 
 
 # ---------------------------------------------------------------------------- #
-class PropertyForwarding:
+
+class Alias:
+    """
+    A descriptor that forwards attribute/property lookup to another namespace
+    member. Used for exposing attributes of nested objects in the parent
+    namespace.
+
+    This works like `op.attrgetter` in that it can handle chained lookups like
+    "namespace.member". In addition it also allows setting attributes on the
+    endpoint object.
+    """
+
+    __slots__ = ('alias', 'attr', 'owner', '_member',
+                 '_getter', '_setter', '_dependents', '_class_variable')
+
+    def __set_name__(self, owner, alias):
+        if self.attr == alias:
+            raise ValueError('An Alias cannot point to itself.')
+
+        self.alias = alias
+        self.owner = owner
+        self._class_variable = hasattr(self.owner, self._member)
+
+    def __init__(self, attr, readonly=False):
+        self.alias = self.owner = None
+        self.attr = attr.__name__ if callable(attr) else str(attr)
+        self._member = self.attr.split('.', 1)[0]
+        self._getter = op.AttrGetter(attr)
+        self._setter = None if readonly else op.AttrSetter(attr)
+        self._dependents = []
+
+    def __repr__(self):
+        s = (f'<{type(self).__name__}({self.owner.__name__}.{self.alias} -> '
+             f'{".".join(filter(None, (self._member, self.attr)))}'
+             '})>')
+
+        if self._dependents:
+            dep = f'dependents={"": <{s.index("(")}}\n'.join(self._dependents)
+            return s.replace(')>', f'{dep})>')
+
+        return s
+
+    def __get__(self, instance, kls=None):
+        # sourcery skip: assign-if-exp, reintroduce-else
+
+        # get parent object
+        if instance is None:
+            # lookup from class
+            if self._class_variable:
+                return self._getter(kls, default=self)
+
+            #
+            return self
+
+        return self._getter(instance)
+
+    def __set__(self, instance, value):
+        if self._setter:
+            return self._setter(instance, value)
+
+        raise AttributeError(f'Read only attribute: {self}')
+
+    # def __delete__(self, obj):
+    #     if self.attr:
+    #         attr = self.attr
+    #         target = getattr(obj, self.member)
+    #     else:
+    #         target = obj
+    #         attr = self.member
+
+    #     delattr(target, attr)
+
+
+# alias
+Forward = ForwardProperty = Alias
+
+
+class Aliasing:
     """
     Mixin class with method for forwarding property/attribute access to another
-    object in it's namespace. Useful for exposing dynamic attributes of nested
+    object in its namespace. Useful for exposing dynamic attributes of nested
     objects in the instance's namespace.
     """
 
-    _property_forwarding = {}
+    _aliases = {}
 
     def __new__(cls, *args, **kws):
         # Attach property descriptors
-        for member, attrs in cls._property_forwarding.items():
+        for member, attrs in cls._aliases.items():
             for _ in attrs:
-                setattr(cls, _, ForwardProperty(f'{member}.{_}'))
+                setattr(cls, _, Alias(f'{member}.{_}'))
 
-        return super().__new__(cls)
+        return super().__new__(cls, *args, **kws)
 
     # @classmethod
     # def forward_properties(cls, mapping: Dict[str, Collection[str]]):
@@ -44,39 +124,8 @@ class PropertyForwarding:
     #         setattr(cls, _, ForwardProperty(f'{member}.{_}'))
 
 
-class ForwardProperty:
-    """
-    A descritor that forwards attribute/property lookup to another namespace
-    member. Useful for exposing dynamic attributes of nested objects in the 
-    parent namespace.
-    
-    This works like `op.attrgetter` but in addition allows setting attributes.
-    """
-
-    __slots__ = ('member', 'property_name', '_getter', '_dependents')
-
-    def __init__(self, name):
-        self.member, self.property_name = str(name).split('.', 1)
-        self._getter = op.attrgetter(self.property_name)
-        self._dependents = []
-
-    def __get__(self, obj, kls=None):
-        # sourcery skip: assign-if-exp, reintroduce-else
-        # get parent object
-        if obj is None:
-            # lookup from class
-            return self
-
-        return self._getter(getattr(obj, self.member))
-
-    def __set__(self, obj, value):
-        member = getattr(obj, self.member)
-        setattr(member, self.property_name, value)
-
-    def __delete__(self, obj):
-        member = getattr(obj, self.member)
-        del member
-
+# alias
+PropertyAliasing = PropertyForwarding = Forwarding = Aliasing
 
 # ---------------------------------------------------------------------------- #
 # extended from astropy.utils.decorators.lazyproperty
@@ -86,27 +135,28 @@ class CachedProperty(property):
     """
     Works similarly to property(), but computes the value only once.
 
-    This essentially memorizes the value of the property by storing the result
-    of its computation in the ``__dict__`` of the object instance.  This is
-    useful for computing the value of some property that should otherwise be
-    invariant.  For example::
+    This memoizes the value of the property by storing the result of its
+    computation in the ``__dict__`` of the object instance.  This is useful for
+    computing the value of some property that should otherwise be invariant.
+
+    For example::
 
         >>> class LazyTest:
         ...     @CachedProperty
-        ...     def complicated_property(self):
-        ...         print('Computing the value of `complicated_property`.')
+        ...     def heavy_computation(self):
+        ...         print('Computing the value of `heavy_computation`.')
         ...         return 42
         ...
         >>> lt = LazyTest()
-        >>> lt.complicated_property
-        Computing the value for `complicated_property`.
+        >>> lt.heavy_computation
+        Computing the value for `heavy_computation`.
         42
-        >>> lt.complicated_property
+        >>> lt.heavy_computation
         42
 
-    As the example shows, the second time ``complicated_property`` is accessed,
+    As the example shows, the second time ``heavy_computation`` is accessed,
     the ``print`` statement is not executed.  Only the return value from the
-    first access off ``complicated_property`` is returned.
+    first access off ``heavy_computation`` is returned.
 
     By default, a setter and deleter are used which simply overwrite and
     delete, respectively, the value stored in ``__dict__``. Any user-specified
@@ -115,23 +165,23 @@ class CachedProperty(property):
     already sets the new value in ``__dict__`` and returns that value and the
     returned value is not ``None``.
 
-    You may add optional dependencies on other CachedProperty instances, as
+    You may add optional dependencies on other ``CachedProperty`` instances, as
     follows (reusing the previous example):
 
         >>> class LazyTest2(LazyTest):
-        ...     @CachedProperty(depends_on=LazyTest.complicated_property)
+        ...     @CachedProperty(depends_on=LazyTest.heavy_computation)
         ...     def dependent_property(self):
-        ...         return self.complicated_property ** 2
+        ...         return self.heavy_computation ** 2
         ...
         >>> lt = LazyTest2()
         >>> lt.dependent_property
-        Computing the value of `complicated_property`.
+        Computing the value of `heavy_computation`.
         1764
         >>> lt.dependent_property
         1764
-        >>> del lt.complicated_property
+        >>> del lt.heavy_computation
         ... lt.dependent_property
-        Computing the value of `complicated_property`.
+        Computing the value of `heavy_computation`.
         1764
 
     The snippet above shows that the child property will automatically be
@@ -140,20 +190,20 @@ class CachedProperty(property):
     Since the caching mechanism implicitly assumes mutability of the property
     (the case where the user explicitly changes the value of the property by
     assigning to the target attribute), the `read_only` keyword argument can be
-    used to create immutable CachedProperty instances. Any attempt to change the
-    value of a read-only property will raise an `AttributeError`.
+    used to create immutable ``CachedProperty`` instances. Any attempt to change
+    the value of a read-only property will raise an `AttributeError`.
 
         >>> class LazyTest3:
         ...     @CachedProperty(read_only=True)
-        ...     def complicated_property(self):
-        ...         print('Computing the value of `complicated_property`.')
+        ...     def read_access_only(self):
+        ...         print('Computing the value of `read_access_only`.')
         ...         return 42
         ...
         >>> lt = LazyTest3()
-        >>> lt.complicated_property
-        Computing the value of `complicated_property`.
+        >>> lt.read_access_only
+        Computing the value of `read_access_only`.
         42
-        >>> lt.complicated_property = 43
+        >>> lt.read_access_only = 43
         AttributeError: This property is set to read only.
 
     """
@@ -191,7 +241,7 @@ class CachedProperty(property):
                 raise TypeError(
                     f'Dependency {f"{i} " if i else ""}of '
                     f'{(kls := self.__class__.__name__)} should also be a {kls}'
-                    ', (or ForwardProperty) descriptor object, not '
+                    ', (or `Alias`) descriptor object, not '
                     f'{type(parent)}.')
 
             logger.debug('Adding dependent to parent {}.', parent)
@@ -250,66 +300,30 @@ class CachedProperty(property):
     def _delete_dependents(self, obj):
         # delete dependents
         for child in self._dependents:
-            logger.debug('delete child {}.', child)
+            logger.debug('delete child {}: {!r}.', type(child).__name__, child._key)
             child.__delete__(obj)
 
-ALLOWED_DEPENDANT_TYPES = (CachedProperty, ForwardProperty)
+
+# ---------------------------------------------------------------------------- #
+ALLOWED_DEPENDANT_TYPES = (CachedProperty, Alias)
 
 # aliases
 cachedproperty = cached_property = lazyproperty = CachedProperty
 
+
 # ---------------------------------------------------------------------------- #
+# Class property
+# Source: astropy.utils.decorators.classproperty
 
-# class ClassProperty(property):
-#     """
-#     Allows properties to be accessed from class or instance
-
-#     Examples
-#     --------
-
-#     >>> class Example:
-#     ...
-#     ...    _name = None  # optional name.
-#     ...    # Optional name. Defaults to class name if not over-written by
-#     ...    # inheritors.
-#     ...
-#     ...    @ClassProperty
-#     ...    @classmethod
-#     ...    def name(cls):
-#     ...        return cls._name or cls.__name__
-#     ...
-#     ...    @name.setter
-#     ...    def name(self, name):
-#     ...        self.set_name(name)
-#     ...
-#     ...    @classmethod
-#     ...    def set_name(cls, name):
-#     ...        cls._name = str(name)
-#     ...
-#     ... obj = Example()
-#     ... obj.name
-#     'Example'
-#     >>> obj.name = 'New'
-#     ... (obj.name, Example.name)
-#     ('New', 'New')
-
-#     FIXME Class level assignment OVERWRITES `name` - doesn't go through
-#     setter
-#     >>> Example.name = 'zzz'
-#     ... obj.name, Example.name
-#     ('zzz', 'zzz')
-
-#     """
-
-#     def __get__(self, instance, kls):
-#         return self.fget.__get__(None, kls)()
-
-
-# copied from astropy.utils.decorators.classproperty
-
+# NOTE Class level assignment OVERWRITES `name` - doesn't go through
+# setter
+# >>> Example.name = 'zzz'
+# ... obj.name, Example.name
+# ('zzz', 'zzz')
 # TODO: This can still be made to work for setters by implementing an
 # accompanying metaclass that supports it; we just don't need that right this
 # second
+# FIXME: code executes with >>> help()
 
 class ClassProperty(property):
     """
@@ -459,13 +473,13 @@ class ClassProperty(property):
 
     def setter(self, fset):
         raise NotImplementedError(
-            "classproperty can only be read-only; use a metaclass to "
-            "implement modifiable class-level properties")
+            '`ClassProperty` can only be read-only; use a metaclass to '
+            'implement modifiable class-level properties.')
 
     def deleter(self, fdel):
         raise NotImplementedError(
-            "classproperty can only be read-only; use a metaclass to "
-            "implement modifiable class-level properties")
+            '`ClassProperty` can only be read-only; use a metaclass to '
+            'implement modifiable class-level properties.')
 
     @staticmethod
     def _wrap_fget(orig_fget):
@@ -484,4 +498,3 @@ class ClassProperty(property):
 
 # alias
 classproperty = ClassProperty
-

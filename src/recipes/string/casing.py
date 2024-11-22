@@ -2,7 +2,11 @@
 Special casing for strings.
 """
 
+# std
 import re
+
+# relative
+from .utils import sub
 
 
 # ---------------------------------------------------------------------------- #
@@ -11,7 +15,11 @@ REGEX_SPACE = re.compile(r'\s+')
 
 
 # ---------------------------------------------------------------------------- #
+def has_upper(text):
+    return any(map(str.isupper, text))
 
+
+# ---------------------------------------------------------------------------- #
 def snake_case(string):
     new, _ = REGEX_CAPS.subn(r'_\1', string.replace(' ', '_'))
     return new.lstrip('_').lower()
@@ -51,6 +59,10 @@ def title(string, ignore=()):
         head, last = new.rsplit(maxsplit=1)
         return f'{head} {last.lower()}'
     return new
+
+
+# alias
+titlecase = title
 
 
 def strike(text):
@@ -93,3 +105,7 @@ def monospaced(text):
         single space " ".
     """
     return REGEX_SPACE.sub(' ', text).strip()
+
+
+# alias
+monospace = monospaced

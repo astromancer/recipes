@@ -2,16 +2,12 @@
 Utilities for operations on strings
 """
 
-# std
-import operator as op
-
 # third-party
 import more_itertools as mit
 
 # relative
-from .. import op, string
+from .. import op
 from ..iter import where
-from ..utils import _delete_immutable
 
 
 # ---------------------------------------------------------------------------- #
@@ -20,6 +16,10 @@ from ..utils import _delete_immutable
 def strings(items):
     """Map collection to list of str"""
     return [*map(str, items)]
+
+
+def csv(items):
+    return ', '.join(strings(items))
 
 
 # ---------------------------------------------------------------------------- #
@@ -31,7 +31,7 @@ def similarity(a, b):
 
 
 def most_similar(string, options, cutoff=0.5):
-    from recipes.lists import cosort
+    from recipes.containers import cosort
 
     sims = [similarity(string, _) for _ in options]
     sims, options = cosort(sims, options, order=-1)
@@ -57,35 +57,6 @@ def most_similar(string, options, cutoff=0.5):
 # ---------------------------------------------------------------------------- #
 # Deletion / Substitution
 
-def delete(string, indices=()):
-    """
-    Remove characters at position `indices` from string.
-
-    Parameters
-    ----------
-    string : str
-        The string from which to remove characters.
-    indices : collection of int
-        Character index positions to delete. Negative indices are supported. 
-        Duplicated indices are filtered.
-
-    Examples
-    --------
-    >>> delete('0123456789', [0, 9])
-    '12345678'
-    >>> delete('0123456789', [0, -1, 9])
-    '12345678'
-    >>> delete('0123456789', [0, -1])
-    '12345678'
-
-    Returns
-    -------
-    str
-    """
-
-    return ''.join(_delete_immutable(string, indices)) if indices else string
-
-
 def backspaced(string):
     """
     Resolve backspace control sequence "\b" by remove them and the characters
@@ -103,6 +74,10 @@ def backspaced(string):
     if '\b' not in string:
         return string
 
+    #
+    from recipes.containers.utils import delete
+
+    #
     return backspaced(delete(string, [i := string.index('\b'), max(i - 1, 0)]))
 
 
@@ -227,9 +202,33 @@ def surround(string, left, right=None, sep=''):
     return sep.join((left, string, right))
 
 
-def indent(string, width=4):
+def indent(string, indent=4, test=str.strip, first=False):
     # indent `width` number of spaces
-    return str(string).replace('\n', '\n' + ' ' * width)
+    if indent is True:
+        indent = 4
+
+    prefix = ' ' * indent
+    result = ''.join((('', prefix)[bool(test(line))] + line
+                      for line in str(string).splitlines(True)))
+    if first:
+        return result
+
+    # no indent first line
+    return result.lstrip()
+
+
+def _reindent(string, tabsize, old=4):
+    for line in str(string).splitlines(True):
+        if (text := line.lstrip(' ')):
+            indent = line.index(text)
+            indent, leftover = divmod(indent, old)
+            yield (' ' * indent * tabsize) + line
+        else:
+            yield ''
+
+
+def reindent(string, tabsize, old=4):
+    return ''.join(_reindent(string, old, old))
 
 
 def truncate(string, size, dots=' … ', end=10):
@@ -272,10 +271,10 @@ def _partition_whitespace_indices(text):
     n = len(text)
     i0 = 0
     while i0 < n:
-        i1 = next(string.where(text, op.ne, ' ', start=i0), n)
+        i1 = next(where(text, op.ne, ' ', start=i0), n)
         yield (i0, i1)
 
-        i2 = next(string.where(text, ' ', start=i1), n)
+        i2 = next(where(text, ' ', start=i1), n)
         yield (i1, i2)
         i0 = i2
 

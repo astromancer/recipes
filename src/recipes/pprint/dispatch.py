@@ -8,7 +8,8 @@ import functools as ftl
 from collections import abc
 
 # relative
-from .pformat import collection, mapping
+from .pformat import collection
+from .mapping import pformat as mapping
 
 
 # ---------------------------------------------------------------------------- #
@@ -22,7 +23,13 @@ STD_BRACKET_TYPES = {set: '{}',
 
 @ftl.singledispatch  # generic type implementation
 def pformat(obj, **kws):
-    raise TypeError(f'No dispatch method for pprinting objects of type {type(obj)}.')
+    return repr(obj)
+    # raise TypeError(f'No dispatch method for pprinting objects of type {type(obj)}.')
+
+
+@pformat.register(str)
+def _(obj, _=None, **__):
+    return repr(obj)
 
 
 @pformat.register(abc.MutableMapping)

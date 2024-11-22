@@ -1,5 +1,3 @@
-# !/usr/bin/env python
-
 """
 source: http://code.activestate.com/recipes/68205-null-object-design-pattern/
 
@@ -88,7 +86,7 @@ NULL = Null()
 
 
 class NullSingleton:
-    
+
     instance = None
 
     def __init__(self):
@@ -98,5 +96,3 @@ class NullSingleton:
 
     def __getattr__(self, name):
         return getattr(self.instance, name)
-
-

@@ -13,20 +13,22 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..iter import where
-from ..utils import duplicate_if_scalar
+from ..containers import duplicate_if_scalar
+from .justify import justify
 
 
 # ---------------------------------------------------------------------------- #
 
 def width(string):
     """
-    Find the width of a paragraph. Non-display chatacters are counted.
+    Find the width of a paragraph by finding the longest line. Works by indexing
+    the newline positions and differencing pairs of indices, so all characters
+    in the string, including non-display chatacters, are counted.
 
     Parameters
     ----------
     string : str
-        A paragraph of text.
-
+        A line or paragraph of text.
 
     Returns
     -------
@@ -45,7 +47,8 @@ def _max_line_width(lines):
     return max(map(len, lines))
 
 
-def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width):
+def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width,
+           rstrip=False):
     """
     Stick two or more multi-line strings together horizontally.
 
@@ -62,7 +65,7 @@ def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width):
     Returns
     -------
     str
-        Horizontally stacked string
+        Horizontally stacked string.
     """
 
     # short circuit
@@ -74,8 +77,12 @@ def hstack(strings, spacing=0, offsets=(), width_func=_max_line_width):
 
     # get columns and trim trailing whitespace column
     columns = _get_hstack_columns(strings, spacing, offsets, width_func)
-    columns = itt.islice(columns, 2 * len(strings) - 1)
-    return '\n'.join(map(''.join, zip(*columns)))
+    lines = map(''.join, zip(*columns))
+
+    if rstrip:
+        lines = map(str.rstrip, lines)
+
+    return '\n'.join(lines)
 
 
 def _get_hstack_columns(strings, spacing, offsets, width_func):
@@ -89,19 +96,22 @@ def _get_hstack_columns(strings, spacing, offsets, width_func):
 
     # first we need to compute the widths
     widths = []
-    lines_list = []
-    max_length = 0
+    columns = []
+    nrows = 0
     for string, off in itt.zip_longest(strings, offsets, fillvalue=0):
-        lines = str(string).splitlines()
-        max_length = max(len(lines), max_length)
-        widths.append(width_func(lines))   # ansi.length(lines[0])
-        lines_list.append(([''] * off) + lines)
+        cells = str(string).splitlines()
+        nrows = max(len(cells), nrows)
+        widths.append(width_func(cells))   # ansi.length(lines[0])
+        columns.append(([''] * off) + cells)
 
     # Intersperse columns with whitespace
-    for lines, width in zip(lines_list, widths):
-        # fill whitespace
-        yield mit.padded(lines, ' ' * (width), max_length)
-        yield itt.repeat(' ' * spacing, max_length)
+    for cells, width in zip(columns, widths):
+        # fill missing rows as whitespace
+        cells = mit.padded(cells, ' ' * (width), nrows)
+        # justify
+        yield map(f'{{: <{width}}}'.format, cells)
+        # inter-column space
+        yield itt.repeat(' ' * spacing, nrows)
 
 
 def vstack(strings,  justify_='<', width_=None, spacing=0):

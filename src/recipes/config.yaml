@@ -1,3 +1,9 @@
+# ---------------------------------------------------------------------------- #
+# Configuration file for: 
+# recipes {version}
+# ---------------------------------------------------------------------------- #
+
+
 imports:
     # sorting style
     sort:                       aesthetic
@@ -20,7 +26,22 @@ imports:
         names:                  [std, third-party, local, relative]
         suffix:                 # libs
 
-    # list of local module names
-    user_local_modules:         ~/.config/recipes/local_libs.txt
-
     log_warnings:               True
+
+    ignore:     [tests/introspect/import_refactor_examples]
+
+
+
+compute:
+    executor:
+        progress:
+            bar_format: >-
+                {desc}: {percentage:3.0f}%{bar}{n_fmt}/{total_fmt}
+                {rate_fmt}
+                {elapsed} eta {remaining}
+            ascii: " ╸━"
+            leave: true
+
+# {{desc}: {percentage:3.0f}%{bar}{n_fmt}/{total_fmt}:|green}
+# {rate_fmt:|gold}
+# {elapsed:|cyan} eta {remaining:|cyan}

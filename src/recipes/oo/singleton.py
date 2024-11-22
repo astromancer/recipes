@@ -2,20 +2,26 @@
 A singleton class.
 """
 
+
 class Singleton:
+
+    # ------------------------------------------------------------------------ #
     class __Singleton:
         def __str__(self):
             return repr(self)
 
-    instance = None
+    # ------------------------------------------------------------------------ #
+    _instance = None
 
     def __init__(self):
-        if Singleton.instance is None:
-            Singleton.instance = Singleton.__Singleton()
+        if Singleton._instance is None:
+            Singleton._instance = Singleton.__Singleton()
 
     def __getattr__(self, name):
-        return getattr(self.instance, name)
+        return getattr(self._instance, name)
 
+    def __setattr__(self, name):
+        return setattr(self._instance, name)
 
 #
 # Singleton/BorgSingleton.py

@@ -4,7 +4,7 @@ import hashlib
 
 def array(a):
     #  NOTE: salted hash changes between different python processes so
-    # >>> hash(a.data) # does not work
+    # >>> hash(a.data) # is not reliable
 
     # NOTE: this is fast enough for small arrays and *repeatable*
     return (a if (a is None or a is False)

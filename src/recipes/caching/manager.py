@@ -8,8 +8,8 @@ from pathlib import Path
 from loguru import logger
 
 # relative
-from ..dicts import pformat
 from ..logging import LoggingMixin
+from ..pprint.mapping import pformat
 from ..io import deserialize, guess_format, serialize
 from . import DEFAULT_CAPACITY, Cache
 
@@ -19,6 +19,8 @@ from . import DEFAULT_CAPACITY, Cache
 
 # TODO: sqlite, yaml, dill, jsons, msgpack
 
+
+null = object()
 
 # ------------------------------- json helpers ------------------------------- #
 
@@ -103,11 +105,6 @@ SAVE_KWS = {json: {'cls': JSONCacheEncoder}}
 
 # ---------------------------------------------------------------------------- #
 
-null = object()
-
-
-# def load(filename, **kws):
-
 
 class CacheManager(LoggingMixin):
     """
@@ -130,13 +127,16 @@ class CacheManager(LoggingMixin):
         self.enabled = bool(enabled)
 
     def __str__(self):
-        info = {'size': f'{len(self.data)}/{self.capacity}'}
+        info = {}
         if self.filename:
-            info['file'] = repr(str(self.path))
+            info['file'] = str(self.path)
+
+        info.update(polcy=self.policy,
+                    active=self.enabled,
+                    size=f'{len(self.data)}/{self.capacity}')
+
         info = pformat(info, type(self).__name__, lhs=str, rhs=str, brackets='[]')
-        return pformat(self.data,
-                       f'{info}',
-                       hang=True)
+        return pformat(self.data, f'{info}', hang=True)
 
     __repr__ = __str__
 
@@ -152,10 +152,7 @@ class CacheManager(LoggingMixin):
             return
 
         self.stale = True
-        if path.parent.exists():
-            return
-
-        raise ValueError(f'Parent folder does not exist: {path.parent}')
+        path.parent.mkdir(exist_ok=True)
 
     @property
     def path(self):

@@ -8,6 +8,7 @@ from warnings import warn
 
 # relative
 from ..iter import where
+from .utils import insert
 
 
 # ---------------------------------------------------------------------------- #

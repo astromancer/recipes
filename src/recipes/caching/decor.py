@@ -7,7 +7,7 @@ Cache / Memoization decorators and helpers.
 import numbers
 import warnings
 from collections import abc
-from inspect import _VAR_KEYWORD, _empty, signature
+from inspect import _VAR_KEYWORD as _VKW, _empty, signature
 
 # relative
 from ..functionals import echo0
@@ -122,7 +122,8 @@ class Cached(Decorator, LoggingMixin):
     def __init__(self, filename=None, capacity=DEFAULT_CAPACITY, policy='lru',
                  ignore=(), typed=(), enabled=True):
         """
-        A general purpose function memoizer.
+        A general purpose decorator for function return value caching
+        (memoization).
 
         Parameters
         ----------
@@ -187,8 +188,8 @@ class Cached(Decorator, LoggingMixin):
         """
 
         self.sig = None
-        self.typed = _check_hashers(typed, ignore)
-        # self.__init_args = (capacity, filename, policy)
+        self.typed = {abc.MutableSequence: tuple,
+                      **_check_hashers(typed, ignore)}
         self.cache = CacheManager(capacity, filename, policy, enabled)
 
         # file rotation
@@ -241,7 +242,7 @@ class Cached(Decorator, LoggingMixin):
             return func
 
         # resolve typed keys to parameter names
-        self.resolve_types(self.typed)
+        self.typed, self.retyped = self.resolve_types(self.typed)
 
         # since functools.wraps does not work on methods, explicitly decalare
         # decorated function here
@@ -253,59 +254,86 @@ class Cached(Decorator, LoggingMixin):
         decorated.__cache__ = self.cache
         return decorated
 
-    def resolve_types(self, mapping):
+    def resolve_types(self, mapping, strict=True):
+        """
+        Parse the user input `types` for controlling the hashing
+        """
         names = list(self.sig.parameters.keys())
-        key_types = set(map(type, mapping.keys())) - {str}
-        if key_types:
-            for key in tuple(mapping.keys()):
-                if isinstance(key, numbers.Integral):
-                    mapping[names[key]] = mapping.pop(key)
-                key_types -= {type(key)}
+
+        retyped = {}
+        for key in tuple(mapping.keys()):
+            if isinstance(key, numbers.Integral):
+                mapping[names[key]] = mapping.pop(key)
+
+            if isinstance(key, type):
+                retyped[key] = mapping.pop(key)
+
+        key_types = set(map(type, mapping.keys())) - {str, type}
 
         if key_types:
             raise ValueError(f'Hash map key has incorrect types {key_types}.')
 
         # all keys are now str
-        if invalid := (set(mapping.keys()) - set(names)):
+        if strict and (invalid := (set(mapping.keys()) - set(names))):
             raise ValueError(f'{describe(self.__wrapped__)} takes no '
                              f'{named_items(list(invalid), "parameter")}.')
 
-    def _gen_hash_key(self, args, kws):
-        """
-        Generate hash key from function arguments.
-        """
+        return mapping, retyped
 
-        bound = self.sig.bind(*args, **kws)
-        bound.apply_defaults()
-        for name, val in bound.arguments.items():
-            convert = self.typed.get(name, echo0)
+    def _convert(self, val, name=None):
+        convert = self.typed.get(name)
+        if not convert:
+            # recasting mutable types as immutable
+            for frm, to in self.retyped.items():
+                if isinstance(val, frm):
+                    return to(map(self._convert, val))
+
+        if convert:
+            return convert(val)
+
+        return val
+
+    def _gen_hash_key(self, mapping):
+
+        for name, val in mapping.items():
+            convert = self.typed.get(name)
 
             # Filter ignored params
             if isinstance(convert, Ignore):
                 if not convert.silent:
                     # emit warning on non-silent ignore
-                    self.logger.debug(
-                        'Ignoring argument in '
-                        f'{describe(self.__wrapped__)}: {name!r} = {val!r}')
+                    self.logger.opt(lazy=True).debug(
+                        'Ignoring argument in {}',
+                        lambda: f'{describe(self.__wrapped__)}: {name!r} = {val!r}'
+                    )
+                # go to next parameter
                 continue
 
-            if self.sig.parameters[name].kind is not _VAR_KEYWORD:
-                yield convert(val)
-            else:
+            # parameter not ignored
+            if (par := self.sig.parameters.get(name)) and (par.kind is _VKW):
                 # deal with variadic keyword args (**kws):
-                # remove the keys that have been bound to other position-or-keyword
-                # parameters. variadic keyword args can come in any order. To ensure
-                # we resolve calls like foo(a=1, b=2) and foo(b=2, a=1) to the same
-                # cache item, we need to order the keywords. Finally convert to
-                # tuple of 2-tuples (key value pairs) so we can hash
-                keys = sorted(set(kws.keys()) - set(bound.arguments.keys()))
-                yield convert(tuple(zip(keys, map(kws.get, keys))))
+                yield tuple(zip(val.keys(), self._gen_hash_key(val)))
+
+            else:
+                yield self._convert(val, name)
+
+            # remove the keys that have been bound to other position-or-keyword
+            # parameters. variadic keyword args can come in any order. To ensure
+            # we resolve calls like foo(a=1, b=2) and foo(b=2, a=1) to the same
+            # cache item, we need to order the keywords. Finally convert to
+            # tuple of 2-tuples (key value pairs) so we can hash
+
+            # keys = sorted(set(val.keys()) - set(mapping.keys()))
+            # kws = dict(zip(keys, map(val.get, keys)))
+            # yield tuple(self._gen_hash_key(kws))
 
     def get_key(self, *args, **kws):
         """
         Compute cache key from function parameter values
         """
-        return tuple(self._gen_hash_key(args, kws))
+        bound = self.sig.bind(*args, **kws)
+        bound.apply_defaults()
+        return tuple(self._gen_hash_key(bound.arguments))
 
     def is_hashable(self, params):
         """
@@ -421,15 +449,18 @@ class Ignore:
     def __init__(self, silent=True):
         self.silent = bool(silent)
 
+    def __call__(self, *args, **kws):
+        return self
+
 
 class Reject(Ignore):
     """
-    Reject the cache entry entirely.
+    Reject the cache entry entirely - ie do not cache.
 
     Examples
     --------
-    A function that conditionaly rejects cache entries based on the value of a
-    certain parameter:
+    The function below caches its return values only if the `file` parameter is
+    given. If `file` is None or empty, the function will always run, returning None.
 
     >>> @caches.cached(typed={'file': lambda _: _ or Reject(silent=True)})
     ... def read(file, **kws):

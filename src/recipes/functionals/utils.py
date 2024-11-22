@@ -1,10 +1,10 @@
 """
-Functional helpers.
+Common functions and functionals.
 """
+
 
 # ---------------------------------------------------------------------------- #
 # Canonical do nothing function
-
 
 def noop(*_, **__):
     """Do nothing."""
@@ -13,19 +13,22 @@ def noop(*_, **__):
 # ---------------------------------------------------------------------------- #
 # Functions that simply return the input parameter(s) unmodified
 
-def echo0(_, *ignored_):
-    """simply return the 0th parameter."""
-    return _
-
-
-def echo(*_):
+def echo(first, *more, **__):
     """Return all parameters unchanged."""
-    return _
+    if more:
+        return (first, *more)
+
+    return first
+
+
+def echo0(first, *_, **__):
+    """simply return the 0th parameter."""
+    return first
 
 
 # ---------------------------------------------------------------------------- #
 # Decorators for restricting operations on selected function parameters only
-# TODO: proper decorator FutureIndex(0)
+# TODO: proper decorator FutureIndex(obj)[0]
 
 def on_nth(func, n):  # apply.nth_positional(func, 1)(*args)
 
@@ -52,11 +55,15 @@ on_0th = on_zeroth
 
 
 def is_none(x):
-    return x is None
+    return (x is None)
 
 
 def not_none(x):
-    return x is not None
+    return (x is not None)
+
+
+def has_none(x):
+    return (None in x)
 
 
 # ---------------------------------------------------------------------------- #
@@ -75,15 +82,22 @@ def negate(func=bool):
 # ---------------------------------------------------------------------------- #
 # Raising future exceptions
 
-def raises(kind):
-    """Raises an exception of type `kind`."""
+def raises(exception):
+    """Raises an exception of type `exception`."""
 
-    assert issubclass(kind, BaseException)
+    #  handle case: >>> raises(ValueError('Bad dog!'))
+    if isinstance(exception, BaseException):
+        def _raises():
+            raise exception
+        return _raises
 
-    def _raises(msg):
-        raise kind(msg)
+    if issubclass(exception, BaseException):
+        def _raises(msg, *args, **kws):
+            raise exception(msg.format(*args, **kws))
+        return _raises
 
-    return _raises
+    raise TypeError(
+        f'Expected Exception class or instance, but received {type(exception).__name__}.')
 
 
 # ---------------------------------------------------------------------------- #

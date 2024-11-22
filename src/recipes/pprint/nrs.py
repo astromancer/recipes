@@ -23,8 +23,8 @@ from .. import op
 from ..functionals import echo0
 from ..array.utils import vectorize
 from ..string import unicode as uni
-from ..utils import duplicate_if_scalar
 from ..math import order_of_magnitude, signum
+from ..containers import duplicate_if_scalar
 
 
 # ---------------------------------------------------------------------------- #
@@ -1255,7 +1255,7 @@ def uarray(x, u, significant=None, log_switch=5, short=False, times='x',
                                   '  large arrays.')
 
     # check uncertainty ok
-    if u is None or u is False or np.isnan(u).all():
+    if u is None or u is False or not np.isfinite(u).all():
         warnings.warn('Ignoring invalid uncertainty array.')
         del u
         kws = locals()
@@ -1345,7 +1345,7 @@ def matrix(a, precision=3):
 
     tbl = Table(a, precision=precision, frame=False, col_borders=' ',
                 minimalist=True, title='', title_style={})
-    n_rows, _ = tbl.shape
+    n_rows, _ = tbl.data.shape
     left = '\n'.join('┌' + ('│' * n_rows) + '└')
     right = '\n'.join([' ┐'] + [' │'] * n_rows + [' ┘'])
     return hstack([left, tbl, right])

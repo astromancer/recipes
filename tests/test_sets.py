@@ -1,4 +1,4 @@
-from recipes.sets import OrderedSet
+from recipes.containers.sets import OrderedSet
 
 
 s = OrderedSet('abracadaba')

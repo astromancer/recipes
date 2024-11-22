@@ -1,1 +1,1 @@
-exclude .gitignore .pylintrc .travis.yml
+exclude .pylintrc .travis.yml

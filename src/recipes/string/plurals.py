@@ -3,6 +3,7 @@ Pluralization (experimental).
 """
 
 
+# std
 from collections import abc
 
 
@@ -40,6 +41,10 @@ _PLURAL_SUFFIX_MAP = {
     # eg:   vortex - > vortices
     ('ex', 'ix'):
         (-2, 'ices'),
+
+    # eg: position -> positions
+    ('ion'):
+        (None, 's'),
 
     # eg: phenomenon -> phenomena
     #     criterion ->  criteria
@@ -97,26 +102,23 @@ def naive_english_plural(word):
     if word in PLURALIA_TANTUM:
         return word
 
-    return next(
-        (
-            f'{word[:n]}{suffix}'
-            for end, (n, suffix) in _PLURAL_SUFFIX_MAP.items()
-            if word.endswith(end)
-        ),
-        # everything else
-        f'{word}s',
-    )
+    return next((f'{word[:n]}{suffix}'
+                 for end, (n, suffix) in _PLURAL_SUFFIX_MAP.items()
+                 if word.endswith(end)),
+                # everything else
+                f'{word}s')
 
 
-def pluralise(text, items=(()), plural=None, n=None):
-    """Conditional plural of `text` based on size of `items`."""
-
+def pluralize(text, items=(()), plural=None, n=None):
+    """
+    Conditional plural of `text` based on size of `items`.
+    """
     return ((plural or naive_english_plural(text))
-            if _is_plural(items, n)
+            if _requires_plural(items, n)
             else text)
 
 
-def _is_plural(items=(()), n=None):
+def _requires_plural(items=(()), n=None):
     return _many(items) if n is None else n != 1
 
 
@@ -125,19 +127,23 @@ def _many(obj):
 
 
 # alias
-pluralize = pluralise
+pluralise = pluralize
 
 
 def numbered(items, name, plural=None):
-    return f'{len(items):d} {pluralise(name, items, plural):s}'
+    return f'{len(items):d} {pluralize(name, items, plural):s}'
 
 
 def named_items(items, name, plural=None, fmt=str, **kws):
+    # avoid circular import
+    from recipes.containers import ensure
 
+    items = ensure.list(items)
     if not _many(items):
         return f'{name}: {fmt(next(iter(items)))}'
 
-    from recipes import pprint
+    # avoid circular import
+    from recipes.pprint import pformat
 
     return (f'{plural or naive_english_plural(name)}: '
-            f'{pprint.collection(items, fmt=fmt)}')
+            f'{pformat(items, fmt=fmt)}')

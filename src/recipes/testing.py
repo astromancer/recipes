@@ -44,10 +44,10 @@ import pytest
 
 # relative
 from . import op, pprint as pp
-from .lists import lists
-from .utils import ensure_tuple
+from .containers import ensure
 from .logging import LoggingMixin
 from .iter import cofilter, negate
+from .containers import lists
 from .functionals import echo0 as echo
 
 
@@ -105,14 +105,15 @@ mock = Mock()
 # wrap_args = WrapArgs()
 
 # test_hms = Expected(hms).expects(
-#     {mock.hms(1e4):  '02h46m40.0s',
-#      mock.hms(1.333121112e2, 5): '00h02m13.31211s',
-#      mock.hms(1.333121112e2, 5, ':'):  '00:02:13.31211',
-#      mock.hms(1.333121112e2, 5, short=False): '00h02m13.31211s',
-#      mock.hms(1.333121112e2, 'm0', short=False, unicode=True): '00ʰ02ᵐ',
-#      mock.hms(119.95, 's0'): '00h02m00s',
-#      mock.hms(1000, 'm0', sep=':'): '00:17',
-#      #  ex.hms(1e4, sep='', sig=0, sign='+'):  '024640'
+#     {mock.hms(1e4):                               '02h46m40.0s',
+#      mock.hms(1.333121112e2, 5):                  '00h02m13.31211s',
+#      mock.hms(1.333121112e2, 5, ':'):             '00:02:13.31211',
+#      mock.hms(1.333121112e2, 5, short=False):     '00h02m13.31211s',
+#      mock.hms(1.333121112e2, 'm0', short=False, 
+#               unicode=True):                      '00ʰ02ᵐ',
+#      mock.hms(119.95, 's0'):                      '00h02m00s',
+#      mock.hms(1000, 'm0', sep=':'):               '00:17',
+#      #  ex.hms(1e4, sep='', sig=0, sign='+'):     '024640'
 #      }
 # )
 
@@ -153,9 +154,9 @@ class expected:
     --------
     >>> @expected({
     ...      # test input (cases)        # expected result
-    ...      CAL/'SHA_20200822.0005.fits': shocBiasHDU,
-    ...      CAL/'SHA_20200801.0001.fits': shocFlatHDU,
-    ...      EX1/'SHA_20200731.0022.fits': shocNewHDU
+    ...      CAL/'SHA_20200822.0005.fits': BiasHDU,
+    ...      CAL/'SHA_20200801.0001.fits': FlatHDU,
+    ...      EX1/'SHA_20200731.0022.fits': NewHDU
     ... })
     ... def hdu_type(filename):
     ...     return _BaseHDU.readfrom(filename).__class__
@@ -283,7 +284,7 @@ class Expected(LoggingMixin):
             cases = cases.items()
         else:
             # can be either (params, exected), or (params, ) only if test!
-            argspec, *expected = zip(*map(ensure_tuple, cases))
+            argspec, *expected = zip(*map(ensure.tuple, cases))
             # If cases is not list of (input: expected) pairs, simply check test
             # passes without error. Any result is produced and checked inside
             # test
@@ -337,7 +338,7 @@ class Expected(LoggingMixin):
         ...       mock.TimeSeries(t, y),
         ...       mock.TimeSeries(t, y, e),
         ...       mock.TimeSeries(t, ym, e) ]
-        ...     )
+        ... )
         """
         items = zip(items, itt.repeat(PASS))
         return self(items, *args, left_transform=transform, **kws)
@@ -449,8 +450,8 @@ class Expected(LoggingMixin):
             if answer == expected:
                 return
 
-            message = (f'Result from function {self.func.__name__} '
-                       'is not equal to expected answer!'
+            message = (f'Result from function {self.func.__name__!r} '
+                       'is not equal to the expected answer!'
                        f'\nRESULT:  \n{answer!r}'
                        f'\nEXPECTED:\n{expected!r}')
             if isinstance(answer, str) and isinstance(expected, str):

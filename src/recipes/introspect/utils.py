@@ -10,6 +10,7 @@ import sys
 import ast
 import pkgutil
 import inspect
+import warnings
 import functools as ftl
 import contextlib as ctx
 from pathlib import Path
@@ -27,7 +28,7 @@ from ..string import remove_suffix, truncate
 # list of builtin modules
 BUILTIN_MODULE_NAMES = [  # TODO: generate at install time for version
     # builtins
-    *stdlib_list(sys.version[:3]),
+    *stdlib_list('.'.join(sys.version.split('.', 2)[:2])),
     # python easter eggs
     'this', 'antigravity'
     # auto-generated module for builtin keywords
@@ -169,7 +170,7 @@ def get_defining_class(method: MethodType):
 # ---------------------------------------------------------------------------- #
 # Dispatcher for getting module name from import node or path
 
-def get_module_name(obj=None, depth=None):
+def get_module_name(obj=None, depth=None, _frameback=2):
     """
     Get full (or partial) qualified (dot-separated) name of an object's parent
     (sub)modules and/or package, up to namespace depth `depth`.
@@ -181,7 +182,7 @@ def get_module_name(obj=None, depth=None):
     # called without arguments => get current module name by inspecting the call
     # stack
     if obj is None:
-        obj = get_caller_frame(2)
+        obj = get_caller_frame(_frameback)
 
     # dispatch
     name = _get_module_name(obj)
@@ -194,6 +195,18 @@ def get_module_name(obj=None, depth=None):
 
     if name:
         return '.'.join(name.split('.')[-depth:])
+
+
+def safe_get_module_name(obj=None, depth=None, warn=False):
+    try:
+        return get_module_name(obj, depth, 3)
+    except ValueError as err:
+        if (msg := str(err)).startswith('Could not get package name'):
+            if warn:
+                warnings.warn(msg)
+            return
+
+        raise err from None
 
 # @ftl.singledispatch
 # def get_module_name(node):
@@ -273,7 +286,7 @@ def _(path):
     path = Path(path)
     candidates = []
     trial = path.parent
-    stop = (Path.home(), Path('/'))
+    stop = (Path.home(), Path('/'), 'src')
     for _ in range(5):
         if trial in stop:
             break
@@ -287,15 +300,19 @@ def _(path):
     # module, eg: "recipes.string". Here "string" would be incorrectly
     # identified here as a "package" since it is importable. The real package
     # may actually be higher up in the folder tree.
+
     while candidates:
-        trial = candidates.pop(0)
+        trial = candidates.pop(-1)
         if candidates and (trial.name in BUILTIN_MODULE_NAMES):
             # candidates.append(trial)
             continue
 
         # convert to dot.separated.name
-        path = path.relative_to(trial.parent)
-        name = remove_suffix(remove_suffix(str(path), '.py'), '__init__')
+        rpath = path.relative_to(trial.parent)
+        name = remove_suffix(remove_suffix(str(rpath), '.py'), '__init__')
+        if 'src' in name:
+            name = name[(name.index('src') + 4):]
+
         return name.rstrip('/').replace('/', '.')
 
     raise ValueError(f"Could not get package name for file '{path!s}'.")
@@ -303,9 +320,14 @@ def _(path):
 
 def get_package_name(node_or_path: Union[str, Path, ast.Import]):
     fullname = get_module_name(node_or_path)
+
     # if fullname.startswith('.'):
     #     return '.' * node.level
     if fullname is None:
         raise ValueError(f'Could not get package name for file {node_or_path!r}.')
+
+    # if 'src' in fullname:
+    #     from IPython import embed
+    #     embed(header="Embedded interpreter at 'src/recipes/introspect/utils.py':312")
 
     return fullname.split('.', 1)[0]

@@ -7,7 +7,7 @@ from recipes.shell import bash
 from recipes.testing import Expected, Throws, expected
 
 
-# from recipes.dicts import invert
+# from recipes.containers.dicts import invert
 
 
 filenames = ('20130616.0030',
@@ -40,16 +40,6 @@ filenames = ('20130616.0030',
 def invert(dict_):
     return zip(dict_.values(), dict_.keys())
 
-
-# tests
-# ---------------------------------------------------------------------------- #
-# test splitter
-test_splitter = Expected(bash.csplit)(
-    {'{4..6}':           ['{4..6}'],
-     '{4,6}':            ['{4,6}'],
-     '4,6':              ['4', '6'],
-     'ch{1,2,{4..6}}':   ['ch{1,2,{4..6}}']},
-    transform=list)
 
 # ---------------------------------------------------------------------------- #
 # brace expand
