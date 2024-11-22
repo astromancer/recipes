@@ -18,6 +18,7 @@ classifiers = [
 dynamic = ["version", "readme", "optional-dependencies" ]
 requires-python = ">=3.8"
 dependencies = [
+    "platformdirs",
     "click",
     "loguru",
     "anytree",
@@ -67,7 +68,11 @@ write_to = "src/recipes/_version.py"
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py38
+envlist = 
+    3.8
+    3.9
+    3.12
+
 
 [testenv]
 # install testing framework
