@@ -533,8 +533,7 @@ class Callable(slots.SlotHelper):
 
         name = self.name()
         plist = list(self._parameters(*args, **kws))
-
-        widest = max(map(len, plist))
+        widest = max(map(len, plist)) if plist else 0
 
         ppl = self.fmt.parameters.ppl
         wrap = self.fmt.parameters.wrap
