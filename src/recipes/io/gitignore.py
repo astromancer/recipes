@@ -12,16 +12,31 @@ IGNORE_IMPLICIT = ('.git', )
 # ---------------------------------------------------------------------------- #
 
 
-def get_repo_files(folder):
-
-    if not (file := Path(folder) / '.gitignore').exists():
-        raise FileNotFoundError(f"Could not find '{file!s}.'")
-
-    return list(GitIgnore(file).iterdir(folder))
+def _read(path):
+    return filter(None, (line.strip(' ')
+                         for line in path.read_text().splitlines()
+                         if not line.startswith('#')))
 
 
 def read(path):
-    # read glob patterns from file
+    """
+    Read glob patterns from a file.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to the file containing glob patterns.
+
+    Returns
+    -------
+    list of str
+        A list of glob patterns that were read from the file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the specified file does not exist.
+    """
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f'No such file: {path!s}.')
@@ -44,9 +59,24 @@ class GlobPatternList:
 
     @classmethod
     def from_file(cls, path):
+        """
+        Create a GlobPatternList from a file containing glob patterns.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path to the file containing glob patterns.
+
+        Returns
+        -------
+        GlobPatternList
+            An instance of GlobPatternList initialized with patterns
+            from the file.
+        """
         path = Path(path)
         return cls(path.parent, read(path))
 
+    # alias
     fromfile = from_file
 
     def __init__(self, root, patterns):
@@ -56,28 +86,75 @@ class GlobPatternList:
         self.add(patterns)
 
     def add(self, items):
+        """
+        Add glob patterns to the list.
+
+        Parameters
+        ----------
+        items : str or iterable of str
+            Glob pattern(s) to add.
+
+        Raises
+        ------
+        TypeError
+            If input is not a string or an iterable of strings.
+        """
         if isinstance(items, str):
             self._add(items)
         elif isinstance(items, abc.Iterable):
             list(map(self.add, items))
         else:
             raise TypeError(f'Invalid object type {type(items).__name__}: {items}.')
-        
+
     def _add(self, pattern):
-        items = (self.names, self.patterns)
         if pattern:
+            items = (self.names, self.patterns)
             items[glob.has_magic(pattern)].append(pattern.rstrip('/'))
 
     def match(self, filename):
+        """
+        Check if a filename matches any of the glob patterns or names.
+
+        Parameters
+        ----------
+        filename : str or Path
+            The filename to check.
+
+        Returns
+        -------
+        bool
+            True if the filename matches any pattern or name, False otherwise.
+        """
+
         path = Path(filename).relative_to(self.root)
         filename = str(path)
-        for pattern in self.patterns:
-            if fnmatch.fnmatchcase(filename, pattern):
-                return True
-
-        return filename.endswith(tuple(self.names))
+        return next(
+            (
+                True
+                for pattern in self.patterns
+                if fnmatch.fnmatchcase(filename, pattern)
+            ),
+            filename.endswith(tuple(self.names)),
+        )
 
     def iterdir(self, folder=None, depth=any, _level=0):
+        """
+        Iterate over files and directories, filtering by glob patterns.
+
+        Parameters
+        ----------
+        folder : str or Path, optional
+            The folder to iterate over. Defaults to the root path.
+        depth : int or any, optional
+            The maximum recursion depth. Defaults to infinite recursion.
+
+        Yields
+        ------
+        Path
+            Paths of files and directories that do not match any of the
+            glob patterns.
+        """
+
         depth = math.inf if depth is any else depth
         folder = folder or self.root
 
@@ -106,4 +183,5 @@ class GitIgnore(GlobPatternList):
 
     def __init__(self, filename='.gitignore'):
         path = Path(filename)
-        return super().__init__(path.parent, read(path))
+        patterns = read(path) if path.exists() else []
+        super().__init__(path.parent, patterns)
