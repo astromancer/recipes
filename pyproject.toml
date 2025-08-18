@@ -37,7 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 tests = ["pytest", "pytest-cases", "tox>=4.21", "tox-uv"]
-dev = ["recipes[tests]"]
+dev = ["uv", "recipes[tests]"]
 
 [dependency-groups]
 tests = ["recipes[tests]"]
