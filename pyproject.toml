@@ -15,7 +15,7 @@ classifiers = [
     "Intended Audience :: Education",
     "Operating System :: POSIX :: Linux"
 ]
-dynamic = ["version", "readme", "optional-dependencies" ]
+dynamic = ["version", "readme"]
 requires-python = ">=3.8"
 dependencies = [
     "platformdirs",
@@ -33,6 +33,10 @@ dependencies = [
     "joblib",
     "tqdm"
 ]
+
+[project.optional-dependencies]
+tests = ["pytest", "pytest-cases"]
+
 
 [project.urls]
 "Homepage" = "https://github.com/astromancer/recipes"
@@ -58,7 +62,6 @@ where = ["src"]
 [tool.setuptools.dynamic]
 version = {attr = "recipes._version.version"}
 readme = {file = "README.md", content-type = "text/markdown"}
-optional-dependencies.test = { file = ["requirements-dev.txt"] }
 
 
 [tool.setuptools_scm]
