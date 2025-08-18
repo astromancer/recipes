@@ -45,7 +45,6 @@ dev = ["recipes[dev]"]
 [project.urls]
 Homepage = "https://github.com/astromancer/recipes"
 Issues = "https://github.com/astromancer/recipes/issues"
-# Repository  = "https://github.com/astromancer/recipes"
 
 [project.scripts]
 tidy_imports = "recipes.introspect.imports.tidy:main"
