@@ -35,12 +35,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-tests = ["pytest", "pytest-cases"]
+tests = ["pytest", "pytest-cases", "tox>=4.21", "tox-uv"]
+dev = ["recipes[tests]"]
 
+[dependency-groups]
+tests = ["recipes[tests]"]
+dev = ["recipes[dev]"]
 
 [project.urls]
-"Homepage" = "https://github.com/astromancer/recipes"
-"Bug Tracker" = "https://github.com/astromancer/recipes/issues"
+Homepage = "https://github.com/astromancer/recipes"
+Issues = "https://github.com/astromancer/recipes/issues"
+# Repository  = "https://github.com/astromancer/recipes"
 
 [project.scripts]
 tidy_imports = "recipes.introspect.imports.tidy:main"
