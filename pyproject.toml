@@ -4,7 +4,8 @@ description = "A cookbook for the python developer connoisseur 🐍🧑🏽‍�
 authors = [
     {name = "Hannes Breytenbach", email = "hannes@saao.ac.za"}
 ]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python :: 3.8",
@@ -12,7 +13,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Education",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux"
 ]
 dynamic = ["version", "readme", "optional-dependencies" ]
