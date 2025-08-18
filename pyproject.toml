@@ -16,6 +16,7 @@ classifiers = [
     "Operating System :: POSIX :: Linux"
 ]
 dynamic = ["version", "readme"]
+
 requires-python = ">=3.8"
 dependencies = [
     "platformdirs",
@@ -49,7 +50,8 @@ Issues = "https://github.com/astromancer/recipes/issues"
 [project.scripts]
 tidy_imports = "recipes.introspect.imports.tidy:main"
 
-
+# ---------------------------------------------------------------------------- #
+# Build
 # ---------------------------------------------------------------------------- #
 [build-system]
 build-backend = "setuptools.build_meta"
@@ -67,29 +69,30 @@ where = ["src"]
 version = {attr = "recipes._version.version"}
 readme = {file = "README.md", content-type = "text/markdown"}
 
-
 [tool.setuptools_scm]
 write_to = "src/recipes/_version.py"
 
+
+# ---------------------------------------------------------------------------- #
+# Test
 # ---------------------------------------------------------------------------- #
 [tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = 
-    3.8
-    3.9
-    3.12
+requires = ["tox>=4.21"]
+# Generative environment list to test all supported Python versions
+env_list = ["3.{8,9,10,11,12,13,14}"] # "fix", "coverage", "lint", "format", 
 
+[tool.tox.env_run_base]
+description = "run test suite"
+deps = [{ replace = "ref", of = ["dependency-groups", "tests"], extend = true }]
+extras = ["tests"]
+package = "editable"
+set_env = { LANGUAGE = "en_US", LC_ALL = "en_US.UTF-8", PYTHONWARNINGS = "default::DeprecationWarning" }
+commands = [
+    ["python", "--version"],
+    # substitute with tox positional arguments
+    ["python", "-m", "pytest", { replace = "posargs", default = [], extend = true }]
+]
 
-[testenv]
-# install testing framework
-# ... or install anything else you might need here
-deps = 
-    -rrequirements-dev.txt
-# run the tests
-# ... or run any other command line tool you need to run here
-commands = pytest {posargs} # substitute with tox positional arguments
-"""
 
 # ---------------------------------------------------------------------------- #
 # [tool.pydeps]
