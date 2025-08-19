@@ -14,7 +14,6 @@ Below you can find an overview of the documentation.
    :maxdepth: 3
    :caption: Contents:
 
-   overview
    install
    develop
    api/index
