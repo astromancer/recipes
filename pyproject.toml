@@ -37,18 +37,23 @@ dependencies = [
 
 [project.optional-dependencies]
 tests = ["pytest", "pytest-cases", "tox>=4.21", "tox-uv"]
-dev = ["uv", "ruff", "recipes[tests]"]
+docs = [ "setuptools_scm", "sphinx>=7.1", "sphinx-rtd-theme>=0.4.3"]
+dev = ["uv", "ruff", "recipes[tests, docs]"]
 
 [dependency-groups]
 tests = ["recipes[tests]"]
+docs = ["recipes[docs]"]
 dev = ["recipes[dev]"]
 
 [project.urls]
 Homepage = "https://github.com/astromancer/recipes"
 Issues = "https://github.com/astromancer/recipes/issues"
+# Repository  = "https://github.com/astromancer/recipes"
+# Changelog = "https://github.com/astromancer/recipes/blob/main/CHANGELOG.md"
 
 [project.scripts]
 tidy_imports = "recipes.introspect.imports.tidy:main"
+
 
 # ---------------------------------------------------------------------------- #
 # Build
@@ -147,6 +152,21 @@ inline-quotes = "single"
 # Prefer single quotes over double quotes.
 quote-style = "single"
 
+
+# ---------------------------------------------------------------------------- #
+# Docs
+# ---------------------------------------------------------------------------- #
+[tool.tox.env.docs]
+deps = [{ replace = "ref", of = ["dependency-groups", "docs"], extend = true }]
+extras = ["docs"]
+# unset LC_ALL / LANGUAGE from testenv, would fail sphinx otherwise
+set_env = ""
+changedir = "{tox_root}"
+allowlist_externals = ["rm"]
+commands = [
+    ["rm", "-rf", "docs/build/html"],
+    ["python", "-m", "sphinx.cmd.build", "-b", "html", "docs/src", "docs/build/html"]
+]
 
 # ---------------------------------------------------------------------------- #
 # [tool.pydeps]
