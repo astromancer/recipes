@@ -133,20 +133,20 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
     Parameters
     ----------
     path_or_pattern : str or Path
-        Location of the root folder. Can also be a glob pattern of
-        filenames to load eg: '/path/SHA_20200715.000[1-5].fits'
-        Pattern can also contain brace expansion patterns eg:
-        '/path/SHA_202007{15..18}.000[1-5].fits' in which case all valid
+        Location of the root folder. Can also be a glob pattern of filenames to
+        load eg: ``'/path/SHA_20200715.000[1-5].fits'``. Pattern can also
+        contain brace expansion patterns eg:
+        ``'/path/SHA\_202007{15..18}.000[1-5].fits'`` in which case all valid
         files and directories in the range will be traversed.
     extensions : str or tuple or list
         The filename extensions to consider. All files with any of these
         extensions will be included. The same functionality as is provided by
         this parameter can be acheived by including the list of file extensions
-        in the expansion pattern. eg: '/path/*.{png,jpg}' will get all png and
+        in the expansion pattern. eg: ``'/path/*.{png,jpg}'`` will get all png and
         jpg files from path directory.
     recurse : bool, default=True
         Whether or not to recurse down the directory tree.  The same as using 
-        ".../**/..." in the glob pattern.
+        ``".../**/..."`` in the glob pattern.
 
     Examples
     --------
@@ -329,10 +329,27 @@ def read_lines(filename, *section, mode='r', strip=None, filtered=None,
                log=False):
     """
     Read a subset of lines from a given file.
+    
+    Two basic function signatures are accepted:
+        iter_lines(filename, stop)
+        iter_lines(filename, start, stop[, step])
 
-    {Extended Summary}
-
-    {Parameters}
+    Parameters
+    ----------
+    filelike : str or Path or io.IOBase
+        File system location of the file to read, or potentially an already open
+        stream handler.
+    *section
+        The [start], stop, [step] lines.
+    mode : str
+        Mode used for opening files, by default r
+    strip : str, optional
+        Characters to strip from lines. The default value depends on the `mode`
+        parameter. For text mode ('r', 'rt'), strip '\\n', for binary mode
+        ('b'), strip system specific newlines. Note that python automatically
+        translates system specific newlines in the file to '\\n', for files
+        opened in text mode. Use `strip=''` or `strip=False` to leave lines
+        unmodified.
     filtered : callable or bool or None, by default None
         A function that will be used to filter out unwnated lines. Filtering
         occurs after stripping unwanted characters. The default behaviour
@@ -453,7 +470,6 @@ def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
     terribly wrong during the attempted operation, the original content will be
     restored.
 
-
     Parameters
     ----------
     filename : str or Path
@@ -531,13 +547,14 @@ def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
 
 
 # @ doc.splice(backed_up, 'summary',
-#             omit='Parameters[backupfile]',
-#             replace={'operation': 'write',
-#                      'read / ': ''})  # FIXME: replace not working here
+#              omit='Parameters[backupfile]',
+#              replace={'operation': 'write',
+#                       'read / ': ''})  # FIXME: replace not working here
 def safe_write(filename, lines, eol='\n',
                backupfile=None, folder=None, keep=True, exception_hook=None):
     """
-    {Parameters}
+    Parameters
+    ----------
     lines : list
         Lines of content to write to file.
     """

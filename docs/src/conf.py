@@ -3,7 +3,6 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-
 from setuptools_scm import get_version
 
 # -- Project information -----------------------------------------------------
@@ -35,14 +34,20 @@ templates_path = ['_templates']
 # directories to ignore when looking for source files.
 exclude_patterns = ['build']
 
-
 # If true, '()' will be appended to :func: etc. cross-reference text.
 add_function_parentheses = False
-
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+# A string of reStructuredText that will be included at the beginning of every
+# source file that is read. This is a possible place to add substitutions that
+# should be available in every file (another being rst_epilog). Example:
+rst_prolog = """
+.. role:: python(code)
+   :language: python
+
+"""
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -50,23 +55,23 @@ pygments_style = 'sphinx'
 html_theme = 'renku'
 html_static_path = ['_static']
 
-
 # If a function's signature length in characters exceeds the number set, each
 # parameter within the signature will be displayed on an individual logical
 # line.
 maximum_signature_line_length = 80
 
-
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'python': ('https://docs.python.org/3/', None)}
-
+intersphinx_mapping = intersphinx_mapping = {
+    'python': ('https://docs.python.org/3/', None),
+    'numpy': ('https://numpy.org/doc/stable/', None)
+}
 
 # -- Options for autodoc ----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#configuration
 
 # This value contains a list of modules to be mocked up. This is useful when
 # some external dependencies are not met at build time and break the building
-# process. 
+# process.
 autodoc_mock_imports = ["recipes.decorators.gui"]
 
 
@@ -76,7 +81,6 @@ autodoc_typehints = 'description'
 
 # Don't show class signature with the class' name.
 autodoc_class_signature = 'separated'
-
 
 # Define the order in which automodule and autoclass members are listed
 autodoc_member_order = 'bysource'

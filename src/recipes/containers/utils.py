@@ -165,29 +165,35 @@ def cosort(*items, key=None, master_key=None, order=1):
     """
     Extended co-sorting of multiple lists. Sort any number of lists
     simultaneously according to:
-        * Sorting function(s) for each list and / or
-        * A global sorting function.
+
+        - Sorting function(s) for each list and / or
+        - A global sorting function.
 
     Parameters
     ----------
     lists:
         One or more lists.
     key: None or callable or tuple of callables
-        * If None (the default): Sorting done by value of first input list.
-        * If callable: Sorting is done by value of
-            >>> key(item)
-          for successive items from the first iterable.
-        * If tuple of callables: Sorting done by value of
-              >>> key[0](item_0), ..., key[n](item_n)
+    
+        - If None (the default): Sorting done by value of first input list.
+        - If callable: Sorting is done by value of ``key(item)`` for successive
+          items from the first iterable.
+        - If tuple of callables: Sorting done by value of
+          ``(key[0](item_0), ..., key[n](item_n))``
           for items in the first n iterables (where n is the length of the `key`
-          tuple) i.e. the first callable is the primary sorting criterion, and the
-          rest act as tie-breakers.
+          tuple) i.e. the first callable is the primary sorting criterion, and
+          the rest act as tie-breakers.
+
     master_key: callable
         Sort by evaluated value of some combination of all items in the lists
         (call signature of this function needs to be such that it accepts an
         argument tuple of items - one from each list.
         For example:
-        >>> master_key = lambda *items: sum(items)
+        
+        .. code:: python
+
+            master_key = lambda *items: sum(items)
+
         will order all the lists by the sum of the items from each list. If not
         provided, revert to sorting by `key` function.
 
@@ -202,17 +208,22 @@ def cosort(*items, key=None, master_key=None, order=1):
 
     Examples
     --------
-    Sorting multiple lists in sympathy:
+    Sorting multiple lists in sympathy: All the inputs will be reordered
+    in the same way that the first input is reordered.
+
     >>> cosort('32145', range(5))
+    (['1', '2', '3', '4', '5'], [2, 1, 0, 3, 4])
 
     Capture sorting indices:
-    >>> items = list('CharacterS')
+
+    >>> items = 'CharacterS'
     >>> cosort(items, range(len(items)))
     (['C', 'S', 'a', 'a', 'c', 'e', 'h', 'r', 'r', 't'],
      [0, 9, 2, 4, 5, 7, 1, 3, 8, 6])
     >>> cosort(items, range(len(items)), key=str.lower)
     (['a', 'a', 'C', 'c', 'e', 'h', 'r', 'r', 'S', 't'],
      [2, 4, 0, 5, 7, 1, 3, 8, 9, 6])
+
     """
     # TODO: extend examples doc
 

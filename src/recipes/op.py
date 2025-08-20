@@ -293,15 +293,20 @@ class AttrMap(MapBase, AttrGetter):
 
 class MethodCaller:
     """
-    This is adapted from `operator.methodcaller`. The code below is taken from
-    'operator.py' (since you can't inherit from `operator.methodcaller!`) with
-    only the `__call__` method altered to support chained attribute lookup like:
+    This class is adapted from :py:func:`operator.methodcaller`. The code below
+    is taken from 'operator.py' (since you can't inherit from
+    `operator.methodcaller`) with only the `__call__` method altered to support
+    chained attribute lookup like:
+    
     >>> MethodCaller('foo.bar.func', *args, **kws)(object)
 
-    Return a callable object that calls the given method on its operand.
-    After f = methodcaller('name'), the call f(r) returns r.name().
-    After g = methodcaller('name', 'date', foo=1), the call g(r) returns
-    r.name('date', foo=1).
+    Represents a callable object that calls the given method on its operand.
+    For example:
+    
+    - After :python:`f = methodcaller('name')`, the call f(r) returns r.name().
+    - After :python:`g = methodcaller('name', 'date', foo=1)`, the call g(r)
+      returns r.name('date', foo=1).
+
     """
     __slots__ = ('_name', '_getter', '_args', '_kwargs')
 
