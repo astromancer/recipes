@@ -3,7 +3,7 @@
 import textwrap as txw
 
 # local
-from recipes.shell import bash
+from recipes.io import brace_expressions
 from recipes.testing import Expected, Throws, expected
 
 
@@ -88,14 +88,14 @@ expand_multi_patterns = {
          'root/2test/*.png']}
 all_expand_patterns = {**expand_once_patterns, **expand_multi_patterns}
 
-test_brace_expand = Expected(bash.brace_expand)(
+test_brace_expand = Expected(brace_expressions.brace_expand)(
     all_expand_patterns, transform=sorted
 )
 
 # ---------------------------------------------------------------------------- #
 # test single contraction
 expand_once_patterns.pop('test{7}.test')
-test_single_contraction = Expected(bash.contract)(
+test_single_contraction = Expected(brace_expressions.contract)(
     [*invert(expand_once_patterns),
      (range(10),                        '{0..9}'),
      (['*001{0..9}.*', '*002{0,1}.*'],  '*00{1{0..9},2{0,1}}.*'),
@@ -111,7 +111,7 @@ test_single_contraction = Expected(bash.contract)(
 #     return sorted(braces.match(s, False).split(','))
 
 
-test_full_contraction = Expected(bash.brace_contract)(
+test_full_contraction = Expected(brace_expressions.brace_contract)(
     (*invert(expand_multi_patterns),
      ([], Throws(ValueError))),
     # transform=components
@@ -121,7 +121,7 @@ test_full_contraction = Expected(bash.brace_contract)(
 #     assert components(result) == components(expected)
 
 
-test_contract_expand = Expected(bash.brace_contract)(
+test_contract_expand = Expected(brace_expressions.brace_contract)(
     [([items], items) for items in (*all_expand_patterns.values(), filenames)],
     transform=sorted
 )
@@ -212,7 +212,7 @@ def make_ids(names, n=10):
     # ids=make_ids(['strings', 'depth'])
 )
 def test_tree(strings, depth, expected):
-    root = bash.get_tree(strings, depth)
+    root = brace_expressions.get_tree(strings, depth)
     assert root.render() == txw.dedent(expected)
 
 # pytest.mark.skip(test_brace_expand, test_brace_contract)
