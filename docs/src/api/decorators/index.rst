@@ -13,6 +13,5 @@ decorators
 
     oo
     base
-    gui
     core
     profiling
