@@ -26,7 +26,7 @@ from ..string import sub
 from ..containers import ensure
 from ..functionals import echo0
 from ..string.delimited import braces
-from ..shell.bash import brace_expand_iter
+from ..tree.brace_expressions import brace_expand_iter
 
 
 # ---------------------------------------------------------------------------- #

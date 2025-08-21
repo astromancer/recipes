@@ -1,5 +1,5 @@
 """
-Emulate bash brace expansion
+Emulate bash brace expressions.
 """
 
 
@@ -20,9 +20,9 @@ RGX_BASH_RANGE = re.compile(r'(\d+)[.]{2}(\d+)')
 
 braces = delimited.Parser('{}')
 
+
 # ---------------------------------------------------------------------------- #
 # utility functions
-
 
 def ints(items):
     return [*map(int, items)]
@@ -30,6 +30,7 @@ def ints(items):
 
 def unclosed(string, open_, close):
     return string.count(open_) - string.count(close)
+
 
 # brace expansion
 # ---------------------------------------------------------------------------- #
