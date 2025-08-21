@@ -4,8 +4,8 @@ import sys
 import math
 
 # relative
-from ..shell import terminal
-from ..strng import overlay, resolve_percentage
+from ..console import terminal
+from ..string import overlay, Percentage
 
 
 def move_cursor(val):
