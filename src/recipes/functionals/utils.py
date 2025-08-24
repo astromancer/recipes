@@ -73,8 +73,8 @@ def negate(func=bool):
     """Negates a callable that returns boolean."""
 
     # TODO: double negate returns original
-    def wrapped(obj):
-        return not func(obj)
+    def wrapped(obj, *args, **kws):
+        return not func(obj, *args, **kws)
 
     return wrapped
 
