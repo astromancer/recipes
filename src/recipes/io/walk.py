@@ -2,6 +2,7 @@
 # std
 import os
 import glob
+from enum import Enum
 from pathlib import Path
 
 # third-party
@@ -17,95 +18,50 @@ from .brace_expressions import brace_expand_iter
 
 # ---------------------------------------------------------------------------- #
 
-def walk(folder, depth=1):
-    """
-    Walk the system path, but only up to the given depth.
-    """
-    # adapted from: http://stackoverflow.com/a/234329/1098683
+class IgnoreFile(Enum):
+    EMPTY = 0
+    SEARCH = 1
 
-    folder = folder.rstrip(os.path.sep)
-    assert os.path.isdir(folder)
+    def _missing_(self, value):
+        return self.EMPTY if ensure.is_null(value, ()) else value
 
-    n_sep = folder.count(os.path.sep)
-    for root, dirs, files in os.walk(folder):
-        yield root, dirs, files
+    @classmethod
+    def search(cls, path):
 
-        level = root.count(os.path.sep)
-        if n_sep + depth <= level:
-            del dirs[:]
+        parent_folders = path.parents
+        if Path.cwd() in parent_folders and (_ignore := Path('.gitignore')).exists():
+            return _ignore.resolve()
+
+        for parent in parent_folders:
+            if (_ignore := parent / '.gitignore').exists():
+                return _ignore
+
+        return cls.EMPTY
+
+    @classmethod
+    def resolve(cls, ignore_file, path):
+
+        ignore_file = cls(ignore_file)
+        if ignore_file is cls.SEARCH:
+            return cls.search(path)
+
+        if ignore_file is cls.EMPTY:
+            return ignore_file
+
+        # resolve path
+        ignore_file = Path(ignore_file).resolve()
+        if not ignore_file.exists():
+            raise FileNotFoundError(f"File or directory does not exist: '{path}'.")
+
+        if ignore_file.parent not in path.parents:
+            logger.warning(
+                'Path {} is not in the same folder tree as the ignore file: {}',
+                path, ignore_file
+            )
+        return
 
 
 # ---------------------------------------------------------------------------- #
-
-def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
-    """
-    Generator that yields all files in a directory tree with given file
-    extension(s), optionally recursing down the directory tree. Brace expansion
-    syntax from bash is supported, allowing multiple directory trees to be
-    traversed with a single statement.
-
-    Parameters
-    ----------
-    path_or_pattern : str or Path
-        Location of the root folder. Can also be a glob pattern of filenames to
-        load eg: ``'/path/SHA_20200715.000[1-5].fits'``. Pattern can also
-        contain brace expansion patterns eg:
-        ``'/path/SHA\_202007{15..18}.000[1-5].fits'`` in which case all valid
-        files and directories in the range will be traversed.
-    extensions : str or tuple or list
-        The filename extensions to consider. All filenames ending on any of
-        these extensions are included. The same functionality as is provided by
-        this parameter can be acheived by including the list of file extensions
-        in the expansion pattern. eg: ``'/path/*.{png,jpg}'`` will get all png
-        and jpg files from path directory.
-    recurse : bool, default=True
-        Whether or not to recurse down the directory tree. The same as using
-        ``".../**/..."`` in the glob pattern.
-    ignore : sequence
-        List of filename glob patterns to ignore when traversing the tree.
-
-    Examples
-    --------
-    >>> iter_files()
-
-    Yields
-    ------
-    pathlib.Path
-        System path pointing to the file.
-
-    Raises
-    ------
-    ValueError
-        If the given base path does not exist.
-    """
-    ignore = ensure.tuple(ignore or (), coerce=str)
-    ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
-
-    yield from FilePatternWalker(extensions).walk(path_or_pattern, recurse)
-
-
-def iter_package_files(file_or_folder, recurse=True, extensions='.py',
-                       ignore_patterns=(), ignore_file='.gitignore', ):
-
-    path = Path(file_or_folder).resolve()
-    if not path.exists():
-        raise FileNotFoundError(f"File or directory does not exist: '{path}'.")
-
-    if ignore_file:
-        ignore_file = Path(ignore_file)
-        if not ignore_file.is_absolute() and path.is_dir():
-            if (_ignore_file := (path / ignore_file)).exists():
-                ignore_file = _ignore_file
-        ignore_file = ignore_file.resolve()
-        
-
-    walker = FilePatternWalker(extensions, ignore_file, ignore_patterns)
-    yield from walker.walk(file_or_folder, recurse)
-
-
-def _maybe_newline(string, width=40, indent=' ' * 2):
-    return f'\n{indent}{string}' if len(string) > width else string
-
 
 class FilePatternWalker:
 
@@ -255,3 +211,89 @@ class FilePatternWalker:
             'Please supply a path to a valid existing directory, or '
             'alternitively a glob pattern, or bash brace expansion pattern.'
         )
+
+
+# ---------------------------------------------------------------------------- #
+
+def walk(folder, depth=1):
+    """
+    Walk the system path, but only up to the given depth.
+    """
+    # adapted from: http://stackoverflow.com/a/234329/1098683
+
+    folder = folder.rstrip(os.path.sep)
+    assert os.path.isdir(folder)
+
+    n_sep = folder.count(os.path.sep)
+    for root, dirs, files in os.walk(folder):
+        yield root, dirs, files
+
+        level = root.count(os.path.sep)
+        if n_sep + depth <= level:
+            del dirs[:]
+
+
+# ---------------------------------------------------------------------------- #
+
+def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
+    """
+    Generator that yields all files in a directory tree with given file
+    extension(s), optionally recursing down the directory tree. Brace expansion
+    syntax from bash is supported, allowing multiple directory trees to be
+    traversed with a single statement.
+
+    Parameters
+    ----------
+    path_or_pattern : str or Path
+        Location of the root folder. Can also be a glob pattern of filenames to
+        load eg: ``'/path/SHA_20200715.000[1-5].fits'``. Pattern can also
+        contain brace expansion patterns eg:
+        ``'/path/SHA\_202007{15..18}.000[1-5].fits'`` in which case all valid
+        files and directories in the range will be traversed.
+    extensions : str or tuple or list
+        The filename extensions to consider. All filenames ending on any of
+        these extensions are included. The same functionality as is provided by
+        this parameter can be acheived by including the list of file extensions
+        in the expansion pattern. eg: ``'/path/*.{png,jpg}'`` will get all png
+        and jpg files from path directory.
+    recurse : bool, default=True
+        Whether or not to recurse down the directory tree. The same as using
+        ``".../**/..."`` in the glob pattern.
+    ignore : sequence
+        List of filename glob patterns to ignore when traversing the tree.
+
+    Examples
+    --------
+    >>> iter_files()
+
+    Yields
+    ------
+    pathlib.Path
+        System path pointing to the file.
+
+    Raises
+    ------
+    ValueError
+        If the given base path does not exist.
+    """
+    ignore = ensure.tuple(ignore or (), coerce=str)
+    ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
+
+    yield from FilePatternWalker(extensions).walk(path_or_pattern, recurse)
+
+
+def iter_package_files(file_or_folder, recurse=True, extensions='.py',
+                       ignore_patterns=(), ignore_file=IgnoreFile.SEARCH):
+
+    path = Path(file_or_folder).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"File or directory does not exist: '{path}'.")
+
+    ignore_file = IgnoreFile.resolve(ignore_file, path)
+
+    walker = FilePatternWalker(extensions, ignore_file, ignore_patterns)
+    yield from walker.walk(file_or_folder, recurse)
+
+
+def _maybe_newline(string, width=40, indent=' ' * 2):
+    return f'\n{indent}{string}' if len(string) > width else string

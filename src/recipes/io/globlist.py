@@ -108,8 +108,10 @@ class GlobPatternList:
             items[glob.has_magic(pattern)].append(pattern.rstrip('/'))
 
     def match(self, filename, root='/'):
+
         path = Path(filename).relative_to(root)
         filename = str(path)
+
         matcher = ftl.partial(fnmatch.fnmatchcase, filename)
         return any(map(matcher, self.patterns)) or filename.endswith(tuple(self.names))
 
