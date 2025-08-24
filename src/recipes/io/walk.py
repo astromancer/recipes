@@ -19,11 +19,13 @@ from .brace_expressions import brace_expand_iter
 # ---------------------------------------------------------------------------- #
 
 class IgnoreFile(Enum):
-    EMPTY = 0
+
+    EMPTY = None
     SEARCH = 1
 
-    def _missing_(self, value):
-        return self.EMPTY if ensure.is_null(value, ()) else value
+    @classmethod
+    def _missing_(cls, value):
+        return cls.EMPTY if ensure.is_null(value, ()) else None
 
     @classmethod
     def search(cls, path):
@@ -36,29 +38,34 @@ class IgnoreFile(Enum):
             if (_ignore := parent / '.gitignore').exists():
                 return _ignore
 
-        return cls.EMPTY
+        return None
 
     @classmethod
     def resolve(cls, ignore_file, path):
 
-        ignore_file = cls(ignore_file)
+        # resolve path
+        if isinstance(ignore_file, (str, Path)):
+            ignore_file = Path(ignore_file).expanduser().absolute()
+            if not ignore_file.exists():
+                raise FileNotFoundError(
+                    f"File or directory does not exist: '{path}'."
+                )
+
+            if ignore_file.parent not in path.parents:
+                logger.warning(
+                    'Path {} is not in the same folder tree as the ignore file: {}',
+                    path, ignore_file
+                )
+
+            return ignore_file
+
         if ignore_file is cls.SEARCH:
             return cls.search(path)
 
-        if ignore_file is cls.EMPTY:
-            return ignore_file
+        if cls(ignore_file) is cls.EMPTY:
+            return None
 
-        # resolve path
-        ignore_file = Path(ignore_file).resolve()
-        if not ignore_file.exists():
-            raise FileNotFoundError(f"File or directory does not exist: '{path}'.")
-
-        if ignore_file.parent not in path.parents:
-            logger.warning(
-                'Path {} is not in the same folder tree as the ignore file: {}',
-                path, ignore_file
-            )
-        return
+        raise ValueError(f'Could not resolve ignore_file from: {ignore_file!r}.')
 
 
 # ---------------------------------------------------------------------------- #
@@ -290,7 +297,6 @@ def iter_package_files(file_or_folder, recurse=True, extensions='.py',
         raise FileNotFoundError(f"File or directory does not exist: '{path}'.")
 
     ignore_file = IgnoreFile.resolve(ignore_file, path)
-
     walker = FilePatternWalker(extensions, ignore_file, ignore_patterns)
     yield from walker.walk(file_or_folder, recurse)
 
