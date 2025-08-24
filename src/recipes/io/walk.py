@@ -159,6 +159,8 @@ class FilePatternWalker:
             If the provided path or pattern does not resolve to an existing file
             or directory.
         """
+        logger.debug('Iterating over: {!s}. recurse = {}', path_or_pattern, recurse)
+
         path_or_pattern = str(path_or_pattern)
 
         # handle brace expansion first
@@ -193,10 +195,11 @@ class FilePatternWalker:
         yield from self._walk(path, recurse)
 
     def _walk(self, path, recurse):
-
-        logger.debug('Iterating over: {!s}. recurse = {}', path, recurse)
-
-        if self.ignore.match(path):
+    
+        # Since the glob pattern can return a file that is in an ignored folder,
+        # we need to check the parent folder.
+        if self.ignore.match(path) or self.ignore.match(path.parent):
+            logger.debug('Ignoring: {!s}.', path)
             return
 
         # Return the input if it is an existing file. This breaks the recurrence.
@@ -286,7 +289,7 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
     ignore = ensure.tuple(ignore or (), coerce=str)
     ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
 
-    yield from FilePatternWalker(extensions).walk(path_or_pattern, recurse)
+    yield from FilePatternWalker(extensions, ignore).walk(path_or_pattern, recurse)
 
 
 def iter_package_files(file_or_folder, recurse=True, extensions='.py',
