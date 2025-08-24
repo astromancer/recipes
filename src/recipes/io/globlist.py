@@ -61,7 +61,7 @@ class GlobPatternList:
     Class to filter files matching any in a list of glob patterns.
     """
 
-    __slots__ = ('names', 'patterns')
+    __slots__ = ('names', 'folders',  'subpaths', 'abspaths', 'patterns')
 
     # @classmethod
     # def load(cls, filename=None, patterns=()):
@@ -81,9 +81,19 @@ class GlobPatternList:
     fromfile = from_file
 
     def __init__(self, patterns):
-        self.names = list(IGNORE_IMPLICIT)
+        self.names = []
+        self.folders = []
+        self.subpaths = []
+        self.abspaths = []
         self.patterns = []
         self.add(patterns)
+
+    def pprint(self):
+        print(''.join(
+            ''.join((attr, ' =\n',
+                     '    ', '\n    '.join(getattr(self, attr)), '\n'))
+            for attr in self.__slots__
+        ))
 
     def add(self, items):
 
@@ -94,26 +104,51 @@ class GlobPatternList:
             list(map(self.add, items))
 
         elif isinstance(items, GlobPatternList):
-            self.names.extend(items.names)
-            self.patterns.extend(items.patterns)
+            for attr in self.__slots__:
+                getattr(self, attr).extend(getattr(items, attr))
 
         else:
-            raise TypeError(f'Invalid object type {type(items).__name__}: {items}.')
+            raise TypeError(
+                f'Invalid object type {type(items).__name__}: {items}.'
+            )
 
     def _add(self, pattern):
-        items = (self.names, self.patterns)
-        if pattern:
-            # FIXME: trailing slash is signigficant. should only match
-            # directories if present
-            items[glob.has_magic(pattern)].append(pattern.rstrip('/'))
+        if not pattern:
+            return
 
-    def match(self, filename, root='/'):
+        if glob.has_magic(pattern):
+            return self.patterns.append(pattern)
 
-        path = Path(filename).relative_to(root)
-        filename = str(path)
+        if pattern.startswith('/'):
+            return self.abspaths.append(pattern)
 
-        matcher = ftl.partial(fnmatch.fnmatchcase, filename)
-        return any(map(matcher, self.patterns)) or filename.endswith(tuple(self.names))
+        if pattern.endswith('/'):
+            #  trailing slash is signigficant. should only match directories
+            # if present
+            return self.folders.append(pattern.rstrip('/'))
+
+        if '/' in pattern:
+            return self.subpaths.append(pattern)
+
+        self.names.append(pattern)
+
+    def match(self, filename):
+
+        return (
+            (filename := str(filename)) in self.abspaths
+            or (path := Path(filename)).name in self.names
+            or path.is_dir() and path.name in self.folders
+            or filename.endswith(tuple(self.subpaths))
+            or any(map(ftl.partial(self._match, filename), self.patterns))
+        )
+
+    def _match(self, filename, pattern):
+        # handle negated patterns
+        if negate := pattern.startswith('!'):
+            pattern = pattern.replace('!', '', 1)
+
+        matched = fnmatch.fnmatchcase(filename, pattern)
+        return (not matched) if negate else matched
 
     # def walk(self, folder, depth=any, extensions=all):
 
@@ -155,15 +190,16 @@ class GitIgnore(GlobPatternList):
     Class to read `.gitignore` files and filter source trees.
     """
 
-    __slots__ = ('root', )
+    # __slots__ = ('root', )
 
     def __init__(self, filename='.gitignore'):
         path = Path(filename)
         super().__init__(read(path))
-        self.root = path.parent
+        self.names.extend(IGNORE_IMPLICIT)
+        # self.root = path.parent
 
     def match(self, filename, root=None):
-        return super().match(filename, root or self.root)
+        return super().match(filename)
 
     # def walk(self, folder, depth=any, extensions=all):
     #     return super().walk(folder or self.root, depth, extensions)

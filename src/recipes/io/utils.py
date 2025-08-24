@@ -328,7 +328,6 @@ def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
     terribly wrong during the attempted operation, the original content will be
     restored.
 
-
     Parameters
     ----------
     filename : str or Path
@@ -406,13 +405,14 @@ def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
 
 
 # @ doc.splice(backed_up, 'summary',
-#             omit='Parameters[backupfile]',
-#             replace={'operation': 'write',
-#                      'read / ': ''})  # FIXME: replace not working here
+#              omit='Parameters[backupfile]',
+#              replace={'operation': 'write',
+#                       'read / ': ''})  # FIXME: replace not working here
 def safe_write(filename, lines, eol='\n',
                backupfile=None, folder=None, keep=True, exception_hook=None):
     """
-    {Parameters}
+    Parameters
+    ----------
     lines : list
         Lines of content to write to file.
     """
