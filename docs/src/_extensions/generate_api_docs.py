@@ -1,16 +1,16 @@
+
 from pathlib import Path
+from collections import defaultdict
 
 from sphinx.application import Sphinx
 from sphinx.util.typing import ExtensionMetadata
 
-from recipes.io import gitignore
+from recipes.io.walk import iter_package_files
 
 
 module_template = """
-{0:}
-{1:}
-
-.. automodule:: {2}
+{}
+.. automodule:: {}
     :members:
     :show-inheritance:
     :noindex:
@@ -20,7 +20,7 @@ index_template = f"""{module_template}
 .. toctree::
     :maxdepth: 3
 
-    {{3}}
+    {{}}
 """
 
 
@@ -34,6 +34,7 @@ class APIDocTreeGenerator:
                  library_path=None, docs_source='docs/src', output_folder='api',
                  ignore_file='.gitignore', ignore_patterns=('**/_*.py'),
                  index_filename='index', filename_prefix=None, nested=0,
+                 headers='full'
                  ):
         """
         Initializes the APIDocTreeGen instance with configuration for API
@@ -78,7 +79,8 @@ class APIDocTreeGenerator:
               directories in the tree.
             - If -1 (the default) a folder tree with structure mirroring that of
               the package will be generated.
-
+        headers : {'full', 'name_only', True, False}:
+            How to format headers in the rst files.
         """
         self.package_root = Path(package_root)
         assert self.package_root.exists()
@@ -89,99 +91,119 @@ class APIDocTreeGenerator:
         self.output_root = self.resolve_path(output_folder, 'docs_source')
 
         ignore_file = self.resolve_path(ignore_file)
-        self.ignore = gitignore.load(ignore_file, ignore_patterns)
+        self.ignore_file = ignore_file
+        self.ignore_patterns = ignore_patterns
 
         if filename_prefix is None:
             filename_prefix = self.package_name
         self.filename_prefix = str(filename_prefix)
         self.index_filename = index_filename
         self.nested = int(nested)
+        self.headers = str(headers)
 
     def resolve_path(self, path, relative_to='package_root'):
         if not (path := Path(path)).is_absolute():
             path = getattr(self, relative_to) / path
         return path
 
-    def create_module(self, module, module_path, output_folder,
-                      dry_run=False, level=0):
-        # print(module, '-' * len(module), sep='\n')
-        for sub in module_path.glob('*.py'):
-            if self.ignore.match(sub):
-                continue
+    def collect(self):
+        modules = defaultdict(lambda: defaultdict(list))
+        for file in iter_package_files(self.library_path,
+                                       ignore_patterns=self.ignore_patterns,
+                                       ignore_file=self.ignore_file):
+            #
+            subpath = file.relative_to(self.library_path).parent
+            module = '.'.join((self.package_name, *subpath.parts))
+            data = modules[module]
 
+            # collect submodules
             if self.nested:
-                stem = sub.stem
+                # output_name = f'{self.index_filename
+                output_path = subpath / file.stem
             else:
-                base = module.replace(self.package_name, self.filename_prefix, 1)
-                stem = f'{base}.{sub.stem}'.lstrip('.')
+                output_path = self.get_output_filename(f'{module}.{file.stem}')
 
-            yield stem
+            data['submodules'].append(output_path)
 
-            file = output_folder / f'{stem}.{self.format}'
-            content = self.module_template.format(
-                sub.stem, '-' * len(sub.stem), f'{module}.{sub.stem}'
-            )
+            # get path for subpackage index file
+            if 'index' not in data:
+                if self.nested:
+                    data['index'] = (subpath / self.index_filename)
+                else:
+                    data['index'] = self.get_output_filename(module) or self.index_filename
 
+            # collect subpackages
+            if subpath.parts:
+                parent = module.rsplit('.', 1)[0]
+                subpackages = modules[parent]['subpackages']
+                if (index := data['index']) not in subpackages:
+                    subpackages.append(index)
+
+        return modules
+
+    def get_output_filename(self, module):
+        return module.replace(self.package_name,
+                              self.filename_prefix, 1).strip('.')
+
+    def write_package(self, modules, title=None, dry_run=False):
+        header = title
+        for module, spec in modules.items():
+            self.write_index(module, spec, header, dry_run)
+            header = None
+
+            for sub in spec['submodules']:
+                file = self.output_root / f'{sub}.{self.format}'
+                self.write_module(file, sub, dry_run=dry_run)
+
+    def write_index(self, module, spec, header=None, dry_run=False):
+
+        submodules = spec['submodules']
+        subpackages = spec['subpackages']
+        if references := [*submodules, *subpackages]:
+            # get file header
+            header = self.get_header(module, header)
+            content = self.index_template.format(header, module,
+                                                 '\n    '.join(references))
+            index_file = self.output_root / f'{spec["index"]}.{self.format}'
             if dry_run:
-                print('-' * 80, f'Dry run: {module}', file,
+                print('-' * 80, f'Dry run: {module}', index_file,
                       '-' * 80, content,
                       '-' * 80, sep='\n')
             else:
-                file.parent.mkdir(exist_ok=True)
-                file.write_text(content)
+                index_file.write_text(content)
 
-    def create_package(self, path, output_path, module, dry_run=False,
-                       title=None, level=0):
+    def write_module(self, file, module, header=None, dry_run=False):
 
-        # submodules: Find *.py files and generate those submodule docs first
-        submodules = list(
-            self.create_module(module, path, output_path, dry_run, level)
-        )
-        # subpackages: loop through directories
-        for sub in path.iterdir():
-            if not sub.is_dir() or self.ignore.match(sub):
-                continue
+        header = self.get_header(module, header)
+        content = self.module_template.format(header, module)
 
-            if self.nested:
-                sub_path = output_path / sub.name
-                reference = f'{sub.name}/{self.index_filename}'
-            else:
-                sub_path = output_path
-                reference = f'{module}.{sub.name}'
+        if dry_run:
+            print('-' * 80, f'Dry run: {module}', file,
+                  '-' * 80, content,
+                  '-' * 80, sep='\n')
+        else:
+            file.parent.mkdir(exist_ok=True)
+            file.write_text(content)
 
-            sub_name = f'{module}.{sub.name}'
-            self.create_package(
-                sub, sub_path, sub_name, dry_run, level=level + 1
-            )
-            submodules.append(reference)
+    def get_header(self, module, header):
 
-        if submodules:
-            if self.nested:
-                file = (output_path / f'{self.index_filename}.{self.format}')
-            else:
-                base = module.replace(self.package_name, self.filename_prefix, 1).strip('.')
-                file = (self.output_root / f'{base}.{self.format}')
+        if not self.headers:
+            return ''
 
-            title = title or path.name
-            content = self.index_template.format(title,
-                                                 '=' * len(title),
-                                                 module,
-                                                 '\n    '.join(submodules))
-            if dry_run:
-                print('-' * 80, f'Dry run: {module}', file,
-                      '-' * 80, content,
-                      '-' * 80, sep='\n')
-            else:
-                file.write_text(content)
+        if header is None:
+            if self.headers == 'full':
+                header = module
+            if self.headers == 'name_only':
+                header = module.rsplit('.', 1)[-1]
 
-    def run(self, dry_run=False, title='API'):
+        # underline
+        header = str(header)
+        return f'{header}\n{"=" * len(header)}\n'
 
-        self.create_package(
-            self.library_path, self.output_root, self.package_name,
-            dry_run=dry_run, title=title
-        )
+    def run(self, header='API', dry_run=False):
 
-# @click.argument('package_root', type=Path)
+        modules = self.collect()
+        self.write_package(modules, header, dry_run)
 
 
 def setup(app: Sphinx) -> ExtensionMetadata:
@@ -204,20 +226,30 @@ def setup(app: Sphinx) -> ExtensionMetadata:
 # @click.option('--filename-prefix')
 # @click.option('--nested')
 # @click.option('--dry-run')
-# @click.option('--title')
-def main(package_root, package_name=None,
-         library_path=None, docs_source='docs/src', output_folder='api',
-         ignore_file='.gitignore', ignore_patterns=('**/_*.py'),
-         index_filename='index', filename_prefix=None, nested=0,
-         dry_run=False, title=None):
+# @click.option('--header')
+def main(
+    package_root,
+    package_name=None,
+    library_path=None,
+    docs_source='docs/src',
+    output_folder='api',
+    ignore_file='.gitignore',
+    ignore_patterns=('**/_*.py'),
+    index_filename='index',
+    filename_prefix=None,
+    nested=0,
+    dry_run=True,
+    headers='full',
+    title='API'
+):
 
-    gen = APIDocTreeGenerator(package_root, package_name,
-                              library_path, docs_source, output_folder,
-                              ignore_file, ignore_patterns,
-                              index_filename, filename_prefix, nested)
-
-    gen.run(dry_run, title)
-
+    gen = APIDocTreeGenerator(
+        package_root, package_name,
+        library_path, docs_source, output_folder,
+        ignore_file, ignore_patterns,
+        index_filename, filename_prefix, nested, headers
+    )
+    gen.run(title, dry_run)
 
 
 if __name__ == '__main__':
@@ -226,4 +258,7 @@ if __name__ == '__main__':
     ignore = ['**/_*.py', library / 'decorators/examples']
     # docs_src = Path(__file__).parent
     # api_docs = docs_src / 'api'
-    main(package, ignore_patterns=ignore, dry_run=True)
+    main(package,
+         ignore_patterns=ignore,
+         headers='name_only',
+         filename_prefix='')
