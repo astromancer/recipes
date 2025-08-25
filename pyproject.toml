@@ -170,7 +170,7 @@ changedir = "{tox_root}"
 allowlist_externals = ["rm"]
 commands = [
     ["rm", "-rf", "docs/build/html"],
-    ["python", "-m", "sphinx.cmd.build", "-b", "html", "docs/src", "docs/build/html"]
+    ["python", "-m", "sphinx.cmd.build", "-b", "html", "docs/src", "docs/build/html", "-j4"]
 ]
 
 # ---------------------------------------------------------------------------- #
