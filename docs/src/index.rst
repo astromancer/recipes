@@ -13,7 +13,6 @@ Below you can find an overview of the documentation.
    :maxdepth: 1
    :caption: Contents:
 
-   overview
    install
    develop
    api/recipes/index
