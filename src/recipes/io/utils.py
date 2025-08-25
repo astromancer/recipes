@@ -186,6 +186,10 @@ def read_lines(filename, *section, mode='r', strip=None, filter=None,
                log=False):
     """
     Read a subset of lines from a given file.
+    
+    Two basic function signatures are accepted:
+        iter_lines(filename, stop)
+        iter_lines(filename, start, stop[, step])
 
     Two basic function signatures are accepted:
         iter_lines(filename, stop)

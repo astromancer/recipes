@@ -158,15 +158,17 @@ class ParagraphWrapper:
 
 class RepeatMessageHandler:
     """
-    A loguru sink that filters repeat log messages and instead emits a 
+    A loguru sink that filters repeat log messages and instead emits a
     custom summary message.
     """
 
     # Message attributes to use as cache key
     _keys = ('function', 'line', 'message', 'exception', 'extra')  # 'file'
 
-    #
     formatter = staticmethod(str.format)
+    """Formatter for output messages. Uses :py:meth:`str.format` by default.
+    Subclasses may choose to reimplement this.
+    """
 
     def __init__(self, target=sys.stderr, buffer_size=12,
                  template=' ⤷ [Previous {n_messages} {n_repeats} in {t}]\n',

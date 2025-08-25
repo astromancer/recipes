@@ -11,8 +11,7 @@ from ..string import overlay, Percentage
 def move_cursor(val):
     """move cursor up or down"""
     AB = 'AB'[val > 0]  # move up (A) or down (B)
-    mover = '\033[{}{}'.format(abs(val), AB)
-    sys.stdout.write(mover)
+    sys.stdout.write(f'\033[{abs(val)}{AB}')
 
 
 class ProgressBarBase:
@@ -40,16 +39,18 @@ class ProgressBarBase:
         # NOTE: sys.stdout makes this class un-picklable
         assert end > 0
         self.end = int(end)
-        every = resolve_percentage(self.every, self.end)
-        if every is None:
+        if self.every is None:
             # only update once progress has advanced enough to change text
             every = math.ceil(10 ** (self.sigfig + 2) / self.end)
+        else:
+            every = Percentage(self.every).of(self.end)
+
         self.every = max(every, 1)
         self.stream = stream
 
     def inc(self):
         self.count += 1
-        return int(self.count)
+        return self.count
 
     def update(self, i=None):  # stream ??
         """
