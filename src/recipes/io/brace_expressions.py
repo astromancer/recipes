@@ -106,7 +106,8 @@ class BraceExpressionNode(Node):  # pylint: disable=function-redefined
         """
         Merge nodes that are all leaves of the same parent.
 
-        For example
+        For example::
+
             └── 20
                 └── 13061
                     ├── 6.003
@@ -119,7 +120,8 @@ class BraceExpressionNode(Node):  # pylint: disable=function-redefined
                         ├── 0
                         └── 1
 
-        Becomes:
+        Becomes::
+
             └── 20
                 └── 13061
                     ├── 6.003
@@ -129,13 +131,15 @@ class BraceExpressionNode(Node):  # pylint: disable=function-redefined
                     └── 8.003
                         └── {0,1}
 
-        After running `collapse_unary` on this tree, the result would be:
+        After running `collapse_unary` on this tree, the result would be::
+
             2013061
                 ├── 6.003{0,1}
                 ├── 7.003{0,1}
                 └── 8.003{0,1}
 
-        Another run of `collapse_leaves` gives:
+        Another run of `collapse_leaves` gives::
+
             2013061
                 └── {6,7,8}.003{0,1}
 

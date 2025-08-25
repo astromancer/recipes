@@ -15,11 +15,12 @@ def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
          remove_commented_source=True, remove_todo=True, remove_fixme=True,
          remove_empty=False):
     """
+    Clean up comments in python source code.
 
     Parameters
     ----------
     filename: str, pathlib.Path
-        system path pointing to the '*.py' file
+        System path pointing to the python file.
     up_to_line: int
         only lines up to (and including) this line will be edited
     hard_wrap: int
@@ -33,10 +34,9 @@ def tidy(filename, up_to_line=math.inf, hard_wrap=80, inline_shift=0,
     remove_fixme: bool
         filter FIXME comments
 
-
     Returns
     -------
-
+    set
     """
     filename = str(filename)
     with open(filename) as fp:

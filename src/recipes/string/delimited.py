@@ -587,12 +587,13 @@ class Parser:
         Parameters
         ----------
         string : str
-            The string to be parsed. May contain (pairs of) brackets  .
+            The string to be parsed. May contain (pairs of) brackets.
         must_close : {-1, 0, 1}
             Defines the behaviour when an unclosed of bracket is encountered:
-            -1          : Silently ignore
-             0 or False : Yield Delimited with None at missing index
-             1 or True  : raises ValueError
+
+            - -1         : Silently ignore
+            - 0 or False : Yield Delimited with None at missing index
+            - 1 or True  : raises ValueError
 
         Yields
         ------
@@ -665,23 +666,23 @@ class Parser:
         """
         Search the string for a single (pair of) bracket(s). With the default
         parameters, this method returns the first (and outermost) bracket pair.
-        The remaining parameters can be used to control which bracket (pair) will
-        be matched, and whether unclosed brackets should be accepted.
+        The remaining parameters can be used to control which bracket (pair)
+        will be matched, and whether unclosed brackets should be accepted.
 
         To iterate over multiple bracket pairs, use the `iterate` method.
 
         Parameters
         ----------
-        string : _type_
+        string : str
             The string to search for a bracket pair.
         must_close : bool, optional
-            _description_, by default False
-        condition : _type_, optional
-            _description_, by default NoCondition
+            Whether to match unclosed brackets, by default False
+        condition : Condition, optional
+            Condition object for conditional matching, by default NoCondition
         inside_out : bool, optional
-            _description_, by default False
+            Match innermost first, by default False
         outside_in : bool, optional
-            _description_, by default True
+            Match outermost first, by default True
 
         Parameters
         ----------
@@ -689,16 +690,19 @@ class Parser:
 
         must_close : bool, optional
             Defines the behaviour for unclosed pairs of brackets:
-            -1          : Silently ignore
-             0 or False : Yield Delimited with None in place of missing 
-                          start/stop index.
-             1 or True  : raises ValueError
+
+            - -1         : Silently ignore
+            - 0 or False : Yield Delimited with None in place of missing 
+              start/stop index.
+            - 1 or True  : raises ValueError
 
         Examples
         --------
+
         >>> s = 'def sample(args=(), **kws):'
         >>> r, (i, j) = Parser('()').match(s)
         ('args=(), **kws' , (10, 25))
+
         >>> r == s[i+1:j]
         True
 

@@ -431,16 +431,27 @@ class Scientific(Decimal):
         signed: str, bool
             {}
         times: str
-            style to use for multiplication symbol.
-            * If value is either 'x' or '.' or '*':
-                Symbol substitutions for unicode and latex formats are made by 
-                the `unicode` and `latex` methods as per the following table:
-                    unicode:    '×'         or      '·'         or      '*'
-                    latex:      '\\times'   or      '\\cdot'    or      '*'
-                    ascii:      'x'        or      '.'          or      '*'
-            * using 'E' or 'e' will switch to E-notation style. 
-                eg.: 1.3e-12 or 1.3E-12
-            * Any other str may be passed in which case it will be used verbatim.
+            Style to use for multiplication symbol.
+
+            - If value is either 'x' or '.' or '*':
+              Symbol substitutions for unicode and latex formats are made by
+              the `unicode` and `latex` methods as per the following table:
+
+                  =============== ============= ============== =========
+                  ``times=``      ``"x"``       ``"."``        ``"*"``
+                  --------------- ------------- -------------- ---------
+                  method          Outputs
+                  =============== ======================================
+                  :meth:`unicode` ``"×"``       ``"·"``        ``"*"``
+                  :meth:`latex`   ``r"\\times"``  ``r"\\cdot"``  ``"*"``
+                  :meth:`ascii`   ``"x"``       ``"."``        ``"*"``
+                  =============== ============= ============== =========
+
+            - Using 'E' or 'e' will switch to E-notation style. 
+              eg.: 1.3e-12 or 1.3E-12
+            - Any other str may be passed in which case it will be used
+              verbatim.
+
         short: bool
             Strip trailing zeros and decimal point.
 
@@ -448,10 +459,6 @@ class Scientific(Decimal):
         Returns
         -------
         str
-
-        Examples
-        --------
-        >>> 
 
         References
         ----------

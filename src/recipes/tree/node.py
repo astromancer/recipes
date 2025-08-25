@@ -74,7 +74,8 @@ class PrettyNode(anytree.Node):
         dynamically based on the length of the string representation of the
         parents.
 
-        For example:
+        For example::
+
             └20
               ├13061
               │    ├6.003
@@ -166,41 +167,52 @@ class TreeBuilder:
 
         Examples 
         --------
-        >>> fonts = Node.from_list(['Domitian-Bold.otf',
-        ...                         'Domitian-BoldItalic.otf',
-        ...                         'Domitian-Italic.otf',
-        ...                         'Domitian-Roman.otf',
-        ...                         'EBGaramond-Bold.otf',
-        ...                         'EBGaramond-BoldItalic.otf',
-        ...                         'EBGaramond-ExtraBold.otf',
-        ...                         'EBGaramond-ExtraBoldItalic.otf',
-        ...                         'EBGaramond-Initials.otf',
-        ...                         'EBGaramond-Italic.otf',
-        ...                         'EBGaramond-Medium.otf',
-        ...                         'EBGaramond-MediumItalic.otf',
-        ...                         'EBGaramond-Regular.otf',
-        ...                         'EBGaramond-SemiBold.otf',
-        ...                         'EBGaramond-SemiBoldItalic.otf'])
-        ... fonts.collapse(max_depth=2)
-        ... fonts.pprint()
+        Lets use this list of font names as an example:
 
-        ├Domitian-
-        │        ├Italic.otf
-        │        ├Roman.otf
-        │        ├Bold.otf
-        │        └BoldItalic.otf
-        └EBGaramond-
-                   ├Regular.otf
-                   ├Bold.otf
-                   ├BoldItalic.otf
-                   ├ExtraBold.otf
-                   ├ExtraBoldItalic.otf
-                   ├Initials.otf
-                   ├Italic.otf
-                   ├Medium.otf
-                   ├MediumItalic.otf
-                   ├SemiBold.otf
-                   └SemiBoldItalic.otf
+        .. code:: python
+        
+            fonts = Node.from_list(['Domitian-Bold.otf',
+                                    'Domitian-BoldItalic.otf',
+                                    'Domitian-Italic.otf',
+                                    'Domitian-Roman.otf',
+                                    'EBGaramond-Bold.otf',
+                                    'EBGaramond-BoldItalic.otf',
+                                    'EBGaramond-ExtraBold.otf',
+                                    'EBGaramond-ExtraBoldItalic.otf',
+                                    'EBGaramond-Initials.otf',
+                                    'EBGaramond-Italic.otf',
+                                    'EBGaramond-Medium.otf',
+                                    'EBGaramond-MediumItalic.otf',
+                                    'EBGaramond-Regular.otf',
+                                    'EBGaramond-SemiBold.otf',
+                                    'EBGaramond-SemiBoldItalic.otf'])
+            fonts.pprint()
+
+        Will produce the following::
+
+            ├Domitian-
+            │        ├Bold
+            │        │   ├.otf
+            │        │   └Italic.otf
+            │        ├Italic.otf
+            │        └Roman.otf
+            └EBGaramond-
+                    ├Bold
+                    │   ├.otf
+                    │   └Italic.otf
+                    ├ExtraBold
+                    │        ├.otf
+                    │        └Italic.otf
+                    ├I
+                    │├nitials.otf
+                    │└talic.otf
+                    ├Medium
+                    │     ├.otf
+                    │     └Italic.otf
+                    ├Regular.otf
+                    └SemiBold
+                            ├.otf
+                            └Italic.otf
 
         Returns
         -------
@@ -290,79 +302,59 @@ class TreeBuilder:
             Maximal depth of resulting tree, by default math.inf, which leaves
             the tree unchanged.
 
+        Returns
+        -------
+        changed: bool
+            Whether the tree was altered or not.
+
         Examples
         --------
-        >>> fonts = Node.from_list(['Domitian-Bold.otf',
-        ...                         'Domitian-BoldItalic.otf',
-        ...                         'Domitian-Italic.otf',
-        ...                         'Domitian-Roman.otf',
-        ...                         'EBGaramond-Bold.otf',
-        ...                         'EBGaramond-BoldItalic.otf',
-        ...                         'EBGaramond-ExtraBold.otf',
-        ...                         'EBGaramond-ExtraBoldItalic.otf',
-        ...                         'EBGaramond-Initials.otf',
-        ...                         'EBGaramond-Italic.otf',
-        ...                         'EBGaramond-Medium.otf',
-        ...                         'EBGaramond-MediumItalic.otf',
-        ...                         'EBGaramond-Regular.otf',
-        ...                         'EBGaramond-SemiBold.otf',
-        ...                         'EBGaramond-SemiBoldItalic.otf'])
-        ... fonts.pprint()
+        Lets use this list of font names as an example:
 
-        ├Domitian-
-        │        ├Bold
-        │        │   ├.otf
-        │        │   └Italic.otf
-        │        ├Italic.otf
-        │        └Roman.otf
-        └EBGaramond-
-                   ├Bold
-                   │   ├.otf
-                   │   └Italic.otf
-                   ├ExtraBold
-                   │        ├.otf
-                   │        └Italic.otf
-                   ├I
-                   │├nitials.otf
-                   │└talic.otf
-                   ├Medium
-                   │     ├.otf
-                   │     └Italic.otf
-                   ├Regular.otf
-                   └SemiBold
-                           ├.otf
-                           └Italic.otf
+        .. code:: python
+        
+            fonts = Node.from_list(['Domitian-Bold.otf',
+                                    'Domitian-BoldItalic.otf',
+                                    'Domitian-Italic.otf',
+                                    'Domitian-Roman.otf',
+                                    'EBGaramond-Bold.otf',
+                                    'EBGaramond-BoldItalic.otf',
+                                    'EBGaramond-ExtraBold.otf',
+                                    'EBGaramond-ExtraBoldItalic.otf',
+                                    'EBGaramond-Initials.otf',
+                                    'EBGaramond-Italic.otf',
+                                    'EBGaramond-Medium.otf',
+                                    'EBGaramond-MediumItalic.otf',
+                                    'EBGaramond-Regular.otf',
+                                    'EBGaramond-SemiBold.otf',
+                                    'EBGaramond-SemiBoldItalic.otf'])
+            fonts.collapse(max_depth=2)
+            fonts.pprint()
 
-        >>> fonts.collapse(max_depth=2)
-        >>> fonts.pprint()
+        Will produce the following::
 
-        ├Domitian-
-        │        ├Italic.otf
-        │        ├Roman.otf
-        │        ├Bold.otf
-        │        └BoldItalic.otf
-        └EBGaramond-
-                   ├Regular.otf
-                   ├Bold.otf
-                   ├BoldItalic.otf
-                   ├ExtraBold.otf
-                   ├ExtraBoldItalic.otf
-                   ├Initials.otf
-                   ├Italic.otf
-                   ├Medium.otf
-                   ├MediumItalic.otf
-                   ├SemiBold.otf
-                   └SemiBoldItalic.otf
+            ├Domitian-
+            │        ├Italic.otf
+            │        ├Roman.otf
+            │        ├Bold.otf
+            │        └BoldItalic.otf
+            └EBGaramond-
+                    ├Regular.otf
+                    ├Bold.otf
+                    ├BoldItalic.otf
+                    ├ExtraBold.otf
+                    ├ExtraBoldItalic.otf
+                    ├Initials.otf
+                    ├Italic.otf
+                    ├Medium.otf
+                    ├MediumItalic.otf
+                    ├SemiBold.otf
+                    └SemiBoldItalic.otf
 
         Note that, in this example, the root node's `name` attribute is
         just an empty string '', which formats as a newline in string
         representation above.
 
-
-        Returns
-        -------
-        changed: bool
-            Whether the tree was altered or not.
         """
         if max_depth == -1:
             max_depth = math.inf
@@ -452,7 +444,8 @@ class TreeBuilder:
         (branching factor 1), attach the grand child to the parent node and 
         discard / orphan the child node.
 
-        For example:
+        For example::
+
             └── 2
                 └── 0
                     └── 1
@@ -482,7 +475,8 @@ class TreeBuilder:
                                                             ├── 0
                                                             └── 1
 
-        Becomes:
+        Becomes::
+
             └── 20
                 └── 13061
                     ├── 6.003
