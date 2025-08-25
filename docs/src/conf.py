@@ -3,8 +3,16 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import sys
+from pathlib import Path
 
 from setuptools_scm import get_version
+
+
+# load extension to create tables of available sdp scripts for documentation
+sys.path.insert(0, str(Path('_extensions').resolve()))
+import generate_api_docs
+
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
