@@ -32,6 +32,7 @@ version = '.'.join(release.split('.')[:3])
 
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.napoleon',
     "sphinx_copybutton"
@@ -81,8 +82,8 @@ intersphinx_mapping = intersphinx_mapping = {
 
 # This value contains a list of modules to be mocked up. This is useful when
 # some external dependencies are not met at build time and break the building
-# process.
-autodoc_mock_imports = ["recipes.decorators.gui"]
+# process. 
+autodoc_mock_imports = []
 
 
 # Automatically extract typehints when specified and place them in
