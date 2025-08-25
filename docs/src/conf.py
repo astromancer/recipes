@@ -8,10 +8,9 @@ from pathlib import Path
 
 from setuptools_scm import get_version
 
-
 # load extension to create tables of available sdp scripts for documentation
 sys.path.insert(0, str(Path('_extensions').resolve()))
-import generate_api_docs
+import generate_api_docs  # noqa
 
 
 # -- Project information -----------------------------------------------------
@@ -31,6 +30,7 @@ version = '.'.join(release.split('.')[:3])
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
+    'generate_api_docs',
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
@@ -82,7 +82,7 @@ intersphinx_mapping = intersphinx_mapping = {
 
 # This value contains a list of modules to be mocked up. This is useful when
 # some external dependencies are not met at build time and break the building
-# process. 
+# process.
 autodoc_mock_imports = []
 
 
@@ -112,20 +112,19 @@ copybutton_exclude = '.linenos, .gp, .go'
 
 # -- Auto generate api docs -------------------------------------------------- #
 
-# package = Path(__file__, '../../../').resolve()
-# library = package / 'src' / package.name
-# ignore_patterns = ['**/_*.py', library / 'decorators/examples']
-# ignore_file = package / '.gitignore'
-# # docs_src = Path(__file__).parent
-# # api_docs = docs_src / 'api'
+def setup(app):
+    app.connect("builder-inited", _generate_api_docs)
 
 
-# def setup(app):
-#     app.connect("env-before-read-docs", generate_api_docs)
+def _generate_api_docs(app):
 
-
-# def generate_api_docs(app, env, docname):
-
-#     generate_api_docs.main(package,
-#                            ignore_patterns=ignore_patterns,
-#                            ignore_file=ignore_file)
+    package = Path(__file__, '../../../').resolve()
+    library = package / 'src' / package.name
+    ignore_patterns = ['**/_*.py', library / 'decorators/examples']
+    ignore_file = package / '.gitignore'
+    generate_api_docs.main(package,
+                           ignore_patterns=ignore_patterns,
+                           ignore_file=ignore_file,
+                           headers='name_only',
+                           nested=True,
+                           output_folder='api/recipes')
