@@ -431,6 +431,12 @@ class Match:
         yield self.enclosed
         yield self.indices
 
+    def __repr__(self):
+        return (f'Match(delimiters={self.delimiters!r}, '
+                f'enclosed={self.enclosed!r}, '
+                f'indices={self.indices}, '
+                f'level={self.level})')
+
     def __str__(self):
         if self.enclosed is None:
             return '<UNCLOSED>'
@@ -442,6 +448,15 @@ class Match:
 
     def __len__(self):
         return sum(map(len, (*self.delimiters, self.enclosed)))
+    
+    def __eq__(self, other):
+        if not isinstance(other, Match):
+            return False
+
+        return all(
+            getattr(self, attr) == getattr(other, attr)
+            for attr in ('delimiters', 'enclosed', 'indices', 'level')
+        )
 
     @property
     def opening(self):
