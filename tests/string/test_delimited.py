@@ -6,9 +6,19 @@ import pytest
 # local
 from recipes import op
 from recipes.functionals import negate
-from recipes.testing import Expected, Throws, expected, mock
-from recipes.string.delimited import (Condition, Delimited, Parser, braces,
-                                      csplit, is_outer, level, match, remove)
+from recipes.testing import Expected, Throws, expected, mock, ApiMocker
+from recipes.string.delimited import (
+    Condition,
+    Match,
+    Parser,
+    braces,
+    csplit,
+    is_outer,
+    level,
+    match,
+    remove,
+)
+
 
 
 # @pytest.mark.skip()
@@ -29,42 +39,39 @@ def test_match(string, pair, expected):
         assert r == string[i+1:j]
 
 
-test_delimiters_must_close = Expected(match)({
-    #
-    mock('open((((((', '()', must_close=0):     Delimited('()', None, (4, None)),
-    mock('((())', '()', must_close=0):          Delimited('()', None, (0, None)),
-    #
-    mock('foo{bla', '{}', must_close=0):        Delimited('{}', None, (3, None)),
-    mock('foo{bla', '{}', must_close=-1):       None,
-
-    mock('open((((((', '()', must_close=0):     Delimited('()', None, (4, None)),
-    mock('open((((((', '()', must_close=-1):    None,
-    mock('open((((((', '()', must_close=1):     Throws(ValueError),
-
-    mock('((())', '()', must_close=0):          Delimited('()', None, (0, None)),
-    # mock('((())', '()', must_close=-1):         Delimited('()', '', (2, 3), level=2),
-    mock('((())', '()', must_close=1):          Throws(ValueError),
-    #
-    mock('(', '()', must_close=1):              Throws(ValueError),
-})
+test_delimiters_must_close = Expected(match)(
+    {
+        #
+        mock('open((((((', '()', must_close=0): Match('()', None, (4, None)),
+        mock('((())', '()', must_close=0): Match('()', None, (0, None)),
+        #
+        mock('foo{bla', '{}', must_close=0): Match('{}', None, (3, None)),
+        mock('foo{bla', '{}', must_close=-1): None,
+        mock('open((((((', '()', must_close=0): Match('()', None, (4, None)),
+        mock('open((((((', '()', must_close=-1): None,
+        mock('open((((((', '()', must_close=1): Throws(ValueError),
+        mock('((())', '()', must_close=0): Match('()', None, (0, None)),
+        # mock('((())', '()', must_close=-1):      Match('()', '', (2, 3), level=2),
+        mock('((())', '()', must_close=1): Throws(ValueError),
+        #
+        mock('(', '()', must_close=1): Throws(ValueError),
+    }
+)
 # pytest.mark.skip(test_delimiters_must_close)
 
 
 test_iter = Expected(braces.iterate)(
-    {'{}{}{}{}':
-        [Delimited('{}', '', (0, 1)),
-         Delimited('{}', '', (2, 3)),
-         Delimited('{}', '', (4, 5)),
-         Delimited('{}', '', (6, 7))]},
-    transform=list
+    {
+        '{}{}{}{}': [
+            Match('{}', '', (0, 1)),
+            Match('{}', '', (2, 3)),
+            Match('{}', '', (4, 5)),
+            Match('{}', '', (6, 7)),
+        ]
+    },
+    transform=list,
 )
 
-
-class Test_iterate:
-    @pytest.mark.parametrize('string', ['0{2{4,6,8}{}{3,5{{{9}}}}}'])
-    def test_iterate(self, string):
-        for b, (i, j) in braces.iterate(string):
-            assert b == string[i+1:j]
 
     @pytest.mark.parametrize('depth', range(7))
     def test_depth_filter(self, depth):

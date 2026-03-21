@@ -69,9 +69,9 @@ def _multi_index(string, delimiters):
         for i in where(windowed(string, size), op.contained, tuple(delims)):
             yield i, string[i:i + size]
 
-
 # Exceptions
 # ---------------------------------------------------------------------------- #
+
 class UnpairedDelimiterWarning(Warning):
     pass
 
@@ -303,8 +303,8 @@ class ChainedCompare:  # ListOf(AttributeCompare)
 @dataclass(eq=True, repr=False)  # slots=True #(3.10)
 class ConditionTest:
     """
-    Collection of conditional tests on Delimited attributes. Used for 
-    filtering Delimited from iterable.
+    Collection of conditional tests on Match attributes. Used for 
+    filtering matches from iterable.
     """
 
     level:      Union[Callable, int] = alwaysTrue
@@ -378,7 +378,7 @@ def get_test(condition, string):
 
 # Matched Delimiters
 # ---------------------------------------------------------------------------- #
-class Delimited:
+class Match:
     """
     Object representing a pair of delimiters at some position and nesting level
     in a string, possibly enclosing some content.
@@ -387,7 +387,7 @@ class Delimited:
     @classmethod
     def null(cls):
         """
-        Constructor for a non-existent Delimited to be used as sentinel.
+        Constructor for a non-existent Match to be used as sentinel.
         """
         return cls(('', ''), None, (None, None))
 
@@ -462,7 +462,7 @@ class Parser:
     delimiters in strings.
     """
 
-    _delimiter_class = Delimited
+    _match_class = Match
 
     def __init__(self, *pairs):
         """
@@ -487,18 +487,24 @@ class Parser:
 
     # @ftl.lru_cache()
     def _index(self, string):
-        items = _multi_index(string, mit.flatten(self.pair_map.items()))
-        # indices, delimiters = cosort(*zip(*itr))
-        yield from zip(*cosort(*zip(*items)))
+        return _multi_index(string, self.pair_map.keys())
 
     def _iter(self, string, must_close=0):
         # TODO: filter level here to avoid unnecessary construction of
-        #  self._delimiter_class and possible performance cost.
-        assert must_close in {-1, 0, 1}
+        #  self._match_class and possible performance cost.
 
-        positions = defaultdict(list)
+        if must_close not in {-1, 0, 1}:
+            raise ValueError(
+                f"Invalid value for `must_close` parameter: {must_close}. "
+                "Expected one of:\n"
+                "    -1: Unclosed matches are not yielded,\n"
+                "     0: Yield `Match` objects with `None` at the index "
+                "position of the missing bracket,\n"
+                "     1: Raise `UnpairedDelimiterError`. "
+            )
+
         open_ = defaultdict(int)
-
+        positions = defaultdict(list)
         for count, (j, b) in enumerate(self._index(string)):
             if b in self.opening and (self._unique_delimiters or (count % 2) == 0):
                 # opening bracket
@@ -511,13 +517,12 @@ class Parser:
                 open_[o] -= 1
                 if pos := positions[o]:
                     i = pos.pop(-1)
-                    
-                    yield self._delimiter_class(
+                    yield self._match_class(
                         (o, b), string[i + len(o):j], (i, j), sum(open_.values())
                     )
 
                 elif must_close == 0:
-                    yield self._delimiter_class((o, b), None, (None, j), 0)
+                    yield self._match_class((o, b), None, (None, j), 0)
 
                 elif must_close == 1:
                     raise UnpairedDelimiterError(string, 'opening', {b: [j]})
@@ -547,7 +552,7 @@ class Parser:
             # opening, closing characters
             pair = tuple(sorted([b, self.pair_map[b]]))
             for i in idx:
-                yield self._delimiter_class(pair, None, (i, None), 0)
+                yield self._match_class(pair, None, (i, None), 0)
 
     # TODO: must_close is the same as ConditionTest(enclosed=not_none)
     def finditer(self, string, must_close=False, condition=NoCondition,
@@ -563,12 +568,12 @@ class Parser:
             Defines the behaviour when an unclosed of bracket is encountered:
 
             - -1         : Silently ignore
-            - 0 or False : Yield Delimited with None at missing index
+            - 0 or False : Yield Match with None at missing index
             - 1 or True  : raises ValueError
 
         Yields
         ------
-        match : Delimited
+        match : Match
         """
 
         # logger.debug('Iterating {!r} brackets in {!r} with condition: {}.',
@@ -590,7 +595,6 @@ class Parser:
             with wrn.catch_warnings():
                 wrn.simplefilter('ignore', UnpairedDelimiterWarning)
                 itr = filter(test, list(self._unclosed_reorder(itr)))
-
         else:
             itr = filter(test, itr)
 
@@ -663,7 +667,7 @@ class Parser:
             Defines the behaviour for unclosed pairs of brackets:
 
             - -1         : Silently ignore
-            - 0 or False : Yield Delimited with None in place of missing 
+            - 0 or False : Yield Match with None in place of missing 
               start/stop index.
             - 1 or True  : raises ValueError
 
@@ -679,7 +683,7 @@ class Parser:
 
         Returns
         -------
-        Delimited
+        Match
 
         Raises
         ------
@@ -696,7 +700,7 @@ class Parser:
     def findall(self, string, must_close=False, condition=NoCondition,
                 inside_out=False, outside_in=False):
         """
-        List all Delimiteds
+        List all matches
         """
 
         with wrn.catch_warnings(record=True) as warnings:
@@ -842,7 +846,8 @@ class Parser:
     def _isplit_slice_pairs(self, string, must_close, condition):
         # for splitting like (pre-bracket, bracketed)
         slices = self.islices(string, must_close, condition)
-        yield from mit.grouper(slices, 2, fillvalue=slice(len(string), None))
+        size = len(string)
+        yield from mit.grouper(slices, 2, fillvalue=slice(size, size))
 
     def isplit_pairs(self, string, must_close=False, condition=NoCondition):
         for pre, bracketed in self._isplit_slice_pairs(string, must_close, condition):
@@ -851,7 +856,7 @@ class Parser:
     def split_pairs(self, string, must_close=False, condition=NoCondition):
         return list(self.isplit_pairs(string, must_close, condition))
 
-    def csplit(self, string, seperator=',',  max_split=None):
+    def conditional_split(self, string, seperator=',',  max_split=None):
         """
         Conditional splitter. Split on `seperator` only if it is not enclosed by
         `brackets`. Does not go deeper than level 0, so enclosed delimited
@@ -881,22 +886,22 @@ class Parser:
 
         # iterate slices for (pre-bracket, bracketed) parts of string
         collected = ['']
-        for pre, bracketed in self._isplit_slice_pairs(string, True, (level == 0)):
+        for pre, delimited in self._isplit_slice_pairs(string, True, (level == 0)):
             pre, *parts = string[pre].split(seperator, max_split - len(collected) + 1)
             collected[-1] += pre
             collected.extend(parts)
-            collected[-1] += string[bracketed]
+            collected[-1] += string[delimited]
 
             if len(collected) > max_split:
-                if bracketed.stop:  # not at the end of the string yet!
-                    collected[-1] += string[bracketed.stop:]
+                if delimited.stop:  # not at the end of the string yet!
+                    collected[-1] += string[delimited.stop:]
                 return collected
 
-        if collected:
-            return collected
+        # If no delimited pairs were found, we can simply split on the separator
+        return collected or string.split(seperator, max_split)
 
-        # no brackets
-        return string.split(seperator, max_split)
+    # Alias
+    csplit = conditional_split
 
     def rcsplit(self, string, seperator=',',  max_split=None):
         # HACK
@@ -997,14 +1002,14 @@ def depth(string, delimiters):
 
 
 # @doc.splice(Parser.depth, csplit)
-def csplit(string, delimiters='{}', seperator=',', max_split=None):
+def conditional_split(string, delimiters='{}', seperator=',', max_split=None):
     # need this for bash brace expansion for nested braces
 
     # short circuit
     if delimiters is None:
         return string.split(seperator)
 
-    return Parser(delimiters).csplit(string, seperator, max_split)
+    return Parser(delimiters).conditional_split(string, seperator, max_split)
 
 
 # alias
