@@ -188,13 +188,14 @@ class AttributeTest(_Condition):
 
 class AttributeConditional(_Condition):
     """
-    Abstraction layer for delayed evaluation of comparison operators on
-    object attribute `name`.
+    Abstraction layer for delayed evaluation of comparison operators on object
+    attribute `name`.
 
     Object which supports comparison operations "<"  "<="  "==" "=>"  ">".
-    Comparing this object with another (eg. int), initializes a `AttributeCompare` which
-    when called, will do the comparison between the value of the `name`
-    attribute of the object which was passed, with the other object (eg int). 
+    Comparing this object with another (eg. int), initializes a
+    `AttributeCompare` which when called, will do the comparison between the
+    value of the `name` attribute of the object which was passed, with the other
+    object (eg int). 
     """
 
     def __eq__(self, rhs):
@@ -405,15 +406,16 @@ class Match:
         Parameters
         ----------
         delimiters : Tuple[str]
-            Characters or strings for opening and closing bracket. Must have length 2.
-            Opening and closing characters should be unique, but other than that can be
-            arbitrary strings.
+            Characters or strings for opening and closing bracket. Must have
+            length 2. Opening and closing characters should be unique, but other
+            than that can be arbitrary strings.
         enclosed : str
             The enclosed sting. May be empty, or None in the case of unclosed 
             "pairs".
         indices : _type_, optional
-            Integer indices of opening- and closing bracket pairs within the sample 
-            string. Either of the indices may be None., by default (None, None)
+            Integer indices of opening- and closing bracket pairs within the
+            sample string. Either of the indices may be None., by default (None,
+            None)
         level : _type_, optional
             Depth of nesting.
         """
