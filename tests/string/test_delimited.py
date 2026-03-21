@@ -6,7 +6,7 @@ import pytest
 # local
 from recipes import op
 from recipes.functionals import negate
-from recipes.testing import Expected, Throws, expected, mock, ApiMocker
+from recipes.testing import Expected, Throws, expected, mock
 from recipes.string.delimited import (
     Condition,
     Match,
@@ -17,26 +17,124 @@ from recipes.string.delimited import (
     level,
     match,
     remove,
+    _multi_index,
 )
 
 
+# # with ApiMocker(_multi_index, right_transform=tuple) as _multi_index:
+@expected(
+    {
+        ('hello(world)', '()'): ((5, '('), (11, ')')),
+        ('unclosed((((((', '()'): (
+            (8, '('),
+            (9, '('),
+            (10, '('),
+            (11, '('),
+            (12, '('),
+            (13, '('),
+        ),
+        ('nested((([inside]))]]])))', '[]'): (
+            (9, '['),
+            (16, ']'),
+            (19, ']'),
+            (20, ']'),
+            (21, ']'),
+        ),
+        ('<s>', '<>'): ((0, '<'), (2, '>')),
+        ('((())', '()'): (
+            (0, '('),
+            (1, '('),
+            (2, '('),
+            (3, ')'),
+            (4, ')'),
+        ),
+        ('"{TEXT}"', '""'): ((0, '"'), (7, '"')),
+        (
+            r"""(?xsm)                        # verbose, dotall (. _multi_indexes newline)
+                (?P<pre>                           # preceeding content
+                    ^\s*                           #   whitespace
+                    [^#'"\n]*?                     #   not comment and not opening quote
+                )
+                (?P<marks>(?i:(?:[rf]|[rb]){0,2})) # string class indicator
+                (?P<quote>                         # quote characters
+                    (?P<q>['"]){1}(?:(?P=q){2})?   #   single or triple quote
+                )
+                (?P<content>.*?)                   # string contents
+                (?<!\\)                            # ignore escaped quotes \' \"
+                (?P=quote)                         # closing quote
+                (?P<post>[^\n]*)                   # any trailing code up to newline
+                """,
+            ('(?P', ')'),
+        ): (
+            (5, ')'),
+            (73, ')'),
+            (91, '(?P'),
+            (318, ')'),
+            (336, '(?P'),
+            (362, ')'),
+            (368, ')'),
+            (369, ')'),
+            (412, '(?P'),
+            (486, '(?P'),
+            (496, ')'),
+            (503, '(?P'),
+            (508, ')'),
+            (512, ')'),
+            (560, ')'),
+            (578, '(?P'),
+            (593, ')'),
+            (653, ')'),
+            (728, '(?P'),
+            (737, ')'),
+            (795, '(?P'),
+            (810, ')')
+        ),
+        (' "hello world!" ', '""'): ((1, '"') != (14, '"')),
+    },
+)
+def test_multi_index(string, delimiters, expected):
+    assert tuple(_multi_index(string, delimiters)) == expected
+
 
 # @pytest.mark.skip()
-@expected({
-    ('hello(world)', '()'):                 'world',
-    ('unclosed((((((', '()'):               None,
-    ('nested((([inside]))]]])))', '[]'):    'inside',
-    ('<s>', '<>'):                          's',
-    ('((())', '()'):                        None,
-    ('"{TEXT}"', '""'):                     '{TEXT}'
-})
+@expected(
+    {
+        ('hello(world)', '()'): 'world',
+        ('unclosed((((((', '()'): None,
+        ('nested((([inside]))]]])))', '[]'): 'inside',
+        ('<s>', '<>'): 's',
+        ('((())', '()'): None,
+        ('"{TEXT}"', '""'): '{TEXT}',
+        (
+            r"""(?xsm)                        # verbose, dotall (. matches newline)
+            (?P<pre>                           # preceeding content
+                ^\s*                           #   whitespace
+                [^#'"\n]*?                     #   not comment and not opening quote
+            )
+            (?P<marks>(?i:(?:[rf]|[rb]){0,2})) # string class indicator
+            (?P<quote>                         # quote characters
+                (?P<q>['"]){1}(?:(?P=q){2})?   #   single or triple quote
+            )
+            (?P<content>.*?)                   # string contents
+            (?<!\\)                            # ignore escaped quotes \' \"
+            (?P=quote)                         # closing quote
+            (?P<post>[^\n]*)                   # any trailing code up to newline
+         """,
+            ('(?P', ')'),
+        ): r"""<pre>                          # preceeding content
+            ^\s*                           #   whitespace
+            [^#'"\n]*?                     #   not comment and not opening quote
+        """,
+        (' "hello world!" ', '""'): 'hello world!',
+    }
+)
 def test_match(string, pair, expected):
     m = match(string, pair)
     r = m.enclosed
     assert r == expected
     if r:
         i, j = m.indices
-        assert r == string[i+1:j]
+        assert r == string[i + 1: j]
 
 
 test_delimiters_must_close = Expected(match)(
