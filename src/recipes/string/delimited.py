@@ -39,10 +39,6 @@ CARET = '^'
 # Utils
 # ---------------------------------------------------------------------------- #
 
-# def asdict(obj):
-#     return dict(zip((slots := obj.__slots__), op.AttrGetter(*slots)(obj)))
-
-
 def is_adjacent(a, b):
     """Test adjacency of matched delimiters."""
 
@@ -52,16 +48,6 @@ def is_adjacent(a, b):
             return (i + 1 == j), i, k
 
     return False, None, None
-
-    # escaped = True  # FIXME does this ever get run if level == 0 ?????
-    # for i, j, k in zip(*indices):
-    #     if k:
-    #         # swap order of indices since outer closing preceeds inner
-    #         # closing for closed double pairs
-    #         i, j = j, i
-
-    #     escaped &= (i + 1 == j)
-    # return escaped, i, k
 
 
 def _resolve_max_split(max_split):
@@ -76,13 +62,6 @@ def _resolve_max_split(max_split):
 def sort_match(match):
     """Helper for sorting pairs of indices, either one of which may be None"""
     return match.start if match.end is None else match.end
-
-    # if match.is_open():
-    #     #
-    #     o = (-1, 1)[match.indices.index(None)]
-    #     return (next(filter(None, match.indices)), INFINT)[::o]
-
-    # return match.indices
 
 
 def _multi_index(string, delimiters):
@@ -101,9 +80,6 @@ class UnpairedDelimiterError(ValueError):
     """
     Exception used when unpaired brackets encountered and `must_close=True`.
     """
-
-    # def __init__(self, string, open_or_close, positions):
-    #     super().__init__(self, string, open_or_close, positions)
 
     def __str__(self):
         string, open_or_close, positions = self.args
@@ -183,11 +159,6 @@ is_outer = IsOuter = IsOutermost
 
 
 class AttributeTest(_Condition):
-    # def __new__(cls, name='', func=None, *rhs):
-    #     if func in AttributeCompare._symbols:
-    #         return AttributeCompare
-
-    #     return super().__new__(cls)
 
     def __init__(self, name, func):
         """
@@ -778,12 +749,6 @@ class Parser:
         indices -= {None}
         return delete(string, indices)
 
-    # def strip(self, string):
-    #     """
-    #     Strip all outermost paired brackets.
-
-    #     return self.remove(string, condition=(level == 0))
-
     def _ireplace(self, string, make_sub, condition, callable_args):
 
         current = 0
@@ -1005,16 +970,6 @@ bracket_parsers = {
     '<>': chevrons
 }
 
-# class BracketParsers:
-#     curly = Parser('{}')
-#     round = Parser('()')
-#     square = Parser('[]')
-#     angle = Parser('<>')
-
-
-# pylint: disable=missing-function-docstring
-# insert = {'Parameters[pair] as brackets': Parser}
-
 
 # @doc.splice(Parser.match, insert)
 def match(string, delimiters, must_close=False, condition=NoCondition):
@@ -1053,12 +1008,4 @@ def csplit(string, delimiters='{}', seperator=',', max_split=None):
 
 
 # alias
-xsplit = csplit
-
-
-# def _csplit_worker(pre, bracketed, delimiter, max_split):
-#     parts = pre.split(delimiter, max_split)
-#     parts[-1] += bracketed
-#     return parts
-
-# del insert
+xsplit = csplit = conditional_split
