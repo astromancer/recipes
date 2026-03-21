@@ -474,10 +474,9 @@ class Match:
     def end(self):
         return self.indices[1]
 
-    # @ftl.cached_property
-    # @property
-    # def full(self):
-    #     return self.enclosed.join(self.delimiters)
+    @property
+    def full(self):
+        return self.enclosed.join(self.delimiters)
 
     def is_open(self):
         return None in self.indices
