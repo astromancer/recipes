@@ -18,7 +18,7 @@ import more_itertools as mit
 # relative
 from .. import op
 from ..containers import cosort
-from ..iter import cofilter, where, windowed
+from ..iter import cofilter, where
 from ..functionals import always, echo, not_none
 from .plurals import named_items, pluralize
 
@@ -65,9 +65,14 @@ def sort_match(match):
 
 
 def _multi_index(string, delimiters):
-    for size, delims in itt.groupby(sorted(delimiters, key=len), len):
-        for i in where(windowed(string, size), op.contained, tuple(delims)):
-            yield i, string[i:i + size]
+    delimiters = set(delimiters)
+    indices = {
+        delimiter: list(where(string, delimiter))
+        for delimiter in delimiters
+    }
+    items = ((i, d) for d in delimiters for i in indices[d])
+    yield from zip(*cosort(*zip(*items)))
+
 
 # Exceptions
 # ---------------------------------------------------------------------------- #
