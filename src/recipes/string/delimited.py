@@ -419,11 +419,13 @@ class Match:
         level : _type_, optional
             Depth of nesting.
         """
-        self.opening, self.closing = delimiters
+        if len(delimiters) != 2:
+            raise ValueError("Delimiters must be a pair of strings")
+        
         self.delimiters = tuple(delimiters)
-        self.enclosed = str(enclosed)
+        self.enclosed = None if enclosed is None else enclosed
         self.indices = tuple(indices)
-        self.level = int(level)
+        self.level = level
 
     def __iter__(self):
         yield self.enclosed
@@ -441,6 +443,14 @@ class Match:
     def __len__(self):
         return sum(map(len, (*self.delimiters, self.enclosed)))
 
+    @property
+    def opening(self):
+        return self.delimiters[0]
+    
+    @property
+    def closing(self):
+        return self.delimiters[1]
+    
     @property
     def start(self):
         return self.indices[0]
