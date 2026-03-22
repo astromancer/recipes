@@ -259,55 +259,55 @@ class TestIterate:
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='<pre>                           # preceeding content\n'
-                         '                ^\\s*                           '
-                         '#   whitespace\n'
-                         '                [^#\'"\\n]*?                     '
-                         '#   not comment and not opening quote\n            ',
+                '                ^\\s*                           '
+                '#   whitespace\n'
+                '                [^#\'"\\n]*?                     '
+                '#   not comment and not opening quote\n            ',
                 indices=(80, 295),
-                level=-2,
+                level=0,
             ),
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='<marks>(?i:(?:[rf]|[rb]',
                 indices=(309, 335),
-                level=-2,
+                level=0,
             ),
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='<q>[\'"]',
                 indices=(451, 461),
-                level=-3,
+                level=1,
             ),
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='=q',
                 indices=(468, 473),
-                level=-3,
+                level=1,
             ),
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='<quote>                         # quote characters\n'
-                         '                (?P<q>[\'"]){1}(?:(?P=q){2}',
+                '                (?P<q>[\'"]){1}(?:(?P=q){2}',
                 indices=(381, 477),
-                level=-4,
+                level=0,
             ),
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='<content>.*?',
                 indices=(535, 550),
-                level=-5,
+                level=0
             ),
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='=quote',
                 indices=(677, 686),
-                level=-6,
+                level=0,
             ),
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='<post>[^\\n]*',
                 indices=(740, 755),
-                level=-6,
+                level=0,
             ),
         ],
         (' "hello world!" ', '""'): [

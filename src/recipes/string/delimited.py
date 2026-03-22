@@ -545,11 +545,15 @@ class Parser:
             else:
                 # closing bracket
                 o = self.pair_map[b]
-                open_[o] -= 1
+                # If there is an open bracket, this closes it
                 if pos := positions[o]:
                     i = pos.pop(-1)
+                    open_[o] -= 1
                     yield self._match_class(
-                        (o, b), string[i + len(o):j], (i, j), sum(open_.values())
+                        (o, b),
+                        string[i + len(o) : j],
+                        (i, j),
+                        sum(open_.values()),
                     )
 
                 elif must_close == 0:
