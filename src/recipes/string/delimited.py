@@ -35,6 +35,31 @@ ALL_BRACKET_PAIRS = {'()', '[]', '{}', '<>'}
 INFINT = 2 ** 32
 CARET = '^'
 
+# ---------------------------------------------------------------------------- #
+
+class HandleUnclosed(IntEnum):
+    """Options for handling unclosed brackets in Parser methods."""
+
+    FILTER = IGNORE = -1
+    RETURN = 0
+    RAISE = 1
+
+    @classmethod
+    def _missing_(cls, action):
+        if action is None:
+            return cls.FILTER
+
+        if isinstance(action, str):
+            return getattr(cls, action.upper(), None)
+
+        # raise ValueError(
+        #     f'Invalid value for `must_close` parameter: {must_close}. '
+        #     'Expected one of:\n'
+        #     '    -1: Unclosed matches are not yielded,\n'
+        #     '     0: Yield `Match` objects with `None` at the index '
+        #     'position of the missing bracket,\n'
+        #     '     1: Raise `UnpairedDelimiterError`. '
+
 
 # Utils
 # ---------------------------------------------------------------------------- #

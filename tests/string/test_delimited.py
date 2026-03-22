@@ -10,6 +10,7 @@ from recipes.testing import Expected, Throws, expected, mock
 from recipes.string.delimited import (
     Condition,
     Match,
+    HandleUnclosed,
     Parser,
     braces,
     csplit,
@@ -19,6 +20,30 @@ from recipes.string.delimited import (
     remove,
     _multi_index,
 )
+
+
+# ---------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    'input_value, expected',
+    [
+        (None, HandleUnclosed.FILTER),
+        (0, HandleUnclosed.RETURN),
+        (1, HandleUnclosed.RAISE),
+        (-1, HandleUnclosed.FILTER),
+        (False, HandleUnclosed.RETURN),
+        (True, HandleUnclosed.RAISE),
+        ('filter', HandleUnclosed.FILTER),
+        ('return', HandleUnclosed.RETURN),
+        ('raise', HandleUnclosed.RAISE),
+    ],
+)
+def test_must_close_enum(input_value, expected):
+    assert HandleUnclosed(input_value) == expected
+
+
+# ---------------------------------------------------------------------------- #
 
 
 # # with ApiMocker(_multi_index, right_transform=tuple) as _multi_index:
