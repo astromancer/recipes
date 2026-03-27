@@ -29,15 +29,12 @@ from recipes.string.delimited import (
     'input_value, expected',
     [
         (None, HandleUnclosed.FILTER),
-        (-1, HandleUnclosed.FILTER),
         ('filter', HandleUnclosed.FILTER),
         ('ignore', HandleUnclosed.FILTER),
-        (0, HandleUnclosed.YIELD),
-        (False, HandleUnclosed.YIELD),
         ('yield', HandleUnclosed.YIELD),
         ('return', HandleUnclosed.YIELD),
-        (1, HandleUnclosed.RAISE),
-        (True, HandleUnclosed.RAISE),
+        ('warn', HandleUnclosed.WARNING),
+        ('warning', HandleUnclosed.WARNING),
         ('raise', HandleUnclosed.RAISE),
         ('error', HandleUnclosed.RAISE),
     ],
@@ -49,7 +46,7 @@ def test_must_close_enum(input_value, expected):
 # ---------------------------------------------------------------------------- #
 
 
-# # with ApiMocker(_multi_index, right_transform=tuple) as _multi_index:
+# with ApiMocker(_multi_index, right_transform=tuple) as _multi_index:
 @expected(
     {
         ('hello(world)', '()'): ((5, '('), (11, ')')),
@@ -115,91 +112,45 @@ def test_must_close_enum(input_value, expected):
             (728, '(?P'),
             (737, ')'),
             (795, '(?P'),
-            (810, ')')
+            (810, ')'),
         ),
-        (' "hello world!" ', '""'): ((1, '"') != (14, '"')),
+        (' "hello world!" ', '""'): ((1, '"'), (14, '"')),
     },
 )
 def test_multi_index(string, delimiters, expected):
     assert tuple(_multi_index(string, delimiters)) == expected
 
 
-# @pytest.mark.skip()
-@expected(
-    {
-        ('hello(world)', '()'): 'world',
-        ('unclosed((((((', '()'): None,
-        ('nested((([inside]))]]])))', '[]'): 'inside',
-        ('<s>', '<>'): 's',
-        ('((())', '()'): None,
-        ('"{TEXT}"', '""'): '{TEXT}',
-        (
-            r"""(?xsm)                        # verbose, dotall (. matches newline)
-            (?P<pre>                           # preceeding content
-                ^\s*                           #   whitespace
-                [^#'"\n]*?                     #   not comment and not opening quote
-            )
-            (?P<marks>(?i:(?:[rf]|[rb]){0,2})) # string class indicator
-            (?P<quote>                         # quote characters
-                (?P<q>['"]){1}(?:(?P=q){2})?   #   single or triple quote
-            )
-            (?P<content>.*?)                   # string contents
-            (?<!\\)                            # ignore escaped quotes \' \"
-            (?P=quote)                         # closing quote
-            (?P<post>[^\n]*)                   # any trailing code up to newline
-         """,
-            ('(?P', ')'),
-        ): r"""<pre>                          # preceeding content
-            ^\s*                           #   whitespace
-            [^#'"\n]*?                     #   not comment and not opening quote
-        """,
-        (' "hello world!" ', '""'): 'hello world!',
-    }
-)
-def test_match(string, pair, expected):
-    m = match(string, pair)
-    r = m.enclosed
-    assert r == expected
-    if r:
-        i, j = m.indices
-        assert r == string[i + 1: j]
-
-
 test_delimiters_must_close = Expected(match)(
     {
         #
-        mock('open((((((', '()', must_close=0): Match('()', None, (4, None)),
-        mock('((())', '()', must_close=0): Match('()', None, (0, None)),
+        mock('open((((((', '()', must_close='yield'): Match(
+            '()', None, (4, None)
+        ),
+        mock('((())', '()', must_close='yield'): Match('()', None, (0, None)),
         #
-        mock('foo{bla', '{}', must_close=0): Match('{}', None, (3, None)),
-        mock('foo{bla', '{}', must_close=-1): None,
-        mock('open((((((', '()', must_close=0): Match('()', None, (4, None)),
-        mock('open((((((', '()', must_close=-1): None,
-        mock('open((((((', '()', must_close=1): Throws(ValueError),
-        mock('((())', '()', must_close=0): Match('()', None, (0, None)),
-        # mock('((())', '()', must_close=-1):      Match('()', '', (2, 3), level=2),
-        mock('((())', '()', must_close=1): Throws(ValueError),
+        mock('foo{bla', '{}', must_close='yield'): Match('{}', None, (3, None)),
+        mock('foo{bla', '{}', must_close='filter'): None,
+        mock('open((((((', '()', must_close='yield'): Match(
+            '()', None, (4, None)
+        ),
+        mock('open((((((', '()', must_close='filter'): None,
+        mock('open((((((', '()', must_close='raise'): Throws(ValueError),
+        mock('((())', '()', must_close='yield'): Match('()', None, (0, None)),
+        # mock('((())', '()', must_close='filter'):      Match('()', '', (2, 3), level=2),
+        mock('((())', '()', must_close='raise'): Throws(ValueError),
         #
-        mock('(', '()', must_close=1): Throws(ValueError),
+        mock('(', '()', must_close='raise'): Throws(ValueError),
     }
-)
-# pytest.mark.skip(test_delimiters_must_close)
-
-
-test_iter = Expected(braces.iterate)(
-    {
-        '{}{}{}{}': [
-            Match('{}', '', (0, 1)),
-            Match('{}', '', (2, 3)),
-            Match('{}', '', (4, 5)),
-            Match('{}', '', (6, 7)),
-        ]
-    },
-    transform=list,
 )
 
 
 class TestIterate:
+    """
+    Test the `Parser._iter` method, which has the core functionality of the
+    class.
+    """
+
     cases = {
         ('hello(world)', '()'): [
             Match(
@@ -209,16 +160,71 @@ class TestIterate:
                 level=0,
             )
         ],
-        ('unclosed((((((', '()'): [],
+        ('unclosed((((((', '()'): [
+            Match(
+                delimiters=('(', ')'), enclosed=None, indices=(8, None), level=0
+            ),
+            Match(
+                delimiters=('(', ')'), enclosed=None, indices=(9, None), level=0
+            ),
+            Match(
+                delimiters=('(', ')'),
+                enclosed=None,
+                indices=(10, None),
+                level=0,
+            ),
+            Match(
+                delimiters=('(', ')'),
+                enclosed=None,
+                indices=(11, None),
+                level=0,
+            ),
+            Match(
+                delimiters=('(', ')'),
+                enclosed=None,
+                indices=(12, None),
+                level=0,
+            ),
+            Match(
+                delimiters=('(', ')'),
+                enclosed=None,
+                indices=(13, None),
+                level=0,
+            ),
+        ],
         ('nested((([inside]))]]])))', '[]'): [
             Match(
                 delimiters=('[', ']'),
                 enclosed='inside',
                 indices=(9, 16),
                 level=0,
-            )
+            ),
+            Match(
+                delimiters=('[', ']'),
+                enclosed=None,
+                indices=(None, 19),
+                level=0,
+            ),
+            Match(
+                delimiters=('[', ']'),
+                enclosed=None,
+                indices=(None, 20),
+                level=0,
+            ),
+            Match(
+                delimiters=('[', ']'),
+                enclosed=None,
+                indices=(None, 21),
+                level=0,
+            ),
         ],
-        ('0{2{4,6,8}{}{3,5{{{9}}}}}', '{}'): [
+        ('{}{}{}{}', '{}'): [
+            Match('{}', '', (0, 1)),
+            Match('{}', '', (2, 3)),
+            Match('{}', '', (4, 5)),
+            Match('{}', '', (6, 7)),
+        ],
+        ('0{2{4,6,8}{}{3,5{{{9}}}3}2}', '{}'): [
             Match(
                 delimiters=('{', '}'), enclosed='4,6,8', indices=(3, 9), level=1
             ),
@@ -245,8 +251,8 @@ class TestIterate:
             ),
             Match(
                 delimiters=('{', '}'),
-                enclosed='2{4,6,8}{}{3,5{{{9}}}}',
-                indices=(1, 24),
+                enclosed='2{4,6,8}{}{3,5{{{9}}}3}2',
+                indices=(1, 26),
                 level=0,
             ),
         ],
@@ -257,6 +263,9 @@ class TestIterate:
             Match(delimiters=('(', ')'), enclosed='', indices=(2, 3), level=2),
             Match(
                 delimiters=('(', ')'), enclosed='()', indices=(1, 4), level=1
+            ),
+            Match(
+                delimiters=('(', ')'), enclosed=None, indices=(0, None), level=0
             ),
         ],
         ('"{TEXT}"', '""'): [
@@ -281,14 +290,25 @@ class TestIterate:
             (?<!\\)                            # ignore escaped quotes \' \"
             (?P=quote)                         # closing quote
             (?P<post>[^\n]*)                   # any trailing code up to newline
-         """,
+            """,
             ('(?P', ')'),
         ): [
             Match(
                 delimiters=('(?P', ')'),
+                enclosed=None,
+                indices=(None, 5),
+                level=0,
+            ),
+            Match(
+                delimiters=('(?P', ')'),
+                enclosed=None,
+                indices=(None, 66),
+                level=0,
+            ),
+            Match(
+                delimiters=('(?P', ')'),
                 enclosed='<pre>                           # preceeding content\n'
-                '                ^\\s*                           '
-                '#   whitespace\n'
+                '                ^\\s*                           #   whitespace\n'
                 '                [^#\'"\\n]*?                     '
                 '#   not comment and not opening quote\n            ',
                 indices=(80, 295),
@@ -298,6 +318,18 @@ class TestIterate:
                 delimiters=('(?P', ')'),
                 enclosed='<marks>(?i:(?:[rf]|[rb]',
                 indices=(309, 335),
+                level=0,
+            ),
+            Match(
+                delimiters=('(?P', ')'),
+                enclosed=None,
+                indices=(None, 341),
+                level=0,
+            ),
+            Match(
+                delimiters=('(?P', ')'),
+                enclosed=None,
+                indices=(None, 342),
                 level=0,
             ),
             Match(
@@ -314,16 +346,30 @@ class TestIterate:
             ),
             Match(
                 delimiters=('(?P', ')'),
-                enclosed='<quote>                         # quote characters\n'
-                '                (?P<q>[\'"]){1}(?:(?P=q){2}',
+                enclosed=(
+                    '<quote>                         # quote characters\n'
+                    '                (?P<q>[\'"]){1}(?:(?P=q){2}'
+                ),
                 indices=(381, 477),
+                level=0,
+            ),
+            Match(
+                delimiters=('(?P', ')'),
+                enclosed=None,
+                indices=(None, 521),
                 level=0,
             ),
             Match(
                 delimiters=('(?P', ')'),
                 enclosed='<content>.*?',
                 indices=(535, 550),
-                level=0
+                level=0,
+            ),
+            Match(
+                delimiters=('(?P', ')'),
+                enclosed=None,
+                indices=(None, 606),
+                level=0,
             ),
             Match(
                 delimiters=('(?P', ')'),
@@ -353,13 +399,10 @@ class TestIterate:
         'string, pair, expected', [(*k, v) for k, v in cases.items()]
     )
     def test_iter(self, string, pair, expected):
-        assert list(Parser(pair)._iter(string, must_close=-1)) == expected
-
-
-    # @pytest.mark.parametrize('string', ['0{2{4,6,8}{}{3,5{{{9}}}}}'])
-    # def test_iterate(self, string):
-    #     for b, (i, j) in braces.iterate(string):
-    #         assert b == string[i + 1 : j]
+        assert (
+            list(Parser(pair)._iter(string, must_close=HandleUnclosed.YIELD))
+            == expected
+        )
 
     @pytest.mark.parametrize('depth', range(7))
     def test_depth_filter(self, depth):
@@ -369,6 +412,25 @@ class TestIterate:
         pair = next(itr)
         assert pair.level == depth
         assert pair.enclosed[0] == str(depth + 1)
+
+
+@expected(
+    {
+        string: next(
+            iter(
+                sorted(
+                    (e for e in expected if e.enclosed is not None),
+                    key=op.attrgetter('indices'),
+                )
+            ),
+            None,
+        )
+        for string, expected in TestIterate.cases.items()
+    }
+)
+def test_match(string, pair, expected):
+    result = match(string, pair)
+    assert result == expected
 
 
 has_comma = op.has(',').within
