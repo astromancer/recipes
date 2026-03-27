@@ -6,7 +6,7 @@ delimiters.
 # std
 import math
 import numbers
-import warnings as wrn
+import warnings
 import itertools as itt
 from collections import defaultdict
 from dataclasses import asdict, astuple, dataclass
@@ -21,7 +21,7 @@ from ..containers import cosort
 from ..iter import cofilter, where
 from ..functionals import always, echo, not_none
 from .plurals import named_items, pluralize
-from enum import IntEnum
+from enum import Enum
 
 
 # import docsplice as doc
@@ -40,12 +40,13 @@ CARET = '^'
 # ---------------------------------------------------------------------------- #
 
 
-class HandleUnclosed(IntEnum):
+class HandleUnclosed(Enum):
     """Options for handling unclosed brackets in Parser methods."""
 
-    FILTER = IGNORE = -1
-    RETURN = 0
-    RAISE = 1
+    FILTER = IGNORE = 'filter'
+    RETURN = YIELD = 'return'
+    WARNING = WARN = 'warning'
+    RAISE = ERROR = 'raise'
 
     @classmethod
     def _missing_(cls, action):
@@ -270,14 +271,6 @@ class AttributeCompare(AttributeTest):
 
     _cache = {}
     _symbols = {op.eq: '==', op.lt: '<', op.le: '≤', op.gt: '>', op.ge: '≥'}
-
-    # def __new__(cls, *args):
-    #     if args in cls._cache:
-    #         return cls._cache[args]
-
-    #     obj = super().__new__(cls)
-    #     cls._cache[args] = obj
-    #     return
 
     def __init__(self, name, operator, rhs):
         super().__init__(name, operator)
@@ -561,7 +554,7 @@ class Parser:
         # items are sorted by index
         return _multi_index(string, self.pair_map.keys())
 
-    def _iter(self, string, must_close=HandleUnclosed.RETURN):
+    def _iter(self, string, must_close=HandleUnclosed.YIELD):
         # TODO: filter level here to avoid unnecessary construction of
         #  self._match_class and possible performance cost.
 
@@ -590,53 +583,58 @@ class Parser:
                         (i, j),
                         sum(open_.values()),
                     )
-
-                elif must_close == HandleUnclosed.RETURN:
-                    yield self._match_class((o, b), None, (None, j), 0)
-
-                elif must_close == HandleUnclosed.RAISE:
-                    raise UnpairedDelimiterError(string, 'opening', {b: [j]})
+                else:
+                    yield from self._handle_unclosed(
+                        string, must_close, (o, b), (None, j)
+                    )
 
                 # NOTE: `must_close == HandleUnclosed.FILTER`does not yield
                 # anything, just continue
 
         # Handle unclosed brackets
-        if (must_close == HandleUnclosed.RAISE) and any(positions.values()):
-            raise UnpairedDelimiterError(string, 'closing', positions)
-
         if must_close == HandleUnclosed.FILTER:
             return
 
-        # If we're here `must_close == HandleUnclosed.RETURN`: fill None for
+        # If we're here `must_close == HandleUnclosed.YIELD`: fill None for
         # missing bracket indices
-        for b, idx in positions.items():
+        for b, indices in positions.items():
             # If opening and closing brackets are distinct characters:
-            # Check if b is opening, Items will be unordered, we have to keep
-            # track of the state if we want to deliver the pairs in a requested
-            # order
-            if (
-                self.opening != self.closing
-                and b in self.opening
-                and idx
-                and idx != [len(string) + 1]
-            ):
-                wrn.warn(
-                    'Unclosed opening delimiter in string. Items will be '
-                    'out of order. Use the `findall` method for obtaining '
-                    'an index-ordered list of delimiters.',
-                    UnpairedDelimiterWarning,
-                )
+            # Check if b is opening, Items will be unordered
 
             # opening, closing characters
             pair = tuple(sorted([b, self.pair_map[b]]))
-            for i in idx:
-                yield self._match_class(pair, None, (i, None), 0)
+            for i in indices:
+                yield from self._handle_unclosed(
+                    string, must_close, pair, (i, None)
+                )
+
+    def _handle_unclosed(self, string, must_close, delimiter_pair, indices):
+        if must_close == HandleUnclosed.YIELD:
+            yield self._match_class(delimiter_pair, None, indices, 0)
+
+        # Get info for warning / error message
+        options = ('opening', 'closing')
+        missing = options[(i := indices.index(None))]
+        other = options[1 - i]
+        delimiter = delimiter_pair[i]
+        matching = delimiter_pair[1 - i]
+        index = indices[1 - i]
+        if must_close == HandleUnclosed.WARNING:
+            warnings.warn(
+                f'Missing {missing} delimiter {delimiter!r} for {other} '
+                f'{matching!r} at position {index}.',
+                UnpairedDelimiterWarning,
+            )
+            yield self._match_class(delimiter_pair, None, indices, 0)
+
+        if must_close == HandleUnclosed.RAISE:
+            raise UnpairedDelimiterError(string, missing, {delimiter: [index]})
 
     # TODO: must_close is the same as ConditionTest(enclosed=not_none)
     def finditer(
         self,
         string,
-        must_close=HandleUnclosed.RETURN,
+        must_close=HandleUnclosed.YIELD,
         condition=NoCondition,
         inside_out=False,
         outside_in=False,
@@ -648,12 +646,13 @@ class Parser:
         ----------
         string : str
             The string to be parsed. May contain (pairs of) brackets.
-        must_close : {-1, 0, 1}
+        must_close : {'ignore', 'yield', 'warning', 'raise'}
             Defines the behaviour when an unclosed of bracket is encountered:
 
-            - -1         : Silently ignore
-            - 0 or False : Yield Match with None at missing index
-            - 1 or True  : raises ValueError
+            - 'ignore'  : Silently ignore
+            - 'yield'  : Yield Match with None at missing index
+            - 'warning' : Issue a warning
+            - 'raise'   : Raises ValueError
 
         Yields
         ------
@@ -662,6 +661,7 @@ class Parser:
 
         # logger.debug('Iterating {!r} brackets in {!r} with condition: {}.',
         #              self.delimiters, string, condition)
+        must_close = HandleUnclosed(must_close)
         itr = self._iter(string, must_close)
 
         # if self._unclosed_unordered:
@@ -671,7 +671,7 @@ class Parser:
         test = get_test(condition, string)
 
         # Check if condition requires `level`
-        if (must_close == 0) and (
+        if (must_close == HandleUnclosed.YIELD) and (
             isinstance(test, IsOutermost)
             or (
                 isinstance(test, ConditionTest)
@@ -680,9 +680,7 @@ class Parser:
         ):
             # User asked for filter on `level`. Since `level` may change due to
             # unclosed braces, we have to unpack here if we have any unclosed.
-            with wrn.catch_warnings():
-                wrn.simplefilter('ignore', UnpairedDelimiterWarning)
-                itr = filter(test, list(self._unclosed_reorder(itr)))
+            itr = filter(test, list(self._unclosed_reorder(itr)))
         else:
             itr = filter(test, itr)
 
@@ -796,7 +794,7 @@ class Parser:
     def findall(
         self,
         string,
-        must_close=HandleUnclosed.RETURN,
+        must_close=HandleUnclosed.YIELD,
         condition=NoCondition,
         inside_out=False,
         outside_in=False,
@@ -805,8 +803,8 @@ class Parser:
         List all matches
         """
 
-        with wrn.catch_warnings(record=True) as warnings:
-            wrn.simplefilter('always', UnpairedDelimiterWarning)
+        with warnings.catch_warnings(record=True) as warnings:
+            warnings.simplefilter('always', UnpairedDelimiterWarning)
 
             # Unclosed opening braces will be yield out of order when iterating,
             # we have to keep track of the state if we want to deliver the pairs
@@ -997,19 +995,16 @@ class Parser:
         Parameters
         ----------
         string : str
-            [description]
-        brackets : str, optional
-            [description], by default '{}'
+            The string to split.
         seperator : str, optional
-            [description], by default ','
-
-        Examples
-        --------
+            The separator to use for splitting, by default ','
+        max_split : int, optional
+            Maximum number of splits to do, by default None (no limit).
 
         Returns
         -------
         list
-            [description]
+            The list of substrings.
         """
         max_split = _resolve_max_split(max_split)
         if max_split == 0:
@@ -1018,7 +1013,7 @@ class Parser:
         # iterate slices for (pre-bracket, bracketed) parts of string
         collected = ['']
         for pre, delimited in self._isplit_slice_pairs(
-            string, True, (level == 0)
+            string, 'ignore', (level == 0)
         ):
             pre, *parts = string[pre].split(
                 seperator, max_split - len(collected) + 1
@@ -1058,7 +1053,7 @@ class Parser:
     def has_unclosed(self, string):
         return any(
             (None in match.indices)
-            for match in self._iter(string, must_close=HandleUnclosed.RETURN)
+            for match in self._iter(string, must_close=HandleUnclosed.YIELD)
         )
 
     def encloses(self, string):
@@ -1130,13 +1125,13 @@ def match(
 
 # @doc.splice(Parser.finditer, insert)
 def finditer(
-    string, delimiters, must_close=HandleUnclosed.RETURN, condition=NoCondition
+    string, delimiters, must_close=HandleUnclosed.YIELD, condition=NoCondition
 ):
     return Parser(delimiters).finditer(string, must_close, condition)
 
 
 def findall(
-    string, delimiters, must_close=HandleUnclosed.RETURN, condition=NoCondition
+    string, delimiters, must_close=HandleUnclosed.YIELD, condition=NoCondition
 ):
     return Parser(delimiters).findall(string, must_close, condition)
 
