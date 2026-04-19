@@ -89,7 +89,7 @@ class Framework(SlotHelper, LoggingMixin):
 
     __slots__ = ('jobname', 'backend', 'config', 'results', 'nfail', 'xfail')
 
-    __repr__ = Represent((..., 'completeness'),
+    __repr__ = Represent(...,
                          ignore=('results', ),
                          remap={'nfail': 'nfail.value'},
                          newline='\n')
@@ -292,6 +292,8 @@ class Executor(Framework):
     # aliases
     reset = Alias('reset_memory')
     get_index = Alias('select')
+    
+    __repr__ = Represent.like(Framework, (..., 'completeness'))
 
     def init_memory(self, shape, loc=None, fill=np.nan, overwrite=False, **kws):
         """
