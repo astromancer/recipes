@@ -68,13 +68,12 @@ def _nth_true(iterable, n, test=echo, default=NULL):
     itr = enumerate(zip(filtered, index))
     mit.consume(itr, n)
     i, (value, index) = next(itr, (0, (default, None)))
-    if value is NULL:
-        if i < n:
-            raise ValueError(
-                f'Iterable contains only {i} (< {n}) truthy elements (based on '
-                f'test function {test}). You may supply any default value to '
-                'suppress this error.'
-            )
+    if value is NULL and i < n:
+        raise ValueError(
+            f'Iterable contains only {i} (< {n}) truthy elements (based on '
+            f'test function {test}). You may supply any default value to '
+            'suppress this error.'
+        )
 
     return index, value
 
