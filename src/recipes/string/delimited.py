@@ -564,7 +564,6 @@ class Parser:
         pairs = pairs or ALL_PAIRED_DELIMITERS
         self.pairs = ParserModel(pairs=pairs).pairs  # validate pairs
         self.opening, self.closing = zip(*self.pairs)
-        self._unique_delimiters = self.opening != self.closing
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.pairs})'
@@ -588,7 +587,7 @@ class Parser:
         positions = defaultdict(list)
         for count, (j, b) in enumerate(self._index(string)):
             if b in self.opening and (
-                self._unique_delimiters or (count % 2) == 0
+                b not in self.closing or (count % 2) == 0
             ):
                 # opening bracket
                 positions[b].append(j)
@@ -1124,9 +1123,9 @@ square_brackets = hard_brackets = Parser('[]')
 angle_brackets = chevrons = Parser('<>')
 xml = Parser(('<?', '?>'))
 
-# quotes = Parser("''")
-# double_quotes = Parser('""')
-
+quotes = single_quotes = Parser("''")
+double_quotes = Parser('""')
+# 
 
 bracket_parsers = {
     '{': braces,
