@@ -152,7 +152,7 @@ class KeywordTranslate(RegexTranslate):
         sub = pattern
         regex = ''
         while 1:
-            match = self.parser.match(sub, must_close=True)
+            match = self.parser.match(sub, must_close='raise')
             if match is None:
                 regex += sub
                 break

@@ -164,7 +164,7 @@ class FilePatternWalker:
         path_or_pattern = str(path_or_pattern)
 
         # handle brace expansion first
-        special = bool(braces.match(path_or_pattern, must_close=True))
+        special = bool(braces.match(path_or_pattern, must_close='raise'))
         wildcard = glob.has_magic(path_or_pattern)  # handle glob patterns
         if special | wildcard:
             logger.opt(lazy=True).debug(
