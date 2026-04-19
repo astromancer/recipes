@@ -287,6 +287,10 @@ class Framework(SlotHelper, LoggingMixin):
         return self.results
 
 
+# alias
+FrameWork = Framework
+
+
 class Executor(Framework):
     """
     Failure tolerant parallel task executor with flexible backend, data
