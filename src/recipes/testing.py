@@ -40,7 +40,7 @@ much neater
 import types
 import difflib
 import itertools as itt
-from contextlib import nullcontext
+import contextlib as ctx
 from collections import abc, defaultdict
 from inspect import Parameter, Signature, _ParameterKind, signature
 
@@ -251,7 +251,7 @@ class Expected(LoggingMixin):
         if self.sig.parameters:
             self.pnames, params = zip(*self.sig.parameters.items())
         self.pkinds = kinds = [p.kind for p in params]
-        for k, v in dict(vkw=VKW, var=VAR).items():
+        for k, v in {'vkw': VKW, 'var': VAR}.items():
             if v in kinds:
                 setattr(self, k, self.pnames[kinds.index(v)])
 
@@ -440,16 +440,16 @@ class Expected(LoggingMixin):
             self.logger.debug('passing to {:s}: {!s}; {!s}.',
                               self.func.__name__, args, kws)
 
-            ctx = nullcontext()
+            context = ctx.nullcontext()
             if isinstance(expected, Throws):
-                ctx = pytest.raises(expected.error)
+                context = pytest.raises(expected.error)
             elif isinstance(expected, Warns):
-                ctx = pytest.warns(expected.warning)
+                context = pytest.warns(expected.warning)
 
-            with ctx:
+            with context:
                 answer = left_transform(self.func(*args, **kws))
 
-            if (expected is PASS) or not isinstance(ctx, nullcontext):
+            if (expected is PASS) or not isinstance(context, ctx.nullcontext):
                 return
 
             expected = right_transform(expected)

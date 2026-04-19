@@ -158,7 +158,6 @@ def sub(string, mapping=(), **kws):
     #     return string.translate(str.maketrans(mapping))
 
     from recipes import cosort
-    # from recipes import op
 
     # check if any keys are contained within another key. If this is true,
     # we have to substitute the latter before the former

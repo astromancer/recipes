@@ -25,13 +25,13 @@ RGX_TERSE = re.compile(  # FIXME: does not compile with regex!
         )                            # End $1: Stuff to discard.
         |
         ( [^\[(\s#\\]+               # Or g2of3 $2: Stuff to keep. Either non-[(\s# \\.
-          | \\[^# Q\r\n]               # Or escaped-anything-but: hash, space, Q or EOL.
-          | \(                         # Or an open parentheses, optionally
+          | \\[^# Q\r\n]             # Or escaped-anything-but: hash, space, Q or EOL.
+          | \(                       # Or an open parentheses, optionally
             (?:\?\#                  # comment group.
                [^)]*             
                (?:\)|$)              # end comment group
             )?   
-          | \[\^?\]?                   # Or Character class. Allow unescaped ] if first char.
+          | \[\^?\]?                 # Or Character class. Allow unescaped ] if first char.
             [^\[\]\\]*               # Zero or more non-[]
             (?:                      # Begin unrolling loop {((special1|2) normal*)*}.
               (?: 
@@ -49,9 +49,7 @@ RGX_TERSE = re.compile(  # FIXME: does not compile with regex!
 )
 
 # matchers for regex groups
-RGX_NAMED_GROUP = re.compile(r'\((\?P<\w+>)')
-# RGX_UNGROUP = re.compile(r'\(\?P<[a-zA-Z]+>([^)]+)\)')
-
+REGEX_NAMED_GROUP = re.compile(r'\((\?P<\w+>)')
 
 # translate unix brace expansion patterns to regex pattern
 UNIX_BRACE_TO_REGEX = str.maketrans(dict(zip('{},', '()|')))
@@ -66,9 +64,8 @@ def match_all(strings, pattern):
     matches = {}
     matcher = re.compile(pattern)
     for i, string in enumerate(strings):
-        m = matcher.match(string)
-        if m:
-            matches[i] = m.group()
+        if match := matcher.match(string):
+            matches[i] = match.group()
     return matches
 
 
@@ -95,17 +92,19 @@ def _resolve(pattern):
     raise TypeError(f'Invalid pattern object of class {type(pattern)}.')
 
 
-def unname(pattern, noncapture=False):
+def remove_group_names(pattern, noncapture=False):
     """
     Remove name references from groups
     (?P<name>)
     """
     pattern, compiler = _resolve(pattern)
     sub = '(?:' if noncapture else '('
-    return compiler(RGX_NAMED_GROUP.sub(sub, pattern))
+    return compiler(REGEX_NAMED_GROUP.sub(sub, pattern))
 
+#alias
+unname = remove_group_names
 
-def unflag(pattern):
+def remove_flags(pattern):
     """
     Remove in-pattern flags
     (?x)
@@ -113,6 +112,8 @@ def unflag(pattern):
     pattern, compiler = _resolve(pattern)
     return compiler(RGX_VERBOSE_FLAG.sub(r'\1\2\3', pattern))
 
+#alias
+unflag = remove_flags
 
 # def ungroup(pattern, n=1):
 #     pattern, compiler = _resolve(pattern)

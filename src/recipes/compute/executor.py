@@ -161,8 +161,8 @@ class Framework(SlotHelper, LoggingMixin):
 
         # workload iter
         return tqdm(workload,
-                    **{**dict(desc=(jobname or self.jobname),
-                              disable=not progress_bar),
+                    **{'desc': (jobname or self.jobname),
+                       'disable': not progress_bar,
                        **CONFIG.progress,
                        'total': len(data[0]),
                        **kws})
@@ -212,7 +212,8 @@ class Framework(SlotHelper, LoggingMixin):
 
         # fetch work
         workload = self.get_workload(*data,
-                                     progress_bar=progress_bar, jobname=jobname)
+                                     progress_bar=progress_bar,
+                                     jobname=jobname)
 
         # setup compute context
         worker, context, locks = self.setup(njobs, progress_bar, **self.config)
@@ -367,7 +368,7 @@ class Executor(Framework):
 
         # Resolve indices - need these to write results
         if indices is None:
-            indices, = np.where(~done)
+            indices, = np.nonzero(~done)
 
         indices = list(indices)
         self.logger.trace('indices = {}', indices)
