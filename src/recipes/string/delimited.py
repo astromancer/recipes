@@ -8,12 +8,14 @@ import math
 import numbers
 import warnings
 import itertools as itt
+from enum import Enum
 from collections import defaultdict
 from dataclasses import asdict, astuple, dataclass
-from typing import Callable, Collection, List, Tuple, Union
+from typing import Annotated, Callable, Collection, List, Sequence, Tuple, Union
 
 # third-party
 import more_itertools as mit
+from pydantic import AfterValidator, BaseModel, BeforeValidator
 
 # relative
 from .. import op
@@ -21,7 +23,6 @@ from ..containers import cosort
 from ..iter import cofilter, where
 from ..functionals import always, echo, not_none
 from .plurals import named_items, pluralize
-from enum import Enum
 
 
 # import docsplice as doc
@@ -32,7 +33,12 @@ from enum import Enum
 # ---------------------------------------------------------------------------- #
 # Module Constants
 
-ALL_BRACKET_PAIRS = {'()', '[]', '{}', '<>'}
+ALL_PAIRED_DELIMITERS = (
+    ('(', ')'),
+    ('{', '}'),
+    ('[', ']'),
+    ('<', '>'),
+)
 
 INFINT = 2**32
 CARET = '^'
@@ -521,6 +527,22 @@ class Match:
 # ---------------------------------------------------------------------------- #
 
 
+def coerce_pairs(pairs):
+    return tuple(map(tuple, pairs))
+
+
+def unique(pairs):
+    return tuple(mit.unique_everseen(pairs))
+
+
+class ParserModel(BaseModel):
+    pairs: Annotated[
+        Sequence[Tuple[str, str]],
+        BeforeValidator(coerce_pairs),
+        AfterValidator(unique),
+    ] = ALL_PAIRED_DELIMITERS
+
+
 class Parser:
     """
     Class for matching, iterating, splitting, filtering, replacing paired
@@ -538,7 +560,9 @@ class Parser:
             brackets must be an object of length 2.
         """
 
-        self.pairs = list(set(pairs) or ALL_BRACKET_PAIRS)
+        # convert pairs to sequence of 2-tuples of str
+        pairs = pairs or ALL_PAIRED_DELIMITERS
+        self.pairs = ParserModel(pairs=pairs).pairs  # validate pairs
         self.opening, self.closing = zip(*self.pairs)
         self._unique_delimiters = self.opening != self.closing
 
