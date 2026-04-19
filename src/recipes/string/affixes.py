@@ -55,8 +55,8 @@ def replace_prefix(string, old, new):
 
     Examples
     --------
-    >>> replace_prefix('foology', 'f', 'z')
-    'zoology'
+    >>> replace_prefix('re_re_', 're_', 'ra')
+    'rare_'
 
     Returns
     -------

@@ -61,6 +61,28 @@ UNIX_GLOB_TO_REGEX = {'.': r'\.',
 # utils
 # ---------------------------------------------------------------------------- #
 def match_all(strings, pattern):
+    """
+    Find all matches of pattern across a list strings and return a dict of
+    match objects keyed on the match index position in the list.
+
+    Parameters
+    ----------
+    strings : list of str
+        List of strings to search for matches.
+    pattern : str or re.Pattern
+        Regular expression pattern to match.
+
+    Examples
+    --------
+    >>> match_all(['abc', 'def', 'abc'], r'abc')
+    {0: 'abc', 2: 'abc'}
+
+    Returns
+    -------
+    dict
+        Dictionary of match objects keyed on the match index position in the
+        list.
+    """
     matches = {}
     matcher = re.compile(pattern)
     for i, string in enumerate(strings):
