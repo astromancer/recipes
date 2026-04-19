@@ -10,6 +10,7 @@ from tqdm import tqdm
 from loguru import logger
 from joblib import Parallel, delayed
 
+import numbers
 
 # relative
 from .. import pprint as pp
@@ -242,6 +243,9 @@ class Framework(SlotHelper, LoggingMixin):
             # doing this here (instead of inside the except clause) avoids
             # duplication by chained exception traceback when logging
             raise AbortCompute(f'Reach exception threshold of {self.xfail}.')
+
+        # Gotcha!
+        assert isinstance(index, numbers.Integral)
 
         # compute
         try:
