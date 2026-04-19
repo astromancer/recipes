@@ -1,18 +1,21 @@
 """
 Helpers for making functions with various signatures for testing
 
-The following code shows (implicitly) how the various types of parameters are 
+The following code shows (implicitly) how the various types of parameters are
 defined:
 
->>> def func(
-...         a, # b=0,   # positional only
-...         /,          # mark end of position-only params
-...         c, d=2,     # positional or keyword
-...         *args,      # variadic positional
-...         # *,        # mark start of keyword-only params
-...         e=3,        # keyword-only
-...         **kws       # variadic keywords
-...     ): ...
+.. code:: python
+
+    def func(
+         a, # b=0,   # positional only
+         /,          # mark end of position-only params
+         c, d=2,     # positional or keyword
+         *args,      # variadic positional
+         # *,        # mark start of keyword-only params
+         e=3,        # keyword-only
+         **kws       # variadic keywords
+     ): 
+        ...
 """
 
 
@@ -147,7 +150,7 @@ class FunctionFactory:
         Yields
         ------
         list
-            List of `inspect.Parameter`s for function
+            List of :py:class:`inspect.Parameter` s for function.
         """
         name_pool = itt.cycle(self.name_pool)
         name_generators = {POS: name_pool,

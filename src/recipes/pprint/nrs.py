@@ -944,15 +944,27 @@ def sci(n, significant=5, sign=False, times='x',  # x10='x' ?
     sign: str, bool
         add '+' to positive numbers if True.
     times: str
-        style to use for multiplication symbol.
-        * If value is either 'x' or '.':
-            The symbol used is decided based on the unicode and latex flags
-            as per the following table:
-                unicode:    '×'         or      '·'
-                latex:      '\\times'    or      '\\cdot'
-                str:         'x'        or      '*'
-        * using 'E' or 'e' will switch to E-notation style. eg.: 1.3e-12
-        * Any other str may be passed in which case it will be used verbatim.
+        Style to use for multiplication symbol.
+
+            - If value is either 'x' or '.' or '*':
+              Symbol substitutions for unicode and latex formats are made by
+              the `unicode` and `latex` methods as per the following table:
+
+                  =============== ============= ============== =========
+                  ``times=``      ``"x"``       ``"."``        ``"*"``
+                  --------------- ------------- -------------- ---------
+                  method          Outputs
+                  =============== ======================================
+                  :meth:`unicode` ``"×"``       ``"·"``        ``"*"``
+                  :meth:`latex`   ``r"\\times"``  ``r"\\cdot"``  ``"*"``
+                  :meth:`ascii`   ``"x"``       ``"."``        ``"*"``
+                  =============== ============= ============== =========
+
+            - Using 'E' or 'e' will switch to E-notation style. 
+              eg.: 1.3e-12 or 1.3E-12
+            - Any other str may be passed in which case it will be used
+              verbatim.
+
     short: bool
         If True, redundant zeros after decimal point will be stripped to yield a
         more compact representation of the same number.
@@ -1314,7 +1326,8 @@ def sci_array(n, significant=5, sign='-', times='x',  # x10='x' ?
 def matrix(a, precision=3):
     """
     A nice matrix representation of an array:
-    Eg:
+    Eg::
+
         ┌                  ┐
         │     0.939  0.216 │
         │    -0.001  0     │

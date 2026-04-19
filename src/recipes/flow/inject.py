@@ -8,7 +8,7 @@ from textwrap import dedent
 
 
 class Prior:
-    """Run `func(*args, **kws) after running the wrapped function."""
+    """Run `func(*args, **kws)` after running the wrapped function."""
 
     def __init__(self, func, *args, **kws):
         assert callable(func)
@@ -31,7 +31,7 @@ class Prior:
 
 
 class Post:
-    """Run `func(*args, **kws) after running the wrapped function."""
+    """Run `func(*args, **kws)` after running the wrapped function."""
 
     def __init__(self, func: abc.Callable, *args, **kws):
         assert callable(func)

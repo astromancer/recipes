@@ -114,12 +114,14 @@ class Decorator(Factory):
     There are two distinct usage patterns currently supported:
     1) No explicit arguments provided to decorator.
     eg.:
+
     >>> @decorator
     ... def fun():
     ...     ...
 
     2) Explicit arguments and/or keywords provided to decorator.
     eg.:
+
     >>> @decorator('hello', foo='bar')
     ... def baz(*args, **kws): 
     ...     ...

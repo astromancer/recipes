@@ -13,12 +13,16 @@ def vertical_brace(size, text=''):
 
     Examples
     --------
-    >>> vertical_brace(5, 'Text!')
-    '⎫\n'
-    '⎪\n'
-    '⎬ Text!\n'
-    '⎪\n'
-    '⎭\n'
+
+    >>> print(vertical_brace(5, 'Text!'))
+
+    ::
+
+      ⎫
+      ⎪
+      ⎬ Text!
+      ⎪
+      ⎭
 
     Returns
     -------

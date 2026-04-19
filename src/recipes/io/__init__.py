@@ -3,14 +3,15 @@
 import io
 
 # relative
-from .gitignore import GitIgnore
+from .globlist import GitIgnore
 from .mmap import load_memmap, load_memmap_nans
 from .utils import (
-    backed_up, count_lines, deserialize, guess_format, iter_ext, iter_files,
+    backed_up, count_lines, deserialize, guess_format,
     iter_lines, load_json, load_pickle, md5sum, open_any, read_line,
-    read_lines, safe_write, save_json, save_pickle, serialize, show_tree, walk,
+    read_lines, safe_write, save_json, save_pickle, serialize, show_tree,
     working_dir, write_lines, write_replace
 )
+from .walk import FilePatternWalker, iter_files, walk
 
 
 class FileIOPicklable(io.FileIO):

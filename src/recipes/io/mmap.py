@@ -40,8 +40,8 @@ def load_memmap(loc=None, shape=None, dtype=None, fill=None, masked=False,
         Whether or not to create a mask for data censoring (also a memmory map).
         If True, a second memmory map with boolean data type, having the same
         shape as the data array is created. The returned object is then a
-        `np.ma.MaskedArray` instance that has the ``.data`` and ``.mask`
-        attributes as the respective `np.memmap`s.
+        `np.ma.MaskedArray` instance that has the ``.data`` and ``.mask``
+        attributes as the respective `np.memmap` s.
     overwrite : bool, optional
         Whether to overwrite an existing file, by default False.
 

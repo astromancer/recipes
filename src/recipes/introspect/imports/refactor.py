@@ -921,34 +921,68 @@ class ImportRefactory(LoggingMixin):
             initializer (`__init__.py`) script.
         split : {None, False, 0, 1}, optional
             Whether to split import statements:
-            * Case `False` or `None`, do not split any import lines. 
-            * Case `0`, the default: Split single-line
+            
+            - Case `False` or `None`, do not split any import lines.
+            - Case `0`, the default: Split single-line
               import statements involving multiple modules eg:
-              >>> import os, re
+              
+              .. code:: python
+
+                import os, re
                 becomes
-              >>> import os
-              ... import re
-            * Case `1`: Split single-line import statements involving any sub
+              
+              .. code:: python
+
+                import os
+                import re
+
+            - Case `1`: Split single-line import statements involving any sub
               modules eg: 
-              >>> from collections.abc import Sized, Collection
-                becomes
-              >>> from collections.abc import Sized
-              ... from collections.abc import Collection
+              
+              .. code:: python
+
+                from collections.abc import Sized, Collection
+    
+              becomes
+
+              .. code:: python
+
+                from collections.abc import Sized
+                from collections.abc import Collection
+    
         merge : int, optional
             How to merge multiple import statements if at all, by default 1.
             This performs the inverse operation of `split`.
-            * Case `False` or `None`, do not merge any import lines. 
-            * Case `0`, the default: Merge multi-line import statements from the
-              standard library: 
-              >>> import os ... import re
-                becomes
-              >>> import os, re
-            * Case `1`: Merge multiple import statements involving the same
-              (sub)modules eg: 
-              >>> from collections.abc import Sized
-              ... from collections.abc import Collection
-                becomes
-              >>> from collections.abc import Sized, Collection
+
+            - Case `False` or `None`, do not merge any import lines. 
+            - Case `0`, the default: Merge multi-line import statements from the
+              standard library:
+
+              .. code:: python 
+
+                  import os 
+                  import re
+                
+              becomes
+
+              .. code:: python 
+
+                  import os, re
+            
+            - Case `1`: Merge multiple import statements involving the same
+              (sub)modules eg:
+
+              .. code:: python 
+
+                  from collections.abc import Sized
+                  from collections.abc import Collection
+
+              becomes
+
+              .. code:: python 
+
+                from collections.abc import Sized, Collection
+
         relativize : str, optional
             The name of the module containing the import statements. Providing
             this will convert absolute module names to '.' where appropriate for
@@ -957,13 +991,14 @@ class ImportRefactory(LoggingMixin):
             if the class was initialized from a file and not a source code
             string, and that file is not a test or an executable script.
 
-
         Examples
         --------
         >>> ImportRefactory('import this, antigravity').refactor()
-        import this
-        import antigravity
 
+        ::
+
+            import this
+            import antigravity
 
         Returns
         -------

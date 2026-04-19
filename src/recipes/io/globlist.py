@@ -1,10 +1,9 @@
 
-import math
 import glob
 import fnmatch
+import functools as ftl
 from pathlib import Path
 from collections import abc
-
 
 # ---------------------------------------------------------------------------- #
 IGNORE_IMPLICIT = ('.git', )
@@ -12,10 +11,12 @@ IGNORE_IMPLICIT = ('.git', )
 # ---------------------------------------------------------------------------- #
 
 
-def _read(path):
-    return filter(None, (line.strip(' ')
-                         for line in path.read_text().splitlines()
-                         if not line.startswith('#')))
+def get_repo_files(folder):
+
+    if not (file := Path(folder) / '.gitignore').exists():
+        raise FileNotFoundError(f"Could not find '{file!s}.'")
+
+    return list(GitIgnore(file).walk(folder))
 
 
 def read(path):
@@ -48,6 +49,28 @@ def _read(path):
     return filter(None, (line.strip(' ')
                          for line in path.read_text().splitlines()
                          if not line.startswith('#')))
+
+
+def load(filename=None, patterns=()):
+
+    if filename:
+        ignore = GitIgnore(filename)
+        ignore.add(patterns)
+    else:
+        ignore = GlobPatternList(patterns)
+
+    return ignore
+
+
+def resolve_extensions(extensions):
+
+    if extensions in {all, None}:
+        return ()
+
+    if isinstance(extensions, str):
+        extensions = (extensions, )
+
+    return tuple(f'.{e.lstrip(".")}' for e in extensions)
 
 
 class GlobPatternList:
@@ -85,6 +108,13 @@ class GlobPatternList:
         self.patterns = []
         self.add(patterns)
 
+    def pprint(self):
+        print(''.join(
+            ''.join((attr, ' =\n',
+                     '    ', '\n    '.join(getattr(self, attr)), '\n'))
+            for attr in self.__slots__
+        ))
+
     def add(self, items):
         """
         Add glob patterns to the list.
@@ -99,17 +129,26 @@ class GlobPatternList:
         TypeError
             If input is not a string or an iterable of strings.
         """
-        if isinstance(items, str):
-            self._add(items)
+        if isinstance(items, (str, Path)):
+            self._add(str(items))
+
         elif isinstance(items, abc.Iterable):
             list(map(self.add, items))
+
+        elif isinstance(items, GlobPatternList):
+            for attr in self.__slots__:
+                getattr(self, attr).extend(getattr(items, attr))
+
         else:
-            raise TypeError(f'Invalid object type {type(items).__name__}: {items}.')
+            raise TypeError(
+                f'Invalid object type {type(items).__name__}: {items}.'
+            )
 
     def _add(self, pattern):
         if pattern:
             items = (self.names, self.patterns)
             items[glob.has_magic(pattern)].append(pattern.rstrip('/'))
+
 
     def match(self, filename):
         """

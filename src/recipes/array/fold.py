@@ -100,9 +100,9 @@ def fold(a, size, overlap=0, axis=0, pad='masked', **kws):
     multiple entries **with the same memory location**.  Beware of this when
     doing inplace arithmetic operations on the returned array.
     eg.:
+
     >>> n, size, overlap = 2, 1, 1
-    ... q = fold.fold(np.arange(n), size, overlap, pad=False)
-    ... q
+    ... fold.fold(np.arange(n), size, overlap, pad=False)
     array([[0, 1],
            [1, 2]])
 

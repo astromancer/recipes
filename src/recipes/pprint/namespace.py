@@ -10,15 +10,16 @@ from .mapping import pformat as _pformat
 def pformat(target, attrs=..., maybe=(), ignore='*_', rename=(), remap=(),
             name=None, enclose='<>', **kws):
     """
-    Pretty format an object's namespace (attributes, properties and their values) 
+    Pretty format an object's namespace (attributes, properties and their
+    values).
 
     Parameters
     ----------
     target : object
         The instance whose namespace will be represented.
     attrs : Sequence[str|ellipsis] or ellipsis, optional
-        The attribute names. The default value, `...`, means use all available 
-        attributes in `__slots__` or `__dict__`. To represent additional 
+        The attribute names. The default value, ``...``, means use all available 
+        attributes in ``__slots__`` or ``__dict__``. To represent additional 
         properties, you can include more names with the ellipsis in a sequence
         eg: (..., 'aproperty'). This is interpreted as though the slot names
         are expanded in-place at the position of the elipsis, so order matters.
@@ -26,7 +27,7 @@ def pformat(target, attrs=..., maybe=(), ignore='*_', rename=(), remap=(),
         Attribute or property names to show conditionally based on the value
         of said attribute. By default ().
     ignore : str, optional
-        Pattern(s) of attribute names to ignore. The default value, '*_',
+        Pattern(s) of attribute names to ignore. The default value, ``'*_'``,
         ignores all names beginning with an underscore.
     rename : dict[str], optional
         Mapping of attributes (str) that will be renamed to new names, by
