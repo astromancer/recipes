@@ -1,5 +1,5 @@
 """
-A cookbook for the python developer connoisseur 🧑🏽‍🍳🍷🐍.
+The python cookbook for developer connoisseurs 🧑🏽‍🍳🍷🐍
 """
 
 # std
@@ -18,6 +18,19 @@ from .config import create_user_config
 from .containers import (cosort, dicts, duplicate_if_scalar, is_scalar, lists,
                          not_null, sets)
 
+
+__all__ = [
+    'regex', 
+    'functionals', 
+    'string', 
+    'cosort',
+    'dicts', 
+    'duplicate_if_scalar',
+    'is_scalar',
+    'lists',
+    'not_null', 
+    'sets'
+]
 
 # ---------------------------------------------------------------------------- #
 
