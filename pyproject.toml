@@ -32,11 +32,13 @@ dependencies = [
 
     "numpy",
     "joblib",
-    "tqdm"
+    "tqdm",
+
+    "pydantic",
 ]
 
 [project.optional-dependencies]
-tests = ["pytest", "pytest-cases", "tox>=4.21", "tox-uv"]
+tests = ["tox>=4.21", "tox-uv", "pytest", "pytest-cases", "pytest-cov"]
 docs = [ 
     "setuptools_scm", 
     "sphinx>=7.1",
