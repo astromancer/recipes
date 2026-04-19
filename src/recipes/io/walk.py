@@ -258,7 +258,7 @@ def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
         Location of the root folder. Can also be a glob pattern of filenames to
         load eg: ``'/path/SHA_20200715.000[1-5].fits'``. Pattern can also
         contain brace expansion patterns eg:
-        ``'/path/SHA\_202007{15..18}.000[1-5].fits'`` in which case all valid
+        ``'/path/SHA_202007{15..18}.000[1-5].fits'`` in which case all valid
         files and directories in the range will be traversed.
     extensions : str or tuple or list
         The filename extensions to consider. All filenames ending on any of

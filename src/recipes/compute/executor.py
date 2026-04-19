@@ -85,6 +85,7 @@ def _select(index, *data):
 class AbortCompute(Exception):
     pass
 
+# ComputeFramework, OrderedWorkload, BatchedWorkload
 
 class Framework(SlotHelper, LoggingMixin):
 
@@ -169,7 +170,7 @@ class Framework(SlotHelper, LoggingMixin):
                        **kws})
 
     def _get_workload(self, *data):
-        # NOTE: should yield (data, index) since that is what the `_compute`
+        # NOTE: should yield (index, data) since that is what the `_compute`
         # method expects.
         return zip(*data)
 
