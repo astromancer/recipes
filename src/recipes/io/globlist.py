@@ -20,7 +20,24 @@ def get_repo_files(folder):
 
 
 def read(path):
-    # read glob patterns from file
+    """
+    Read glob patterns from a file.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to the file containing glob patterns.
+
+    Returns
+    -------
+    list of str
+        A list of glob patterns that were read from the file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the specified file does not exist.
+    """
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f'No such file: {path!s}.')
@@ -63,21 +80,26 @@ class GlobPatternList:
 
     __slots__ = ('names', 'folders',  'subpaths', 'abspaths', 'patterns')
 
-    # @classmethod
-    # def load(cls, filename=None, patterns=()):
-    #     if filename:
-    #         ignore = cls(filename)
-    #         ignore.add(patterns)
-    #     else:
-    #         ignore = GlobPatternList(patterns)
-
-    #     return ignore
-
     @classmethod
     def from_file(cls, path):
+        """
+        Create a GlobPatternList from a file containing glob patterns.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path to the file containing glob patterns.
+
+        Returns
+        -------
+        GlobPatternList
+            An instance of GlobPatternList initialized with patterns
+            from the file.
+        """
         path = Path(path)
         return cls(path.parent, read(path))
 
+    # alias
     fromfile = from_file
 
     def __init__(self, patterns):
@@ -96,7 +118,20 @@ class GlobPatternList:
         ))
 
     def add(self, items):
+        """
+        Add glob patterns to the list.
 
+        Parameters
+        ----------
+        items : str or Path or iterable of str or GlobPatternList
+            Glob pattern(s) to add.
+
+        Raises
+        ------
+        TypeError
+            If input is not a string, a Path, an iterable of strings, or a
+            GlobPatternList.
+        """
         if isinstance(items, (str, Path)):
             self._add(str(items))
 
@@ -133,7 +168,19 @@ class GlobPatternList:
         self.names.append(pattern)
 
     def match(self, filename):
+        """
+        Check if a filename matches any of the glob patterns or names.
 
+        Parameters
+        ----------
+        filename : str or Path
+            The filename to check.
+
+        Returns
+        -------
+        bool
+            True if the filename matches any pattern or name, False otherwise.
+        """
         return (
             (filename := str(filename)) in self.abspaths
             or (path := Path(filename)).name in self.names
@@ -150,59 +197,13 @@ class GlobPatternList:
         matched = fnmatch.fnmatchcase(filename, pattern)
         return (not matched) if negate else matched
 
-    # def walk(self, folder, depth=any, extensions=all):
-
-    #     if not (folder := Path(folder)).exists():
-    #         raise NotADirectoryError(
-    #             'The `folder` parameter should be a path to an existing system '
-    #             f' folder. Recieved: {folder!r}'
-    #         )
-
-    #     depth = DEPTH_LIMIT if depth is any else depth
-    #     extensions = resolve_extensions(extensions)
-    #     yield from self._walk(folder, depth, extensions)
-
-    # def _walk(self, folder, depth, extensions, _level=0):
-
-    #     _level += 1
-    #     if _level > depth:
-    #         return
-
-    #     for path in folder.iterdir():
-    #         if extensions and path.suffix not in extensions:
-    #             continue
-
-    #         if self.match(path, folder):
-    #             continue
-
-    #         if path.is_dir():
-    #             yield from self._walk(path, depth, _level)
-    #             continue
-
-    #         yield path
-
-    # # alias
-    # iter = iterdir = walk
-
 
 class GitIgnore(GlobPatternList):
     """
     Class to read `.gitignore` files and filter source trees.
     """
 
-    # __slots__ = ('root', )
-
     def __init__(self, filename='.gitignore'):
         path = Path(filename)
         super().__init__(read(path))
         self.names.extend(IGNORE_IMPLICIT)
-        # self.root = path.parent
-
-    def match(self, filename, root=None):
-        return super().match(filename)
-
-    # def walk(self, folder, depth=any, extensions=all):
-    #     return super().walk(folder or self.root, depth, extensions)
-
-    # # alias
-    # iter = iterdir = walk
