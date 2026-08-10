@@ -7,7 +7,7 @@ import itertools as itt
 
 def subclasses(cls, _seen=None):
     """
-    Generator over all subclasses of a given class, in depth first order.
+    Iterate over all subclasses of a given class, in depth first order.
 
     >>> list(subclasses(int)) == [bool]
     True
@@ -24,7 +24,6 @@ def subclasses(cls, _seen=None):
     >>> [cls.__name__ for cls in subclasses] #doctest: +ELLIPSIS
     ['type', ... 'tuple', ...]
     """
-
     # recipe adapted from:
     # http://code.activestate.com/recipes/576949-find-all-subclasses-of-a-given-class/
 

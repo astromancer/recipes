@@ -113,12 +113,14 @@ class KeywordTranslate(RegexTranslate):
     any order should be enclosed in round brackets eg: "frivol(ou)s".
 
     Note that input patterns are translated to regex, so eg:
-        "n[umber]" --> "n(u|um|umb|umbe|umber)" "n(u(m(b(e(r?)?)?)?)?)?"
-        "n(umbe)r" --> "n(umbe)?r"
-    Any other regex syntax in the pattern will pass through unaltered. You 
+
+        - "n[umber]" --> "n(u|um|umb|umbe|umber)" "n(u(m(b(e(r?)?)?)?)?)?"
+        - "n(umbe)r" --> "n(umbe)?r"
+
+    Any other regex syntax in the pattern will pass through unaltered. You
     can use this to your advantage. For example to match a single optional
     optional character, either enclose it in round brackets, or append a "?"
-    eg: "col(_)head" and "col_?head" both work to match the optional
+    eg: ``"col(_)head"`` and ``"col_?head"`` both work to match the optional
     underscore.
 
     Parameters
@@ -133,8 +135,10 @@ class KeywordTranslate(RegexTranslate):
     >>> resolve = KeywordTranslate('n[umbe]r[_rows]', 'row_nrs')
     >>> resolve('number_rows')
     'row_nrs'
+
     >>> resolve('nr_rows')
     'row_nrs'
+
     >>> resolve('nrs')
     'row_nrs'
     """
@@ -148,7 +152,7 @@ class KeywordTranslate(RegexTranslate):
         sub = pattern
         regex = ''
         while 1:
-            match = self.parser.match(sub, must_close=True)
+            match = self.parser.match(sub, must_close='raise')
             if match is None:
                 regex += sub
                 break

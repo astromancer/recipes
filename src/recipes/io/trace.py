@@ -163,21 +163,26 @@ class TraceWarnings(MessageWrapper):
         --------
         >>> wtb = TraceWarnings()
         >>> warnings.warn('Dinosaurs!')
-        # TODO: generate this output dynamically ???
 
-        ------------------------------- TraceWarnings -------------------------------
-        /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:5: UserWarning: Dinosaurs!
-          File "/usr/lib/python3.5/runpy.py", line 193, in _run_module_as_main
-            "__main__", mod_spec)
-        ... <some lines omitted for brevity>
-          File "/usr/lib/python3.5/warnings.py", line 18, in showwarning
-            file.write(formatwarning(message, category, filename, lineno, line))
-        --------------------------------------------------------------------------------
+        .. code:: text
+
+            ------------------------------- TraceWarnings -------------------------------
+            /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:5: UserWarning: Dinosaurs!
+            File "/usr/lib/python3.5/runpy.py", line 193, in _run_module_as_main
+                "__main__", mod_spec)
+            ... <some lines omitted for brevity>
+            File "/usr/lib/python3.5/warnings.py", line 18, in showwarning
+                file.write(formatwarning(message, category, filename, lineno, line))
+            --------------------------------------------------------------------------------
 
         >>> wtb.off()
         >>> warnings.warn('Dinosaurs!')
-        /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:1: UserWarning: Dinosaurs!
-          Entry point for launching an IPython kernel.
+
+        .. code:: text
+
+            /usr/local/lib/python3.5/dist-packages/ipykernel_launcher.py:1: UserWarning: Dinosaurs!
+            Entry point for launching an IPython kernel.
+
         """
 
         super().__init__(warnings.formatwarning, title, width, char)

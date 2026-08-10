@@ -2,8 +2,6 @@
 Script for tidying import statements in python source files.
 """
 
-# std
-from pathlib import Path
 
 # third-party
 import click
@@ -14,49 +12,12 @@ from loguru import logger
 from ...config import ConfigNode
 from ...containers import ensure
 from ...compute import Framework
-from ...io.gitignore import GitIgnore
+from ...io.walk import iter_package_files
 from . import STYLES, refactor
 
 
 # ---------------------------------------------------------------------------- #
 CONFIG = ConfigNode.load_module(__file__)
-
-
-# ---------------------------------------------------------------------------- #
-
-def _is_py_file(path):
-    return path.suffix == '.py'
-
-
-def _iter_files(file_or_folder, recurse, ignore):
-
-    path = Path(file_or_folder).resolve()
-
-    if not path.exists():
-        logger.warning("File or directory does not exist: '{}'.", path)
-        return
-
-    if (gitignore := path / '.gitignore').exists():
-        gitignore = GitIgnore(gitignore)
-        gitignore.add(ignore)
-
-    if path.is_dir():
-        if gitignore:
-            files = gitignore.iterdir(depth=(1, any)[recurse])
-            files = filter(_is_py_file, files)
-        else:
-            files = (path.glob, path.rglob)[recurse]('*.py')
-
-        yield from files
-
-    elif _is_py_file(path):
-        if gitignore.match(s := str(path)):
-            logger.debug('Ignoring: {!r}.', s)
-        else:
-            yield path
-
-    else:
-        logger.warning("Not a valid python file: '{}'.", path)
 
 
 # ---------------------------------------------------------------------------- #
@@ -95,8 +56,8 @@ class Tidy(Framework):
     def _resolve_files(self, files_or_folders):
         self.logger.info('Resolving workload.')
         for item in files_or_folders:
-            for file in _iter_files(item, self.recurse, self.ignore):
-                yield file
+            yield from iter_package_files(item, self.recurse,
+                                          ignore_patterns=self.ignore)
 
     def collect(self, index, result):
         # No results returned from worker

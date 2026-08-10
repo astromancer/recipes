@@ -68,13 +68,12 @@ def _nth_true(iterable, n, test=echo, default=NULL):
     itr = enumerate(zip(filtered, index))
     mit.consume(itr, n)
     i, (value, index) = next(itr, (0, (default, None)))
-    if value is NULL:
-        if i < n:
-            raise ValueError(
-                f'Iterable contains only {i} (< {n}) truthy elements (based on '
-                f'test function {test}). You may supply any default value to '
-                'suppress this error.'
-            )
+    if value is NULL and i < n:
+        raise ValueError(
+            f'Iterable contains only {i} (< {n}) truthy elements (based on '
+            f'test function {test}). You may supply any default value to '
+            'suppress this error.'
+        )
 
     return index, value
 
@@ -244,26 +243,59 @@ def _(obj, rhs, test=op.eq, start=0):
 
 def select(items, *args, **kws):
     """
-    Select truthy items from sequences. Works similar to builtin `filter`
-    function, but with a more complete api.
+    Select truthy items from sequences. Works similar to builtin
+    :py:func:`filter` function, but with a more complete api.
 
     Three distinct call signatures are supported:
 
-    Yield all truthy items:
-    >>> select(items)               # like `filter(None, items)`
+    - Yield all truthy items
 
-    Yield items where `test(item)` is 
-    >>> select(items, test)         # like `filter(test, items)`
+      >>> select(items)
 
-    Yield items equal to a value (case where value is not callable object)
-    >>> select(items, value)        # like `filter(lambda x: x == value, items)`
+      This is identical to
 
-    Yield items conditionally on truth value of `test(item, value)`
-    >>> select(items, test, value)  # `filter(lambda _x: test(x, value), items)`
+      .. code:: python
 
-    In general
-    >>> select(items, test, *args, **kws)
-    # like `(_ for _ in items if test(_, *args, **kws))`
+            filter(None, items)
+
+    - Yield items where :python:`test(item)` is truthy
+
+      >>> select(items, test)
+
+      This works like
+
+      .. code:: python
+
+            filter(test, items)
+
+      To get the items that equal a specific value (this only works for the case
+      where value is not a callable object), use:
+
+      >>> select(items, value)
+
+      This works like
+
+      .. code:: python
+
+            filter(lambda x: x == value, items)
+
+    - Yield items conditionally on truth value of :python:`test(item, value)`
+
+      >>> select(items, test, value)
+
+      .. code:: python
+
+            filter(lambda _x: test(x, value), items)
+
+      Finally, in the most general case, the call
+
+      >>> select(items, test, *args, **kws)
+
+      behaves like the following generator code
+
+      .. code:: python
+
+            (_ for _ in items if test(_, *args, **kws))
 
     """
     if (args or kws):

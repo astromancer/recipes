@@ -3,39 +3,44 @@
 """
 Tools to help building parametrized unit tests
 
-Examples
---------
 To generate a bunch of tests with various call signatures of the function
 `iter_lines`, use
->>> from recipes.testing import Expected, mock
->>> test_iter_lines = Expected(iter_lines)(
-...     {mock.iter_lines(filename, 5):                      srange(5),
-...      mock.iter_lines(filename, 5, 10):                  srange(5, 10),
-...      mock.iter_lines(filename, 3, mode='rb'):           brange(3),
-...      mock.iter_lines(filename, 3, mode='rb', strip=''): bnrange(3)},
-...     transform=list
-... )
+
+.. code:: python
+
+    from recipes.testing import Expected, mock
+    test_iter_lines = Expected(iter_lines)(
+        {
+            mock.iter_lines(filename, 5):                      srange(5),
+            mock.iter_lines(filename, 5, 10):                  srange(5, 10),
+            mock.iter_lines(filename, 3, mode='rb'):           brange(3),
+            mock.iter_lines(filename, 3, mode='rb', strip=''): bnrange(3)
+        },
+        transform=list
+    )
 
 This will generate the same tests as the following code block, but is arguably
 much neater
->>> @pytest.mark.parametrize(
-...     'section, mode, strip, result',
-...     [((5, ),  'r', None,  srange(5)),
-...      ((3, 8), 'r', None,  srange(3, 8)),
-...       ((3,),  'rb', None, brange(3)),
-...       ((3,),  'rb', '',   bnrange(3)) ]
-... )
-... def test_iter_lines(filename, section, mode, strip, result):
-...     print(filename)
-...     assert list(iter_lines(filename, *section, mode=mode, strip=strip)) == result
 
+.. code:: python
+
+    @pytest.mark.parametrize(
+        'section, mode, strip, result',
+        [((5, ),  'r', None,  srange(5)),
+         ((3, 8), 'r', None,  srange(3, 8)),
+         ((3,),  'rb', None, brange(3)),
+         ((3,),  'rb', '',   bnrange(3))]
+    )
+    def test_iter_lines(filename, section, mode, strip, result):
+        print(filename)
+        assert list(iter_lines(filename, *section, mode=mode, strip=strip)) == result
 """
 
 # std
 import types
 import difflib
 import itertools as itt
-from contextlib import nullcontext
+import contextlib as ctx
 from collections import abc, defaultdict
 from inspect import Parameter, Signature, _ParameterKind, signature
 
@@ -191,18 +196,22 @@ class Expected(LoggingMixin):
 
     For example, to test that the function `hms` returns the expected
     values, do the following:
-    >>> from recipes.testing import Expected, mock
-    >>> test_hms = Expected(hms)(
-    ...     {mock.hms(1e4):                             '02h46m40.0s',
-    ...      mock.hms(1.333121112e2, 5):                '00h02m13.31211s',
-    ...      mock.hms(1.333121112e2, 5, ':'):           '00:02:13.31211',
-    ...      mock.hms(1.333121112e2, 5, short=False):   '00h02m13.31211s',
-    ...      mock.hms(1.333121112e2, 'm0',
-    ...               short=False, unicode=True):       '00ʰ02ᵐ',
-    ...      mock.hms(119.95, 's0'):                    '00h02m00s',
-    ...      mock.hms(1000, 'm0', sep=':'):             '00:17',
-    ...      }
-    ... )
+
+    .. code:: python
+
+        from recipes.testing import Expected, mock
+        test_hms = Expected(hms)(
+            {
+                mock.hms(1e4):                             '02h46m40.0s',
+                mock.hms(1.333121112e2, 5):                '00h02m13.31211s',
+                mock.hms(1.333121112e2, 5, ':'):           '00:02:13.31211',
+                mock.hms(1.333121112e2, 5, short=False):   '00h02m13.31211s',
+                mock.hms(1.333121112e2, 'm0',
+                         short=False, unicode=True):       '00ʰ02ᵐ',
+                mock.hms(119.95, 's0'):                    '00h02m00s',
+                mock.hms(1000, 'm0', sep=':'):             '00:17',
+             }
+         )
 
     This will automatically construct a test function: 'test_hms' which has the
     same signature as the function `hms`, with a single parameter `results`
@@ -210,7 +219,7 @@ class Expected(LoggingMixin):
     sequence of input-output pairs passed to the `expects` method is used to
     parametrize the test, so that pytest will include all cases in your test
     run. Assigning the output of the `expects` method above to a variable name
-    starting with 'test_' is important for pytest test discovery to work
+    starting with ``'test_'`` is important for pytest test discovery to work
     correctly.
     """
 
@@ -242,7 +251,7 @@ class Expected(LoggingMixin):
         if self.sig.parameters:
             self.pnames, params = zip(*self.sig.parameters.items())
         self.pkinds = kinds = [p.kind for p in params]
-        for k, v in dict(vkw=VKW, var=VAR).items():
+        for k, v in {'vkw': VKW, 'var': VAR}.items():
             if v in kinds:
                 setattr(self, k, self.pnames[kinds.index(v)])
 
@@ -431,16 +440,16 @@ class Expected(LoggingMixin):
             self.logger.debug('passing to {:s}: {!s}; {!s}.',
                               self.func.__name__, args, kws)
 
-            ctx = nullcontext()
+            context = ctx.nullcontext()
             if isinstance(expected, Throws):
-                ctx = pytest.raises(expected.error)
+                context = pytest.raises(expected.error)
             elif isinstance(expected, Warns):
-                ctx = pytest.warns(expected.warning)
+                context = pytest.warns(expected.warning)
 
-            with ctx:
+            with context:
                 answer = left_transform(self.func(*args, **kws))
 
-            if (expected is PASS) or not isinstance(ctx, nullcontext):
+            if (expected is PASS) or not isinstance(context, ctx.nullcontext):
                 return
 
             expected = right_transform(expected)

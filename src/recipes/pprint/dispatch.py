@@ -24,7 +24,6 @@ STD_BRACKET_TYPES = {set: '{}',
 @ftl.singledispatch  # generic type implementation
 def pformat(obj, **kws):
     return repr(obj)
-    # raise TypeError(f'No dispatch method for pprinting objects of type {type(obj)}.')
 
 
 @pformat.register(str)

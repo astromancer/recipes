@@ -4,14 +4,12 @@
 import io
 import os
 import math
-import glob
 import json
 import mmap
 import pickle
 import shutil
 import hashlib
 import tempfile
-import fnmatch as fnm
 import itertools as itt
 import contextlib as ctx
 from pathlib import Path
@@ -22,11 +20,9 @@ import more_itertools as mit
 from loguru import logger
 
 # relative
+import builtins
 from ..string import sub
-from ..containers import ensure
 from ..functionals import echo0
-from ..string.delimited import braces
-from ..shell.bash import brace_expand_iter
 
 
 # ---------------------------------------------------------------------------- #
@@ -115,150 +111,14 @@ def save_json(filename, data, **kws):
 
 
 # ---------------------------------------------------------------------------- #
-# def _unpack_braced(patterns):
-#     for pattern in patterns:
-#         if bool(braces.match(pattern, must_close=True)):
-#             yield from brace_expand_iter(pattern)
-#         else:
-#             yield pattern
 
+class CommentFilter:
+    def __init__(self, char='#'):
+        self.char = str(char)
 
-def iter_files(path_or_pattern, extensions='*', recurse=False, ignore=()):
-    """
-    Generator that yields all files in a directory tree with given file
-    extension(s), optionally recursing down the directory tree. Brace expansion
-    syntax from bash is supported, allowing multiple directory trees to be
-    traversed with a single statement.
+    def __call__(self, string):
+        return string and string.startswith(self.char)
 
-    Parameters
-    ----------
-    path_or_pattern : str or Path
-        Location of the root folder. Can also be a glob pattern of
-        filenames to load eg: '/path/SHA_20200715.000[1-5].fits'
-        Pattern can also contain brace expansion patterns eg:
-        '/path/SHA_202007{15..18}.000[1-5].fits' in which case all valid
-        files and directories in the range will be traversed.
-    extensions : str or tuple or list
-        The filename extensions to consider. All files with any of these
-        extensions will be included. The same functionality as is provided by
-        this parameter can be acheived by including the list of file extensions
-        in the expansion pattern. eg: '/path/*.{png,jpg}' will get all png and
-        jpg files from path directory.
-    recurse : bool, default=True
-        Whether or not to recurse down the directory tree.  The same as using 
-        ".../**/..." in the glob pattern.
-
-    Examples
-    --------
-    >>> iter_files()
-
-    Yields
-    ------
-    pathlib.Path
-        System path pointing to the file.
-
-    Raises
-    ------
-    ValueError
-        If the given base path does not exist.
-    """
-    if isinstance(ignore, str):
-        ignore = (ignore, )
-
-    ignore = list(mit.collapse(map(brace_expand_iter, ignore)))
-
-    for file in _iter_files(path_or_pattern, ensure.tuple(extensions), recurse):
-        for ignored in ignore:
-            if fnm.fnmatchcase(str(file), ignored):
-                logger.debug("Ignoring '{!s}' matching pattern {!r}.", file, ignored)
-                break
-        else:
-            yield file
-
-
-def _maybe_newline(string, width=40, indent=' ' * 2):
-    return f'\n{indent}{string}' if len(string) > width else string
-
-
-def _iter_files(path_or_pattern, extensions='*', recurse=False):
-
-    logger.debug('Iterating over: {}. extensions = {}, recurse={}',
-                 path_or_pattern, extensions, recurse)
-
-    path_or_pattern = str(path_or_pattern)
-    recurse = bool(recurse)
-
-    # handle brace expansion first
-    special = bool(braces.match(path_or_pattern, must_close=True))
-    wildcard = glob.has_magic(path_or_pattern)  # handle glob patterns
-    if special | wildcard:
-        logger.opt(lazy=True).debug(
-            'Special pattern detected: {!s}',
-            lambda: _maybe_newline(path_or_pattern)
-        )
-        itr = (brace_expand_iter(path_or_pattern) if special else
-               glob.iglob(path_or_pattern, recursive=recurse))
-        for path in itr:
-            # recurse
-            # logger.trace('Recursing into: {!s}.', path)
-            yield from iter_files(path, extensions, recurse)
-        return
-
-    # handle input strings without special patterns here. This can be a file or
-    # directory path
-    path = Path(path_or_pattern)
-
-    # Return the input if it is an existing file. This break the recurrence.
-    if path.is_file():
-        yield path
-        return
-
-    # iterate all files with given extensions
-    extensions = ensure.tuple(extensions)
-    extensions = f'{{{",".join((ext.lstrip(".") for ext in extensions))}}}'
-    # recurse?
-    pattern = f'{path!s}/{"**/" * recurse}*.{extensions}'
-
-    if path.is_dir():
-        logger.debug('Received folder: {}', path)
-        logger.debug('Recursing on: {}', pattern)
-        yield from iter_files(pattern, recurse=recurse)
-        return
-
-    # Non-existing path
-    raise ValueError(
-        f"Could not any resolve files for the input pattern: '{pattern!s}'. "
-        'Please supply a path to a valid existing directory, or '
-        'alternitively a glob pattern, or bash brace expansion pattern.'
-    )
-
-
-def iter_ext(files, extensions='*'):
-    """
-    Yield all the files that exist with the same root and stem but different
-    file extension(s)
-
-    Parameters
-    ----------
-    files : Container or Iterable
-        The files to consider
-    extensions : str or Container of str
-        All file extensions to consider
-
-    Yields
-    ------
-    Path
-        [description]
-    """
-    if isinstance(extensions, str):
-        extensions = (extensions, )
-
-    for file in files:
-        for ext in extensions:
-            yield from file.parent.glob(f'{file.stem}.{ext.lstrip(".")}')
-
-
-# ---------------------------------------------------------------------------- #
 
 def open_any(filelike, mode='r'):
     # handle stream
@@ -297,10 +157,6 @@ def iter_lines(filelike, *section, mode='r', strip=None):
         opened in text mode. Use `strip=''` or `strip=False` to leave lines
         unmodified.
 
-    Examples
-    --------
-    >>>
-
     Yields
     ------
     str
@@ -323,21 +179,43 @@ def iter_lines(filelike, *section, mode='r', strip=None):
         for s in itt.islice(fp, *section):
             yield s.strip(strip)
 
-
 # @ doc.splice(iter_lines)
-def read_lines(filename, *section, mode='r', strip=None, filtered=None,
+
+
+def read_lines(filename, *section, mode='r', strip=None, filter=None,
                log=False):
     """
     Read a subset of lines from a given file.
+    
+    Two basic function signatures are accepted:
+        iter_lines(filename, stop)
+        iter_lines(filename, start, stop[, step])
 
-    {Extended Summary}
+    Two basic function signatures are accepted:
+        iter_lines(filename, stop)
+        iter_lines(filename, start, stop[, step])
 
-    {Parameters}
-    filtered : callable or bool or None, by default None
+    Parameters
+    ----------
+    filelike : str or Path or io.IOBase
+        File system location of the file to read, or potentially an already open
+        stream handler.
+    *section
+        The [start], stop, [step] lines.
+    mode : str
+        Mode used for opening files, by default r
+    strip : str, optional
+        Characters to strip from lines. The default value depends on the `mode`
+        parameter. For text mode ('r', 'rt'), strip '\\n', for binary mode
+        ('b'), strip system specific newlines. Note that python automatically
+        translates system specific newlines in the file to '\\n', for files
+        opened in text mode. Use `strip=''` or `strip=False` to leave lines
+        unmodified.
+    filter : callable or bool or None, by default None
         A function that will be used to filter out unwnated lines. Filtering
         occurs after stripping unwanted characters. The default behaviour
-        (filtered=None) removed all blank lines from the results. Passing
-        `filtered=True` is equivalent to the default behaviour and can be
+        (filter=None) removed all blank lines from the results. Passing
+        `filter=True` is equivalent to the default behaviour and can be
         omitted.
     log : callable or bool, optional
         Whether to print a summary of the read content to stdout,
@@ -351,10 +229,11 @@ def read_lines(filename, *section, mode='r', strip=None, filtered=None,
     """
     # Read file content
     content = iter_lines(filename, *section, mode=mode, strip=strip)
-    if filtered is not False:
-        if filtered is True:
-            filtered = None
-        content = filter(filtered, content)
+    filterer = filter
+    if filterer is not False:
+        if filterer is True:
+            filterer = None
+        content = builtins.filter(filterer, content)
     content = list(content)
 
     # Optionally print the content
@@ -453,7 +332,6 @@ def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
     terribly wrong during the attempted operation, the original content will be
     restored.
 
-
     Parameters
     ----------
     filename : str or Path
@@ -531,13 +409,14 @@ def backed_up(filename, mode='w', backupfile=None, folder=None, keep=True,
 
 
 # @ doc.splice(backed_up, 'summary',
-#             omit='Parameters[backupfile]',
-#             replace={'operation': 'write',
-#                      'read / ': ''})  # FIXME: replace not working here
+#              omit='Parameters[backupfile]',
+#              replace={'operation': 'write',
+#                       'read / ': ''})  # FIXME: replace not working here
 def safe_write(filename, lines, eol='\n',
                backupfile=None, folder=None, keep=True, exception_hook=None):
     """
-    {Parameters}
+    Parameters
+    ----------
     lines : list
         Lines of content to write to file.
     """
@@ -648,21 +527,3 @@ def show_tree(folder, use_dynamic_spacing=False):
     tree = FileSystemNode.from_path(folder)
     tree.use_dynamic_spacing = bool(use_dynamic_spacing)
     return tree.render()
-
-
-def walk(folder, depth=1):
-    """
-    Walk the system path, but only up to the given depth.
-    """
-    # adapted from: http://stackoverflow.com/a/234329/1098683
-
-    folder = folder.rstrip(os.path.sep)
-    assert os.path.isdir(folder)
-
-    n_sep = folder.count(os.path.sep)
-    for root, dirs, files in os.walk(folder):
-        yield root, dirs, files
-
-        level = root.count(os.path.sep)
-        if n_sep + depth <= level:
-            del dirs[:]

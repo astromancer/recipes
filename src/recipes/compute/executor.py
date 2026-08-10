@@ -10,6 +10,7 @@ from tqdm import tqdm
 from loguru import logger
 from joblib import Parallel, delayed
 
+import numbers
 
 # relative
 from .. import pprint as pp
@@ -84,12 +85,13 @@ def _select(index, *data):
 class AbortCompute(Exception):
     pass
 
+# ComputeFramework, OrderedWorkload, BatchedWorkload
 
 class Framework(SlotHelper, LoggingMixin):
 
     __slots__ = ('jobname', 'backend', 'config', 'results', 'nfail', 'xfail')
 
-    __repr__ = Represent((..., 'completeness'),
+    __repr__ = Represent(...,
                          ignore=('results', ),
                          remap={'nfail': 'nfail.value'},
                          newline='\n')
@@ -161,14 +163,14 @@ class Framework(SlotHelper, LoggingMixin):
 
         # workload iter
         return tqdm(workload,
-                    **{**dict(desc=(jobname or self.jobname),
-                              disable=not progress_bar),
+                    **{'desc': (jobname or self.jobname),
+                       'disable': not progress_bar,
                        **CONFIG.progress,
                        'total': len(data[0]),
                        **kws})
 
     def _get_workload(self, *data):
-        # NOTE: should yield (data, index) since that is what the `_compute`
+        # NOTE: should yield (index, data) since that is what the `_compute`
         # method expects.
         return zip(*data)
 
@@ -212,7 +214,8 @@ class Framework(SlotHelper, LoggingMixin):
 
         # fetch work
         workload = self.get_workload(*data,
-                                     progress_bar=progress_bar, jobname=jobname)
+                                     progress_bar=progress_bar,
+                                     jobname=jobname)
 
         # setup compute context
         worker, context, locks = self.setup(njobs, progress_bar, **self.config)
@@ -241,6 +244,9 @@ class Framework(SlotHelper, LoggingMixin):
             # doing this here (instead of inside the except clause) avoids
             # duplication by chained exception traceback when logging
             raise AbortCompute(f'Reach exception threshold of {self.xfail}.')
+
+        # Gotcha!
+        assert isinstance(index, numbers.Integral)
 
         # compute
         try:
@@ -282,6 +288,10 @@ class Framework(SlotHelper, LoggingMixin):
         return self.results
 
 
+# alias
+FrameWork = Framework
+
+
 class Executor(Framework):
     """
     Failure tolerant parallel task executor with flexible backend, data
@@ -291,6 +301,8 @@ class Executor(Framework):
     # aliases
     reset = Alias('reset_memory')
     get_index = Alias('select')
+    
+    __repr__ = Represent.like(Framework, (..., 'completeness'))
 
     def init_memory(self, shape, loc=None, fill=np.nan, overwrite=False, **kws):
         """
@@ -367,7 +379,7 @@ class Executor(Framework):
 
         # Resolve indices - need these to write results
         if indices is None:
-            indices, = np.where(~done)
+            indices, = np.nonzero(~done)
 
         indices = list(indices)
         self.logger.trace('indices = {}', indices)

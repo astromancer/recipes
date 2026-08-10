@@ -4,7 +4,8 @@ description = "A cookbook for the python developer connoisseur 🐍🧑🏽‍�
 authors = [
     {name = "Hannes Breytenbach", email = "hannes@saao.ac.za"}
 ]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Programming Language :: Python :: 3.8",
@@ -12,10 +13,10 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Education",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux"
 ]
-dynamic = ["version", "readme", "optional-dependencies" ]
+dynamic = ["version", "readme"]
+
 requires-python = ">=3.8"
 dependencies = [
     "platformdirs",
@@ -31,17 +32,38 @@ dependencies = [
 
     "numpy",
     "joblib",
-    "tqdm"
+    "tqdm",
+
+    "pydantic",
 ]
 
+[project.optional-dependencies]
+tests = ["tox>=4.21", "tox-uv", "pytest", "pytest-cases", "pytest-cov"]
+docs = [ 
+    "setuptools_scm", 
+    "sphinx>=7.1",
+    "sphinx-rtd-theme>=0.4.3",
+    "sphinx_copybutton"
+]
+dev = ["uv", "ruff", "recipes[tests, docs]"]
+
+[dependency-groups]
+tests = ["recipes[tests]"]
+docs = ["recipes[docs]"]
+dev = ["recipes[dev]"]
+
 [project.urls]
-"Homepage" = "https://github.com/astromancer/recipes"
-"Bug Tracker" = "https://github.com/astromancer/recipes/issues"
+Homepage = "https://github.com/astromancer/recipes"
+Issues = "https://github.com/astromancer/recipes/issues"
+# Repository  = "https://github.com/astromancer/recipes"
+# Changelog = "https://github.com/astromancer/recipes/blob/main/CHANGELOG.md"
 
 [project.scripts]
 tidy_imports = "recipes.introspect.imports.tidy:main"
 
 
+# ---------------------------------------------------------------------------- #
+# Build
 # ---------------------------------------------------------------------------- #
 [build-system]
 build-backend = "setuptools.build_meta"
@@ -58,31 +80,100 @@ where = ["src"]
 [tool.setuptools.dynamic]
 version = {attr = "recipes._version.version"}
 readme = {file = "README.md", content-type = "text/markdown"}
-optional-dependencies.test = { file = ["requirements-dev.txt"] }
-
 
 [tool.setuptools_scm]
 write_to = "src/recipes/_version.py"
 
+
+# ---------------------------------------------------------------------------- #
+# Test
 # ---------------------------------------------------------------------------- #
 [tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = 
-    3.8
-    3.9
-    3.12
+requires = ["tox>=4.21"]
+# Generative environment list to test all supported Python versions
+env_list = ["lint", "3.{8,9,10,11,12,13,14}"] # "fix", "coverage", "format", 
+
+[tool.tox.env_run_base]
+description = "run test suite"
+deps = [{ replace = "ref", of = ["dependency-groups", "tests"], extend = true }]
+extras = ["tests"]
+package = "editable"
+set_env = { LANGUAGE = "en_US", LC_ALL = "en_US.UTF-8", PYTHONWARNINGS = "default::DeprecationWarning" }
+commands = [
+    ["python", "--version"],
+    # substitute with tox positional arguments
+    ["python", "-m", "pytest", { replace = "posargs", default = [], extend = true }]
+]
+
+# ---------------------------------------------------------------------------- #
+# Lint
+# ---------------------------------------------------------------------------- #
+# Command prefixes to reuse the same virtualenv for all linting jobs.
+[tool.tox.env.lint]
+# deps = ["ruff"]
+extras = ["dev"]
+commands = [
+    ["python", "-m", "ruff", "--version"],
+    ["python", "-m", "ruff", "check", 
+     { replace = "posargs", default = [], extend = true }]
+]
+
+[tool.tox.env.format]
+deps = ["ruff"]
+commands = [
+    ["python", "-m", "ruff", "format", "-v", 
+     { replace = "posargs", default = [], extend = true }]
+]
+
+[tool.ruff]
+exclude = [
+    ".git",
+    ".tox",
+    ".venv",
+    ".hypothesis",
+    "dist",
+    "docs",
+    "*lib/python*",
+    "*egg",
+    "_version.py",
+    "__pycache__",
+    "tests"
+]
+
+[tool.ruff.lint]
+# Expand basic rules with name and style checks roughly equivalent to flake8 + black + pylint
+# Some additional functional errors such as `await` on none async or wrong return types / args.
+# More info https://docs.astral.sh/ruff/rules/
+select = ["N", "A", "E", "F", "B", "W", "Q", "PL", "ASYNC", "S", "G", "RET", "ARG", "I"]
+
+# ignore: 
+# PLR2004: magic-value-comparison
+# I001:  Import block is un-sorted or un-formatted
+ignore = ["PLR2004", "I001"]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
 
 
-[testenv]
-# install testing framework
-# ... or install anything else you might need here
-deps = 
-    -rrequirements-dev.txt
-# run the tests
-# ... or run any other command line tool you need to run here
-commands = pytest {posargs} # substitute with tox positional arguments
-"""
+[tool.ruff.format]
+# Prefer single quotes over double quotes.
+quote-style = "single"
+
+
+# ---------------------------------------------------------------------------- #
+# Docs
+# ---------------------------------------------------------------------------- #
+[tool.tox.env.docs]
+deps = [{ replace = "ref", of = ["dependency-groups", "docs"], extend = true }]
+extras = ["docs"]
+# unset LC_ALL / LANGUAGE from testenv, would fail sphinx otherwise
+set_env = ""
+changedir = "{tox_root}"
+allowlist_externals = ["rm"]
+commands = [
+    ["rm", "-rf", "docs/build/html"],
+    ["python", "-m", "sphinx.cmd.build", "-b", "html", "docs/src", "docs/build/html", "-j4"]
+]
 
 # ---------------------------------------------------------------------------- #
 # [tool.pydeps]
