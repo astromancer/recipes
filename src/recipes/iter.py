@@ -247,27 +247,27 @@ def select(items, *args, **kws):
     :py:func:`filter` function, but with a more complete api.
 
     Three distinct call signatures are supported:
-    
+
     - Yield all truthy items
 
       >>> select(items)
-      
+
       This is identical to
 
       .. code:: python
-      
+
             filter(None, items)
 
     - Yield items where :python:`test(item)` is truthy
 
       >>> select(items, test)
-      
-      This works like 
-      
+
+      This works like
+
       .. code:: python
-      
+
             filter(test, items)
-      
+
       To get the items that equal a specific value (this only works for the case
       where value is not a callable object), use:
 
@@ -276,15 +276,15 @@ def select(items, *args, **kws):
       This works like
 
       .. code:: python
-      
+
             filter(lambda x: x == value, items)
 
     - Yield items conditionally on truth value of :python:`test(item, value)`
 
       >>> select(items, test, value)
-      
+
       .. code:: python
-      
+
             filter(lambda _x: test(x, value), items)
 
       Finally, in the most general case, the call
@@ -292,7 +292,7 @@ def select(items, *args, **kws):
       >>> select(items, test, *args, **kws)
 
       behaves like the following generator code
-      
+
       .. code:: python
 
             (_ for _ in items if test(_, *args, **kws))
