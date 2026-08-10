@@ -513,6 +513,8 @@ class Match:
     def end(self):
         return self.indices[1]
 
+    stop = end
+
     @property
     def full(self):
         return self.enclosed.join(self.delimiters)
@@ -826,7 +828,7 @@ class Parser:
         List all matches
         """
 
-        with warnings.catch_warnings(record=True) as warnings:
+        with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always', UnpairedDelimiterWarning)
 
             # Unclosed opening braces will be yield out of order when iterating,
@@ -839,8 +841,7 @@ class Parser:
                 )
             )
             # handle out of order unclosed
-            if warnings:
-                # print(warnings)
+            if caught:
                 return list(self._unclosed_reorder(out))
 
         return out
@@ -1116,26 +1117,26 @@ class Parser:
 
 
 # ---------------------------------------------------------------------------- #
-# predifined parsers for specific bracket pairs
+# Predefined parsers for specific bracket pairs
 curly_brackets = braces = Parser('{}')
 round_brackets = parentheses = parens = Parser('()')
 square_brackets = hard_brackets = Parser('[]')
 angle_brackets = chevrons = Parser('<>')
 xml = Parser(('<?', '?>'))
 
-quotes = single_quotes = Parser("''")
+single_quotes = Parser("''")
 double_quotes = Parser('""')
-# 
+quotes = Parser(("''", '""'))
 
 bracket_parsers = {
-    '{': braces,
-    '{}': braces,
+    '{': curly_brackets,
+    '{}': curly_brackets,
     '[': square_brackets,
     '[]': square_brackets,
-    '(': round,
-    '()': round,
-    '<': chevrons,
-    '<>': chevrons,
+    '(': round_brackets,
+    '()': round_brackets,
+    '<': angle_brackets,
+    '<>': angle_brackets,
 }
 
 
